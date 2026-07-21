@@ -26,6 +26,7 @@ actionsRouter.post("/api/actions/whatsapp", async (req, res) => {
     try {
       extracted = await getLlmProvider().extractAction(rawText);
     } catch (error) {
+      console.error("Erreur appel LLM sur /api/actions/whatsapp :", error);
       const message = error instanceof LlmOutputError ? error.message : "Erreur IA inattendue";
       await callN8nWebhook("whatsapp-reply", {
         userId,
