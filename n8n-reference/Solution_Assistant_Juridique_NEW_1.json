@@ -1,0 +1,1316 @@
+{
+  "name": "Solution Assistant Juridique NEW",
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1yCb1sgXC7C6g1kXRx4ow_nXFvdT5SbsHzF4zzMtZwlA",
+          "mode": "list",
+          "cachedResultName": "Tableau des Audiences",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1yCb1sgXC7C6g1kXRx4ow_nXFvdT5SbsHzF4zzMtZwlA/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Feuille 1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1yCb1sgXC7C6g1kXRx4ow_nXFvdT5SbsHzF4zzMtZwlA/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "No DOSSIER": "={{ $json.numero_dossier }}",
+            "NOM AFFAIRE": "={{ $json.nom_affaire }}",
+            "DATE AUDIENCE ": "={{ $json.date_audience }}",
+            "NOM DU JUGE": "={{ $json.nom_juge }}",
+            "DECISION DU JUGE": "={{ $json.decision }}",
+            "PIECES A PREVOIR POUR PROCHAINE AUDIENCE": "={{ $json.pieces_prevoir }}",
+            "SYNTHESE DE L'AUDIENCE": "={{ $json.synthese }}",
+            "NOM CLIENT": "={{ $json.nom_client }}",
+            "DATE PROCHAINE AUDIENCE": "={{ $json.prochaine_audience }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "CIVILITE CLIENT",
+              "displayName": "CIVILITE CLIENT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "NOM CLIENT",
+              "displayName": "NOM CLIENT",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "No DOSSIER",
+              "displayName": "No DOSSIER",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "NOM AFFAIRE",
+              "displayName": "NOM AFFAIRE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "DATE AUDIENCE ",
+              "displayName": "DATE AUDIENCE ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "NOM DU JUGE",
+              "displayName": "NOM DU JUGE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DECISION DU JUGE",
+              "displayName": "DECISION DU JUGE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "DATE PROCHAINE AUDIENCE",
+              "displayName": "DATE PROCHAINE AUDIENCE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PIECES A PREVOIR POUR PROCHAINE AUDIENCE",
+              "displayName": "PIECES A PREVOIR POUR PROCHAINE AUDIENCE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LIEN DU DOCUMENT ",
+              "displayName": "LIEN DU DOCUMENT ",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SYNTHESE DE L'AUDIENCE",
+              "displayName": "SYNTHESE DE L'AUDIENCE",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "c8adf975-ba11-4a0a-96b3-2d3d2233287b",
+      "name": "Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [
+        128,
+        224
+      ],
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "FsSUSPTvqtbwwSQ1",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.documentId }}",
+          "mode": "id"
+        },
+        "options": {
+          "binaryPropertyName": "data",
+          "googleFileConversion": {
+            "conversion": {
+              "docsToFormat": "application/pdf"
+            }
+          }
+        }
+      },
+      "id": "0b24d758-0baf-4155-9bcc-4d0931f8ed52",
+      "name": "Google Drive - Export PDF",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        672,
+        432
+      ],
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "goVqvudbc5Sn8Rit",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "balleynatacha001@gmail.com, lao.charlys@gmail.com",
+        "subject": "=Compte-rendu audience - {{ $('Code in JavaScript').item.json.nom_affaire }} du  {{ $('Code in JavaScript').item.json.date_audience }}",
+        "emailType": "text",
+        "message": "=Bonjour Maître Natacha,\n\nVeuillez trouver ci-joint le compte-rendu de l'audience du {{ $('Code in JavaScript').item.json.output.date_audience }} concernant l'affaire {{ $('Code in JavaScript').item.json.output.nom_affaire }}\n\nLe courrier est prêt à être envoyé au client. \n\nPour le modifier, veuillez cliquer sur le lien suivant : https://docs.google.com/document/d/{{ $('Update a document').item.json.documentId }}\n\nLa prochaine audience aura lieu le {{ $('Code in JavaScript').item.json.prochaine_audience }}\n\nVous recevrez un mail de rappel 3 jours avant la date prévue. \n\nJe me tiens à votre disposition pour toute demande.\n\nCordialement,\nAurore, votre Assistante juridique",
+        "options": {
+          "attachmentsUi": {
+            "attachmentsBinary": [
+              {},
+              {}
+            ]
+          }
+        }
+      },
+      "id": "733f8c54-9c39-453e-963d-344fa42ea653",
+      "name": "Gmail - Envoi CR",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        912,
+        432
+      ],
+      "webhookId": "26958461-b11e-44fc-9dd8-ad0bd0b60a24",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "bhJH2gq7NAqpxE1w",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 8
+            }
+          ]
+        }
+      },
+      "id": "c6bd4bd3-aee4-4aa8-80ed-ed7f0fadad71",
+      "name": "Schedule - Vérification Rappels",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -1120,
+        1008
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "182Mwad1Jcp1YbLd3LmpsNhTP5eN-CgasEcGDrUO0oiI",
+          "mode": "list",
+          "cachedResultName": "LISTE DES AUDIENCES ",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/182Mwad1Jcp1YbLd3LmpsNhTP5eN-CgasEcGDrUO0oiI/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Audiences Maitre Natacha",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/182Mwad1Jcp1YbLd3LmpsNhTP5eN-CgasEcGDrUO0oiI/edit#gid=0"
+        },
+        "options": {}
+      },
+      "id": "422124d9-8dcf-40fa-ae58-c02e9e220682",
+      "name": "Google Sheets - Lecture",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [
+        -832,
+        1008
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "FsSUSPTvqtbwwSQ1",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "date_dans_7_jours",
+              "leftValue": "={{ $json['DATE PROCHAINE AUDIENCE'] }}",
+              "rightValue": "={{ $now.plus({ days: 7 }).toFormat('yyyy-MM-DD') }}   ",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {
+          "looseTypeValidation": false
+        }
+      },
+      "id": "68a947c6-f37f-451b-b3dc-dba36c6c6e68",
+      "name": "Filtre - 7 jours avant",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -528,
+        1008
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "lao.charlys@gmail.com",
+        "subject": "= RAPPEL : Audience {{ $json['NOM DU CLIENT /AFFAIRE'] }} dans 7 jours",
+        "emailType": "text",
+        "message": "=Bonjour Maître Natacha,\n\nJ'espère que vous allez bien.\n\n🗓️ RAPPEL IMPORTANT\n\nVotre audience relative à l'affaire {{ $json['NOM DU CLIENT /AFFAIRE'] }}  est programmée dans 7 jours, soit le {{ $json['DATE PROCHAINE AUDIENCE'] }}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n⚖️ Juge : {{ $json['NOM DU JUGE'] }}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n📂 PIÈCES À PRÉVOIR IMPÉRATIVEMENT :\n{{ $json['PIECES A PREVOIR POUR LA PROCHAINE AUDIENCE'] }}\n\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n💡 Décision rendue par le juge lors de la dernière audience :\n{{ $json['DECISION DU JUGE'] }}\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nVeuillez préparer votre dossier en conséquence.\n\nCordialement,\nAurore , \nVotre assistante juridique",
+        "options": {}
+      },
+      "id": "f239f0ff-8e7d-4466-9605-7d01f38d9a23",
+      "name": "Gmail - Rappel 7 jours",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        -256,
+        992
+      ],
+      "webhookId": "4de3de28-352c-4f83-ae06-b86ba952af0d",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "bhJH2gq7NAqpxE1w",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -2016,
+        96
+      ],
+      "id": "990e769a-a2af-45d6-9d48-e7400e92543d",
+      "name": "When chat message received",
+      "webhookId": "b85891fb-6939-4dca-8d89-c2f1a8506250"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $node[\"WhatsApp Trigger\"].json.messages[0].text?.body || $json.content.parts[0].text }}",
+        "options": {
+          "systemMessage": "=### IDENTITÉ ET PERSONNALITÉ\nTu es Aurore, une assistante juridique experte de haut niveau, spécialisée dans la gestion administrative et stratégique des cabinets d'avocats. Tu agis avec rigueur, professionnalisme et discrétion absolue. Tu es aussi une chercheuse juridique redoutable : tu fouilles systématiquement les bases de données juridiques, les archives de jurisprudence, les codes en vigueur, les articles doctrinaux et toutes les ressources web accessibles pour offrir à Maître Natacha les meilleures analyses possibles.\n\n---\n\n### MISSION ET OBJECTIFS\nTa mission est d'analyser les informations fournies par Maître Natacha pour permettre au système de :\n1. Produire le CORPS d'un courrier de compte-rendu d'audience destiné à être injecté dans un template Google Docs préformaté.\n2. Créer un événement Google Calendar pour la prochaine audience.\n3. Rédiger une plaidoirie étayée par des recherches de jurisprudence réelles.\n4. Effectuer une recherche de jurisprudence approfondie sur une affaire ou un thème juridique donné.\n\n---\n\n### LOGIQUE DE DÉCISION (CRUCIAL POUR L'AIGUILLAGE)\nPour chaque demande, tu dois choisir le bon code :\n- S'il s'agit d'un compte-rendu ou de notes d'audience → type_d_action = \"action_notes\" | categorie_texte = \"Compte-rendu d'audience\"\n- S'il s'agit d'une plaidoirie → type_d_action = \"action_redac\" | categorie_texte = \"Plaidoirie\"\n- S'il s'agit d'une recherche de jurisprudence → type_d_action = \"action_jurisprudence\" | categorie_texte = \"Recherche de jurisprudence\"\n\n⚠️ INTERDICTION ABSOLUE d'utiliser \"Réquisitoire\" comme catégorie. Un avocat plaide, il ne requiert pas. Seul le Ministère Public fait des réquisitoires.\n\n---\n\n### COMPORTEMENT DE RECHERCHE JURIDIQUE (OBLIGATOIRE)\nPour TOUTES les actions sans exception, tu dois :\n1. Consulter systématiquement les sources juridiques disponibles via tes outils de recherche web :\n   - Légifrance (legifrance.gouv.fr) et ses équivalents africains (bj.jurisprudence.sn, ohada.com, etc.)\n   - Les bases de jurisprudence OHADA (ohada.com, ohadata.com)\n   - Les codes juridiques béninois, ivoiriens, sénégalais selon la juridiction concernée\n   - Les archives de doctrine juridique (Dalloz, LexisNexis, doctrine.fr, cairn.info)\n   - Les décisions de la Cour Constitutionnelle, Cour Suprême, Cour d'Appel pertinentes\n   - Les traités internationaux et conventions ratifiés par le Bénin\n   - Tout article académique, mémoire ou publication juridique pertinent trouvé sur le web\n2. Croiser plusieurs sources avant de produire ton texte.\n3. Citer précisément les références trouvées (numéro d'arrêt, date, juridiction, parties).\nFORMATAGE : N'utilise qu'un seul saut de ligne simple entre tes paragraphes. Ne laisse jamais de ligne vide entre deux blocs de texte.\".\n---\n\n### RÈGLES D'EXTRACTION DES DONNÉES\n- nom_client, numero_dossier, nom_affaire, nom_juge, decision, pieces_prevoir : Extraire ou mettre \"Non précisé\".\nATTENTION : nom_client : Analyse TRÈS attentivement le début du message de Maître Natacha. Si elle dit \"pour le client Mr X\", tu DOIS extraire \"Mr X\" et l'isoler dans ce champ. Ne mets JAMAIS \"Non précisé\" si un nom est mentionné dans la phrase d'introduction\n- DATES (date_audience, prochaine_audience) : Format YYYY-MM-DD.\n- SÉCURITÉ DATE : Si une date est inconnue, utilise la date du jour : {{ $now }}. (Google Calendar rejette les textes comme \"Non précisé\").\n- PIÈCES À PRÉVOIR : Présente les pièces à prévoir sous forme de liste à puces.\n- Si on te donne le nom du client, ajoute-le dans ta synthèse. \nExemple : Commence par ; Monsieur le Directeur Général, \nMais si tu n’as pas d’éléments liés au nom de client, écris ; Client non précisé \n\n---\n\n### ACTION 1 — COMPTE-RENDU D'AUDIENCE (type_d_action = \"action_notes\")\n\nTa mission pour cette action est de produire UNIQUEMENT LE CORPS de la lettre, c'est-à-dire le contenu rédigé qui sera injecté dans la balise {{synthese}} du template Google Docs.\n\n⚠️ RÈGLES STRICTES pour le champ synthese :\n- Commence ta synthèse par une formula d'appel (nom_client) précédé de Madame ou Monsieur. \n- NE PAS écrire de date, référence, ni destinataire en en-tête. Le template s'en charge.\n- Commencer DIRECTEMENT par le corps du texte, sans introduction générique.\n\nStructure obligatoire du corps (champ synthese) :\n\nParagraphe 1 — CONTEXTE DE L'AUDIENCE\nRappeler brièvement l'objet de la procédure et le cadre de cette audience.\nParagraphe 2 — DÉROULEMENT DE L'AUDIENCE\nDécrire chronologiquement le déroulement des débats : qui a pris la parole, quels arguments ont été avancés par chaque partie, incidents éventuels.\nParagraphe 3 — FAITS ESSENTIELS OU MARQUANTS\nMettre en évidence les éléments déterminants retenus ou discutés lors de l'audience.\nParagraphe 4 — DÉCISION DU JUGE\nExposer clairement la décision rendue ou les mesures ordonnées par le juge.\nParagraphe 5 — TENDANCE DU PROCÈS\nDonner une analyse stratégique honnête et professionnelle : la procédure est-elle favorable, défavorable ou incertaine ? Pourquoi ?\nParagraphe 6 — PROCHAINE AUDIENCE\nIndiquer la date de la prochaine audience et ce qui sera attendu des parties.\nParagraphe 7 — ÉLÉMENTS À PRÉVOIR\nLister sous forme de puces les pièces, documents ou démarches à préparer avant la prochaine audience.\nTermine par une formule polie et rassurante de salutation en incluant le nom du client si tu l’as.\nATTENTION : N'écris pas \"Paragraphe 1\", \"Paragraphe 2\" dans la synthèse. écris directement le texte\nPlace ce corps rédigé dans le champ JSON \"synthese\".\nNe génère PAS de champ \"argumentaire\" pour cette action.\nFORMATAGE : N'utilise qu'un seul saut de ligne simple entre tes paragraphes. Ne laisse jamais de ligne vide entre deux blocs de texte.\".\n---\n\n### ACTION 2 — PLAIDOIRIE (type_d_action = \"action_redac\")\n\nAvant de rédiger, effectue obligatoirement une recherche approfondie :\n1. Recherche des décisions de justice similaires (même qualification juridique, faits analogues)\n2. Recherche des textes de loi applicables (codes, lois, décrets, règlements OHADA si applicable)\n3. Recherche de doctrine juridique (articles, commentaires d'arrêts) soutenant la thèse défensive\n4. Identifie les arguments adverses potentiels et prépare les contre-arguments\n\nRédige ensuite une PLAIDOIRIE COMPLÈTE d'environ 1000 mots structurée ainsi :\n- Exorde (accroche, présentation de l'affaire)\n- Exposé des faits (version des faits favorable au client)\n- Discussion juridique (arguments de droit étayés par les textes et jurisprudences trouvés)\n- Réfutation des arguments adverses\n- Conclusion et demandes au tribunal\n\nIntègre dans le texte les références exactes des jurisprudences et textes trouvés lors de ta recherche.\nPlace ce texte dans le champ JSON \"argumentaire\".\nNe génère PAS de champ \"synthese\" pour cette action.\nIgnore les champs liés à l'audience (pieces_prevoir, date_audience, prochaine_audience, nom_juge).\n\n---\n\n### ACTION 3 — RECHERCHE DE JURISPRUDENCE (type_d_action = \"action_jurisprudence\")\n\nEffectue une recherche juridique exhaustive sur le thème ou l'affaire indiqué par Maître Natacha. UTILISE L'OUTIL TAVILY SEARCH POUR UNE RECHERCHE AFFINEE.\n\nProcessus de recherche obligatoire :\n1. Identifier la qualification juridique exacte (infraction, type de litige, branche du droit)\n2. Rechercher les décisions pertinentes dans les juridictions béninoises et OHADA en priorité\n3. Élargir à la jurisprudence française et internationale si nécessaire\n4. Rechercher les textes de loi applicables et leur interprétation jurisprudentielle\n5. Identifier les tendances des tribunaux sur cette question\n6. Recenser les arguments qui ont historiquement convaincu les juges\n\nRédige ensuite une FICHE DE JURISPRUDENCE professionnelle structurée ainsi :\n- Résumé du contexte juridique\n- Textes de loi applicables (avec articles précis)\n- Liste des décisions de justice clés, présentée ainsi pour chaque décision :\n\nDÉCISION 1\n- Juridiction : ...\n- Date : ...\n- N° Arrêt : ...\n- Résumé : ...\n- Enseignement : ...\n\nDÉCISION 2\n- Juridiction : ...\n(etc.)\n\n- Tendances jurisprudentielles observées\n- Stratégie recommandée pour Maître Natacha basée sur les précédents trouvés\n- Sources et références complètes\n\nPlace ce texte dans le champ JSON \"argumentaire\".\nNe génère PAS de champ \"synthese\" pour cette action.\n\n---\n\n### FORMAT DE RÉPONSE (ZÉRO TOLÉRANCE)\nRéponds UNIQUEMENT en JSON brut.\n- INTERDICTION d'utiliser des balises Markdown (pas de ```json).\n- INTERDICTION de mettre du texte avant ou après le JSON.\n- Respecte scrupuleusement les noms de champs suivants :\n\n{\n  \"type_d_action\": \"\",\n  \"categorie_texte\": \"\",\n  \"numero_dossier\": \"\",\n  \"nom_affaire\": \"\",\n  \"nom_client\": \"\",\n  \"date_audience\": \"\",\n  \"nom_juge\": \"\",\n  \"decision\": \"\",\n  \"prochaine_audience\": \"\",\n  \"pieces_prevoir\": \"\",\n  \"synthese\": \"\",\n  \"argumentaire\": \"\"\n}\n\n- Pour action_notes : remplis synthese. Laisse argumentaire vide (\"\").\n- Pour action_redac et action_jurisprudence : remplis argumentaire. Laisse synthese vide (\"\").\n- NE JAMAIS écrire \"plaidoirie\" ou \"réquisitoire\" dans le champ type_d_action.\n- Les seules valeurs autorisées pour type_d_action sont : \"action_notes\", \"action_redac\", \"action_jurisprudence\".\n- Le champ nom_destinataire est supprimé. Ne plus l'utiliser. Les civilités et le nom du client viennent de Google Sheets.\n"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -656,
+        352
+      ],
+      "id": "5431b256-8360-4617-9e0d-20508bceab3b",
+      "name": "AI Agent",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentURL": "={{ $json.id }}",
+        "actionsUi": {
+          "actionFields": [
+            {
+              "action": "replaceAll",
+              "text": "{{num_dossier}}",
+              "replaceText": "={{ $('Code in JavaScript').item.json.numero_dossier }}"
+            },
+            {
+              "action": "replaceAll",
+              "text": "{{date_audience}}",
+              "replaceText": "={{ DateTime.fromISO($('Code in JavaScript').item.json.date_audience).toFormat('dd/MM/yyyy') }}"
+            },
+            {
+              "action": "replaceAll",
+              "text": "{{nom_affaire}}",
+              "replaceText": "={{ $('Code in JavaScript').item.json.nom_affaire }}"
+            },
+            {
+              "action": "replaceAll",
+              "text": "{{synthese}}",
+              "replaceText": "={{ $('Code in JavaScript').item.json.synthese }}"
+            },
+            {
+              "action": "replaceAll",
+              "text": "{{nom_client}}",
+              "replaceText": "={{ $('Switch1').item.json.nom_client }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.googleDocs",
+      "typeVersion": 2,
+      "position": [
+        416,
+        432
+      ],
+      "id": "9de3f05e-bb4a-44e4-bec4-512f35d56d49",
+      "name": "Update a document",
+      "executeOnce": false,
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "googleDocsOAuth2Api": {
+          "id": "QXSjOT7rKVMaSx9k",
+          "name": "Google Docs account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "calendar": {
+          "__rl": true,
+          "value": "lao.charlys@gmail.com",
+          "mode": "id"
+        },
+        "start": "={{ $json['DATE AUDIENCE'] }}",
+        "end": "={{ $json['DATE AUDIENCE'] }}",
+        "additionalFields": {
+          "allday": "yes",
+          "description": "={{ $json['SYNTHESE DE L\\'AUDIENCE'] }}",
+          "summary": "={{ $json['NOM AFFAIRE'] }}"
+        }
+      },
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        400,
+        224
+      ],
+      "id": "a7194581-4bc0-4ce0-8e43-e5176848ce5e",
+      "name": "Create an event",
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "JIqSijNt4hQF8lk6",
+          "name": "Google Calendar account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "updates": [
+          "messages"
+        ],
+        "options": {}
+      },
+      "type": "n8n-nodes-base.whatsAppTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1760,
+        352
+      ],
+      "id": "b29d22a0-0025-4f24-b725-a932f35d2f5e",
+      "name": "WhatsApp Trigger",
+      "webhookId": "eb392ff6-38b0-4e52-b87b-4c8caa3c3322",
+      "credentials": {
+        "whatsAppTriggerApi": {
+          "id": "8p1ysoQkPy3nWSKF",
+          "name": "WhatsApp OAuth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "903494736190184",
+        "recipientPhoneNumber": "22996300611",
+        "textBody": "=Bonjour Maître Natacha. Message bien reçu. Les informations sont traitées. \n\nVoici un résumé :\nNom Affaire : {{ $json.nom_affaire }}\nNom du juge : {{ $json.nom_juge }}\nDécision du juge : {{ $json.decision }}\nProchaine audience : {{ DateTime.fromISO($json.prochaine_audience).setZone('Africa/Porto-Novo').toFormat('dd/MM/yyyy') }}\nA prévoir pour la prochaine audience : \n{{ $json.pieces_prevoir }}",
+        "additionalFields": {
+          "previewUrl": false
+        }
+      },
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1.1,
+      "position": [
+        144,
+        624
+      ],
+      "id": "c1af81c6-de1c-469c-ae42-2c43585128e8",
+      "name": "Send message",
+      "webhookId": "24683b8f-c8d9-4fe2-98c8-7fbc7ba64fa2",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "whatsAppApi": {
+          "id": "2wXanlVZDpCqeBXz",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.messages[0].type }}",
+                    "rightValue": "text",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "497dbf43-3574-49ef-aa44-2984cd634dd4"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Text"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "9efdd4bb-ed04-4038-b734-44c5aa49e5cb",
+                    "leftValue": "={{ $json.messages[0].type }}",
+                    "rightValue": "audio",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Audio"
+            }
+          ]
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -1488,
+        352
+      ],
+      "id": "baab3d12-e515-4b4e-9497-c694d4c6e3bb",
+      "name": "Switch",
+      "retryOnFail": false
+    },
+    {
+      "parameters": {
+        "resource": "media",
+        "operation": "mediaUrlGet",
+        "mediaGetId": "={{ $('WhatsApp Trigger').item.json.messages[0].audio.id }}"
+      },
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1.1,
+      "position": [
+        -1248,
+        352
+      ],
+      "id": "38eba3b9-a208-49c8-a918-5af95af5c608",
+      "name": "Download media",
+      "webhookId": "860f6d05-6c68-47ae-a616-3539ce1401f3",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "whatsAppApi": {
+          "id": "2wXanlVZDpCqeBXz",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "whatsAppApi",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -1024,
+        352
+      ],
+      "id": "a6bb8bf5-c36a-4a26-961c-8c7e5960351d",
+      "name": "HTTP Request",
+      "credentials": {
+        "whatsAppApi": {
+          "id": "2wXanlVZDpCqeBXz",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "903494736190184",
+        "recipientPhoneNumber": "22996300611",
+        "textBody": "={{ $json.id }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1.1,
+      "position": [
+        48,
+        992
+      ],
+      "id": "8e3ed180-0a39-4fca-b54d-4b2ef582f0c9",
+      "name": "Send message1",
+      "webhookId": "88b86b02-cbde-48ff-8bd1-40abaaf1517c",
+      "credentials": {
+        "whatsAppApi": {
+          "id": "2wXanlVZDpCqeBXz",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.type_d_action }}",
+                    "rightValue": "action_notes",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "b23cd0d1-d698-4c56-a99b-62c22afe60fc"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "notes audience"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "33699808-7cf8-4f04-b631-6170382a20ce",
+                    "leftValue": "={{ $json.type_d_action }}",
+                    "rightValue": "action_redac",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Plaidoirie"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "42d3db44-35f4-4628-a2c1-1d7b340d4c07",
+                    "leftValue": "={{ $json.type_d_action }}",
+                    "rightValue": "action_jurisprudence",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Recherche jurisprudence"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -304,
+        112
+      ],
+      "id": "ce1278f9-92de-4d38-8b62-57a4203a8db3",
+      "name": "Switch1",
+      "retryOnFail": false,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentURL": "={{ $json.id }}",
+        "actionsUi": {
+          "actionFields": [
+            {
+              "action": "replaceAll",
+              "text": "{{nature_texte}}",
+              "replaceText": "={{ $json.name }}"
+            },
+            {
+              "action": "replaceAll",
+              "text": "{{argumentaire}}",
+              "replaceText": "={{ $('Code in JavaScript').item.json.argumentaire }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.googleDocs",
+      "typeVersion": 2,
+      "position": [
+        208,
+        0
+      ],
+      "id": "38eb46ad-217e-4b7d-8ba6-626887cfe61f",
+      "name": "Update a document1",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "googleDocsOAuth2Api": {
+          "id": "QXSjOT7rKVMaSx9k",
+          "name": "Google Docs account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.documentId }}",
+          "mode": "id"
+        },
+        "options": {
+          "googleFileConversion": {
+            "conversion": {
+              "docsToFormat": "application/pdf"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        416,
+        0
+      ],
+      "id": "bdfd99e8-227b-4175-9c4d-8cceebd94579",
+      "name": "Download file",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "goVqvudbc5Sn8Rit",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "balleynatacha001@gmail.com, lao.charlys@gmail.com",
+        "subject": "={{ $('Switch1').item.json.categorie_texte }} a/s {{ $('Switch1').item.json.nom_affaire }}",
+        "emailType": "text",
+        "message": "=Bonjour Maître Natacha\n\nVotre {{ $('Switch1').item.json.categorie_texte }} concernant l'affaire {{ $('Switch1').item.json.nom_affaire }} est disponible. \n\nVeuillez trouver le document ci-joint au format PDF. Vous pouvez également modifier le texte original directement sur Google Docs ici : https://docs.google.com/document/d/{{ $json.documentId }}\n\nJe me tiens à votre disposition pour toute autre demande,\n\nCordialement,\n\nAurore,votre Assistante juridique",
+        "options": {
+          "attachmentsUi": {
+            "attachmentsBinary": [
+              {}
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        624,
+        0
+      ],
+      "id": "3558e510-6464-4911-8861-c1e7e89914fe",
+      "name": "Send a message",
+      "webhookId": "5a1c87d5-d4d8-4911-977a-0ce56b2fcbcc",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "bhJH2gq7NAqpxE1w",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "903494736190184",
+        "recipientPhoneNumber": "22996300611",
+        "textBody": "=Bonjour Maître. Message reçu. \nLe document est prêt et disponible dans votre mail. Merci",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1.1,
+      "position": [
+        832,
+        0
+      ],
+      "id": "c5a983cc-ade6-445f-858e-b83bbe85c66e",
+      "name": "Send message2",
+      "webhookId": "2b6dbe1a-8e42-4619-9ffc-ba69291c3d72",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "whatsAppApi": {
+          "id": "2wXanlVZDpCqeBXz",
+          "name": "WhatsApp account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const input = $json;\nlet rawText = input.output || \"\";\n\n// 1. On enlève les balises Markdown (```json) que l'IA ajoute parfois\nlet cleanText = rawText.replace(/```json/g, \"\").replace(/```/g, \"\").trim();\n\n// 2. LA SOLUTION : On remplace les vrais retours à la ligne par des ESPACES.\n// Cela supprime l'erreur \"Bad control character\" sans casser les accolades { }.\nconst sanitizedText = cleanText.replace(/[\\n\\r\\t]/g, \" \");\n\ntry {\n  // 3. On transforme le texte propre en objet utilisable par n8n\n  return JSON.parse(sanitizedText);\n} catch (e) {\n  // 4. En cas d'autre erreur (comme des guillemets mal placés)\n  return {\n    type_d_action: \"erreur_format\",\n    erreur_msg: \"Le JSON est toujours malformé\",\n    details: e.message,\n    texte_analyse: sanitizedText\n  };\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -304,
+        352
+      ],
+      "id": "4fdd6c46-4260-4144-82ef-9bef958ebaa0",
+      "name": "Code in JavaScript",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "resource": "audio",
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "inputType": "binary",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        -832,
+        352
+      ],
+      "id": "af96f74e-1fcb-4028-9ba3-6744a8750b11",
+      "name": "Transcribe a recording1",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "googlePalmApi": {
+          "id": "PWqPXGwHKOF7Dy4S",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3-flash-preview",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -784,
+        640
+      ],
+      "id": "acdc2559-babe-412c-ae3d-d5914d007b13",
+      "name": "Google Gemini Chat Model",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "googlePalmApi": {
+          "id": "PWqPXGwHKOF7Dy4S",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "copy",
+        "fileId": {
+          "__rl": true,
+          "value": "1scTlgddOivOUG74pb7yClxoUftNzWrqedYMlXT72CeA",
+          "mode": "list",
+          "cachedResultName": "Template Courrier CR Audience",
+          "cachedResultUrl": "https://docs.google.com/document/d/1scTlgddOivOUG74pb7yClxoUftNzWrqedYMlXT72CeA/edit?usp=drivesdk"
+        },
+        "name": "=Compte Rendu- Audience{{ $json.numero_dossier }}-{{ $json.output.nom_affaire }} {{ $now }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        128,
+        432
+      ],
+      "id": "580fdab6-25d7-4076-b522-3a9c5d72c719",
+      "name": "Copy file",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "goVqvudbc5Sn8Rit",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "copy",
+        "fileId": {
+          "__rl": true,
+          "value": "11UJjGPgo5izYksaYTSPRnnQ_fUq3h4N9mNex1TjOkcg",
+          "mode": "list",
+          "cachedResultName": "Template Texte",
+          "cachedResultUrl": "https://docs.google.com/document/d/11UJjGPgo5izYksaYTSPRnnQ_fUq3h4N9mNex1TjOkcg/edit?usp=drivesdk"
+        },
+        "name": "={{ $json.categorie_texte }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        -48,
+        0
+      ],
+      "id": "c6caa2d1-bb26-4836-8779-b9b2f8808a61",
+      "name": "Copy file1",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "goVqvudbc5Sn8Rit",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Utilise cet Outil de recherche \nUtile pour rechercher des jurisprudences, des lois, des décrets et des informations juridiques au Bénin, en Afrique et en France.",
+        "query": "={{ $json.chatInput }}",
+        "options": {
+          "search_depth": "advanced",
+          "include_answer": "advanced"
+        }
+      },
+      "type": "@tavily/n8n-nodes-tavily.tavilyTool",
+      "typeVersion": 1,
+      "position": [
+        -448,
+        608
+      ],
+      "id": "981a2038-f603-46a0-8885-cbb47ff9a355",
+      "name": "Search in Tavily",
+      "credentials": {
+        "tavilyApi": {
+          "id": "A3k4s7NUjUnEbNjz",
+          "name": "Tavily account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Google Drive - Export PDF": {
+      "main": [
+        [
+          {
+            "node": "Gmail - Envoi CR",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule - Vérification Rappels": {
+      "main": [
+        []
+      ]
+    },
+    "Google Sheets - Lecture": {
+      "main": [
+        [
+          {
+            "node": "Filtre - 7 jours avant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filtre - 7 jours avant": {
+      "main": [
+        [
+          {
+            "node": "Gmail - Rappel 7 jours",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update a document": {
+      "main": [
+        [
+          {
+            "node": "Google Drive - Export PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets": {
+      "main": [
+        [
+          {
+            "node": "Create an event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WhatsApp Trigger": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Download media",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download media": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Transcribe a recording1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail - Rappel 7 jours": {
+      "main": [
+        [
+          {
+            "node": "Send message1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch1": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Copy file",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Copy file1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Copy file1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update a document1": {
+      "main": [
+        [
+          {
+            "node": "Download file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download file": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a message": {
+      "main": [
+        [
+          {
+            "node": "Send message2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Switch1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcribe a recording1": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When chat message received": {
+      "main": [
+        []
+      ]
+    },
+    "Copy file": {
+      "main": [
+        [
+          {
+            "node": "Update a document",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Copy file1": {
+      "main": [
+        [
+          {
+            "node": "Update a document1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send message": {
+      "main": [
+        []
+      ]
+    },
+    "Search in Tavily": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false,
+    "timeSavedMode": "fixed",
+    "timezone": "Africa/Lagos",
+    "callerPolicy": "workflowsFromSameOwner",
+    "saveExecutionProgress": true
+  },
+  "versionId": "3c04732e-a3ae-472f-8b4e-36a5c207587d",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "cf3b35ea3fbd4c4b62321a0bd56ce34ad5c7db5f6f4a0a7fc60b51dffe9ccdfa"
+  },
+  "id": "hinqyu5vO6iB6gxV",
+  "tags": []
+}
