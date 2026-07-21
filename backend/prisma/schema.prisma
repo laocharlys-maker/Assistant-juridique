@@ -1,0 +1,126 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [vector]
+}
+
+enum UserRole {
+  titulaire
+  collaborateur
+}
+
+enum Canal {
+  web
+  whatsapp
+}
+
+enum TypeAction {
+  notes
+  redac
+  jurisprudence
+  conclusions
+  assignation
+  mise_en_demeure
+  traduction
+  resume_pdf
+}
+
+enum StatutExecution {
+  succes
+  erreur
+}
+
+model Cabinet {
+  id        String   @id @default(uuid())
+  nom       String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  users    User[]
+  dossiers Dossier[]
+
+  @@map("cabinets")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  cabinetId    String   @map("cabinet_id")
+  nom          String
+  email        String   @unique
+  motDePasseHash String @map("mot_de_passe_hash")
+  role         UserRole @default(collaborateur)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  cabinet         Cabinet  @relation(fields: [cabinetId], references: [id])
+  dossiersCrees   Dossier[] @relation("DossierCreatedBy")
+  actionsCreees   Action[]  @relation("ActionCreatedBy")
+
+  @@map("users")
+}
+
+model Dossier {
+  id             String   @id @default(uuid())
+  cabinetId      String   @map("cabinet_id")
+  numeroDossier  String   @map("numero_dossier")
+  nomAffaire     String   @map("nom_affaire")
+  nomClient      String   @map("nom_client")
+  nomJuge        String?  @map("nom_juge")
+  createdBy      String   @map("created_by")
+  statut         String   @default("actif")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  cabinet Cabinet @relation(fields: [cabinetId], references: [id])
+  creePar User    @relation("DossierCreatedBy", fields: [createdBy], references: [id])
+  actions Action[]
+
+  @@unique([cabinetId, numeroDossier])
+  @@map("dossiers")
+}
+
+model Action {
+  id                String     @id @default(uuid())
+  dossierId         String     @map("dossier_id")
+  typeAction        TypeAction @map("type_action")
+  canal             Canal
+  contenuGenere     String?    @map("contenu_genere")
+  dateAudience      DateTime?  @map("date_audience")
+  prochaineAudience DateTime?  @map("prochaine_audience")
+  piecesPrevoir     String?    @map("pieces_prevoir")
+  createdBy         String     @map("created_by")
+  createdAt         DateTime   @default(now()) @map("created_at")
+
+  dossier   Dossier     @relation(fields: [dossierId], references: [id])
+  creePar   User        @relation("ActionCreatedBy", fields: [createdBy], references: [id])
+  auditLogs AuditLog[]
+
+  @@map("actions")
+}
+
+model AuditLog {
+  id        String          @id @default(uuid())
+  actionId  String          @map("action_id")
+  etape     String
+  statut    StatutExecution
+  detail    String?
+  timestamp DateTime        @default(now())
+
+  action Action @relation(fields: [actionId], references: [id])
+
+  @@map("audit_logs")
+}
+
+model JurisprudenceChunk {
+  id        String                 @id @default(uuid())
+  source    String
+  reference String
+  contenu   String
+  embedding Unsupported("vector")?
+  createdAt DateTime               @default(now()) @map("created_at")
+
+  @@map("jurisprudence_chunks")
+}
