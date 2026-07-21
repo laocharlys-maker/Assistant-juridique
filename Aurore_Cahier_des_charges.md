@@ -163,8 +163,9 @@ jurisprudence_chunks
 | Backend / orchestration métier & IA | Node.js + Express |
 | Base de données | PostgreSQL (+ pgvector pour le RAG) |
 | Intégration WhatsApp + Google Workspace | n8n (rôle recentré : exécution d'effets de bord uniquement) |
-| WhatsApp | Evolution API sur Railway |
-| LLM | Google Gemini (structured output / function calling) |
+| WhatsApp | Evolution API (auto-hébergé sur le VPS du cabinet) |
+| LLM (extraction / rédaction / recherche) | Claude (Anthropic), sortie structurée validée par schéma |
+| Transcription vocale WhatsApp | Google Gemini, conservé côté n8n uniquement (pas de dépendance Gemini côté backend) |
 | Recherche web complémentaire | Tavily |
 | Stockage documents | Google Workspace (Docs, Sheets, Calendar, Drive) |
 | Email | Gmail SMTP (via n8n ou API directe) |
