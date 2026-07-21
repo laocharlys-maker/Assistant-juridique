@@ -13,7 +13,7 @@ export class GeminiProvider implements LlmProvider {
 
   async extractAction(rawInput: string): Promise<ActionOutput> {
     const model = this.client.getGenerativeModel({
-      model: "gemini-2.5-flash",
+      model: "gemini-flash-latest",
       systemInstruction: LEGAL_ASSISTANT_SYSTEM_PROMPT,
       generationConfig: {
         responseMimeType: "application/json",
