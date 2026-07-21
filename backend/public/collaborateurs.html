@@ -18,6 +18,7 @@
   </header>
   <div class="page">
     <h1>Collaborateurs</h1>
+    <p class="muted">Un collaborateur voit par défaut les dossiers de l'avocat qui a créé son compte. Tu peux, en plus, lui donner accès à tes propres dossiers même si ce n'est pas son responsable direct.</p>
 
     <div id="error" class="error"></div>
     <div id="new-account" class="card" style="display:none; background:#eef3f1;">
@@ -29,6 +30,7 @@
 
     <div class="card">
       <h2>Ajouter un collaborateur</h2>
+      <p class="muted">Le nouveau compte dépendra automatiquement de toi.</p>
       <form id="create-form">
         <label>Nom</label>
         <input name="nom" required />
@@ -51,28 +53,74 @@
       return div.innerHTML;
     }
 
+    let me = null;
+
     async function loadUsers() {
       const listEl = document.getElementById("users-list");
       try {
         const users = await apiFetch("/api/users");
         listEl.innerHTML = users
-          .map(
-            (u) => `
-          <div class="dossier-item">
-            <div>
-              <strong>${escapeHtml(u.nom)}</strong>
-              <div class="meta">${escapeHtml(u.email)} · ${u.role === "titulaire" ? "Titulaire" : "Collaborateur"}</div>
-            </div>
-          </div>`
-          )
+          .map((u) => {
+            if (u.role === "titulaire") {
+              return `
+              <div class="dossier-item">
+                <div>
+                  <strong>${escapeHtml(u.nom)}</strong>
+                  <div class="meta">${escapeHtml(u.email)} · Titulaire</div>
+                </div>
+              </div>`;
+            }
+
+            const responsableLabel = u.responsable ? escapeHtml(u.responsable.nom) : "aucun";
+            const isMyCollaborateur = u.responsableId === me.id;
+            const hasExtraAccess = (u.accesAccordes || []).some((a) => a.avocat.id === me.id);
+            const autresAcces = (u.accesAccordes || [])
+              .map((a) => escapeHtml(a.avocat.nom))
+              .join(", ");
+
+            return `
+            <div class="dossier-item">
+              <div>
+                <strong>${escapeHtml(u.nom)}</strong>
+                <div class="meta">
+                  ${escapeHtml(u.email)} · Collaborateur · dépend de ${responsableLabel}
+                  ${autresAcces ? ` · accès supplémentaire : ${autresAcces}` : ""}
+                </div>
+              </div>
+              ${
+                isMyCollaborateur
+                  ? ""
+                  : `<button type="button" class="secondary" data-toggle-access="${u.id}" data-granted="${hasExtraAccess}">
+                      ${hasExtraAccess ? "Retirer l'accès à mes dossiers" : "Donner accès à mes dossiers"}
+                    </button>`
+              }
+            </div>`;
+          })
           .join("");
+
+        listEl.querySelectorAll("[data-toggle-access]").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            const collaborateurId = btn.dataset.toggleAccess;
+            const granted = btn.dataset.granted === "true";
+            try {
+              if (granted) {
+                await apiFetch(`/api/users/access-grants/${collaborateurId}`, { method: "DELETE" });
+              } else {
+                await apiFetch("/api/users/access-grants", { method: "POST", body: { collaborateurId } });
+              }
+              loadUsers();
+            } catch (err) {
+              showError(document.getElementById("error"), err.message);
+            }
+          });
+        });
       } catch (err) {
         listEl.innerHTML = `<p class="error visible">${escapeHtml(err.message)}</p>`;
       }
     }
 
     (async () => {
-      const me = await requireSession();
+      me = await requireSession();
       if (!me) return;
       if (me.role !== "titulaire") {
         document.querySelector(".page").innerHTML =

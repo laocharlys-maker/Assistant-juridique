@@ -47,19 +47,41 @@ model Cabinet {
 }
 
 model User {
-  id           String   @id @default(uuid())
-  cabinetId    String   @map("cabinet_id")
-  nom          String
-  email        String   @unique
-  motDePasseHash String @map("mot_de_passe_hash")
-  role         UserRole @default(collaborateur)
-  createdAt    DateTime @default(now()) @map("created_at")
+  id             String   @id @default(uuid())
+  cabinetId      String   @map("cabinet_id")
+  nom            String
+  email          String   @unique
+  motDePasseHash String   @map("mot_de_passe_hash")
+  role           UserRole @default(collaborateur)
+  // Avocat dont depend directement ce collaborateur (null pour un titulaire).
+  responsableId  String?  @map("responsable_id")
+  createdAt      DateTime @default(now()) @map("created_at")
 
-  cabinet         Cabinet  @relation(fields: [cabinetId], references: [id])
-  dossiersCrees   Dossier[] @relation("DossierCreatedBy")
-  actionsCreees   Action[]  @relation("ActionCreatedBy")
+  cabinet       Cabinet   @relation(fields: [cabinetId], references: [id])
+  responsable   User?     @relation("ResponsableCollaborateurs", fields: [responsableId], references: [id])
+  collaborateurs User[]   @relation("ResponsableCollaborateurs")
+  dossiersCrees Dossier[] @relation("DossierCreatedBy")
+  actionsCreees Action[]  @relation("ActionCreatedBy")
+
+  // Acces supplementaires accordes a CE collaborateur vers d'autres avocats.
+  accesAccordes AccesSupplementaire[] @relation("AccesCollaborateur")
+  // Acces que CET avocat a accordes a des collaborateurs (aux siens).
+  accesOctroyes AccesSupplementaire[] @relation("AccesAvocat")
 
   @@map("users")
+}
+
+model AccesSupplementaire {
+  id              String   @id @default(uuid())
+  collaborateurId String   @map("collaborateur_id")
+  avocatId        String   @map("avocat_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  collaborateur User @relation("AccesCollaborateur", fields: [collaborateurId], references: [id])
+  avocat        User @relation("AccesAvocat", fields: [avocatId], references: [id])
+
+  @@unique([collaborateurId, avocatId])
+  @@map("acces_supplementaires")
 }
 
 model Dossier {

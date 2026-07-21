@@ -23,7 +23,16 @@ const createUserSchema = z.object({
 usersRouter.get("/api/users", requireAuth, requireTitulaire, async (req, res) => {
   const users = await prisma.user.findMany({
     where: { cabinetId: req.auth!.cabinetId },
-    select: { id: true, nom: true, email: true, role: true, createdAt: true },
+    select: {
+      id: true,
+      nom: true,
+      email: true,
+      role: true,
+      createdAt: true,
+      responsableId: true,
+      responsable: { select: { id: true, nom: true } },
+      accesAccordes: { select: { avocat: { select: { id: true, nom: true } } } },
+    },
     orderBy: { createdAt: "asc" },
   });
   return res.json(users);
@@ -49,6 +58,8 @@ usersRouter.post("/api/users", requireAuth, requireTitulaire, async (req, res) =
       email,
       motDePasseHash: await hashPassword(plainPassword),
       role: "collaborateur",
+      // Le collaborateur depend par defaut de l'avocat qui cree son compte.
+      responsableId: req.auth!.userId,
     },
   });
 
@@ -60,3 +71,52 @@ usersRouter.post("/api/users", requireAuth, requireTitulaire, async (req, res) =
     password: plainPassword,
   });
 });
+
+// Acces supplementaires : un avocat (titulaire) accorde a un collaborateur
+// (pas forcement le sien) le droit de voir ses propres dossiers.
+const grantAccessSchema = z.object({
+  collaborateurId: z.string().uuid(),
+});
+
+usersRouter.post("/api/users/access-grants", requireAuth, requireTitulaire, async (req, res) => {
+  const parsed = grantAccessSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Requête invalide", details: parsed.error.issues });
+  }
+
+  const collaborateur = await prisma.user.findFirst({
+    where: {
+      id: parsed.data.collaborateurId,
+      cabinetId: req.auth!.cabinetId,
+      role: "collaborateur",
+    },
+  });
+  if (!collaborateur) {
+    return res.status(404).json({ error: "Collaborateur introuvable dans ce cabinet" });
+  }
+
+  await prisma.accesSupplementaire.upsert({
+    where: {
+      collaborateurId_avocatId: {
+        collaborateurId: collaborateur.id,
+        avocatId: req.auth!.userId,
+      },
+    },
+    update: {},
+    create: { collaborateurId: collaborateur.id, avocatId: req.auth!.userId },
+  });
+
+  return res.status(201).json({ ok: true });
+});
+
+usersRouter.delete(
+  "/api/users/access-grants/:collaborateurId",
+  requireAuth,
+  requireTitulaire,
+  async (req, res) => {
+    await prisma.accesSupplementaire.deleteMany({
+      where: { collaborateurId: req.params.collaborateurId, avocatId: req.auth!.userId },
+    });
+    return res.json({ ok: true });
+  }
+);
