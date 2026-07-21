@@ -77,6 +77,40 @@ export class GroqProvider implements LlmProvider {
 
     return validated.data;
   }
+
+  async redact(systemPrompt: string, userPrompt: string): Promise<string> {
+    const response = await withTransientRetry(() =>
+      fetch(GROQ_API_URL, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${this.apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: GROQ_MODEL,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+        }),
+      }).then(async (res) => {
+        if (!res.ok) {
+          const body = await res.text();
+          const error = new Error(`Groq a repondu ${res.status}: ${body}`) as Error & {
+            status: number;
+          };
+          error.status = res.status;
+          throw error;
+        }
+        return res;
+      })
+    );
+
+    const data = (await response.json()) as {
+      choices: { message: { content: string } }[];
+    };
+    return data.choices[0]?.message?.content ?? "";
+  }
 }
 
 export function createGroqProvider(): GroqProvider {

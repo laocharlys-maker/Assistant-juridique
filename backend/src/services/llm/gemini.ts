@@ -43,6 +43,16 @@ export class GeminiProvider implements LlmProvider {
 
     return validated.data;
   }
+
+  async redact(systemPrompt: string, userPrompt: string): Promise<string> {
+    const model = this.client.getGenerativeModel({
+      model: "gemini-2.0-flash-001",
+      systemInstruction: systemPrompt,
+    });
+
+    const result = await withTransientRetry(() => model.generateContent(userPrompt));
+    return result.response.text();
+  }
 }
 
 export function createGeminiProvider(): GeminiProvider {

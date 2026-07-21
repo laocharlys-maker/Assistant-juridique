@@ -51,6 +51,20 @@ export class AnthropicProvider implements LlmProvider {
 
     return validated.data;
   }
+
+  async redact(systemPrompt: string, userPrompt: string): Promise<string> {
+    const message = await this.client.messages.create({
+      model: "claude-sonnet-5",
+      max_tokens: 4096,
+      system: systemPrompt,
+      messages: [{ role: "user", content: userPrompt }],
+    });
+
+    const textBlock = message.content.find(
+      (block): block is Anthropic.TextBlock => block.type === "text"
+    );
+    return textBlock?.text ?? "";
+  }
 }
 
 export function createAnthropicProvider(): AnthropicProvider {

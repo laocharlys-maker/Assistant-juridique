@@ -4,6 +4,7 @@ import { healthRouter } from "./routes/health";
 import { actionsRouter } from "./routes/actions";
 import { authRouter } from "./routes/auth";
 import { dossiersRouter } from "./routes/dossiers";
+import { webActionsRouter } from "./routes/webActions";
 
 export const app = express();
 
@@ -13,3 +14,4 @@ app.use(healthRouter);
 app.use(actionsRouter);
 app.use(authRouter);
 app.use(dossiersRouter);
+app.use(webActionsRouter);
