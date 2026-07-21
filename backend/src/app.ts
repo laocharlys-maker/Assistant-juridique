@@ -1,3 +1,4 @@
+import path from "node:path";
 import express from "express";
 import cookieParser from "cookie-parser";
 import { healthRouter } from "./routes/health";
@@ -15,3 +16,4 @@ app.use(actionsRouter);
 app.use(authRouter);
 app.use(dossiersRouter);
 app.use(webActionsRouter);
+app.use(express.static(path.join(__dirname, "..", "public")));

@@ -6,7 +6,10 @@ export const dossiersRouter = Router();
 
 dossiersRouter.get("/api/dossiers", requireAuth, async (req, res) => {
   const { auth } = req;
-  const scope = req.query.scope === "mine" ? "mine" : "cabinet";
+  // Un collaborateur ne peut voir que ses propres dossiers ; seul un titulaire
+  // peut demander la vue "cabinet" complète.
+  const requestedScope = req.query.scope === "cabinet" ? "cabinet" : "mine";
+  const scope = requestedScope === "cabinet" && auth!.role === "titulaire" ? "cabinet" : "mine";
 
   const dossiers = await prisma.dossier.findMany({
     where: {
@@ -17,7 +20,7 @@ dossiersRouter.get("/api/dossiers", requireAuth, async (req, res) => {
     include: { _count: { select: { actions: true } }, creePar: { select: { nom: true } } },
   });
 
-  return res.json(dossiers);
+  return res.json({ scope, dossiers });
 });
 
 dossiersRouter.get("/api/dossiers/:id", requireAuth, async (req, res) => {

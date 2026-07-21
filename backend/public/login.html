@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aurore — Connexion</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="page" style="max-width: 420px; margin-top: 10vh;">
+    <div class="card">
+      <h1>Aurore</h1>
+      <p class="muted">Assistant juridique du cabinet</p>
+      <div id="error" class="error"></div>
+      <form id="login-form">
+        <label for="email">Email</label>
+        <input id="email" type="email" required autocomplete="username" />
+        <label for="password">Mot de passe</label>
+        <input id="password" type="password" required autocomplete="current-password" />
+        <button type="submit">Se connecter</button>
+      </form>
+    </div>
+  </div>
+  <script src="/js/api.js"></script>
+  <script>
+    const form = document.getElementById("login-form");
+    const errorEl = document.getElementById("error");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      hideError(errorEl);
+      try {
+        await apiFetch("/api/auth/login", {
+          method: "POST",
+          body: {
+            email: document.getElementById("email").value,
+            password: document.getElementById("password").value,
+          },
+        });
+        window.location.href = "/dashboard.html";
+      } catch (err) {
+        showError(errorEl, err.message);
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aurore — Dossier</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <span class="brand">Aurore</span>
+    <nav>
+      <a href="/dashboard.html">Dossiers</a>
+      <a href="/nouvelle-action.html">Nouvelle action</a>
+      <a href="#" id="logout-link">Déconnexion</a>
+    </nav>
+  </header>
+  <div class="page">
+    <p><a href="/dashboard.html">&larr; Retour aux dossiers</a></p>
+    <div id="content"><p class="muted">Chargement…</p></div>
+  </div>
+  <script src="/js/api.js"></script>
+  <script>
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str ?? "";
+      return div.innerHTML;
+    }
+
+    const TYPE_LABELS = {
+      notes: "Compte-rendu d'audience",
+      redac: "Plaidoirie",
+      jurisprudence: "Recherche de jurisprudence",
+    };
+
+    (async () => {
+      const me = await requireSession();
+      if (!me) return;
+
+      const id = new URLSearchParams(window.location.search).get("id");
+      const contentEl = document.getElementById("content");
+      if (!id) {
+        contentEl.innerHTML = '<p class="error visible">Aucun dossier spécifié.</p>';
+        return;
+      }
+
+      try {
+        const dossier = await apiFetch(`/api/dossiers/${id}`);
+        contentEl.innerHTML = `
+          <div class="card">
+            <h1>${escapeHtml(dossier.numeroDossier)} — ${escapeHtml(dossier.nomAffaire)}</h1>
+            <p class="muted">Client : ${escapeHtml(dossier.nomClient)} · Juge : ${escapeHtml(dossier.nomJuge || "non précisé")} · créé par ${escapeHtml(dossier.creePar.nom)}</p>
+          </div>
+          <h2>Historique (${dossier.actions.length})</h2>
+          <div id="actions-list"></div>
+        `;
+
+        const actionsEl = document.getElementById("actions-list");
+        if (dossier.actions.length === 0) {
+          actionsEl.innerHTML = '<p class="muted">Aucune action enregistrée pour ce dossier.</p>';
+          return;
+        }
+
+        actionsEl.innerHTML = dossier.actions
+          .map(
+            (a) => `
+          <div class="action-item">
+            <span class="tag">${TYPE_LABELS[a.typeAction] || a.typeAction} · ${a.canal}</span>
+            <div class="muted">${new Date(a.createdAt).toLocaleString("fr-FR")} — par ${escapeHtml(a.creePar.nom)}</div>
+            <pre>${escapeHtml(a.contenuGenere || "")}</pre>
+          </div>`
+          )
+          .join("");
+      } catch (err) {
+        contentEl.innerHTML = `<p class="error visible">${escapeHtml(err.message)}</p>`;
+      }
+    })();
+
+    document.getElementById("logout-link").addEventListener("click", async (e) => {
+      e.preventDefault();
+      await apiFetch("/api/auth/logout", { method: "POST" });
+      window.location.href = "/login.html";
+    });
+  </script>
+</body>
+</html>

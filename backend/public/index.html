@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <title>Aurore</title>
+  <script src="/js/api.js"></script>
+  <script>
+    (async () => {
+      try {
+        await apiFetch("/api/auth/me");
+        window.location.href = "/dashboard.html";
+      } catch {
+        window.location.href = "/login.html";
+      }
+    })();
+  </script>
+</head>
+<body></body>
+</html>

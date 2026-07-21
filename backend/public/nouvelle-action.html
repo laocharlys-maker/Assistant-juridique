@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aurore — Nouvelle action</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <span class="brand">Aurore</span>
+    <nav>
+      <a href="/dashboard.html">Dossiers</a>
+      <a href="/nouvelle-action.html">Nouvelle action</a>
+      <a href="#" id="logout-link">Déconnexion</a>
+    </nav>
+  </header>
+  <div class="page">
+    <h1>Nouvelle action</h1>
+
+    <div class="tabs">
+      <button class="tab active" data-type="notes">Compte-rendu d'audience</button>
+      <button class="tab" data-type="redac">Plaidoirie</button>
+      <button class="tab" data-type="jurisprudence">Recherche de jurisprudence</button>
+    </div>
+
+    <div id="error" class="error"></div>
+    <div id="result" class="card" style="display:none;">
+      <h2>Résultat</h2>
+      <p class="muted" id="result-meta"></p>
+      <pre id="result-text" style="white-space: pre-wrap;"></pre>
+    </div>
+
+    <div class="card">
+      <form id="notes-form" class="action-form">
+        <label>Numéro de dossier</label>
+        <input name="numero_dossier" required />
+        <label>Nom de l'affaire</label>
+        <input name="nom_affaire" required />
+        <label>Nom du client</label>
+        <input name="nom_client" required />
+        <label>Nom du juge</label>
+        <input name="nom_juge" />
+        <label>Décision / déroulement de l'audience</label>
+        <textarea name="decision" required></textarea>
+        <label>Date de la prochaine audience</label>
+        <input name="prochaine_audience" type="date" />
+        <label>Pièces à prévoir</label>
+        <ul class="pieces-list" id="pieces-list"></ul>
+        <button type="button" class="secondary" id="add-piece">+ Ajouter une pièce</button>
+        <br />
+        <button type="submit">Générer le compte-rendu</button>
+      </form>
+
+      <form id="redac-form" class="action-form" style="display:none;">
+        <label>Numéro de dossier concerné</label>
+        <input name="numero_dossier" required />
+        <label>Nom de l'affaire</label>
+        <input name="nom_affaire" required />
+        <label>Contexte de l'affaire</label>
+        <textarea name="contexte" required></textarea>
+        <label>Axes d'argumentation</label>
+        <ul class="pieces-list" id="axes-list"></ul>
+        <button type="button" class="secondary" id="add-axe">+ Ajouter un axe</button>
+        <br />
+        <button type="submit">Générer la plaidoirie</button>
+      </form>
+
+      <form id="jurisprudence-form" class="action-form" style="display:none;">
+        <label>Thème / mots-clés</label>
+        <input name="theme" required />
+        <label>Juridiction(s) ciblée(s)</label>
+        <input name="juridictions" placeholder="ex: Cour d'Appel de Cotonou, CCJA" />
+        <button type="submit">Lancer la recherche</button>
+      </form>
+    </div>
+  </div>
+  <script src="/js/api.js"></script>
+  <script>
+    (async () => { if (!(await requireSession())) return; })();
+
+    document.getElementById("logout-link").addEventListener("click", async (e) => {
+      e.preventDefault();
+      await apiFetch("/api/auth/logout", { method: "POST" });
+      window.location.href = "/login.html";
+    });
+
+    const forms = {
+      notes: document.getElementById("notes-form"),
+      redac: document.getElementById("redac-form"),
+      jurisprudence: document.getElementById("jurisprudence-form"),
+    };
+    document.querySelectorAll(".tab").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".tab").forEach((b) => b.classList.remove("active"));
+        btn.classList.add("active");
+        Object.entries(forms).forEach(([type, form]) => {
+          form.style.display = type === btn.dataset.type ? "block" : "none";
+        });
+        document.getElementById("result").style.display = "none";
+      });
+    });
+
+    function addListItem(listId, placeholder) {
+      const list = document.getElementById(listId);
+      const li = document.createElement("li");
+      li.innerHTML = `<input type="text" placeholder="${placeholder}" /><button type="button">&times;</button>`;
+      li.querySelector("button").addEventListener("click", () => li.remove());
+      list.appendChild(li);
+    }
+    document.getElementById("add-piece").addEventListener("click", () => addListItem("pieces-list", "ex: Copie du jugement"));
+    document.getElementById("add-axe").addEventListener("click", () => addListItem("axes-list", "ex: Prescription de l'action"));
+    addListItem("pieces-list", "ex: Copie du jugement");
+    addListItem("axes-list", "ex: Prescription de l'action");
+
+    function listValues(listId) {
+      return Array.from(document.querySelectorAll(`#${listId} input`))
+        .map((i) => i.value.trim())
+        .filter(Boolean);
+    }
+
+    const errorEl = document.getElementById("error");
+    const resultEl = document.getElementById("result");
+    const resultMetaEl = document.getElementById("result-meta");
+    const resultTextEl = document.getElementById("result-text");
+
+    async function submitForm(type, payload) {
+      hideError(errorEl);
+      resultEl.style.display = "none";
+      try {
+        const res = await apiFetch("/api/actions/web", { method: "POST", body: { type_action: type, ...payload } });
+        resultMetaEl.textContent = res.n8nDispatched
+          ? "Document généré et envoyé (email en route)."
+          : "Texte généré, mais l'envoi vers n8n a échoué — vérifie la configuration.";
+        resultTextEl.textContent = res.contenu;
+        resultEl.style.display = "block";
+      } catch (err) {
+        showError(errorEl, err.message);
+      }
+    }
+
+    forms.notes.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const fd = new FormData(forms.notes);
+      submitForm("notes", {
+        numero_dossier: fd.get("numero_dossier"),
+        nom_affaire: fd.get("nom_affaire"),
+        nom_client: fd.get("nom_client"),
+        nom_juge: fd.get("nom_juge") || undefined,
+        decision: fd.get("decision"),
+        prochaine_audience: fd.get("prochaine_audience") || undefined,
+        pieces_prevoir: listValues("pieces-list"),
+      });
+    });
+
+    forms.redac.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const fd = new FormData(forms.redac);
+      submitForm("redac", {
+        numero_dossier: fd.get("numero_dossier"),
+        nom_affaire: fd.get("nom_affaire"),
+        contexte: fd.get("contexte"),
+        axes_argumentation: listValues("axes-list"),
+      });
+    });
+
+    forms.jurisprudence.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const fd = new FormData(forms.jurisprudence);
+      const juridictions = (fd.get("juridictions") || "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      submitForm("jurisprudence", { theme: fd.get("theme"), juridictions });
+    });
+  </script>
+</body>
+</html>

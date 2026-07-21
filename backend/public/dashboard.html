@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aurore — Tableau de bord</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <span class="brand">Aurore</span>
+    <nav>
+      <a href="/dashboard.html">Dossiers</a>
+      <a href="/nouvelle-action.html">Nouvelle action</a>
+      <a href="#" id="logout-link">Déconnexion</a>
+    </nav>
+  </header>
+  <div class="page">
+    <h1 id="greeting">Tableau de bord</h1>
+
+    <div class="tabs" id="scope-tabs" style="display:none;">
+      <button class="tab active" data-scope="mine">Mes dossiers</button>
+      <button class="tab" data-scope="cabinet">Vue cabinet</button>
+    </div>
+
+    <div class="card">
+      <div id="dossiers-list"><p class="muted">Chargement…</p></div>
+    </div>
+  </div>
+  <script src="/js/api.js"></script>
+  <script>
+    let currentScope = "mine";
+
+    async function loadDossiers(scope) {
+      const listEl = document.getElementById("dossiers-list");
+      listEl.innerHTML = '<p class="muted">Chargement…</p>';
+      try {
+        const { dossiers, scope: appliedScope } = await apiFetch(`/api/dossiers?scope=${scope}`);
+        currentScope = appliedScope;
+        document.querySelectorAll(".tab").forEach((btn) => {
+          btn.classList.toggle("active", btn.dataset.scope === appliedScope);
+        });
+
+        if (dossiers.length === 0) {
+          listEl.innerHTML = '<p class="muted">Aucun dossier pour l\'instant.</p>';
+          return;
+        }
+
+        listEl.innerHTML = dossiers
+          .map(
+            (d) => `
+          <div class="dossier-item">
+            <div>
+              <a href="/dossier.html?id=${d.id}">${escapeHtml(d.numeroDossier)} — ${escapeHtml(d.nomAffaire)}</a>
+              <div class="meta">${escapeHtml(d.nomClient)} · ${d._count.actions} action(s) · créé par ${escapeHtml(d.creePar.nom)}</div>
+            </div>
+          </div>`
+          )
+          .join("");
+      } catch (err) {
+        listEl.innerHTML = `<p class="error visible">${escapeHtml(err.message)}</p>`;
+      }
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str ?? "";
+      return div.innerHTML;
+    }
+
+    (async () => {
+      const me = await requireSession();
+      if (!me) return;
+      document.getElementById("greeting").textContent = `Bonjour ${me.nom}`;
+
+      if (me.role === "titulaire") {
+        document.getElementById("scope-tabs").style.display = "flex";
+        document.querySelectorAll(".tab").forEach((btn) => {
+          btn.addEventListener("click", () => loadDossiers(btn.dataset.scope));
+        });
+      }
+
+      loadDossiers("mine");
+    })();
+
+    document.getElementById("logout-link").addEventListener("click", async (e) => {
+      e.preventDefault();
+      await apiFetch("/api/auth/logout", { method: "POST" });
+      window.location.href = "/login.html";
+    });
+  </script>
+</body>
+</html>
