@@ -15,6 +15,10 @@ const envSchema = z
 
     N8N_WEBHOOK_BASE_URL: z.string().optional(),
     N8N_WEBHOOK_SECRET: z.string().optional(),
+
+    SESSION_SECRET: z
+      .string()
+      .min(16, "SESSION_SECRET doit faire au moins 16 caracteres (voir .env.example)"),
   })
   .superRefine((values, ctx) => {
     if (values.LLM_PROVIDER === "gemini" && !values.GEMINI_API_KEY) {
