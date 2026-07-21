@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aurore — Collaborateurs</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <span class="brand">Aurore</span>
+    <nav>
+      <a href="/dashboard.html">Dossiers</a>
+      <a href="/nouvelle-action.html">Nouvelle action</a>
+      <a href="/collaborateurs.html">Collaborateurs</a>
+      <a href="#" id="logout-link">Déconnexion</a>
+    </nav>
+  </header>
+  <div class="page">
+    <h1>Collaborateurs</h1>
+
+    <div id="error" class="error"></div>
+    <div id="new-account" class="card" style="display:none; background:#eef3f1;">
+      <h2>Compte créé</h2>
+      <p>Transmets ces identifiants au collaborateur (ils ne seront plus affichés après) :</p>
+      <p><strong id="new-account-email"></strong></p>
+      <p>Mot de passe : <code id="new-account-password"></code></p>
+    </div>
+
+    <div class="card">
+      <h2>Ajouter un collaborateur</h2>
+      <form id="create-form">
+        <label>Nom</label>
+        <input name="nom" required />
+        <label>Email</label>
+        <input name="email" type="email" required />
+        <button type="submit">Créer le compte</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2>Membres du cabinet</h2>
+      <div id="users-list"><p class="muted">Chargement…</p></div>
+    </div>
+  </div>
+  <script src="/js/api.js"></script>
+  <script>
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str ?? "";
+      return div.innerHTML;
+    }
+
+    async function loadUsers() {
+      const listEl = document.getElementById("users-list");
+      try {
+        const users = await apiFetch("/api/users");
+        listEl.innerHTML = users
+          .map(
+            (u) => `
+          <div class="dossier-item">
+            <div>
+              <strong>${escapeHtml(u.nom)}</strong>
+              <div class="meta">${escapeHtml(u.email)} · ${u.role === "titulaire" ? "Titulaire" : "Collaborateur"}</div>
+            </div>
+          </div>`
+          )
+          .join("");
+      } catch (err) {
+        listEl.innerHTML = `<p class="error visible">${escapeHtml(err.message)}</p>`;
+      }
+    }
+
+    (async () => {
+      const me = await requireSession();
+      if (!me) return;
+      if (me.role !== "titulaire") {
+        document.querySelector(".page").innerHTML =
+          '<p class="error visible">Cette page est réservée au titulaire du cabinet.</p>';
+        return;
+      }
+      loadUsers();
+    })();
+
+    const errorEl = document.getElementById("error");
+    document.getElementById("create-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      hideError(errorEl);
+      document.getElementById("new-account").style.display = "none";
+      const fd = new FormData(e.target);
+      try {
+        const user = await apiFetch("/api/users", {
+          method: "POST",
+          body: { nom: fd.get("nom"), email: fd.get("email") },
+        });
+        document.getElementById("new-account-email").textContent = user.email;
+        document.getElementById("new-account-password").textContent = user.password;
+        document.getElementById("new-account").style.display = "block";
+        e.target.reset();
+        loadUsers();
+      } catch (err) {
+        showError(errorEl, err.message);
+      }
+    });
+
+    document.getElementById("logout-link").addEventListener("click", async (e) => {
+      e.preventDefault();
+      await apiFetch("/api/auth/logout", { method: "POST" });
+      window.location.href = "/login.html";
+    });
+  </script>
+</body>
+</html>

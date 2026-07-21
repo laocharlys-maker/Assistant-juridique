@@ -12,6 +12,7 @@
     <nav>
       <a href="/dashboard.html">Dossiers</a>
       <a href="/nouvelle-action.html">Nouvelle action</a>
+      <a href="/collaborateurs.html" id="collab-link" style="display:none;">Collaborateurs</a>
       <a href="#" id="logout-link">Déconnexion</a>
     </nav>
   </header>
@@ -122,7 +123,13 @@
   </div>
   <script src="/js/api.js"></script>
   <script>
-    (async () => { if (!(await requireSession())) return; })();
+    (async () => {
+      const me = await requireSession();
+      if (!me) return;
+      if (me.role === "titulaire") {
+        document.getElementById("collab-link").style.display = "inline";
+      }
+    })();
 
     document.getElementById("logout-link").addEventListener("click", async (e) => {
       e.preventDefault();

@@ -12,6 +12,7 @@
     <nav>
       <a href="/dashboard.html">Dossiers</a>
       <a href="/nouvelle-action.html">Nouvelle action</a>
+      <a href="/collaborateurs.html" id="collab-link" style="display:none;">Collaborateurs</a>
       <a href="#" id="logout-link">Déconnexion</a>
     </nav>
   </header>
@@ -75,6 +76,7 @@
 
       if (me.role === "titulaire") {
         document.getElementById("scope-tabs").style.display = "flex";
+        document.getElementById("collab-link").style.display = "inline";
         document.querySelectorAll(".tab").forEach((btn) => {
           btn.addEventListener("click", () => loadDossiers(btn.dataset.scope));
         });
