@@ -1,7 +1,7 @@
 {
   "name": "aurore-backend",
   "version": "0.1.0",
-  "description": "Backend Aurore - orchestration metier et IA pour le cabinet de Me Natacha",
+  "description": "Backend Aurore - orchestration metier et IA pour le cabinet KOFFI & ASSOCIES",
   "private": true,
   "type": "commonjs",
   "scripts": {

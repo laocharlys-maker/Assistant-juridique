@@ -1,7 +1,7 @@
 # Aurore — Assistant Juridique IA
 ## Cahier des charges — Évolution v3 (arbitrages architecture)
 
-**Client :** Cabinet de Maître Natacha
+**Client :** Cabinet KOFFI & ASSOCIES
 **Prestataire :** AzoMedIA
 **Statut actuel :** Aurore v1 mise à l'arrêt (workflow n8n conservé comme référence, non actif en prod)
 **Objectif de ce document :** brief de travail exhaustif pour reprise en développement (Claude Code)

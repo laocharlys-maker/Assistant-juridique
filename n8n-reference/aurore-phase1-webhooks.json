@@ -118,10 +118,10 @@
     },
     {
       "parameters": {
-        "sendTo": "balleynatacha001@gmail.com, lao.charlys@gmail.com",
+        "sendTo": "cabinet.koffi@example.com, lao.charlys@gmail.com",
         "subject": "=Compte-rendu audience - {{ $('Webhook - Notes Audience').item.json.body.nom_affaire }}",
         "emailType": "text",
-        "message": "=Bonjour Maître Natacha,\n\nVeuillez trouver ci-joint le compte-rendu de l'audience concernant l'affaire {{ $('Webhook - Notes Audience').item.json.body.nom_affaire }}.\n\nPour le modifier : https://docs.google.com/document/d/{{ $('Update a document (CR)').item.json.documentId }}\n\nProchaine audience : {{ $('Webhook - Notes Audience').item.json.body.prochaine_audience }}\n\nCordialement,\nAurore, votre Assistante juridique",
+        "message": "=Bonjour Maître Koffi,\n\nVeuillez trouver ci-joint le compte-rendu de l'audience concernant l'affaire {{ $('Webhook - Notes Audience').item.json.body.nom_affaire }}.\n\nPour le modifier : https://docs.google.com/document/d/{{ $('Update a document (CR)').item.json.documentId }}\n\nProchaine audience : {{ $('Webhook - Notes Audience').item.json.body.prochaine_audience }}\n\nCordialement,\nAurore, votre Assistante juridique",
         "options": { "attachmentsUi": { "attachmentsBinary": [{}] } }
       },
       "id": "gmail-notes",
@@ -276,10 +276,10 @@
     },
     {
       "parameters": {
-        "sendTo": "balleynatacha001@gmail.com, lao.charlys@gmail.com",
+        "sendTo": "cabinet.koffi@example.com, lao.charlys@gmail.com",
         "subject": "={{ $('Webhook - Plaidoirie').item.json.body.categorie_texte }} a/s {{ $('Webhook - Plaidoirie').item.json.body.nom_affaire }}",
         "emailType": "text",
-        "message": "=Bonjour Maître Natacha,\n\nVotre {{ $('Webhook - Plaidoirie').item.json.body.categorie_texte }} concernant l'affaire {{ $('Webhook - Plaidoirie').item.json.body.nom_affaire }} est disponible en pièce jointe.\n\nModifier sur Google Docs : https://docs.google.com/document/d/{{ $json.documentId }}\n\nCordialement,\nAurore, votre Assistante juridique",
+        "message": "=Bonjour Maître Koffi,\n\nVotre {{ $('Webhook - Plaidoirie').item.json.body.categorie_texte }} concernant l'affaire {{ $('Webhook - Plaidoirie').item.json.body.nom_affaire }} est disponible en pièce jointe.\n\nModifier sur Google Docs : https://docs.google.com/document/d/{{ $json.documentId }}\n\nCordialement,\nAurore, votre Assistante juridique",
         "options": { "attachmentsUi": { "attachmentsBinary": [{}] } }
       },
       "id": "gmail-plaidoirie",
@@ -373,10 +373,10 @@
     },
     {
       "parameters": {
-        "sendTo": "balleynatacha001@gmail.com, lao.charlys@gmail.com",
+        "sendTo": "cabinet.koffi@example.com, lao.charlys@gmail.com",
         "subject": "={{ $('Webhook - Jurisprudence').item.json.body.categorie_texte }} a/s {{ $('Webhook - Jurisprudence').item.json.body.nom_affaire }}",
         "emailType": "text",
-        "message": "=Bonjour Maître Natacha,\n\nVotre recherche de jurisprudence est disponible en pièce jointe.\n\nModifier sur Google Docs : https://docs.google.com/document/d/{{ $json.documentId }}\n\nCordialement,\nAurore, votre Assistante juridique",
+        "message": "=Bonjour Maître Koffi,\n\nVotre recherche de jurisprudence est disponible en pièce jointe.\n\nModifier sur Google Docs : https://docs.google.com/document/d/{{ $json.documentId }}\n\nCordialement,\nAurore, votre Assistante juridique",
         "options": { "attachmentsUi": { "attachmentsBinary": [{}] } }
       },
       "id": "gmail-jurisprudence",

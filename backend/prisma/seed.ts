@@ -9,17 +9,17 @@ async function main() {
     update: {},
     create: {
       id: "00000000-0000-0000-0000-000000000001",
-      nom: "Cabinet de Maître Natacha",
+      nom: "Cabinet KOFFI & ASSOCIES",
     },
   });
 
   const user = await prisma.user.upsert({
-    where: { email: "balleynatacha001@gmail.com" },
+    where: { email: "cabinet.koffi@example.com" },
     update: {},
     create: {
       cabinetId: cabinet.id,
-      nom: "Maître Natacha",
-      email: "balleynatacha001@gmail.com",
+      nom: "Maître Koffi",
+      email: "cabinet.koffi@example.com",
       // Mot de passe temporaire, a changer via l'app une fois l'auth branchee (Phase 2).
       motDePasseHash: crypto.randomBytes(32).toString("hex"),
       role: "titulaire",
