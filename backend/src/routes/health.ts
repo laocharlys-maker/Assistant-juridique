@@ -7,7 +7,7 @@ healthRouter.get("/health", async (_req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
     res.json({ status: "ok", database: "connected" });
-  } catch (error) {
+  } catch {
     res.status(503).json({ status: "degraded", database: "unreachable" });
   }
 });
