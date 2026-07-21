@@ -164,8 +164,8 @@ jurisprudence_chunks
 | Base de données | PostgreSQL (+ pgvector pour le RAG) |
 | Intégration WhatsApp + Google Workspace | n8n (rôle recentré : exécution d'effets de bord uniquement) |
 | WhatsApp | Evolution API (auto-hébergé sur le VPS du cabinet) |
-| LLM (extraction / rédaction / recherche) | Claude (Anthropic), sortie structurée validée par schéma |
-| Transcription vocale WhatsApp | Google Gemini, conservé côté n8n uniquement (pas de dépendance Gemini côté backend) |
+| LLM (extraction / rédaction / recherche) | Gemini (gratuit) pour le développement ; bascule possible vers Claude (Anthropic) en production, via une couche d'abstraction dans le backend (`LLM_PROVIDER`) — sortie structurée validée par schéma dans les deux cas |
+| Transcription vocale WhatsApp | Google Gemini, conservé côté n8n indépendamment du fournisseur choisi ci-dessus |
 | Recherche web complémentaire | Tavily |
 | Stockage documents | Google Workspace (Docs, Sheets, Calendar, Drive) |
 | Email | Gmail SMTP (via n8n ou API directe) |
