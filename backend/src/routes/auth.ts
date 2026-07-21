@@ -49,7 +49,14 @@ authRouter.post("/api/auth/logout", (_req, res) => {
 authRouter.get("/api/auth/me", requireAuth, async (req, res) => {
   const user = await prisma.user.findUnique({
     where: { id: req.auth!.userId },
-    select: { id: true, nom: true, email: true, role: true, cabinetId: true },
+    select: {
+      id: true,
+      nom: true,
+      email: true,
+      role: true,
+      cabinetId: true,
+      responsable: { select: { nom: true } },
+    },
   });
   if (!user) {
     return res.status(404).json({ error: "Utilisateur introuvable" });

@@ -73,7 +73,7 @@
             (a) => `
           <div class="action-item">
             <span class="tag">${TYPE_LABELS[a.typeAction] || a.typeAction} · ${a.canal}</span>
-            <div class="muted">${new Date(a.createdAt).toLocaleString("fr-FR")} — par ${escapeHtml(a.creePar.nom)}</div>
+            <div><strong>Réalisé par ${escapeHtml(a.creePar.nom)}</strong> — ${new Date(a.createdAt).toLocaleString("fr-FR")}</div>
             <pre>${escapeHtml(a.contenuGenere || "")}</pre>
           </div>`
           )
