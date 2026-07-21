@@ -1,0 +1,31 @@
+services:
+  evolution-postgres-aurore:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: evolution
+      POSTGRES_PASSWORD: evolution
+      POSTGRES_DB: evolution
+    volumes:
+      - aurore_evolution_pg_data:/var/lib/postgresql/data
+
+  evolution-api-aurore:
+    image: atendai/evolution-api:latest
+    depends_on:
+      - evolution-postgres-aurore
+    environment:
+      AUTHENTICATION_API_KEY: "Aurore_Cabinet_Natacha_2026"
+      AUTHENTICATION_TYPE: apikey
+      DATABASE_ENABLED: "true"
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: postgresql://evolution:evolution@evolution-postgres-aurore:5432/evolution?schema=public
+      CACHE_REDIS_ENABLED: "false"
+      CACHE_LOCAL_ENABLED: "true"
+      SERVER_URL: http://localhost:8081
+    ports:
+      - "8081:8080"
+    volumes:
+      - aurore_evolution_instances:/evolution/instances
+
+volumes:
+  aurore_evolution_pg_data:
+  aurore_evolution_instances:
