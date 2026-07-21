@@ -1,7 +1,7 @@
 import { env } from "../config/env";
 import { ActionOutput } from "../schemas/action";
 
-export type N8nWebhookName = "notes-audience" | "plaidoirie" | "jurisprudence" | "whatsapp-reply";
+export type N8nWebhookName = "notes-audience" | "document-juridique" | "whatsapp-reply";
 
 export interface N8nCallResult {
   ok: boolean;
@@ -40,12 +40,10 @@ export async function callN8nWebhook(
 }
 
 export function webhookForAction(typeAction: ActionOutput["type_action"]): N8nWebhookName {
-  switch (typeAction) {
-    case "notes":
-      return "notes-audience";
-    case "redac":
-      return "plaidoirie";
-    case "jurisprudence":
-      return "jurisprudence";
-  }
+  // Tous les documents "texte juridique" (plaidoirie, jurisprudence,
+  // conclusions, assignation, mise en demeure) suivent la meme chaine
+  // n8n : copie du template generique -> remplacement -> export -> envoi.
+  // Seul le compte-rendu d'audience a un template et des effets de bord
+  // distincts (Calendar, Sheets).
+  return typeAction === "notes" ? "notes-audience" : "document-juridique";
 }

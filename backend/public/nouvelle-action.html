@@ -21,6 +21,9 @@
     <div class="tabs">
       <button class="tab active" data-type="notes">Compte-rendu d'audience</button>
       <button class="tab" data-type="redac">Plaidoirie</button>
+      <button class="tab" data-type="conclusions">Conclusions</button>
+      <button class="tab" data-type="assignation">Assignation</button>
+      <button class="tab" data-type="mise_en_demeure">Mise en demeure</button>
       <button class="tab" data-type="jurisprudence">Recherche de jurisprudence</button>
     </div>
 
@@ -47,7 +50,7 @@
         <input name="prochaine_audience" type="date" />
         <label>Pièces à prévoir</label>
         <ul class="pieces-list" id="pieces-list"></ul>
-        <button type="button" class="secondary" id="add-piece">+ Ajouter une pièce</button>
+        <button type="button" class="secondary" data-add-list="pieces-list">+ Ajouter une pièce</button>
         <br />
         <button type="submit">Générer le compte-rendu</button>
       </form>
@@ -60,10 +63,52 @@
         <label>Contexte de l'affaire</label>
         <textarea name="contexte" required></textarea>
         <label>Axes d'argumentation</label>
-        <ul class="pieces-list" id="axes-list"></ul>
-        <button type="button" class="secondary" id="add-axe">+ Ajouter un axe</button>
+        <ul class="pieces-list" id="axes-list-redac"></ul>
+        <button type="button" class="secondary" data-add-list="axes-list-redac">+ Ajouter un axe</button>
         <br />
         <button type="submit">Générer la plaidoirie</button>
+      </form>
+
+      <form id="conclusions-form" class="action-form" style="display:none;">
+        <label>Numéro de dossier concerné</label>
+        <input name="numero_dossier" required />
+        <label>Nom de l'affaire</label>
+        <input name="nom_affaire" required />
+        <label>Contexte de l'affaire</label>
+        <textarea name="contexte" required></textarea>
+        <label>Axes d'argumentation / moyens de droit</label>
+        <ul class="pieces-list" id="axes-list-conclusions"></ul>
+        <button type="button" class="secondary" data-add-list="axes-list-conclusions">+ Ajouter un axe</button>
+        <br />
+        <button type="submit">Générer les conclusions</button>
+      </form>
+
+      <form id="assignation-form" class="action-form" style="display:none;">
+        <label>Numéro de dossier concerné</label>
+        <input name="numero_dossier" required />
+        <label>Nom de l'affaire</label>
+        <input name="nom_affaire" required />
+        <label>Contexte de l'affaire</label>
+        <textarea name="contexte" required></textarea>
+        <label>Axes d'argumentation / moyens de droit</label>
+        <ul class="pieces-list" id="axes-list-assignation"></ul>
+        <button type="button" class="secondary" data-add-list="axes-list-assignation">+ Ajouter un axe</button>
+        <br />
+        <button type="submit">Générer l'assignation</button>
+      </form>
+
+      <form id="mise_en_demeure-form" class="action-form" style="display:none;">
+        <label>Numéro de dossier concerné</label>
+        <input name="numero_dossier" required />
+        <label>Nom de l'affaire</label>
+        <input name="nom_affaire" required />
+        <label>Destinataire</label>
+        <input name="destinataire" required placeholder="Nom / raison sociale du destinataire" />
+        <label>Contexte / obligation non respectée</label>
+        <textarea name="contexte" required></textarea>
+        <label>Délai accordé (en jours)</label>
+        <input name="delai_jours" type="number" min="1" value="15" required />
+        <button type="submit">Générer la mise en demeure</button>
       </form>
 
       <form id="jurisprudence-form" class="action-form" style="display:none;">
@@ -88,6 +133,9 @@
     const forms = {
       notes: document.getElementById("notes-form"),
       redac: document.getElementById("redac-form"),
+      conclusions: document.getElementById("conclusions-form"),
+      assignation: document.getElementById("assignation-form"),
+      mise_en_demeure: document.getElementById("mise_en_demeure-form"),
       jurisprudence: document.getElementById("jurisprudence-form"),
     };
     document.querySelectorAll(".tab").forEach((btn) => {
@@ -108,10 +156,13 @@
       li.querySelector("button").addEventListener("click", () => li.remove());
       list.appendChild(li);
     }
-    document.getElementById("add-piece").addEventListener("click", () => addListItem("pieces-list", "ex: Copie du jugement"));
-    document.getElementById("add-axe").addEventListener("click", () => addListItem("axes-list", "ex: Prescription de l'action"));
+    document.querySelectorAll("[data-add-list]").forEach((btn) => {
+      btn.addEventListener("click", () => addListItem(btn.dataset.addList, "ex: Prescription de l'action"));
+    });
     addListItem("pieces-list", "ex: Copie du jugement");
-    addListItem("axes-list", "ex: Prescription de l'action");
+    addListItem("axes-list-redac", "ex: Prescription de l'action");
+    addListItem("axes-list-conclusions", "ex: Nullité de la procédure");
+    addListItem("axes-list-assignation", "ex: Manquement contractuel");
 
     function listValues(listId) {
       return Array.from(document.querySelectorAll(`#${listId} input`))
@@ -160,7 +211,41 @@
         numero_dossier: fd.get("numero_dossier"),
         nom_affaire: fd.get("nom_affaire"),
         contexte: fd.get("contexte"),
-        axes_argumentation: listValues("axes-list"),
+        axes_argumentation: listValues("axes-list-redac"),
+      });
+    });
+
+    forms.conclusions.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const fd = new FormData(forms.conclusions);
+      submitForm("conclusions", {
+        numero_dossier: fd.get("numero_dossier"),
+        nom_affaire: fd.get("nom_affaire"),
+        contexte: fd.get("contexte"),
+        axes_argumentation: listValues("axes-list-conclusions"),
+      });
+    });
+
+    forms.assignation.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const fd = new FormData(forms.assignation);
+      submitForm("assignation", {
+        numero_dossier: fd.get("numero_dossier"),
+        nom_affaire: fd.get("nom_affaire"),
+        contexte: fd.get("contexte"),
+        axes_argumentation: listValues("axes-list-assignation"),
+      });
+    });
+
+    forms.mise_en_demeure.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const fd = new FormData(forms.mise_en_demeure);
+      submitForm("mise_en_demeure", {
+        numero_dossier: fd.get("numero_dossier"),
+        nom_affaire: fd.get("nom_affaire"),
+        destinataire: fd.get("destinataire"),
+        contexte: fd.get("contexte"),
+        delai_jours: fd.get("delai_jours"),
       });
     });
 

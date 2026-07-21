@@ -1,6 +1,13 @@
 import { z } from "zod";
 
-export const TYPE_ACTION_VALUES = ["notes", "redac", "jurisprudence"] as const;
+export const TYPE_ACTION_VALUES = [
+  "notes",
+  "redac",
+  "jurisprudence",
+  "conclusions",
+  "assignation",
+  "mise_en_demeure",
+] as const;
 
 export const actionOutputSchema = z.object({
   type_action: z.enum(TYPE_ACTION_VALUES),

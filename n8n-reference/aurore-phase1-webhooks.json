@@ -3,7 +3,7 @@
   "nodes": [
     {
       "parameters": {
-        "content": "## Aurore - Phase 1\n\nCe workflow reçoit les actions déjà validées depuis le backend (Node/Express) et se charge uniquement des effets de bord : Google Docs, Google Sheets, Calendar, Gmail.\n\n**Ce que ce workflow NE fait PAS (volontairement, pour l'instant) :**\n- Pas de logique de décision / extraction IA (c'est le backend qui s'en charge)\n- Pas encore de connexion WhatsApp entrante/sortante réelle (le numéro dédié n'est pas encore branché) — le webhook whatsapp-reply est un simple accusé de réception pour l'instant, à compléter dès que le numéro est prêt.\n\n**3 webhooks actifs, appelés par le backend :**\n- /webhook/notes-audience\n- /webhook/plaidoirie\n- /webhook/jurisprudence\n\n**1 webhook stub :**\n- /webhook/whatsapp-reply (à compléter Phase 1b)",
+        "content": "## Aurore - Phase 1\n\nCe workflow reçoit les actions déjà validées depuis le backend (Node/Express) et se charge uniquement des effets de bord : Google Docs, Google Sheets, Calendar, Gmail.\n\n**Ce que ce workflow NE fait PAS (volontairement, pour l'instant) :**\n- Pas de logique de décision / extraction IA (c'est le backend qui s'en charge)\n- Pas encore de connexion WhatsApp entrante/sortante réelle (le numéro dédié n'est pas encore branché) — le webhook whatsapp-reply est un simple accusé de réception pour l'instant, à compléter dès que le numéro est prêt.\n\n**2 webhooks actifs, appelés par le backend :**\n- /webhook/notes-audience (compte-rendu d'audience, avec Calendar/Sheets)\n- /webhook/document-juridique (plaidoirie, conclusions, assignation, mise en demeure, jurisprudence — même chaîne générique, différenciée par categorie_texte)\n\n**1 webhook stub :**\n- /webhook/whatsapp-reply (à compléter Phase 1b)",
         "height": 420,
         "width": 460
       },
@@ -11,9 +11,11 @@
       "name": "Note - Lire avant de modifier",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
-      "position": [-1600, -400]
+      "position": [
+        -1600,
+        -400
+      ]
     },
-
     {
       "parameters": {
         "httpMethod": "POST",
@@ -25,7 +27,10 @@
       "name": "Webhook - Notes Audience",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [-1120, 0],
+      "position": [
+        -1120,
+        0
+      ],
       "webhookId": "aurore-notes-audience"
     },
     {
@@ -44,11 +49,17 @@
       "name": "Copy file (CR Audience)",
       "type": "n8n-nodes-base.googleDrive",
       "typeVersion": 3,
-      "position": [-880, 0],
+      "position": [
+        -880,
+        0
+      ],
       "retryOnFail": true,
       "waitBetweenTries": 5000,
       "credentials": {
-        "googleDriveOAuth2Api": { "id": "goVqvudbc5Sn8Rit", "name": "Google Drive account" }
+        "googleDriveOAuth2Api": {
+          "id": "goVqvudbc5Sn8Rit",
+          "name": "Google Drive account"
+        }
       }
     },
     {
@@ -89,31 +100,51 @@
       "name": "Update a document (CR)",
       "type": "n8n-nodes-base.googleDocs",
       "typeVersion": 2,
-      "position": [-640, 0],
+      "position": [
+        -640,
+        0
+      ],
       "retryOnFail": true,
       "waitBetweenTries": 5000,
       "credentials": {
-        "googleDocsOAuth2Api": { "id": "QXSjOT7rKVMaSx9k", "name": "Google Docs account" }
+        "googleDocsOAuth2Api": {
+          "id": "QXSjOT7rKVMaSx9k",
+          "name": "Google Docs account"
+        }
       }
     },
     {
       "parameters": {
         "operation": "download",
-        "fileId": { "__rl": true, "value": "={{ $json.documentId }}", "mode": "id" },
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.documentId }}",
+          "mode": "id"
+        },
         "options": {
           "binaryPropertyName": "data",
-          "googleFileConversion": { "conversion": { "docsToFormat": "application/pdf" } }
+          "googleFileConversion": {
+            "conversion": {
+              "docsToFormat": "application/pdf"
+            }
+          }
         }
       },
       "id": "export-pdf-notes",
       "name": "Export PDF (CR)",
       "type": "n8n-nodes-base.googleDrive",
       "typeVersion": 3,
-      "position": [-400, 0],
+      "position": [
+        -400,
+        0
+      ],
       "retryOnFail": true,
       "waitBetweenTries": 5000,
       "credentials": {
-        "googleDriveOAuth2Api": { "id": "goVqvudbc5Sn8Rit", "name": "Google Drive account" }
+        "googleDriveOAuth2Api": {
+          "id": "goVqvudbc5Sn8Rit",
+          "name": "Google Drive account"
+        }
       }
     },
     {
@@ -122,16 +153,30 @@
         "subject": "=Compte-rendu audience - {{ $('Webhook - Notes Audience').item.json.body.nom_affaire }}",
         "emailType": "text",
         "message": "=Bonjour Maître Koffi,\n\nVeuillez trouver ci-joint le compte-rendu de l'audience concernant l'affaire {{ $('Webhook - Notes Audience').item.json.body.nom_affaire }}.\n\nPour le modifier : https://docs.google.com/document/d/{{ $('Update a document (CR)').item.json.documentId }}\n\nProchaine audience : {{ $('Webhook - Notes Audience').item.json.body.prochaine_audience }}\n\nCordialement,\nAurore, votre Assistante juridique",
-        "options": { "attachmentsUi": { "attachmentsBinary": [{}] } }
+        "options": {
+          "attachmentsUi": {
+            "attachmentsBinary": [
+              {}
+            ]
+          }
+        }
       },
       "id": "gmail-notes",
       "name": "Gmail - Envoi CR",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
-      "position": [-160, 0],
+      "position": [
+        -160,
+        0
+      ],
       "retryOnFail": true,
       "waitBetweenTries": 5000,
-      "credentials": { "gmailOAuth2": { "id": "bhJH2gq7NAqpxE1w", "name": "Gmail account" } }
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "bhJH2gq7NAqpxE1w",
+          "name": "Gmail account"
+        }
+      }
     },
     {
       "parameters": {
@@ -142,7 +187,12 @@
           "mode": "id",
           "cachedResultName": "Tableau des Audiences"
         },
-        "sheetName": { "__rl": true, "value": "gid=0", "mode": "list", "cachedResultName": "Feuille 1" },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Feuille 1"
+        },
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
@@ -166,16 +216,26 @@
       "name": "Google Sheets - Journal",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.4,
-      "position": [-880, 200],
+      "position": [
+        -880,
+        200
+      ],
       "retryOnFail": true,
       "waitBetweenTries": 5000,
       "credentials": {
-        "googleSheetsOAuth2Api": { "id": "FsSUSPTvqtbwwSQ1", "name": "Google Sheets account" }
+        "googleSheetsOAuth2Api": {
+          "id": "FsSUSPTvqtbwwSQ1",
+          "name": "Google Sheets account"
+        }
       }
     },
     {
       "parameters": {
-        "calendar": { "__rl": true, "value": "lao.charlys@gmail.com", "mode": "id" },
+        "calendar": {
+          "__rl": true,
+          "value": "lao.charlys@gmail.com",
+          "mode": "id"
+        },
         "start": "={{ $('Webhook - Notes Audience').item.json.body.prochaine_audience }}",
         "end": "={{ $('Webhook - Notes Audience').item.json.body.prochaine_audience }}",
         "additionalFields": {
@@ -188,21 +248,34 @@
       "name": "Create an event (prochaine audience)",
       "type": "n8n-nodes-base.googleCalendar",
       "typeVersion": 1.3,
-      "position": [-640, 200],
+      "position": [
+        -640,
+        200
+      ],
       "onError": "continueRegularOutput",
       "credentials": {
-        "googleCalendarOAuth2Api": { "id": "JIqSijNt4hQF8lk6", "name": "Google Calendar account" }
+        "googleCalendarOAuth2Api": {
+          "id": "JIqSijNt4hQF8lk6",
+          "name": "Google Calendar account"
+        }
       }
     },
-
     {
-      "parameters": { "httpMethod": "POST", "path": "plaidoirie", "responseMode": "onReceived", "options": {} },
-      "id": "webhook-plaidoirie",
-      "name": "Webhook - Plaidoirie",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "document-juridique",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "webhook-document-juridique",
+      "name": "Webhook - Document Juridique",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [-1120, 480],
-      "webhookId": "aurore-plaidoirie"
+      "position": [
+        -1120,
+        480
+      ],
+      "webhookId": "aurore-document-juridique"
     },
     {
       "parameters": {
@@ -216,15 +289,21 @@
         "name": "={{ $json.body.categorie_texte }}",
         "options": {}
       },
-      "id": "copy-file-plaidoirie",
-      "name": "Copy file (Plaidoirie)",
+      "id": "copy-file-document-juridique",
+      "name": "Copy file (Document Juridique)",
       "type": "n8n-nodes-base.googleDrive",
       "typeVersion": 3,
-      "position": [-880, 480],
+      "position": [
+        -880,
+        480
+      ],
       "retryOnFail": true,
       "waitBetweenTries": 5000,
       "credentials": {
-        "googleDriveOAuth2Api": { "id": "goVqvudbc5Sn8Rit", "name": "Google Drive account" }
+        "googleDriveOAuth2Api": {
+          "id": "goVqvudbc5Sn8Rit",
+          "name": "Google Drive account"
+        }
       }
     },
     {
@@ -236,166 +315,112 @@
             {
               "action": "replaceAll",
               "text": "{{nature_texte}}",
-              "replaceText": "={{ $('Webhook - Plaidoirie').item.json.body.categorie_texte }}"
+              "replaceText": "={{ $('Webhook - Document Juridique').item.json.body.categorie_texte }}"
             },
             {
               "action": "replaceAll",
               "text": "{{argumentaire}}",
-              "replaceText": "={{ $('Webhook - Plaidoirie').item.json.body.argumentaire }}"
+              "replaceText": "={{ $('Webhook - Document Juridique').item.json.body.argumentaire }}"
             }
           ]
         }
       },
-      "id": "update-doc-plaidoirie",
-      "name": "Update a document (Plaidoirie)",
+      "id": "update-doc-document-juridique",
+      "name": "Update a document (Document Juridique)",
       "type": "n8n-nodes-base.googleDocs",
       "typeVersion": 2,
-      "position": [-640, 480],
+      "position": [
+        -640,
+        480
+      ],
       "retryOnFail": true,
       "waitBetweenTries": 5000,
       "credentials": {
-        "googleDocsOAuth2Api": { "id": "QXSjOT7rKVMaSx9k", "name": "Google Docs account" }
+        "googleDocsOAuth2Api": {
+          "id": "QXSjOT7rKVMaSx9k",
+          "name": "Google Docs account"
+        }
       }
     },
     {
       "parameters": {
         "operation": "download",
-        "fileId": { "__rl": true, "value": "={{ $json.documentId }}", "mode": "id" },
-        "options": { "googleFileConversion": { "conversion": { "docsToFormat": "application/pdf" } } }
-      },
-      "id": "download-plaidoirie",
-      "name": "Download file (Plaidoirie)",
-      "type": "n8n-nodes-base.googleDrive",
-      "typeVersion": 3,
-      "position": [-400, 480],
-      "retryOnFail": true,
-      "waitBetweenTries": 5000,
-      "credentials": {
-        "googleDriveOAuth2Api": { "id": "goVqvudbc5Sn8Rit", "name": "Google Drive account" }
-      }
-    },
-    {
-      "parameters": {
-        "sendTo": "cabinet.koffi@example.com, lao.charlys@gmail.com",
-        "subject": "={{ $('Webhook - Plaidoirie').item.json.body.categorie_texte }} a/s {{ $('Webhook - Plaidoirie').item.json.body.nom_affaire }}",
-        "emailType": "text",
-        "message": "=Bonjour Maître Koffi,\n\nVotre {{ $('Webhook - Plaidoirie').item.json.body.categorie_texte }} concernant l'affaire {{ $('Webhook - Plaidoirie').item.json.body.nom_affaire }} est disponible en pièce jointe.\n\nModifier sur Google Docs : https://docs.google.com/document/d/{{ $json.documentId }}\n\nCordialement,\nAurore, votre Assistante juridique",
-        "options": { "attachmentsUi": { "attachmentsBinary": [{}] } }
-      },
-      "id": "gmail-plaidoirie",
-      "name": "Gmail - Envoi Plaidoirie",
-      "type": "n8n-nodes-base.gmail",
-      "typeVersion": 2.2,
-      "position": [-160, 480],
-      "retryOnFail": true,
-      "waitBetweenTries": 5000,
-      "credentials": { "gmailOAuth2": { "id": "bhJH2gq7NAqpxE1w", "name": "Gmail account" } }
-    },
-
-    {
-      "parameters": { "httpMethod": "POST", "path": "jurisprudence", "responseMode": "onReceived", "options": {} },
-      "id": "webhook-jurisprudence",
-      "name": "Webhook - Jurisprudence",
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2,
-      "position": [-1120, 780],
-      "webhookId": "aurore-jurisprudence"
-    },
-    {
-      "parameters": {
-        "operation": "copy",
         "fileId": {
           "__rl": true,
-          "value": "11UJjGPgo5izYksaYTSPRnnQ_fUq3h4N9mNex1TjOkcg",
-          "mode": "id",
-          "cachedResultName": "Template Texte"
+          "value": "={{ $json.documentId }}",
+          "mode": "id"
         },
-        "name": "={{ $json.body.categorie_texte }}",
-        "options": {}
-      },
-      "id": "copy-file-jurisprudence",
-      "name": "Copy file (Jurisprudence)",
-      "type": "n8n-nodes-base.googleDrive",
-      "typeVersion": 3,
-      "position": [-880, 780],
-      "retryOnFail": true,
-      "waitBetweenTries": 5000,
-      "credentials": {
-        "googleDriveOAuth2Api": { "id": "goVqvudbc5Sn8Rit", "name": "Google Drive account" }
-      }
-    },
-    {
-      "parameters": {
-        "operation": "update",
-        "documentURL": "={{ $json.id }}",
-        "actionsUi": {
-          "actionFields": [
-            {
-              "action": "replaceAll",
-              "text": "{{nature_texte}}",
-              "replaceText": "={{ $('Webhook - Jurisprudence').item.json.body.categorie_texte }}"
-            },
-            {
-              "action": "replaceAll",
-              "text": "{{argumentaire}}",
-              "replaceText": "={{ $('Webhook - Jurisprudence').item.json.body.argumentaire }}"
+        "options": {
+          "googleFileConversion": {
+            "conversion": {
+              "docsToFormat": "application/pdf"
             }
-          ]
+          }
         }
       },
-      "id": "update-doc-jurisprudence",
-      "name": "Update a document (Jurisprudence)",
-      "type": "n8n-nodes-base.googleDocs",
-      "typeVersion": 2,
-      "position": [-640, 780],
-      "retryOnFail": true,
-      "waitBetweenTries": 5000,
-      "credentials": {
-        "googleDocsOAuth2Api": { "id": "QXSjOT7rKVMaSx9k", "name": "Google Docs account" }
-      }
-    },
-    {
-      "parameters": {
-        "operation": "download",
-        "fileId": { "__rl": true, "value": "={{ $json.documentId }}", "mode": "id" },
-        "options": { "googleFileConversion": { "conversion": { "docsToFormat": "application/pdf" } } }
-      },
-      "id": "download-jurisprudence",
-      "name": "Download file (Jurisprudence)",
+      "id": "download-document-juridique",
+      "name": "Download file (Document Juridique)",
       "type": "n8n-nodes-base.googleDrive",
       "typeVersion": 3,
-      "position": [-400, 780],
+      "position": [
+        -400,
+        480
+      ],
       "retryOnFail": true,
       "waitBetweenTries": 5000,
       "credentials": {
-        "googleDriveOAuth2Api": { "id": "goVqvudbc5Sn8Rit", "name": "Google Drive account" }
+        "googleDriveOAuth2Api": {
+          "id": "goVqvudbc5Sn8Rit",
+          "name": "Google Drive account"
+        }
       }
     },
     {
       "parameters": {
         "sendTo": "cabinet.koffi@example.com, lao.charlys@gmail.com",
-        "subject": "={{ $('Webhook - Jurisprudence').item.json.body.categorie_texte }} a/s {{ $('Webhook - Jurisprudence').item.json.body.nom_affaire }}",
+        "subject": "={{ $('Webhook - Document Juridique').item.json.body.categorie_texte }} a/s {{ $('Webhook - Document Juridique').item.json.body.nom_affaire }}",
         "emailType": "text",
-        "message": "=Bonjour Maître Koffi,\n\nVotre recherche de jurisprudence est disponible en pièce jointe.\n\nModifier sur Google Docs : https://docs.google.com/document/d/{{ $json.documentId }}\n\nCordialement,\nAurore, votre Assistante juridique",
-        "options": { "attachmentsUi": { "attachmentsBinary": [{}] } }
+        "message": "=Bonjour Maître Koffi,\n\nVotre {{ $('Webhook - Document Juridique').item.json.body.categorie_texte }} concernant l'affaire {{ $('Webhook - Document Juridique').item.json.body.nom_affaire }} est disponible en pièce jointe.\n\nModifier sur Google Docs : https://docs.google.com/document/d/{{ $json.documentId }}\n\nCordialement,\nAurore, votre Assistante juridique",
+        "options": {
+          "attachmentsUi": {
+            "attachmentsBinary": [
+              {}
+            ]
+          }
+        }
       },
-      "id": "gmail-jurisprudence",
-      "name": "Gmail - Envoi Jurisprudence",
+      "id": "gmail-document-juridique",
+      "name": "Gmail - Envoi Document Juridique",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.2,
-      "position": [-160, 780],
+      "position": [
+        -160,
+        480
+      ],
       "retryOnFail": true,
       "waitBetweenTries": 5000,
-      "credentials": { "gmailOAuth2": { "id": "bhJH2gq7NAqpxE1w", "name": "Gmail account" } }
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "bhJH2gq7NAqpxE1w",
+          "name": "Gmail account"
+        }
+      }
     },
-
     {
-      "parameters": { "httpMethod": "POST", "path": "whatsapp-reply", "responseMode": "onReceived", "options": {} },
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-reply",
+        "responseMode": "onReceived",
+        "options": {}
+      },
       "id": "webhook-whatsapp-reply",
       "name": "Webhook - WhatsApp Reply (stub)",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [-1120, 1080],
+      "position": [
+        -1120,
+        1080
+      ],
       "webhookId": "aurore-whatsapp-reply"
     },
     {
@@ -408,30 +433,117 @@
       "name": "Note - whatsapp-reply stub",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
-      "position": [-880, 1080]
+      "position": [
+        -880,
+        1080
+      ]
     }
   ],
   "connections": {
     "Webhook - Notes Audience": {
-      "main": [[
-        { "node": "Copy file (CR Audience)", "type": "main", "index": 0 },
-        { "node": "Google Sheets - Journal", "type": "main", "index": 0 }
-      ]]
+      "main": [
+        [
+          {
+            "node": "Copy file (CR Audience)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Google Sheets - Journal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
-    "Copy file (CR Audience)": { "main": [[{ "node": "Update a document (CR)", "type": "main", "index": 0 }]] },
-    "Update a document (CR)": { "main": [[{ "node": "Export PDF (CR)", "type": "main", "index": 0 }]] },
-    "Export PDF (CR)": { "main": [[{ "node": "Gmail - Envoi CR", "type": "main", "index": 0 }]] },
-    "Google Sheets - Journal": { "main": [[{ "node": "Create an event (prochaine audience)", "type": "main", "index": 0 }]] },
-
-    "Webhook - Plaidoirie": { "main": [[{ "node": "Copy file (Plaidoirie)", "type": "main", "index": 0 }]] },
-    "Copy file (Plaidoirie)": { "main": [[{ "node": "Update a document (Plaidoirie)", "type": "main", "index": 0 }]] },
-    "Update a document (Plaidoirie)": { "main": [[{ "node": "Download file (Plaidoirie)", "type": "main", "index": 0 }]] },
-    "Download file (Plaidoirie)": { "main": [[{ "node": "Gmail - Envoi Plaidoirie", "type": "main", "index": 0 }]] },
-
-    "Webhook - Jurisprudence": { "main": [[{ "node": "Copy file (Jurisprudence)", "type": "main", "index": 0 }]] },
-    "Copy file (Jurisprudence)": { "main": [[{ "node": "Update a document (Jurisprudence)", "type": "main", "index": 0 }]] },
-    "Update a document (Jurisprudence)": { "main": [[{ "node": "Download file (Jurisprudence)", "type": "main", "index": 0 }]] },
-    "Download file (Jurisprudence)": { "main": [[{ "node": "Gmail - Envoi Jurisprudence", "type": "main", "index": 0 }]] }
+    "Copy file (CR Audience)": {
+      "main": [
+        [
+          {
+            "node": "Update a document (CR)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update a document (CR)": {
+      "main": [
+        [
+          {
+            "node": "Export PDF (CR)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Export PDF (CR)": {
+      "main": [
+        [
+          {
+            "node": "Gmail - Envoi CR",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets - Journal": {
+      "main": [
+        [
+          {
+            "node": "Create an event (prochaine audience)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook - Document Juridique": {
+      "main": [
+        [
+          {
+            "node": "Copy file (Document Juridique)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Copy file (Document Juridique)": {
+      "main": [
+        [
+          {
+            "node": "Update a document (Document Juridique)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update a document (Document Juridique)": {
+      "main": [
+        [
+          {
+            "node": "Download file (Document Juridique)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download file (Document Juridique)": {
+      "main": [
+        [
+          {
+            "node": "Gmail - Envoi Document Juridique",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
   "pinData": {},
   "active": false,

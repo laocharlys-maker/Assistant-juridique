@@ -11,12 +11,37 @@ export const notesFormSchema = z.object({
   pieces_prevoir: z.array(z.string()).optional(),
 });
 
-export const redacFormSchema = z.object({
-  type_action: z.literal("redac"),
+// Champs communs a plaidoirie / conclusions / assignation : meme logique
+// (dossier + contexte + axes d'argumentation), seul le texte genere differe.
+const texteJuridiqueFields = {
   numero_dossier: z.string().min(1),
   nom_affaire: z.string().min(1),
   contexte: z.string().min(1),
   axes_argumentation: z.array(z.string().min(1)).min(1),
+};
+
+export const redacFormSchema = z.object({
+  type_action: z.literal("redac"),
+  ...texteJuridiqueFields,
+});
+
+export const conclusionsFormSchema = z.object({
+  type_action: z.literal("conclusions"),
+  ...texteJuridiqueFields,
+});
+
+export const assignationFormSchema = z.object({
+  type_action: z.literal("assignation"),
+  ...texteJuridiqueFields,
+});
+
+export const miseEnDemeureFormSchema = z.object({
+  type_action: z.literal("mise_en_demeure"),
+  numero_dossier: z.string().min(1),
+  nom_affaire: z.string().min(1),
+  destinataire: z.string().min(1),
+  contexte: z.string().min(1),
+  delai_jours: z.coerce.number().int().positive(),
 });
 
 export const jurisprudenceFormSchema = z.object({
@@ -28,6 +53,9 @@ export const jurisprudenceFormSchema = z.object({
 export const webActionFormSchema = z.discriminatedUnion("type_action", [
   notesFormSchema,
   redacFormSchema,
+  conclusionsFormSchema,
+  assignationFormSchema,
+  miseEnDemeureFormSchema,
   jurisprudenceFormSchema,
 ]);
 

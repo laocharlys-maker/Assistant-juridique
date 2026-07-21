@@ -35,6 +35,32 @@ Redige une FICHE DE JURISPRUDENCE structuree ainsi :
 
 Si tu n'as pas de decision precise et verifiee en memoire pour ce theme, dis-le explicitement plutot que d'inventer une reference.`;
 
+export const CONCLUSIONS_SYSTEM_PROMPT = `${COMMON_SYSTEM}
+
+Redige des CONCLUSIONS (ecriture de procedure) structurees ainsi :
+- Rappel de la procedure et des parties
+- Discussion (faits puis moyens de droit, en t'appuyant sur les axes d'argumentation fournis)
+- "PAR CES MOTIFS" : liste numerotee des demandes precises au tribunal`;
+
+export const ASSIGNATION_SYSTEM_PROMPT = `${COMMON_SYSTEM}
+
+Redige une ASSIGNATION structuree ainsi :
+- Identification des parties (demandeur/defendeur, a completer par l'avocat si manquant)
+- Expose des faits
+- Moyens de droit invoques (en t'appuyant sur les axes d'argumentation fournis)
+- Objet de la demande
+- Formule de citation a comparaitre devant la juridiction competente, a une date que l'avocat completera`;
+
+export const MISE_EN_DEMEURE_SYSTEM_PROMPT = `${COMMON_SYSTEM}
+
+Redige une MISE EN DEMEURE (lettre formelle) structuree ainsi :
+- Rappel des faits et de l'obligation non respectee
+- Mise en demeure explicite d'executer l'obligation dans le delai indique
+- Consequences juridiques encourues en cas d'inexecution dans le delai
+- Formule de politesse ferme mais correcte
+
+Adresse la lettre au destinataire indique.`;
+
 export function buildNotesUserPrompt(facts: {
   numeroDossier: string;
   nomAffaire: string;
@@ -69,4 +95,16 @@ export function buildJurisprudenceUserPrompt(facts: {
 }): string {
   return `Theme / mots-cles : ${facts.theme}
 Juridiction(s) ciblee(s) : ${facts.juridictions.join(", ") || "non precisee"}`;
+}
+
+export function buildMiseEnDemeureUserPrompt(facts: {
+  nomAffaire: string;
+  destinataire: string;
+  contexte: string;
+  delaiJours: number;
+}): string {
+  return `Affaire : ${facts.nomAffaire}
+Destinataire : ${facts.destinataire}
+Contexte / obligation non respectee : ${facts.contexte}
+Delai accorde : ${facts.delaiJours} jours`;
 }

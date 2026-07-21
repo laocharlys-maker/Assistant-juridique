@@ -8,14 +8,27 @@ import { webActionFormSchema } from "../schemas/webForms";
 import {
   NOTES_SYSTEM_PROMPT,
   REDAC_SYSTEM_PROMPT,
+  CONCLUSIONS_SYSTEM_PROMPT,
+  ASSIGNATION_SYSTEM_PROMPT,
+  MISE_EN_DEMEURE_SYSTEM_PROMPT,
   JURISPRUDENCE_SYSTEM_PROMPT,
   buildNotesUserPrompt,
   buildRedacUserPrompt,
+  buildMiseEnDemeureUserPrompt,
   buildJurisprudenceUserPrompt,
 } from "../prompts/webRedaction";
 import { ActionOutput } from "../schemas/action";
 
 export const webActionsRouter = Router();
+
+// redac / conclusions / assignation partagent la meme forme de donnees
+// (dossier existant + contexte + axes d'argumentation), seuls le prompt et
+// le libelle changent.
+const TEXTE_JURIDIQUE_CONFIG = {
+  redac: { systemPrompt: REDAC_SYSTEM_PROMPT, categorieTexte: "Plaidoirie" },
+  conclusions: { systemPrompt: CONCLUSIONS_SYSTEM_PROMPT, categorieTexte: "Conclusions" },
+  assignation: { systemPrompt: ASSIGNATION_SYSTEM_PROMPT, categorieTexte: "Assignation" },
+} as const;
 
 webActionsRouter.post("/api/actions/web", requireAuth, async (req, res) => {
   const parsed = webActionFormSchema.safeParse(req.body);
@@ -78,9 +91,14 @@ webActionsRouter.post("/api/actions/web", requireAuth, async (req, res) => {
         synthese: redigé,
         argumentaire: null,
       };
-    } else if (form.type_action === "redac") {
+    } else if (
+      form.type_action === "redac" ||
+      form.type_action === "conclusions" ||
+      form.type_action === "assignation"
+    ) {
+      const config = TEXTE_JURIDIQUE_CONFIG[form.type_action];
       const redigé = await llm.redact(
-        REDAC_SYSTEM_PROMPT,
+        config.systemPrompt,
         buildRedacUserPrompt({
           nomAffaire: form.nom_affaire,
           contexte: form.contexte,
@@ -97,8 +115,41 @@ webActionsRouter.post("/api/actions/web", requireAuth, async (req, res) => {
       dossierId = dossier.id;
 
       action = {
-        type_action: "redac",
-        categorie_texte: "Plaidoirie",
+        type_action: form.type_action,
+        categorie_texte: config.categorieTexte,
+        numero_dossier: form.numero_dossier,
+        nom_affaire: form.nom_affaire,
+        nom_client: null,
+        nom_juge: null,
+        date_audience: null,
+        decision: null,
+        prochaine_audience: null,
+        pieces_prevoir: null,
+        synthese: null,
+        argumentaire: redigé,
+      };
+    } else if (form.type_action === "mise_en_demeure") {
+      const redigé = await llm.redact(
+        MISE_EN_DEMEURE_SYSTEM_PROMPT,
+        buildMiseEnDemeureUserPrompt({
+          nomAffaire: form.nom_affaire,
+          destinataire: form.destinataire,
+          contexte: form.contexte,
+          delaiJours: form.delai_jours,
+        })
+      );
+
+      const dossier = await prisma.dossier.findFirst({
+        where: { cabinetId: auth!.cabinetId, numeroDossier: form.numero_dossier },
+      });
+      if (!dossier) {
+        return res.status(404).json({ error: "Dossier introuvable pour ce numéro" });
+      }
+      dossierId = dossier.id;
+
+      action = {
+        type_action: "mise_en_demeure",
+        categorie_texte: "Mise en demeure",
         numero_dossier: form.numero_dossier,
         nom_affaire: form.nom_affaire,
         nom_client: null,
