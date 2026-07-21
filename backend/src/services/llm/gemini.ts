@@ -3,6 +3,7 @@ import { env } from "../../config/env";
 import { actionOutputSchema, actionOutputJsonSchema, ActionOutput } from "../../schemas/action";
 import { LEGAL_ASSISTANT_SYSTEM_PROMPT, buildUserPrompt } from "../../prompts/legalAssistant";
 import { LlmProvider, LlmOutputError } from "./types";
+import { withTransientRetry } from "../../lib/retry";
 
 export class GeminiProvider implements LlmProvider {
   private client: GoogleGenerativeAI;
@@ -13,7 +14,7 @@ export class GeminiProvider implements LlmProvider {
 
   async extractAction(rawInput: string): Promise<ActionOutput> {
     const model = this.client.getGenerativeModel({
-      model: "gemini-flash-latest",
+      model: "gemini-2.0-flash-001",
       systemInstruction: LEGAL_ASSISTANT_SYSTEM_PROMPT,
       generationConfig: {
         responseMimeType: "application/json",
@@ -22,7 +23,7 @@ export class GeminiProvider implements LlmProvider {
       },
     });
 
-    const result = await model.generateContent(buildUserPrompt(rawInput));
+    const result = await withTransientRetry(() => model.generateContent(buildUserPrompt(rawInput)));
     const text = result.response.text();
 
     let parsed: unknown;
