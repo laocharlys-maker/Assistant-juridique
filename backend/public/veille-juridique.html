@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aurore — Veille juridique</title>
+  <link rel="icon" type="image/png" href="/favicon-256.png" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="page">
+    <h1>Veille juridique hebdomadaire</h1>
+    <p class="muted">Chaque lundi matin, Aurore recherche l'actualité juridique sur les sujets suivis et envoie un résumé par email aux avocats et au titulaire du cabinet (sauf ceux qui s'en sont désinscrits).</p>
+
+    <div id="error" class="error"></div>
+
+    <div class="card" id="veille-cabinet-card" style="display:none;">
+      <h2>Sujets suivis par le cabinet</h2>
+      <form id="veille-form">
+        <label>Sujets à surveiller (un par ligne ou séparés par une virgule)</label>
+        <textarea name="veilleSujets" placeholder="ex: droit du travail, baux commerciaux, OHADA"></textarea>
+        <label style="display:flex; align-items:center; gap:8px; margin-top:10px;">
+          <input type="checkbox" name="veilleActive" style="width:auto;" />
+          Activer l'envoi automatique hebdomadaire
+        </label>
+        <button type="submit">Enregistrer</button>
+        <span id="veille-saved" class="muted" style="display:none; margin-left:10px;">Enregistré ✓</span>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2>Ma réception de la veille juridique</h2>
+      <label style="display:flex; align-items:center; gap:8px;">
+        <input type="checkbox" id="recoit-veille-checkbox" style="width:auto;" />
+        Recevoir le résumé hebdomadaire de veille juridique par email
+      </label>
+      <span id="recoit-veille-saved" class="muted" style="display:none; margin-top:8px;">Enregistré ✓</span>
+    </div>
+  </div>
+  <script src="/js/api.js"></script>
+  <script src="/js/layout.js"></script>
+  <script>
+    const errorEl = document.getElementById("error");
+
+    (async () => {
+      const me = await requireSession();
+      if (!me) return;
+      initLayout(me);
+
+      if (me.role !== "titulaire" && me.role !== "avocat") {
+        document.querySelector(".page").innerHTML =
+          '<p class="error visible">Cette page est réservée aux avocats et à l\'administrateur du cabinet.</p>';
+        return;
+      }
+
+      document.getElementById("recoit-veille-checkbox").checked = me.recoitVeille !== false;
+
+      if (me.role === "titulaire") {
+        document.getElementById("veille-cabinet-card").style.display = "block";
+        try {
+          const cabinet = await apiFetch("/api/cabinet");
+          document.querySelector('#veille-form textarea[name="veilleSujets"]').value = cabinet.veilleSujets || "";
+          document.querySelector('#veille-form input[name="veilleActive"]').checked = !!cabinet.veilleActive;
+        } catch (err) {
+          showError(errorEl, err.message);
+        }
+      }
+    })();
+
+    document.getElementById("veille-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      hideError(errorEl);
+      const fd = new FormData(e.target);
+      const savedEl = document.getElementById("veille-saved");
+      savedEl.style.display = "none";
+      try {
+        await apiFetch("/api/cabinet/veille", {
+          method: "PATCH",
+          body: {
+            veilleSujets: fd.get("veilleSujets") || "",
+            veilleActive: fd.get("veilleActive") === "on",
+          },
+        });
+        savedEl.style.display = "inline";
+        setTimeout(() => { savedEl.style.display = "none"; }, 3000);
+      } catch (err) {
+        showError(errorEl, err.message);
+      }
+    });
+
+    document.getElementById("recoit-veille-checkbox").addEventListener("change", async (e) => {
+      hideError(errorEl);
+      const savedEl = document.getElementById("recoit-veille-saved");
+      savedEl.style.display = "none";
+      try {
+        await apiFetch("/api/users/me/veille", { method: "PATCH", body: { actif: e.target.checked } });
+        savedEl.style.display = "inline";
+        setTimeout(() => { savedEl.style.display = "none"; }, 3000);
+      } catch (err) {
+        showError(errorEl, err.message);
+        e.target.checked = !e.target.checked;
+      }
+    });
+  </script>
+</body>
+</html>
