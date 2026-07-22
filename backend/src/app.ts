@@ -11,6 +11,7 @@ import { actionsCallbackRouter } from "./routes/actionsCallback";
 import { clientsRouter } from "./routes/clients";
 import { signatureRouter } from "./routes/signature";
 import { jurisprudenceBaseRouter } from "./routes/jurisprudenceBase";
+import { delaisRouter } from "./routes/delais";
 
 export const app = express();
 
@@ -26,4 +27,5 @@ app.use(actionsCallbackRouter);
 app.use(clientsRouter);
 app.use(signatureRouter);
 app.use(jurisprudenceBaseRouter);
+app.use(delaisRouter);
 app.use(express.static(path.join(__dirname, "..", "public")));

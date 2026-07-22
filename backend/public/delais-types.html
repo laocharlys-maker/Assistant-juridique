@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aurore — Référentiel des délais</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <span class="brand">Aurore</span>
+    <nav>
+      <a href="/dashboard.html">Dossiers</a>
+      <a href="/nouvelle-action.html">Nouvelle action</a>
+      <a href="/clients.html">Clients</a>
+      <a href="/jurisprudence-base.html">Jurisprudence</a>
+      <a href="/delais-calculateur.html">Délais</a>
+      <a href="/collaborateurs.html" id="collab-link" style="display:none;">Collaborateurs</a>
+      <a href="/profil.html">Mon profil</a>
+      <a href="#" id="logout-link">Déconnexion</a>
+    </nav>
+  </header>
+  <div class="page">
+    <h1>Référentiel des délais de procédure</h1>
+    <p class="muted">Saisis ici les délais réels applicables au cabinet (nombre de jours ou de mois, texte de loi de référence). Aurore ne calcule que sur la base des délais que tu as toi-même validés ici — jamais une valeur devinée.</p>
+
+    <div id="error" class="error"></div>
+
+    <div class="card">
+      <h2>Ajouter un type de délai</h2>
+      <form id="create-form">
+        <label>Nom (ex: Délai d'appel)</label>
+        <input name="nom" required />
+        <label>Nombre</label>
+        <input name="nombreUnites" type="number" min="1" required />
+        <label>Unité</label>
+        <select name="unite" required>
+          <option value="jours">Jours</option>
+          <option value="mois">Mois</option>
+        </select>
+        <label style="display:flex; align-items:center; gap:8px; font-weight:400;">
+          <input type="checkbox" name="joursOuvresUniquement" style="width:auto;" checked />
+          Reporter au prochain jour ouvré si l'échéance tombe un week-end
+        </label>
+        <label>Texte de loi de référence</label>
+        <input name="texteReference" required placeholder="ex: Code de procédure civile béninois, art. XX" />
+        <button type="submit">Ajouter au référentiel</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2>Délais du référentiel</h2>
+      <div id="types-list"><p class="muted">Chargement…</p></div>
+    </div>
+  </div>
+  <script src="/js/api.js"></script>
+  <script>
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str ?? "";
+      return div.innerHTML;
+    }
+
+    let me = null;
+
+    async function loadTypes() {
+      const listEl = document.getElementById("types-list");
+      try {
+        const types = await apiFetch("/api/delais-types?all=1");
+        if (types.length === 0) {
+          listEl.innerHTML = '<p class="muted">Aucun délai saisi pour l\'instant.</p>';
+          return;
+        }
+        listEl.innerHTML = types
+          .map(
+            (t) => `
+          <div class="action-item">
+            <span class="tag">${t.nombreUnites} ${t.unite === "mois" ? "mois" : "jours"}${t.joursOuvresUniquement ? " · report si week-end" : ""}${t.actif ? "" : " · INACTIF"}</span>
+            <div><strong>${escapeHtml(t.nom)}</strong></div>
+            <p class="muted">${escapeHtml(t.texteReference)}</p>
+            <button type="button" class="secondary" data-toggle="${t.id}" data-actif="${t.actif}">${t.actif ? "Désactiver" : "Réactiver"}</button>
+            <button type="button" class="secondary" data-delete="${t.id}">Supprimer</button>
+          </div>`
+          )
+          .join("");
+        listEl.querySelectorAll("[data-toggle]").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            const actif = btn.dataset.actif === "true";
+            await apiFetch(`/api/delais-types/${btn.dataset.toggle}`, {
+              method: "PATCH",
+              body: { actif: !actif },
+            });
+            loadTypes();
+          });
+        });
+        listEl.querySelectorAll("[data-delete]").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            if (!confirm("Supprimer ce type de délai du référentiel ?")) return;
+            await apiFetch(`/api/delais-types/${btn.dataset.delete}`, { method: "DELETE" });
+            loadTypes();
+          });
+        });
+      } catch (err) {
+        listEl.innerHTML = `<p class="error visible">${escapeHtml(err.message)}</p>`;
+      }
+    }
+
+    (async () => {
+      me = await requireSession();
+      if (!me) return;
+      if (me.role === "titulaire") {
+        document.getElementById("collab-link").style.display = "inline";
+      }
+      if (me.role !== "titulaire") {
+        document.querySelector(".page").innerHTML =
+          '<p class="error visible">Cette page est réservée au titulaire du cabinet.</p>';
+        return;
+      }
+      loadTypes();
+    })();
+
+    const errorEl = document.getElementById("error");
+    document.getElementById("create-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      hideError(errorEl);
+      const fd = new FormData(e.target);
+      try {
+        await apiFetch("/api/delais-types", {
+          method: "POST",
+          body: {
+            nom: fd.get("nom"),
+            nombreUnites: Number(fd.get("nombreUnites")),
+            unite: fd.get("unite"),
+            joursOuvresUniquement: fd.get("joursOuvresUniquement") === "on",
+            texteReference: fd.get("texteReference"),
+          },
+        });
+        e.target.reset();
+        loadTypes();
+      } catch (err) {
+        showError(errorEl, err.message);
+      }
+    });
+
+    document.getElementById("logout-link").addEventListener("click", async (e) => {
+      e.preventDefault();
+      await apiFetch("/api/auth/logout", { method: "POST" });
+      window.location.href = "/login.html";
+    });
+  </script>
+</body>
+</html>

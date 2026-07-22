@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aurore — Calcul de délais</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <span class="brand">Aurore</span>
+    <nav>
+      <a href="/dashboard.html">Dossiers</a>
+      <a href="/nouvelle-action.html">Nouvelle action</a>
+      <a href="/clients.html">Clients</a>
+      <a href="/jurisprudence-base.html">Jurisprudence</a>
+      <a href="/delais-calculateur.html">Délais</a>
+      <a href="/collaborateurs.html" id="collab-link" style="display:none;">Collaborateurs</a>
+      <a href="/profil.html">Mon profil</a>
+      <a href="#" id="logout-link">Déconnexion</a>
+    </nav>
+  </header>
+  <div class="page">
+    <h1>Calcul de délai de procédure</h1>
+    <p class="muted">Calcul déterministe (pas d'IA) à partir des délais validés par le cabinet. <a href="/delais-types.html" id="manage-types-link" style="display:none;">Gérer le référentiel des délais</a></p>
+
+    <div id="error" class="error"></div>
+    <div id="empty-warning" class="error" style="display:none;">Aucun délai n'est encore défini dans le référentiel du cabinet. Demande au titulaire d'en ajouter via "Gérer le référentiel des délais".</div>
+
+    <div class="card">
+      <form id="calc-form">
+        <label>Type de délai</label>
+        <select name="delaiTypeId" id="delai-type-select" required></select>
+        <label>Date de départ (signification, notification, décision...)</label>
+        <input name="dateDepart" type="date" required />
+        <label>Dossier concerné (optionnel)</label>
+        <select name="dossierId" id="dossier-select">
+          <option value="">— aucun —</option>
+        </select>
+        <label style="display:flex; align-items:center; gap:8px; font-weight:400;">
+          <input type="checkbox" name="creerRappelCalendar" style="width:auto;" />
+          Créer un rappel dans Google Calendar
+        </label>
+        <button type="submit">Calculer</button>
+      </form>
+    </div>
+
+    <div id="result" class="card" style="display:none;"></div>
+
+    <div class="card">
+      <h2>Historique</h2>
+      <div id="history-list"><p class="muted">Chargement…</p></div>
+    </div>
+  </div>
+  <script src="/js/api.js"></script>
+  <script>
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str ?? "";
+      return div.innerHTML;
+    }
+
+    function formatDate(iso) {
+      return new Date(iso).toLocaleDateString("fr-FR", { year: "numeric", month: "long", day: "numeric" });
+    }
+
+    const errorEl = document.getElementById("error");
+    const resultEl = document.getElementById("result");
+    const typeSelect = document.getElementById("delai-type-select");
+    const dossierSelect = document.getElementById("dossier-select");
+
+    async function loadTypes() {
+      const types = await apiFetch("/api/delais-types");
+      if (types.length === 0) {
+        document.getElementById("empty-warning").style.display = "block";
+        document.getElementById("calc-form").style.display = "none";
+        return;
+      }
+      typeSelect.innerHTML = types
+        .map((t) => `<option value="${t.id}">${escapeHtml(t.nom)} (${t.nombreUnites} ${t.unite})</option>`)
+        .join("");
+    }
+
+    async function loadDossiers() {
+      const { dossiers } = await apiFetch("/api/dossiers");
+      dossierSelect.innerHTML =
+        '<option value="">— aucun —</option>' +
+        dossiers
+          .map((d) => `<option value="${d.id}">${escapeHtml(d.numeroDossier)} — ${escapeHtml(d.nomAffaire)}</option>`)
+          .join("");
+    }
+
+    async function loadHistory() {
+      const listEl = document.getElementById("history-list");
+      try {
+        const calculs = await apiFetch("/api/delais/historique");
+        if (calculs.length === 0) {
+          listEl.innerHTML = '<p class="muted">Aucun calcul effectué pour l\'instant.</p>';
+          return;
+        }
+        listEl.innerHTML = calculs
+          .map(
+            (c) => `
+          <div class="action-item">
+            <span class="tag">${escapeHtml(c.delaiType.nom)}${c.dossier ? " · " + escapeHtml(c.dossier.numeroDossier) : ""}${c.rappelCalendar ? " · rappel Calendar créé" : ""}</span>
+            <div>Départ : ${formatDate(c.dateDepart)} → <strong>Date limite : ${formatDate(c.dateLimite)}</strong></div>
+            <p class="muted">Calculé par ${escapeHtml(c.createdBy.nom)} le ${new Date(c.createdAt).toLocaleString("fr-FR")}</p>
+          </div>`
+          )
+          .join("");
+      } catch (err) {
+        listEl.innerHTML = `<p class="error visible">${escapeHtml(err.message)}</p>`;
+      }
+    }
+
+    (async () => {
+      const me = await requireSession();
+      if (!me) return;
+      if (me.role === "titulaire") {
+        document.getElementById("collab-link").style.display = "inline";
+        document.getElementById("manage-types-link").style.display = "inline";
+      }
+      await Promise.all([loadTypes(), loadDossiers(), loadHistory()]);
+    })();
+
+    document.getElementById("calc-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      hideError(errorEl);
+      resultEl.style.display = "none";
+      const fd = new FormData(e.target);
+      try {
+        const calcul = await apiFetch("/api/delais/calculer", {
+          method: "POST",
+          body: {
+            delaiTypeId: fd.get("delaiTypeId"),
+            dateDepart: fd.get("dateDepart"),
+            dossierId: fd.get("dossierId") || undefined,
+            creerRappelCalendar: fd.get("creerRappelCalendar") === "on",
+          },
+        });
+        resultEl.innerHTML = `
+          <h2>Date limite</h2>
+          <p style="font-size:1.4em;"><strong>${formatDate(calcul.dateLimite)}</strong></p>
+          <p class="muted">${escapeHtml(calcul.delaiType.nom)} — ${escapeHtml(calcul.delaiType.texteReference)}</p>
+          ${calcul.rappelCalendar ? '<p class="muted">Rappel créé dans Google Calendar.</p>' : ""}
+        `;
+        resultEl.style.display = "block";
+        loadHistory();
+      } catch (err) {
+        showError(errorEl, err.message);
+      }
+    });
+
+    document.getElementById("logout-link").addEventListener("click", async (e) => {
+      e.preventDefault();
+      await apiFetch("/api/auth/logout", { method: "POST" });
+      window.location.href = "/login.html";
+    });
+  </script>
+</body>
+</html>

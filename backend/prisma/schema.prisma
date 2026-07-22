@@ -42,14 +42,20 @@ enum StatutAction {
   envoye
 }
 
+enum UniteDelai {
+  jours
+  mois
+}
+
 model Cabinet {
   id        String   @id @default(uuid())
   nom       String
   createdAt DateTime @default(now()) @map("created_at")
 
-  users    User[]
-  dossiers Dossier[]
-  clients  Client[]
+  users      User[]
+  dossiers   Dossier[]
+  clients    Client[]
+  delaiTypes DelaiType[]
 
   @@map("cabinets")
 }
@@ -67,11 +73,13 @@ model User {
   signatureUrl   String?  @map("signature_url")
   createdAt      DateTime @default(now()) @map("created_at")
 
-  cabinet       Cabinet   @relation(fields: [cabinetId], references: [id])
-  responsable   User?     @relation("ResponsableCollaborateurs", fields: [responsableId], references: [id])
-  collaborateurs User[]   @relation("ResponsableCollaborateurs")
-  dossiersCrees Dossier[] @relation("DossierCreatedBy")
-  actionsCreees Action[]  @relation("ActionCreatedBy")
+  cabinet           Cabinet       @relation(fields: [cabinetId], references: [id])
+  responsable       User?         @relation("ResponsableCollaborateurs", fields: [responsableId], references: [id])
+  collaborateurs    User[]        @relation("ResponsableCollaborateurs")
+  dossiersCrees     Dossier[]     @relation("DossierCreatedBy")
+  actionsCreees     Action[]      @relation("ActionCreatedBy")
+  delaiTypesCrees   DelaiType[]
+  delaiCalculsCrees DelaiCalcul[]
 
   // Acces supplementaires accordes a CE collaborateur vers d'autres avocats.
   accesAccordes AccesSupplementaire[] @relation("AccesCollaborateur")
@@ -109,23 +117,62 @@ model Client {
   @@map("clients")
 }
 
-model Dossier {
-  id             String   @id @default(uuid())
-  cabinetId      String   @map("cabinet_id")
-  clientId       String?  @map("client_id")
-  numeroDossier  String   @map("numero_dossier")
-  nomAffaire     String   @map("nom_affaire")
-  nomClient      String   @map("nom_client")
-  nomJuge        String?  @map("nom_juge")
-  createdBy      String   @map("created_by")
-  statut         String   @default("actif")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+// Referentiel des delais de procedure, saisi et valide par le cabinet
+// (jamais devine par l'IA : erreur de delai = dossier perdu).
+model DelaiType {
+  id                    String     @id @default(uuid())
+  cabinetId             String     @map("cabinet_id")
+  nom                   String
+  nombreUnites          Int        @map("nombre_unites")
+  unite                 UniteDelai
+  joursOuvresUniquement Boolean    @default(true) @map("jours_ouvres_uniquement")
+  texteReference        String     @map("texte_reference")
+  actif                 Boolean    @default(true)
+  createdById           String     @map("created_by_id")
+  createdAt             DateTime   @default(now()) @map("created_at")
 
-  cabinet Cabinet @relation(fields: [cabinetId], references: [id])
-  client  Client? @relation(fields: [clientId], references: [id])
-  creePar User    @relation("DossierCreatedBy", fields: [createdBy], references: [id])
-  actions Action[]
+  cabinet   Cabinet       @relation(fields: [cabinetId], references: [id])
+  createdBy User          @relation(fields: [createdById], references: [id])
+  calculs   DelaiCalcul[]
+
+  @@map("delai_types")
+}
+
+model DelaiCalcul {
+  id             String   @id @default(uuid())
+  delaiTypeId    String   @map("delai_type_id")
+  dossierId      String?  @map("dossier_id")
+  dateDepart     DateTime @map("date_depart")
+  dateLimite     DateTime @map("date_limite")
+  rappelCalendar Boolean  @default(false) @map("rappel_calendar")
+  createdById    String   @map("created_by_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  delaiType DelaiType @relation(fields: [delaiTypeId], references: [id])
+  dossier   Dossier?  @relation(fields: [dossierId], references: [id])
+  createdBy User      @relation(fields: [createdById], references: [id])
+
+  @@map("delai_calculs")
+}
+
+model Dossier {
+  id            String   @id @default(uuid())
+  cabinetId     String   @map("cabinet_id")
+  clientId      String?  @map("client_id")
+  numeroDossier String   @map("numero_dossier")
+  nomAffaire    String   @map("nom_affaire")
+  nomClient     String   @map("nom_client")
+  nomJuge       String?  @map("nom_juge")
+  createdBy     String   @map("created_by")
+  statut        String   @default("actif")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  cabinet      Cabinet       @relation(fields: [cabinetId], references: [id])
+  client       Client?       @relation(fields: [clientId], references: [id])
+  creePar      User          @relation("DossierCreatedBy", fields: [createdBy], references: [id])
+  actions      Action[]
+  delaiCalculs DelaiCalcul[]
 
   @@unique([cabinetId, numeroDossier])
   @@map("dossiers")
@@ -149,8 +196,8 @@ model Action {
   createdBy         String       @map("created_by")
   createdAt         DateTime     @default(now()) @map("created_at")
 
-  dossier   Dossier     @relation(fields: [dossierId], references: [id])
-  creePar   User        @relation("ActionCreatedBy", fields: [createdBy], references: [id])
+  dossier   Dossier    @relation(fields: [dossierId], references: [id])
+  creePar   User       @relation("ActionCreatedBy", fields: [createdBy], references: [id])
   auditLogs AuditLog[]
 
   @@map("actions")
@@ -170,14 +217,14 @@ model AuditLog {
 }
 
 model JurisprudenceChunk {
-  id          String                 @id @default(uuid())
-  source      String
-  reference   String
-  juridiction String?
-  dateDecision String?               @map("date_decision")
-  contenu     String
-  embedding   Unsupported("vector")?
-  createdAt   DateTime               @default(now()) @map("created_at")
+  id           String                 @id @default(uuid())
+  source       String
+  reference    String
+  juridiction  String?
+  dateDecision String?                @map("date_decision")
+  contenu      String
+  embedding    Unsupported("vector")?
+  createdAt    DateTime               @default(now()) @map("created_at")
 
   @@map("jurisprudence_chunks")
 }

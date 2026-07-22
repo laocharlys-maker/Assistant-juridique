@@ -113,7 +113,7 @@ WhatsApp devient un canal parmi d'autres ; le produit devient une **application 
 - [ ] Rédaction de conclusions, assignations, mises en demeure (même schéma structuré que la plaidoirie)
 - [ ] Résumé de jurisprudence longue (upload PDF 10-20 pages → fiche synthétique, avec découpage si document trop long)
 - [ ] Veille juridique automatique hebdomadaire (digest lundi matin)
-- [ ] Calcul de délais de procédure — module déterministe (pas d'IA), création automatique du rappel Calendar
+- [x] Calcul de délais de procédure — module déterministe (pas d'IA), création automatique du rappel Calendar. Le cabinet saisit lui-même les délais réels (nombre + texte de loi) dans un référentiel dédié ; aucune valeur n'est devinée par l'IA.
 - [ ] Traduction juridique FR ↔ EN (avec relecture humaine requise avant envoi)
 
 ### 4.5 Fonctionnalités "cabinet" (Phase 4)
