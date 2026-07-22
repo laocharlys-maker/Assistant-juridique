@@ -58,6 +58,11 @@ header.topbar nav a:hover { color: var(--accent); }
   border-radius: 10px;
   padding: 24px;
   margin-bottom: 20px;
+  transition: box-shadow 0.3s ease, border-color 0.3s ease;
+}
+.card.highlight-target {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(180, 140, 60, 0.25);
 }
 
 h1 { font-size: 1.5rem; margin-top: 0; }
