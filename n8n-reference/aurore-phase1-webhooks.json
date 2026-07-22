@@ -279,13 +279,30 @@
     },
     {
       "parameters": {
+        "method": "GET",
+        "url": "=https://docs.googleapis.com/v1/documents/{{ $json.body.documentId }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDocsOAuth2Api",
+        "options": {}
+      },
+      "id": "get-document",
+      "name": "Recuperer le document",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-760, 620],
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "credentials": { "googleDocsOAuth2Api": { "id": "QXSjOT7rKVMaSx9k", "name": "Google Docs account" } }
+    },
+    {
+      "parameters": {
         "method": "POST",
-        "url": "=https://docs.googleapis.com/v1/documents/{{ $json.body.documentId }}:batchUpdate",
+        "url": "=https://docs.googleapis.com/v1/documents/{{ $('Webhook - Envoyer Email').item.json.body.documentId }}:batchUpdate",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "googleDocsOAuth2Api",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { \"requests\": [ { \"insertInlineImage\": { \"uri\": $json.body.signatureUrl, \"endOfSegmentLocation\": { \"segmentId\": \"\" }, \"objectSize\": { \"height\": { \"magnitude\": 50, \"unit\": \"PT\" }, \"width\": { \"magnitude\": 150, \"unit\": \"PT\" } } } } ] } }}",
+        "jsonBody": "={{ (() => { const content = $json.body.content; const last = content[content.length - 1]; const paraStart = last.startIndex; const insertAt = last.endIndex - 1; const newEnd = last.endIndex; return { requests: [ { insertInlineImage: { uri: $('Webhook - Envoyer Email').item.json.body.signatureUrl, location: { index: insertAt }, objectSize: { height: { magnitude: 50, unit: 'PT' }, width: { magnitude: 150, unit: 'PT' } } } }, { updateParagraphStyle: { paragraphStyle: { alignment: 'END' }, range: { startIndex: paraStart, endIndex: newEnd }, fields: 'alignment' } } ] }; })() }}",
         "options": {}
       },
       "id": "insert-signature",
@@ -372,10 +389,11 @@
     "Webhook - Envoyer Email": { "main": [[{ "node": "A une signature ?", "type": "main", "index": 0 }]] },
     "A une signature ?": {
       "main": [
-        [{ "node": "Inserer la signature", "type": "main", "index": 0 }],
+        [{ "node": "Recuperer le document", "type": "main", "index": 0 }],
         [{ "node": "Export PDF (Envoi)", "type": "main", "index": 0 }]
       ]
     },
+    "Recuperer le document": { "main": [[{ "node": "Inserer la signature", "type": "main", "index": 0 }]] },
     "Inserer la signature": { "main": [[{ "node": "Export PDF (Envoi)", "type": "main", "index": 0 }]] },
     "Export PDF (Envoi)": { "main": [[{ "node": "Gmail - Envoi au client", "type": "main", "index": 0 }]] }
   },
