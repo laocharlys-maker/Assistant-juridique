@@ -12,13 +12,16 @@ import {
   ASSIGNATION_SYSTEM_PROMPT,
   MISE_EN_DEMEURE_SYSTEM_PROMPT,
   JURISPRUDENCE_SYSTEM_PROMPT,
+  RECHERCHE_JURIDIQUE_SYSTEM_PROMPT,
   buildNotesUserPrompt,
   buildRedacUserPrompt,
   buildMiseEnDemeureUserPrompt,
   buildJurisprudenceUserPrompt,
+  buildRechercheJuridiqueUserPrompt,
 } from "../prompts/webRedaction";
 import { ActionOutput } from "../schemas/action";
 import { searchJurisprudence, formatJurisprudenceContext } from "../services/rag";
+import { searchWeb, formatWebSearchContext } from "../services/tavily";
 
 export const webActionsRouter = Router();
 
@@ -162,7 +165,7 @@ webActionsRouter.post("/api/actions/web", requireAuth, async (req, res) => {
         synthese: null,
         argumentaire: redigé,
       };
-    } else {
+    } else if (form.type_action === "jurisprudence") {
       const matches = await searchJurisprudence(form.theme);
       const redigé = await llm.redact(
         JURISPRUDENCE_SYSTEM_PROMPT,
@@ -194,6 +197,46 @@ webActionsRouter.post("/api/actions/web", requireAuth, async (req, res) => {
         categorie_texte: "Recherche de jurisprudence",
         numero_dossier: null,
         nom_affaire: form.theme,
+        nom_client: null,
+        nom_juge: null,
+        date_audience: null,
+        decision: null,
+        prochaine_audience: null,
+        pieces_prevoir: null,
+        synthese: null,
+        argumentaire: redigé,
+      };
+    } else {
+      const resultats = await searchWeb(form.question);
+      const redigé = await llm.redact(
+        RECHERCHE_JURIDIQUE_SYSTEM_PROMPT,
+        buildRechercheJuridiqueUserPrompt({
+          question: form.question,
+          resultatsRecherche: formatWebSearchContext(resultats),
+        })
+      );
+
+      // Recherche juridique : pas forcement liee a un dossier existant.
+      const dossier = await prisma.dossier.upsert({
+        where: {
+          cabinetId_numeroDossier: { cabinetId: auth!.cabinetId, numeroDossier: `RECH-${Date.now()}` },
+        },
+        update: {},
+        create: {
+          cabinetId: auth!.cabinetId,
+          numeroDossier: `RECH-${Date.now()}`,
+          nomAffaire: form.question,
+          nomClient: "Non applicable",
+          createdBy: auth!.userId,
+        },
+      });
+      dossierId = dossier.id;
+
+      action = {
+        type_action: "recherche_juridique",
+        categorie_texte: "Recherche juridique",
+        numero_dossier: null,
+        nom_affaire: form.question,
         nom_client: null,
         nom_juge: null,
         date_audience: null,

@@ -50,6 +50,11 @@ export const jurisprudenceFormSchema = z.object({
   juridictions: z.array(z.string()).optional(),
 });
 
+export const rechercheJuridiqueFormSchema = z.object({
+  type_action: z.literal("recherche_juridique"),
+  question: z.string().min(1),
+});
+
 export const webActionFormSchema = z.discriminatedUnion("type_action", [
   notesFormSchema,
   redacFormSchema,
@@ -57,6 +62,7 @@ export const webActionFormSchema = z.discriminatedUnion("type_action", [
   assignationFormSchema,
   miseEnDemeureFormSchema,
   jurisprudenceFormSchema,
+  rechercheJuridiqueFormSchema,
 ]);
 
 export type WebActionForm = z.infer<typeof webActionFormSchema>;

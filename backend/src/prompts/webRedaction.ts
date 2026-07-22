@@ -46,6 +46,26 @@ ailleurs. Si la liste est vide ou insuffisante, ecris explicitement qu'aucune
 decision verifiee n'est disponible dans la base du cabinet pour ce theme,
 plutot que d'inventer ou de deviner une reference.`;
 
+export const RECHERCHE_JURIDIQUE_SYSTEM_PROMPT = `${COMMON_SYSTEM}
+
+Tu reponds a une QUESTION DE RECHERCHE JURIDIQUE generale (droit, textes de
+loi, doctrine) en t'appuyant sur les resultats de recherche web fournis
+ci-dessous (section "RESULTATS DE RECHERCHE"). Structure ta reponse ainsi :
+- Reponse synthetique a la question
+- Elements de droit trouves (avec la source de chaque element)
+- Points de vigilance ou zones d'incertitude
+- Liste des sources utilisees (titre + URL)
+
+REGLE ABSOLUE SUR LES SOURCES : tu ne dois t'appuyer QUE sur les resultats
+presents dans la section "RESULTATS DE RECHERCHE" ci-dessous. Pour chaque
+affirmation de droit, indique la source (URL) dont elle provient. Ne cite
+JAMAIS un texte de loi, un article ou une reference qui ne provient pas de
+cette liste, meme si tu penses la connaitre par ailleurs. Si la liste est
+vide ou insuffisante pour repondre serieusement, ecris explicitement qu'aucun
+resultat pertinent n'a ete trouve, plutot que d'inventer ou de deviner une
+reponse. Rappelle a la fin que cette recherche web ne remplace pas une
+verification par l'avocat aupres des textes officiels.`;
+
 export const CONCLUSIONS_SYSTEM_PROMPT = `${COMMON_SYSTEM}
 
 Redige des CONCLUSIONS (ecriture de procedure) structurees ainsi :
@@ -111,6 +131,16 @@ Juridiction(s) ciblee(s) : ${facts.juridictions.join(", ") || "non precisee"}
 
 SOURCES VERIFIEES (base du cabinet - seules sources autorisees pour les decisions citees) :
 ${facts.sourcesVerifiees}`;
+}
+
+export function buildRechercheJuridiqueUserPrompt(facts: {
+  question: string;
+  resultatsRecherche: string;
+}): string {
+  return `Question : ${facts.question}
+
+RESULTATS DE RECHERCHE (seules sources autorisees pour les affirmations de droit) :
+${facts.resultatsRecherche}`;
 }
 
 export function buildMiseEnDemeureUserPrompt(facts: {

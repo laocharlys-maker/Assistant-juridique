@@ -123,7 +123,7 @@ button.secondary:hover { background: #eef3f1; }
 .dossier-item a:hover { color: var(--accent); }
 .dossier-item .meta { color: var(--muted); font-size: 0.85rem; }
 
-.tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+.tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
 .tabs button.tab {
   background: transparent;
   color: var(--muted);
