@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aurore — Facturation</title>
+  <link rel="icon" type="image/png" href="/favicon-256.png" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="page">
+    <h1>Facturation</h1>
+    <p class="muted">Suivi interne des honoraires et des paiements. Ce n'est pas une facture normalisée au sens fiscal (SYGMEF) : celle-ci reste émise séparément par l'avocat sur son propre compte SYGMEF.</p>
+
+    <div id="error" class="error"></div>
+
+    <div class="card">
+      <h2>Nouvelle facture</h2>
+      <form id="facture-form">
+        <label>Dossier concerné</label>
+        <select name="dossierId" id="dossier-select" required></select>
+        <label>Description</label>
+        <textarea name="description" required placeholder="ex: Honoraires - Consultation et rédaction d'assignation"></textarea>
+        <label>Montant (F CFA)</label>
+        <input name="montant" type="number" min="1" step="1" required />
+        <label>Échéance (optionnel)</label>
+        <input name="dateEcheance" type="date" />
+        <button type="submit">Créer la facture</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2>Factures</h2>
+      <div id="factures-list"><p class="muted">Chargement…</p></div>
+    </div>
+  </div>
+  <script src="/js/api.js"></script>
+  <script src="/js/layout.js"></script>
+  <script>
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str ?? "";
+      return div.innerHTML;
+    }
+
+    function formatDate(iso) {
+      return new Date(iso).toLocaleDateString("fr-FR", { year: "numeric", month: "long", day: "numeric" });
+    }
+
+    function formatMontant(montant) {
+      return `${montant.toLocaleString("fr-FR")} F CFA`;
+    }
+
+    const STATUT_LABELS = { brouillon: "Brouillon", envoyee: "Envoyée", payee: "Payée" };
+
+    const errorEl = document.getElementById("error");
+    const dossierSelect = document.getElementById("dossier-select");
+    const listEl = document.getElementById("factures-list");
+
+    async function loadDossiers() {
+      const { dossiers } = await apiFetch("/api/dossiers?scope=cabinet");
+      dossierSelect.innerHTML = dossiers
+        .map((d) => `<option value="${d.id}">${escapeHtml(d.numeroDossier)} — ${escapeHtml(d.nomAffaire)}</option>`)
+        .join("");
+
+      const params = new URLSearchParams(window.location.search);
+      const preselect = params.get("dossierId");
+      if (preselect && dossiers.some((d) => d.id === preselect)) {
+        dossierSelect.value = preselect;
+      }
+    }
+
+    async function envoyerFacture(id) {
+      const email = prompt("Email du destinataire :");
+      if (!email) return;
+      try {
+        await apiFetch(`/api/factures/${id}/envoyer`, { method: "POST", body: { email } });
+        loadFactures();
+      } catch (err) {
+        showError(errorEl, err.message);
+      }
+    }
+
+    async function marquerPayee(id) {
+      try {
+        await apiFetch(`/api/factures/${id}`, { method: "PATCH", body: { statut: "payee" } });
+        loadFactures();
+      } catch (err) {
+        showError(errorEl, err.message);
+      }
+    }
+
+    async function loadFactures() {
+      try {
+        const factures = await apiFetch("/api/factures");
+        if (factures.length === 0) {
+          listEl.innerHTML = '<p class="muted">Aucune facture pour l\'instant.</p>';
+          return;
+        }
+        listEl.innerHTML = factures
+          .map(
+            (f) => `
+          <div class="action-item">
+            <span class="tag">${escapeHtml(f.numero)} · ${escapeHtml(f.dossier.numeroDossier)} — ${escapeHtml(f.dossier.nomAffaire)}</span>
+            <span class="badge badge-${f.statut}">${STATUT_LABELS[f.statut] || f.statut}</span>
+            <div>${escapeHtml(f.description)}</div>
+            <p><strong>${formatMontant(f.montant)}</strong>${f.dateEcheance ? ` — échéance ${formatDate(f.dateEcheance)}` : ""}</p>
+            <p class="muted">Émise le ${formatDate(f.dateEmission)}${f.envoyeAt ? ` · envoyée le ${formatDate(f.envoyeAt)}${f.destinataireEmail ? " à " + escapeHtml(f.destinataireEmail) : ""}` : ""}${f.payeeAt ? ` · payée le ${formatDate(f.payeeAt)}` : ""}</p>
+            <div style="display:flex; gap:8px; margin-top:8px;">
+              <a class="secondary" href="/api/factures/${f.id}/pdf" target="_blank" style="text-decoration:none; padding:6px 12px; border-radius:6px;">Télécharger le PDF</a>
+              <button type="button" class="secondary" data-envoyer="${f.id}">Envoyer par email</button>
+              ${f.statut !== "payee" ? `<button type="button" class="secondary" data-payee="${f.id}">Marquer payée</button>` : ""}
+            </div>
+          </div>`
+          )
+          .join("");
+
+        listEl.querySelectorAll("[data-envoyer]").forEach((btn) => {
+          btn.addEventListener("click", () => envoyerFacture(btn.dataset.envoyer));
+        });
+        listEl.querySelectorAll("[data-payee]").forEach((btn) => {
+          btn.addEventListener("click", () => marquerPayee(btn.dataset.payee));
+        });
+      } catch (err) {
+        listEl.innerHTML = `<p class="error visible">${escapeHtml(err.message)}</p>`;
+      }
+    }
+
+    (async () => {
+      const me = await requireSession();
+      if (!me) return;
+      initLayout(me);
+      if (me.role !== "titulaire" && me.role !== "avocat") {
+        document.querySelector(".page").innerHTML =
+          '<p class="error visible">Cette page est réservée aux avocats et à l\'administrateur du cabinet.</p>';
+        return;
+      }
+      await Promise.all([loadDossiers(), loadFactures()]);
+    })();
+
+    document.getElementById("facture-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      hideError(errorEl);
+      const fd = new FormData(e.target);
+      try {
+        await apiFetch("/api/factures", {
+          method: "POST",
+          body: {
+            dossierId: fd.get("dossierId"),
+            description: fd.get("description"),
+            montant: Number(fd.get("montant")),
+            dateEcheance: fd.get("dateEcheance") || undefined,
+          },
+        });
+        e.target.reset();
+        loadFactures();
+      } catch (err) {
+        showError(errorEl, err.message);
+      }
+    });
+  </script>
+</body>
+</html>

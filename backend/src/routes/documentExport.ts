@@ -59,7 +59,7 @@ async function loadExportInput(actionId: string, cabinetId: string) {
 
 const PUBLIC_DIR = path.join(__dirname, "..", "..", "public");
 
-async function readImageFile(imageUrl: string): Promise<{ buffer: Buffer; type: "png" | "jpg" }> {
+export async function readImageFile(imageUrl: string): Promise<{ buffer: Buffer; type: "png" | "jpg" }> {
   const filePath = path.join(PUBLIC_DIR, imageUrl);
   const buffer = await fs.readFile(filePath);
   const type = imageUrl.toLowerCase().endsWith(".jpg") || imageUrl.toLowerCase().endsWith(".jpeg")
@@ -121,7 +121,7 @@ function parseSignatureQuery(req: import("express").Request): {
   return { avecSignature, alignment };
 }
 
-async function resolveEntete(cabinetId: string, avecEntete: boolean): Promise<EnteteInput | undefined> {
+export async function resolveEntete(cabinetId: string, avecEntete: boolean): Promise<EnteteInput | undefined> {
   if (!avecEntete) return undefined;
 
   const cabinet = await prisma.cabinet.findUnique({ where: { id: cabinetId } });

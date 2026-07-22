@@ -15,6 +15,7 @@ import { delaisRouter } from "./routes/delais";
 import { statsRouter } from "./routes/stats";
 import { documentExportRouter } from "./routes/documentExport";
 import { cabinetRouter } from "./routes/cabinet";
+import { facturesRouter } from "./routes/factures";
 
 export const app = express();
 
@@ -34,4 +35,5 @@ app.use(delaisRouter);
 app.use(statsRouter);
 app.use(documentExportRouter);
 app.use(cabinetRouter);
+app.use(facturesRouter);
 app.use(express.static(path.join(__dirname, "..", "public")));

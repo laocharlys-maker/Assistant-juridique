@@ -295,3 +295,6 @@ header.app-topbar {
 .badge-a_jour { background: #e2f3e6; color: #1f7a3d; }
 .badge-echeance_proche { background: #fbe9e5; color: var(--danger); }
 .badge-cloture { background: #eceae4; color: var(--muted); }
+.badge-brouillon { background: #eceae4; color: var(--muted); }
+.badge-envoyee { background: #e5edfb; color: #1f4f7a; }
+.badge-payee { background: #e2f3e6; color: #1f7a3d; }

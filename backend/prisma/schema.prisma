@@ -50,6 +50,12 @@ enum UniteDelai {
   mois
 }
 
+enum FactureStatut {
+  brouillon
+  envoyee
+  payee
+}
+
 model Cabinet {
   id        String   @id @default(uuid())
   nom       String
@@ -68,6 +74,7 @@ model Cabinet {
   dossiers   Dossier[]
   clients    Client[]
   delaiTypes DelaiType[]
+  factures   Facture[]
 
   @@map("cabinets")
 }
@@ -101,6 +108,7 @@ model User {
   actionsCreees     Action[]      @relation("ActionCreatedBy")
   delaiTypesCrees   DelaiType[]
   delaiCalculsCrees DelaiCalcul[]
+  facturesCreees    Facture[]     @relation("FactureCreatedBy")
 
   // Acces supplementaires accordes a CE collaborateur vers d'autres avocats.
   accesAccordes AccesSupplementaire[] @relation("AccesCollaborateur")
@@ -197,9 +205,39 @@ model Dossier {
   creePar      User          @relation("DossierCreatedBy", fields: [createdBy], references: [id])
   actions      Action[]
   delaiCalculs DelaiCalcul[]
+  factures     Facture[]
 
   @@unique([cabinetId, numeroDossier])
   @@map("dossiers")
+}
+
+// Suivi interne des honoraires/paiements. Ce n'est PAS une facture
+// normalisee au sens fiscal beninois (SYGMEF) : la facture officielle
+// reste emise separement par l'avocat sur son propre compte SYGMEF. Ce
+// document sert au cabinet pour le suivi (montant, statut, envoi client).
+model Facture {
+  id                String        @id @default(uuid())
+  cabinetId         String        @map("cabinet_id")
+  dossierId         String        @map("dossier_id")
+  numero            String
+  description       String
+  // Montant net en Francs CFA (pas de calcul de TVA).
+  montant           Int
+  dateEmission      DateTime      @default(now()) @map("date_emission")
+  dateEcheance      DateTime?     @map("date_echeance")
+  statut            FactureStatut @default(brouillon)
+  destinataireEmail String?       @map("destinataire_email")
+  envoyeAt          DateTime?     @map("envoye_at")
+  payeeAt           DateTime?     @map("payee_at")
+  createdBy         String        @map("created_by")
+  createdAt         DateTime      @default(now()) @map("created_at")
+
+  cabinet Cabinet @relation(fields: [cabinetId], references: [id])
+  dossier Dossier @relation(fields: [dossierId], references: [id])
+  creePar User    @relation("FactureCreatedBy", fields: [createdBy], references: [id])
+
+  @@unique([cabinetId, numero])
+  @@map("factures")
 }
 
 model Action {

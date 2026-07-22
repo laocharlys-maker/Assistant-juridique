@@ -1,0 +1,109 @@
+{
+  "name": "Aurore - Envoyer facture",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Aurore - Envoyer facture\n\nCe workflow reçoit une facture déjà générée en PDF par le backend (encodée en base64, aucune génération de document ici) et se contente de l'envoyer par email au client.\n\n**Webhook actif, appelé par le backend :**\n- /webhook/envoyer-facture\n\nPayload reçu : { factureId, cabinetNom, numero, montant, description, destinataireEmail, pdfBase64 }",
+        "height": 260,
+        "width": 480
+      },
+      "id": "sticky-note-facture",
+      "name": "Note - Lire avant de modifier",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-1400, -220]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "envoyer-facture",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "webhook-envoyer-facture",
+      "name": "Webhook - Envoyer Facture",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-1400, 0],
+      "webhookId": "aurore-envoyer-facture"
+    },
+    {
+      "parameters": {
+        "mode": "jsonToBinary",
+        "convertAllData": false,
+        "sourceKey": "body.pdfBase64",
+        "options": {
+          "fileName": "={{ $json.body.numero }}.pdf",
+          "mimeType": "application/pdf"
+        }
+      },
+      "id": "move-binary-data",
+      "name": "Convertir en PDF binaire",
+      "type": "n8n-nodes-base.moveBinaryData",
+      "typeVersion": 1,
+      "position": [-1160, 0]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Webhook - Envoyer Facture').item.json.body.destinataireEmail }}",
+        "subject": "=Facture {{ $('Webhook - Envoyer Facture').item.json.body.numero }} - {{ $('Webhook - Envoyer Facture').item.json.body.cabinetNom }}",
+        "emailType": "text",
+        "message": "=Bonjour,\n\nVeuillez trouver ci-joint la facture {{ $('Webhook - Envoyer Facture').item.json.body.numero }} concernant : {{ $('Webhook - Envoyer Facture').item.json.body.description }}.\n\nMontant : {{ $('Webhook - Envoyer Facture').item.json.body.montant }} F CFA\n\nCordialement,\n{{ $('Webhook - Envoyer Facture').item.json.body.cabinetNom }}",
+        "options": {
+          "attachmentsUi": {
+            "attachmentsBinary": [
+              {}
+            ]
+          }
+        }
+      },
+      "id": "gmail-envoyer-facture",
+      "name": "Gmail - Envoi facture",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [-920, 0],
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "bhJH2gq7NAqpxE1w",
+          "name": "Gmail account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook - Envoyer Facture": {
+      "main": [
+        [
+          {
+            "node": "Convertir en PDF binaire",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convertir en PDF binaire": {
+      "main": [
+        [
+          {
+            "node": "Gmail - Envoi facture",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Africa/Lagos"
+  },
+  "meta": {
+    "instanceId": "cf3b35ea3fbd4c4b62321a0bd56ce34ad5c7db5f6f4a0a7fc60b51dffe9ccdfa"
+  },
+  "tags": []
+}
