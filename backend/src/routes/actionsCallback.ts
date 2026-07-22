@@ -63,6 +63,11 @@ actionsCallbackRouter.post("/api/actions/:id/envoyer", requireAuth, async (req, 
   if (!action.documentUrl || !action.documentId) {
     return res.status(409).json({ error: "Le document n'est pas encore prêt" });
   }
+  if (action.statut !== "valide") {
+    return res
+      .status(409)
+      .json({ error: "L'action doit être validée avant de pouvoir être envoyée" });
+  }
 
   let signatureUrl: string | null = null;
   if (parsed.data.avecSignature) {

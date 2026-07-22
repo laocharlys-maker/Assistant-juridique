@@ -114,16 +114,7 @@
           <div style="margin-top:10px;">
             <button type="button" class="secondary" data-valider="${a.id}">Marquer comme validé</button>
           </div>
-          <form data-envoyer-form="${a.id}" style="margin-top:10px;">
-            <div style="display:flex; gap:8px; align-items:flex-end;">
-              <div style="flex:1;">
-                <label style="margin:0 0 4px;">Envoyer au client (email)</label>
-                <input type="email" name="email" placeholder="client@example.com" required />
-              </div>
-              <button type="submit">Envoyer</button>
-            </div>
-            ${signatureCheckbox}
-          </form>`;
+          <p class="muted" style="margin-top:8px;">L'envoi au client sera possible une fois l'action validée.</p>`;
       } else if (a.statut === "valide") {
         controls = `
           <form data-envoyer-form="${a.id}" style="margin-top:10px;">
