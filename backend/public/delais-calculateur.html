@@ -7,19 +7,6 @@
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
-  <header class="topbar">
-    <span class="brand">Aurore</span>
-    <nav>
-      <a href="/dashboard.html">Dossiers</a>
-      <a href="/nouvelle-action.html">Nouvelle action</a>
-      <a href="/clients.html">Clients</a>
-      <a href="/jurisprudence-base.html">Jurisprudence</a>
-      <a href="/delais-calculateur.html">Délais</a>
-      <a href="/collaborateurs.html" id="collab-link" style="display:none;">Collaborateurs</a>
-      <a href="/profil.html">Mon profil</a>
-      <a href="#" id="logout-link">Déconnexion</a>
-    </nav>
-  </header>
   <div class="page">
     <h1>Calcul de délai de procédure</h1>
     <p class="muted">Calcul déterministe (pas d'IA) à partir des délais validés par le cabinet. <a href="/delais-types.html" id="manage-types-link" style="display:none;">Gérer le référentiel des délais</a></p>
@@ -53,6 +40,7 @@
     </div>
   </div>
   <script src="/js/api.js"></script>
+  <script src="/js/layout.js"></script>
   <script>
     function escapeHtml(str) {
       const div = document.createElement("div");
@@ -116,8 +104,8 @@
     (async () => {
       const me = await requireSession();
       if (!me) return;
+      initLayout(me);
       if (me.role === "titulaire") {
-        document.getElementById("collab-link").style.display = "inline";
         document.getElementById("manage-types-link").style.display = "inline";
       }
       await Promise.all([loadTypes(), loadDossiers(), loadHistory()]);
@@ -151,11 +139,6 @@
       }
     });
 
-    document.getElementById("logout-link").addEventListener("click", async (e) => {
-      e.preventDefault();
-      await apiFetch("/api/auth/logout", { method: "POST" });
-      window.location.href = "/login.html";
-    });
   </script>
 </body>
 </html>

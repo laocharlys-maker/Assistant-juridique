@@ -7,24 +7,12 @@
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
-  <header class="topbar">
-    <span class="brand">Aurore</span>
-    <nav>
-      <a href="/dashboard.html">Dossiers</a>
-      <a href="/nouvelle-action.html">Nouvelle action</a>
-      <a href="/clients.html">Clients</a>
-      <a href="/jurisprudence-base.html">Jurisprudence</a>
-      <a href="/delais-calculateur.html">Délais</a>
-      <a href="/collaborateurs.html" id="collab-link" style="display:none;">Collaborateurs</a>
-      <a href="/profil.html">Mon profil</a>
-      <a href="#" id="logout-link">Déconnexion</a>
-    </nav>
-  </header>
   <div class="page">
     <p><a href="/dashboard.html">&larr; Retour aux dossiers</a></p>
     <div id="content"><p class="muted">Chargement…</p></div>
   </div>
   <script src="/js/api.js"></script>
+  <script src="/js/layout.js"></script>
   <script>
     function escapeHtml(str) {
       const div = document.createElement("div");
@@ -46,9 +34,7 @@
     (async () => {
       me = await requireSession();
       if (!me) return;
-      if (me.role === "titulaire") {
-        document.getElementById("collab-link").style.display = "inline";
-      }
+      initLayout(me);
 
       const id = new URLSearchParams(window.location.search).get("id");
       const contentEl = document.getElementById("content");
@@ -75,10 +61,19 @@
         }
 
         actionsEl.innerHTML = dossier.actions.map(renderAction).join("");
+        actionsEl.querySelectorAll("[data-accordion-toggle]").forEach((header) => {
+          header.addEventListener("click", () => {
+            header.closest(".accordion-item").classList.toggle("open");
+          });
+        });
         actionsEl.querySelectorAll("[data-valider]").forEach((btn) => {
-          btn.addEventListener("click", () => validerAction(btn.dataset.valider));
+          btn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            validerAction(btn.dataset.valider);
+          });
         });
         actionsEl.querySelectorAll("[data-envoyer-form]").forEach((form) => {
+          form.addEventListener("click", (e) => e.stopPropagation());
           form.addEventListener("submit", (e) => {
             e.preventDefault();
             const fd = new FormData(form);
@@ -145,12 +140,16 @@
       }
 
       return `
-        <div class="action-item">
-          <span class="tag">${TYPE_LABELS[a.typeAction] || a.typeAction} · ${a.canal} · ${escapeHtml(statutLabel)}</span>
-          <div><strong>Réalisé par ${escapeHtml(a.creePar.nom)}</strong> — ${new Date(a.createdAt).toLocaleString("fr-FR")}</div>
-          ${docLink ? `<div style="margin:6px 0;">${docLink}</div>` : ""}
-          <pre>${escapeHtml(a.contenuGenere || "")}</pre>
-          ${controls}
+        <div class="accordion-item">
+          <button type="button" class="accordion-header" data-accordion-toggle>
+            <span class="tag">${TYPE_LABELS[a.typeAction] || a.typeAction} · ${a.canal} · ${escapeHtml(statutLabel)}</span>
+            <div><strong>Réalisé par ${escapeHtml(a.creePar.nom)}</strong> — ${new Date(a.createdAt).toLocaleString("fr-FR")}</div>
+          </button>
+          <div class="accordion-body">
+            ${docLink ? `<div style="margin:6px 0;">${docLink}</div>` : ""}
+            <pre>${escapeHtml(a.contenuGenere || "")}</pre>
+            ${controls}
+          </div>
         </div>`;
     }
 
@@ -174,12 +173,6 @@
         alert(err.message);
       }
     }
-
-    document.getElementById("logout-link").addEventListener("click", async (e) => {
-      e.preventDefault();
-      await apiFetch("/api/auth/logout", { method: "POST" });
-      window.location.href = "/login.html";
-    });
   </script>
 </body>
 </html>

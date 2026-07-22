@@ -3,25 +3,12 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Aurore — Tableau de bord</title>
+  <title>Aurore — Dossiers</title>
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
-  <header class="topbar">
-    <span class="brand">Aurore</span>
-    <nav>
-      <a href="/dashboard.html">Dossiers</a>
-      <a href="/nouvelle-action.html">Nouvelle action</a>
-      <a href="/clients.html">Clients</a>
-      <a href="/jurisprudence-base.html">Jurisprudence</a>
-      <a href="/delais-calculateur.html">Délais</a>
-      <a href="/collaborateurs.html" id="collab-link" style="display:none;">Collaborateurs</a>
-      <a href="/profil.html">Mon profil</a>
-      <a href="#" id="logout-link">Déconnexion</a>
-    </nav>
-  </header>
   <div class="page">
-    <h1 id="greeting">Tableau de bord</h1>
+    <h1 id="greeting">Dossiers</h1>
     <p class="muted" id="subtitle" style="display:none;"></p>
 
     <div class="tabs" id="scope-tabs" style="display:none;">
@@ -34,6 +21,7 @@
     </div>
   </div>
   <script src="/js/api.js"></script>
+  <script src="/js/layout.js"></script>
   <script>
     let currentScope = "mine";
 
@@ -77,11 +65,11 @@
     (async () => {
       const me = await requireSession();
       if (!me) return;
+      initLayout(me);
       document.getElementById("greeting").textContent = `Bienvenue ${me.nom}`;
 
       if (me.role === "titulaire") {
         document.getElementById("scope-tabs").style.display = "flex";
-        document.getElementById("collab-link").style.display = "inline";
         document.querySelectorAll(".tab").forEach((btn) => {
           btn.addEventListener("click", () => loadDossiers(btn.dataset.scope));
         });
@@ -93,12 +81,6 @@
 
       loadDossiers("mine");
     })();
-
-    document.getElementById("logout-link").addEventListener("click", async (e) => {
-      e.preventDefault();
-      await apiFetch("/api/auth/logout", { method: "POST" });
-      window.location.href = "/login.html";
-    });
   </script>
 </body>
 </html>

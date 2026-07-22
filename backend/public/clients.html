@@ -7,19 +7,6 @@
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
-  <header class="topbar">
-    <span class="brand">Aurore</span>
-    <nav>
-      <a href="/dashboard.html">Dossiers</a>
-      <a href="/nouvelle-action.html">Nouvelle action</a>
-      <a href="/clients.html">Clients</a>
-      <a href="/jurisprudence-base.html">Jurisprudence</a>
-      <a href="/delais-calculateur.html">Délais</a>
-      <a href="/collaborateurs.html" id="collab-link" style="display:none;">Collaborateurs</a>
-      <a href="/profil.html">Mon profil</a>
-      <a href="#" id="logout-link">Déconnexion</a>
-    </nav>
-  </header>
   <div class="page">
     <h1>Clients du cabinet</h1>
     <p class="muted">Cette liste n'est visible que par les membres du cabinet.</p>
@@ -27,6 +14,14 @@
     <div id="error" class="error"></div>
 
     <div class="card">
+      <div style="display:flex; align-items:center; justify-content:space-between;">
+        <h2 style="margin:0;">Liste des clients</h2>
+        <button type="button" class="secondary" id="toggle-create-btn" style="margin:0;">+ Ajouter un client</button>
+      </div>
+      <div id="clients-list"><p class="muted">Chargement…</p></div>
+    </div>
+
+    <div class="card" id="create-card" style="display:none;">
       <h2>Ajouter un client</h2>
       <form id="create-form">
         <label>Nom</label>
@@ -40,13 +35,9 @@
         <button type="submit">Ajouter</button>
       </form>
     </div>
-
-    <div class="card">
-      <h2>Liste des clients</h2>
-      <div id="clients-list"><p class="muted">Chargement…</p></div>
-    </div>
   </div>
   <script src="/js/api.js"></script>
+  <script src="/js/layout.js"></script>
   <script>
     function escapeHtml(str) {
       const div = document.createElement("div");
@@ -81,11 +72,14 @@
     (async () => {
       const me = await requireSession();
       if (!me) return;
-      if (me.role === "titulaire") {
-        document.getElementById("collab-link").style.display = "inline";
-      }
+      initLayout(me);
       loadClients();
     })();
+
+    document.getElementById("toggle-create-btn").addEventListener("click", () => {
+      const card = document.getElementById("create-card");
+      card.style.display = card.style.display === "none" ? "block" : "none";
+    });
 
     const errorEl = document.getElementById("error");
     document.getElementById("create-form").addEventListener("submit", async (e) => {
@@ -103,16 +97,11 @@
           },
         });
         e.target.reset();
+        document.getElementById("create-card").style.display = "none";
         loadClients();
       } catch (err) {
         showError(errorEl, err.message);
       }
-    });
-
-    document.getElementById("logout-link").addEventListener("click", async (e) => {
-      e.preventDefault();
-      await apiFetch("/api/auth/logout", { method: "POST" });
-      window.location.href = "/login.html";
     });
   </script>
 </body>

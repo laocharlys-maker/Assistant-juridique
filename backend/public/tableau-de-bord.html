@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aurore — Tableau de bord</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="page">
+    <h1 id="greeting">Tableau de bord</h1>
+    <p class="muted" id="date"></p>
+
+    <div id="error" class="error"></div>
+
+    <div class="stat-grid" id="stat-grid">
+      <div class="stat-card">
+        <div class="stat-label">Dossiers actifs</div>
+        <div class="stat-value" id="stat-dossiers">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">CR ce mois</div>
+        <div class="stat-value" id="stat-cr">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Échéances 7 jours</div>
+        <div class="stat-value" id="stat-echeances">—</div>
+      </div>
+    </div>
+
+    <p class="muted"><a href="/dashboard.html">Voir tous les dossiers →</a></p>
+  </div>
+  <script src="/js/api.js"></script>
+  <script src="/js/layout.js"></script>
+  <script>
+    (async () => {
+      const me = await requireSession();
+      if (!me) return;
+      initLayout(me);
+
+      if (me.role !== "titulaire") {
+        document.querySelector(".page").innerHTML =
+          '<p class="error visible">Cette page est réservée aux avocats du cabinet.</p>';
+        return;
+      }
+
+      document.getElementById("greeting").textContent = `Bonjour, ${me.nom}`;
+      document.getElementById("date").textContent = new Date().toLocaleDateString("fr-FR", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+
+      try {
+        const stats = await apiFetch("/api/stats");
+        document.getElementById("stat-dossiers").textContent = stats.dossiersActifs;
+        document.getElementById("stat-cr").textContent = stats.crCeMois;
+        document.getElementById("stat-echeances").textContent = stats.echeances7Jours;
+      } catch (err) {
+        showError(document.getElementById("error"), err.message);
+      }
+    })();
+  </script>
+</body>
+</html>

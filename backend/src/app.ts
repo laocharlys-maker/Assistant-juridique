@@ -12,6 +12,7 @@ import { clientsRouter } from "./routes/clients";
 import { signatureRouter } from "./routes/signature";
 import { jurisprudenceBaseRouter } from "./routes/jurisprudenceBase";
 import { delaisRouter } from "./routes/delais";
+import { statsRouter } from "./routes/stats";
 
 export const app = express();
 
@@ -28,4 +29,5 @@ app.use(clientsRouter);
 app.use(signatureRouter);
 app.use(jurisprudenceBaseRouter);
 app.use(delaisRouter);
+app.use(statsRouter);
 app.use(express.static(path.join(__dirname, "..", "public")));

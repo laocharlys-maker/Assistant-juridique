@@ -7,10 +7,13 @@
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
-  <div class="page" style="max-width: 420px; margin-top: 10vh;">
+  <div class="page" style="max-width: 420px; margin-top: 8vh;">
     <div class="card">
-      <h1>Aurore</h1>
-      <p class="muted">Assistant juridique du cabinet</p>
+      <div style="text-align:center; margin-bottom:8px;">
+        <img src="/logo-aurore.png" alt="Aurore" style="max-width:180px;" onerror="this.style.display='none'" />
+        <h1 style="margin-top:8px; margin-bottom:0;">Aurore</h1>
+        <p class="muted">Assistant juridique du cabinet</p>
+      </div>
       <div id="error" class="error"></div>
       <form id="login-form">
         <label for="email">Email</label>
@@ -30,14 +33,14 @@
       e.preventDefault();
       hideError(errorEl);
       try {
-        await apiFetch("/api/auth/login", {
+        const user = await apiFetch("/api/auth/login", {
           method: "POST",
           body: {
             email: document.getElementById("email").value,
             password: document.getElementById("password").value,
           },
         });
-        window.location.href = "/dashboard.html";
+        window.location.href = user.role === "titulaire" ? "/tableau-de-bord.html" : "/dashboard.html";
       } catch (err) {
         showError(errorEl, err.message);
       }

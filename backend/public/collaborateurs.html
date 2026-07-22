@@ -7,19 +7,6 @@
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
-  <header class="topbar">
-    <span class="brand">Aurore</span>
-    <nav>
-      <a href="/dashboard.html">Dossiers</a>
-      <a href="/nouvelle-action.html">Nouvelle action</a>
-      <a href="/clients.html">Clients</a>
-      <a href="/jurisprudence-base.html">Jurisprudence</a>
-      <a href="/delais-calculateur.html">Délais</a>
-      <a href="/collaborateurs.html">Collaborateurs</a>
-      <a href="/profil.html">Mon profil</a>
-      <a href="#" id="logout-link">Déconnexion</a>
-    </nav>
-  </header>
   <div class="page">
     <h1>Collaborateurs</h1>
     <p class="muted">Un collaborateur voit par défaut les dossiers de l'avocat qui a créé son compte. Tu peux, en plus, lui donner accès à tes propres dossiers même si ce n'est pas son responsable direct.</p>
@@ -50,6 +37,7 @@
     </div>
   </div>
   <script src="/js/api.js"></script>
+  <script src="/js/layout.js"></script>
   <script>
     function escapeHtml(str) {
       const div = document.createElement("div");
@@ -126,6 +114,7 @@
     (async () => {
       me = await requireSession();
       if (!me) return;
+      initLayout(me);
       if (me.role !== "titulaire") {
         document.querySelector(".page").innerHTML =
           '<p class="error visible">Cette page est réservée au titulaire du cabinet.</p>';
@@ -155,11 +144,6 @@
       }
     });
 
-    document.getElementById("logout-link").addEventListener("click", async (e) => {
-      e.preventDefault();
-      await apiFetch("/api/auth/logout", { method: "POST" });
-      window.location.href = "/login.html";
-    });
   </script>
 </body>
 </html>
