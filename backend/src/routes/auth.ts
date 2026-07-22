@@ -55,6 +55,7 @@ authRouter.get("/api/auth/me", requireAuth, async (req, res) => {
       email: true,
       role: true,
       cabinetId: true,
+      signatureUrl: true,
       responsable: { select: { nom: true } },
     },
   });

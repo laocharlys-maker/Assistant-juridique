@@ -7,10 +7,14 @@ import { authRouter } from "./routes/auth";
 import { dossiersRouter } from "./routes/dossiers";
 import { webActionsRouter } from "./routes/webActions";
 import { usersRouter } from "./routes/users";
+import { actionsCallbackRouter } from "./routes/actionsCallback";
+import { clientsRouter } from "./routes/clients";
+import { signatureRouter } from "./routes/signature";
+import { jurisprudenceBaseRouter } from "./routes/jurisprudenceBase";
 
 export const app = express();
 
-app.use(express.json());
+app.use(express.json({ limit: "5mb" }));
 app.use(cookieParser());
 app.use(healthRouter);
 app.use(actionsRouter);
@@ -18,4 +22,8 @@ app.use(authRouter);
 app.use(dossiersRouter);
 app.use(webActionsRouter);
 app.use(usersRouter);
+app.use(actionsCallbackRouter);
+app.use(clientsRouter);
+app.use(signatureRouter);
+app.use(jurisprudenceBaseRouter);
 app.use(express.static(path.join(__dirname, "..", "public")));

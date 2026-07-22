@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aurore — Mon profil</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <span class="brand">Aurore</span>
+    <nav>
+      <a href="/dashboard.html">Dossiers</a>
+      <a href="/nouvelle-action.html">Nouvelle action</a>
+      <a href="/clients.html">Clients</a>
+      <a href="/jurisprudence-base.html">Jurisprudence</a>
+      <a href="/collaborateurs.html" id="collab-link" style="display:none;">Collaborateurs</a>
+      <a href="/profil.html">Mon profil</a>
+      <a href="#" id="logout-link">Déconnexion</a>
+    </nav>
+  </header>
+  <div class="page">
+    <h1>Ma signature</h1>
+    <p class="muted">Une image de ta signature (PNG ou JPEG, fond transparent de préférence). Elle pourra être insérée dans les documents que tu valides.</p>
+
+    <div id="error" class="error"></div>
+
+    <div class="card">
+      <div id="current-signature"></div>
+      <label>Nouvelle signature (image)</label>
+      <input type="file" id="signature-file" accept="image/png,image/jpeg" />
+      <button type="button" id="upload-btn">Enregistrer</button>
+      <button type="button" class="secondary" id="remove-btn">Retirer ma signature</button>
+    </div>
+  </div>
+  <script src="/js/api.js"></script>
+  <script>
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str ?? "";
+      return div.innerHTML;
+    }
+
+    function renderCurrent(signatureUrl) {
+      const el = document.getElementById("current-signature");
+      el.innerHTML = signatureUrl
+        ? `<p>Signature actuelle :</p><img src="${escapeHtml(signatureUrl)}" alt="Signature" style="max-width:240px; border:1px solid #e2e0da; border-radius:6px; padding:8px;" />`
+        : `<p class="muted">Aucune signature enregistrée pour l'instant.</p>`;
+    }
+
+    (async () => {
+      const me = await requireSession();
+      if (!me) return;
+      if (me.role === "titulaire") {
+        document.getElementById("collab-link").style.display = "inline";
+      }
+      renderCurrent(me.signatureUrl);
+    })();
+
+    const errorEl = document.getElementById("error");
+
+    document.getElementById("upload-btn").addEventListener("click", async () => {
+      hideError(errorEl);
+      const fileInput = document.getElementById("signature-file");
+      const file = fileInput.files[0];
+      if (!file) {
+        showError(errorEl, "Choisis d'abord une image.");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = async () => {
+        try {
+          const res = await apiFetch("/api/users/me/signature", {
+            method: "POST",
+            body: { imageDataUrl: reader.result },
+          });
+          renderCurrent(res.signatureUrl);
+          fileInput.value = "";
+        } catch (err) {
+          showError(errorEl, err.message);
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+
+    document.getElementById("remove-btn").addEventListener("click", async () => {
+      await apiFetch("/api/users/me/signature", { method: "DELETE" });
+      renderCurrent(null);
+    });
+
+    document.getElementById("logout-link").addEventListener("click", async (e) => {
+      e.preventDefault();
+      await apiFetch("/api/auth/logout", { method: "POST" });
+      window.location.href = "/login.html";
+    });
+  </script>
+</body>
+</html>

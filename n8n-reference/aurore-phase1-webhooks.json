@@ -3,34 +3,24 @@
   "nodes": [
     {
       "parameters": {
-        "content": "## Aurore - Phase 1\n\nCe workflow reçoit les actions déjà validées depuis le backend (Node/Express) et se charge uniquement des effets de bord : Google Docs, Google Sheets, Calendar, Gmail.\n\n**Ce que ce workflow NE fait PAS (volontairement, pour l'instant) :**\n- Pas de logique de décision / extraction IA (c'est le backend qui s'en charge)\n- Pas encore de connexion WhatsApp entrante/sortante réelle (le numéro dédié n'est pas encore branché) — le webhook whatsapp-reply est un simple accusé de réception pour l'instant, à compléter dès que le numéro est prêt.\n\n**2 webhooks actifs, appelés par le backend :**\n- /webhook/notes-audience (compte-rendu d'audience, avec Calendar/Sheets)\n- /webhook/document-juridique (plaidoirie, conclusions, assignation, mise en demeure, jurisprudence — même chaîne générique, différenciée par categorie_texte)\n\n**1 webhook stub :**\n- /webhook/whatsapp-reply (à compléter Phase 1b)",
-        "height": 420,
-        "width": 460
+        "content": "## Aurore - Phase 1\n\nCe workflow reçoit les actions déjà validées depuis le backend (Node/Express) et se charge des effets de bord : Google Docs, Google Sheets, Calendar, Gmail.\n\n**Ce que ce workflow NE fait PAS (volontairement) :**\n- Pas de logique de décision / extraction IA (le backend s'en charge)\n- Pas d'envoi automatique de mail au client : chaque document généré est renvoyé au backend (callback), stocké et affiché dans l'appli pour validation. L'email au client n'est envoyé que sur action explicite de l'avocat depuis l'appli (webhook envoyer-email).\n- Pas encore de connexion WhatsApp entrante/sortante réelle — le webhook whatsapp-reply est un simple accusé de réception, à compléter dès que le numéro dédié est connecté.\n\n**Webhooks actifs, appelés par le backend :**\n- /webhook/notes-audience (compte-rendu d'audience : Docs + Calendar + Sheets + callback)\n- /webhook/document-juridique (plaidoirie, conclusions, assignation, mise en demeure, jurisprudence : Docs + callback)\n- /webhook/envoyer-email (déclenché uniquement après validation dans l'appli)\n- /webhook/whatsapp-reply (stub, Phase 1b)",
+        "height": 460,
+        "width": 480
       },
       "id": "sticky-note-1",
       "name": "Note - Lire avant de modifier",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
-      "position": [
-        -1600,
-        -400
-      ]
+      "position": [-1600, -460]
     },
+
     {
-      "parameters": {
-        "httpMethod": "POST",
-        "path": "notes-audience",
-        "responseMode": "onReceived",
-        "options": {}
-      },
+      "parameters": { "httpMethod": "POST", "path": "notes-audience", "responseMode": "onReceived", "options": {} },
       "id": "webhook-notes-audience",
       "name": "Webhook - Notes Audience",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [
-        -1120,
-        0
-      ],
+      "position": [-1120, 0],
       "webhookId": "aurore-notes-audience"
     },
     {
@@ -49,18 +39,10 @@
       "name": "Copy file (CR Audience)",
       "type": "n8n-nodes-base.googleDrive",
       "typeVersion": 3,
-      "position": [
-        -880,
-        0
-      ],
+      "position": [-880, 0],
       "retryOnFail": true,
       "waitBetweenTries": 5000,
-      "credentials": {
-        "googleDriveOAuth2Api": {
-          "id": "goVqvudbc5Sn8Rit",
-          "name": "Google Drive account"
-        }
-      }
+      "credentials": { "googleDriveOAuth2Api": { "id": "goVqvudbc5Sn8Rit", "name": "Google Drive account" } }
     },
     {
       "parameters": {
@@ -100,83 +82,31 @@
       "name": "Update a document (CR)",
       "type": "n8n-nodes-base.googleDocs",
       "typeVersion": 2,
-      "position": [
-        -640,
-        0
-      ],
+      "position": [-640, 0],
       "retryOnFail": true,
       "waitBetweenTries": 5000,
-      "credentials": {
-        "googleDocsOAuth2Api": {
-          "id": "QXSjOT7rKVMaSx9k",
-          "name": "Google Docs account"
-        }
-      }
+      "credentials": { "googleDocsOAuth2Api": { "id": "QXSjOT7rKVMaSx9k", "name": "Google Docs account" } }
     },
     {
       "parameters": {
-        "operation": "download",
-        "fileId": {
-          "__rl": true,
-          "value": "={{ $json.documentId }}",
-          "mode": "id"
+        "method": "POST",
+        "url": "https://aurore.srv1300783.hstgr.cloud/api/actions/document-callback",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "Content-Type", "value": "application/json" }]
         },
-        "options": {
-          "binaryPropertyName": "data",
-          "googleFileConversion": {
-            "conversion": {
-              "docsToFormat": "application/pdf"
-            }
-          }
-        }
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"actionId\": $('Webhook - Notes Audience').item.json.body.actionId, \"documentId\": $json.documentId, \"documentUrl\": \"https://docs.google.com/document/d/\" + $json.documentId + \"/edit\" } }}",
+        "options": {}
       },
-      "id": "export-pdf-notes",
-      "name": "Export PDF (CR)",
-      "type": "n8n-nodes-base.googleDrive",
-      "typeVersion": 3,
-      "position": [
-        -400,
-        0
-      ],
+      "id": "callback-notes",
+      "name": "Callback backend (CR)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-400, 0],
       "retryOnFail": true,
-      "waitBetweenTries": 5000,
-      "credentials": {
-        "googleDriveOAuth2Api": {
-          "id": "goVqvudbc5Sn8Rit",
-          "name": "Google Drive account"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "sendTo": "cabinet.koffi@example.com, lao.charlys@gmail.com",
-        "subject": "=Compte-rendu audience - {{ $('Webhook - Notes Audience').item.json.body.nom_affaire }}",
-        "emailType": "text",
-        "message": "=Bonjour Maître Koffi,\n\nVeuillez trouver ci-joint le compte-rendu de l'audience concernant l'affaire {{ $('Webhook - Notes Audience').item.json.body.nom_affaire }}.\n\nPour le modifier : https://docs.google.com/document/d/{{ $('Update a document (CR)').item.json.documentId }}\n\nProchaine audience : {{ $('Webhook - Notes Audience').item.json.body.prochaine_audience }}\n\nCordialement,\nAurore, votre Assistante juridique",
-        "options": {
-          "attachmentsUi": {
-            "attachmentsBinary": [
-              {}
-            ]
-          }
-        }
-      },
-      "id": "gmail-notes",
-      "name": "Gmail - Envoi CR",
-      "type": "n8n-nodes-base.gmail",
-      "typeVersion": 2.1,
-      "position": [
-        -160,
-        0
-      ],
-      "retryOnFail": true,
-      "waitBetweenTries": 5000,
-      "credentials": {
-        "gmailOAuth2": {
-          "id": "bhJH2gq7NAqpxE1w",
-          "name": "Gmail account"
-        }
-      }
+      "waitBetweenTries": 5000
     },
     {
       "parameters": {
@@ -187,12 +117,7 @@
           "mode": "id",
           "cachedResultName": "Tableau des Audiences"
         },
-        "sheetName": {
-          "__rl": true,
-          "value": "gid=0",
-          "mode": "list",
-          "cachedResultName": "Feuille 1"
-        },
+        "sheetName": { "__rl": true, "value": "gid=0", "mode": "list", "cachedResultName": "Feuille 1" },
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
@@ -216,26 +141,14 @@
       "name": "Google Sheets - Journal",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.4,
-      "position": [
-        -880,
-        200
-      ],
+      "position": [-880, 220],
       "retryOnFail": true,
       "waitBetweenTries": 5000,
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "FsSUSPTvqtbwwSQ1",
-          "name": "Google Sheets account"
-        }
-      }
+      "credentials": { "googleSheetsOAuth2Api": { "id": "FsSUSPTvqtbwwSQ1", "name": "Google Sheets account" } }
     },
     {
       "parameters": {
-        "calendar": {
-          "__rl": true,
-          "value": "lao.charlys@gmail.com",
-          "mode": "id"
-        },
+        "calendar": { "__rl": true, "value": "lao.charlys@gmail.com", "mode": "id" },
         "start": "={{ $('Webhook - Notes Audience').item.json.body.prochaine_audience }}",
         "end": "={{ $('Webhook - Notes Audience').item.json.body.prochaine_audience }}",
         "additionalFields": {
@@ -248,33 +161,18 @@
       "name": "Create an event (prochaine audience)",
       "type": "n8n-nodes-base.googleCalendar",
       "typeVersion": 1.3,
-      "position": [
-        -640,
-        200
-      ],
+      "position": [-640, 220],
       "onError": "continueRegularOutput",
-      "credentials": {
-        "googleCalendarOAuth2Api": {
-          "id": "JIqSijNt4hQF8lk6",
-          "name": "Google Calendar account"
-        }
-      }
+      "credentials": { "googleCalendarOAuth2Api": { "id": "JIqSijNt4hQF8lk6", "name": "Google Calendar account" } }
     },
+
     {
-      "parameters": {
-        "httpMethod": "POST",
-        "path": "document-juridique",
-        "responseMode": "onReceived",
-        "options": {}
-      },
+      "parameters": { "httpMethod": "POST", "path": "document-juridique", "responseMode": "onReceived", "options": {} },
       "id": "webhook-document-juridique",
       "name": "Webhook - Document Juridique",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [
-        -1120,
-        480
-      ],
+      "position": [-1120, 480],
       "webhookId": "aurore-document-juridique"
     },
     {
@@ -293,18 +191,10 @@
       "name": "Copy file (Document Juridique)",
       "type": "n8n-nodes-base.googleDrive",
       "typeVersion": 3,
-      "position": [
-        -880,
-        480
-      ],
+      "position": [-880, 480],
       "retryOnFail": true,
       "waitBetweenTries": 5000,
-      "credentials": {
-        "googleDriveOAuth2Api": {
-          "id": "goVqvudbc5Sn8Rit",
-          "name": "Google Drive account"
-        }
-      }
+      "credentials": { "googleDriveOAuth2Api": { "id": "goVqvudbc5Sn8Rit", "name": "Google Drive account" } }
     },
     {
       "parameters": {
@@ -329,103 +219,88 @@
       "name": "Update a document (Document Juridique)",
       "type": "n8n-nodes-base.googleDocs",
       "typeVersion": 2,
-      "position": [
-        -640,
-        480
-      ],
+      "position": [-640, 480],
       "retryOnFail": true,
       "waitBetweenTries": 5000,
-      "credentials": {
-        "googleDocsOAuth2Api": {
-          "id": "QXSjOT7rKVMaSx9k",
-          "name": "Google Docs account"
-        }
-      }
+      "credentials": { "googleDocsOAuth2Api": { "id": "QXSjOT7rKVMaSx9k", "name": "Google Docs account" } }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://aurore.srv1300783.hstgr.cloud/api/actions/document-callback",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [{ "name": "Content-Type", "value": "application/json" }]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"actionId\": $('Webhook - Document Juridique').item.json.body.actionId, \"documentId\": $json.documentId, \"documentUrl\": \"https://docs.google.com/document/d/\" + $json.documentId + \"/edit\" } }}",
+        "options": {}
+      },
+      "id": "callback-document-juridique",
+      "name": "Callback backend (Document Juridique)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-400, 480],
+      "retryOnFail": true,
+      "waitBetweenTries": 5000
+    },
+
+    {
+      "parameters": { "httpMethod": "POST", "path": "envoyer-email", "responseMode": "onReceived", "options": {} },
+      "id": "webhook-envoyer-email",
+      "name": "Webhook - Envoyer Email",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-1120, 780],
+      "webhookId": "aurore-envoyer-email"
     },
     {
       "parameters": {
         "operation": "download",
-        "fileId": {
-          "__rl": true,
-          "value": "={{ $json.documentId }}",
-          "mode": "id"
-        },
-        "options": {
-          "googleFileConversion": {
-            "conversion": {
-              "docsToFormat": "application/pdf"
-            }
-          }
-        }
+        "fileId": { "__rl": true, "value": "={{ $json.body.documentId }}", "mode": "id" },
+        "options": { "googleFileConversion": { "conversion": { "docsToFormat": "application/pdf" } } }
       },
-      "id": "download-document-juridique",
-      "name": "Download file (Document Juridique)",
+      "id": "download-envoyer-email",
+      "name": "Export PDF (Envoi)",
       "type": "n8n-nodes-base.googleDrive",
       "typeVersion": 3,
-      "position": [
-        -400,
-        480
-      ],
+      "position": [-880, 780],
       "retryOnFail": true,
       "waitBetweenTries": 5000,
-      "credentials": {
-        "googleDriveOAuth2Api": {
-          "id": "goVqvudbc5Sn8Rit",
-          "name": "Google Drive account"
-        }
-      }
+      "credentials": { "googleDriveOAuth2Api": { "id": "goVqvudbc5Sn8Rit", "name": "Google Drive account" } }
     },
     {
       "parameters": {
-        "sendTo": "cabinet.koffi@example.com, lao.charlys@gmail.com",
-        "subject": "={{ $('Webhook - Document Juridique').item.json.body.categorie_texte }} a/s {{ $('Webhook - Document Juridique').item.json.body.nom_affaire }}",
+        "sendTo": "={{ $('Webhook - Envoyer Email').item.json.body.destinataireEmail }}",
+        "ccList": "cabinet.koffi@example.com, lao.charlys@gmail.com",
+        "subject": "=Document - {{ $('Webhook - Envoyer Email').item.json.body.nomAffaire }}",
         "emailType": "text",
-        "message": "=Bonjour Maître Koffi,\n\nVotre {{ $('Webhook - Document Juridique').item.json.body.categorie_texte }} concernant l'affaire {{ $('Webhook - Document Juridique').item.json.body.nom_affaire }} est disponible en pièce jointe.\n\nModifier sur Google Docs : https://docs.google.com/document/d/{{ $json.documentId }}\n\nCordialement,\nAurore, votre Assistante juridique",
-        "options": {
-          "attachmentsUi": {
-            "attachmentsBinary": [
-              {}
-            ]
-          }
-        }
+        "message": "=Bonjour,\n\nVeuillez trouver ci-joint le document concernant l'affaire {{ $('Webhook - Envoyer Email').item.json.body.nomAffaire }}.\n\nCordialement,\nCabinet KOFFI & ASSOCIES",
+        "options": { "attachmentsUi": { "attachmentsBinary": [{}] } }
       },
-      "id": "gmail-document-juridique",
-      "name": "Gmail - Envoi Document Juridique",
+      "id": "gmail-envoyer-email",
+      "name": "Gmail - Envoi au client",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.2,
-      "position": [
-        -160,
-        480
-      ],
+      "position": [-640, 780],
       "retryOnFail": true,
       "waitBetweenTries": 5000,
-      "credentials": {
-        "gmailOAuth2": {
-          "id": "bhJH2gq7NAqpxE1w",
-          "name": "Gmail account"
-        }
-      }
+      "credentials": { "gmailOAuth2": { "id": "bhJH2gq7NAqpxE1w", "name": "Gmail account" } }
     },
+
     {
-      "parameters": {
-        "httpMethod": "POST",
-        "path": "whatsapp-reply",
-        "responseMode": "onReceived",
-        "options": {}
-      },
+      "parameters": { "httpMethod": "POST", "path": "whatsapp-reply", "responseMode": "onReceived", "options": {} },
       "id": "webhook-whatsapp-reply",
       "name": "Webhook - WhatsApp Reply (stub)",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [
-        -1120,
-        1080
-      ],
+      "position": [-1120, 1080],
       "webhookId": "aurore-whatsapp-reply"
     },
     {
       "parameters": {
-        "content": "TODO Phase 1b : appeler l'API Evolution (instance aurore-cabinet-natacha, port 8082) pour envoyer $json.body.message au numero du cabinet une fois connecte. Pour l'instant ce webhook accuse juste reception (rien envoye), pour ne pas faire echouer les appels du backend.",
+        "content": "TODO Phase 1b : appeler l'API Evolution (instance dediee, port 8082) pour envoyer $json.body.message au numero du cabinet une fois connecte. Pour l'instant ce webhook accuse juste reception (rien envoye), pour ne pas faire echouer les appels du backend.",
         "height": 160,
         "width": 320
       },
@@ -433,117 +308,26 @@
       "name": "Note - whatsapp-reply stub",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
-      "position": [
-        -880,
-        1080
-      ]
+      "position": [-880, 1080]
     }
   ],
   "connections": {
     "Webhook - Notes Audience": {
-      "main": [
-        [
-          {
-            "node": "Copy file (CR Audience)",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Google Sheets - Journal",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[
+        { "node": "Copy file (CR Audience)", "type": "main", "index": 0 },
+        { "node": "Google Sheets - Journal", "type": "main", "index": 0 }
+      ]]
     },
-    "Copy file (CR Audience)": {
-      "main": [
-        [
-          {
-            "node": "Update a document (CR)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Update a document (CR)": {
-      "main": [
-        [
-          {
-            "node": "Export PDF (CR)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Export PDF (CR)": {
-      "main": [
-        [
-          {
-            "node": "Gmail - Envoi CR",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Google Sheets - Journal": {
-      "main": [
-        [
-          {
-            "node": "Create an event (prochaine audience)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Webhook - Document Juridique": {
-      "main": [
-        [
-          {
-            "node": "Copy file (Document Juridique)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Copy file (Document Juridique)": {
-      "main": [
-        [
-          {
-            "node": "Update a document (Document Juridique)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Update a document (Document Juridique)": {
-      "main": [
-        [
-          {
-            "node": "Download file (Document Juridique)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Download file (Document Juridique)": {
-      "main": [
-        [
-          {
-            "node": "Gmail - Envoi Document Juridique",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    }
+    "Copy file (CR Audience)": { "main": [[{ "node": "Update a document (CR)", "type": "main", "index": 0 }]] },
+    "Update a document (CR)": { "main": [[{ "node": "Callback backend (CR)", "type": "main", "index": 0 }]] },
+    "Google Sheets - Journal": { "main": [[{ "node": "Create an event (prochaine audience)", "type": "main", "index": 0 }]] },
+
+    "Webhook - Document Juridique": { "main": [[{ "node": "Copy file (Document Juridique)", "type": "main", "index": 0 }]] },
+    "Copy file (Document Juridique)": { "main": [[{ "node": "Update a document (Document Juridique)", "type": "main", "index": 0 }]] },
+    "Update a document (Document Juridique)": { "main": [[{ "node": "Callback backend (Document Juridique)", "type": "main", "index": 0 }]] },
+
+    "Webhook - Envoyer Email": { "main": [[{ "node": "Export PDF (Envoi)", "type": "main", "index": 0 }]] },
+    "Export PDF (Envoi)": { "main": [[{ "node": "Gmail - Envoi au client", "type": "main", "index": 0 }]] }
   },
   "pinData": {},
   "active": false,

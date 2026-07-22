@@ -28,12 +28,18 @@ export const JURISPRUDENCE_SYSTEM_PROMPT = `${COMMON_SYSTEM}
 
 Redige une FICHE DE JURISPRUDENCE structuree ainsi :
 - Resume du contexte juridique
-- Textes de loi applicables
-- Decisions de justice pertinentes connues (juridiction, date, resume, enseignement)
-- Tendances jurisprudentielles observees
+- Textes de loi applicables (a partir de tes connaissances generales du droit)
+- Decisions de justice pertinentes (section "SOURCES VERIFIEES" ci-dessous)
+- Tendances jurisprudentielles observees a partir de ces sources
 - Strategie recommandee
 
-Si tu n'as pas de decision precise et verifiee en memoire pour ce theme, dis-le explicitement plutot que d'inventer une reference.`;
+REGLE ABSOLUE SUR LES DECISIONS DE JUSTICE : tu ne dois citer QUE les decisions
+presentes dans la section "SOURCES VERIFIEES" fournie ci-dessous, avec leur
+reference exacte. Ne cite JAMAIS une decision, un numero d'arret ou une date
+qui ne provient pas de cette liste, meme si tu penses la connaitre par
+ailleurs. Si la liste est vide ou insuffisante, ecris explicitement qu'aucune
+decision verifiee n'est disponible dans la base du cabinet pour ce theme,
+plutot que d'inventer ou de deviner une reference.`;
 
 export const CONCLUSIONS_SYSTEM_PROMPT = `${COMMON_SYSTEM}
 
@@ -92,9 +98,13 @@ ${facts.axesArgumentation.map((axe, i) => `${i + 1}. ${axe}`).join("\n")}`;
 export function buildJurisprudenceUserPrompt(facts: {
   theme: string;
   juridictions: string[];
+  sourcesVerifiees: string;
 }): string {
   return `Theme / mots-cles : ${facts.theme}
-Juridiction(s) ciblee(s) : ${facts.juridictions.join(", ") || "non precisee"}`;
+Juridiction(s) ciblee(s) : ${facts.juridictions.join(", ") || "non precisee"}
+
+SOURCES VERIFIEES (base du cabinet - seules sources autorisees pour les decisions citees) :
+${facts.sourcesVerifiees}`;
 }
 
 export function buildMiseEnDemeureUserPrompt(facts: {

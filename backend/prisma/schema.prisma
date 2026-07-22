@@ -35,6 +35,13 @@ enum StatutExecution {
   erreur
 }
 
+enum StatutAction {
+  brouillon
+  en_attente_validation
+  valide
+  envoye
+}
+
 model Cabinet {
   id        String   @id @default(uuid())
   nom       String
@@ -42,6 +49,7 @@ model Cabinet {
 
   users    User[]
   dossiers Dossier[]
+  clients  Client[]
 
   @@map("cabinets")
 }
@@ -55,6 +63,8 @@ model User {
   role           UserRole @default(collaborateur)
   // Avocat dont depend directement ce collaborateur (null pour un titulaire).
   responsableId  String?  @map("responsable_id")
+  // Chemin public de l'image de signature (ex: /uploads/signatures/xxx.png).
+  signatureUrl   String?  @map("signature_url")
   createdAt      DateTime @default(now()) @map("created_at")
 
   cabinet       Cabinet   @relation(fields: [cabinetId], references: [id])
@@ -84,9 +94,25 @@ model AccesSupplementaire {
   @@map("acces_supplementaires")
 }
 
+model Client {
+  id        String   @id @default(uuid())
+  cabinetId String   @map("cabinet_id")
+  nom       String
+  email     String?
+  telephone String?
+  notes     String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  cabinet  Cabinet   @relation(fields: [cabinetId], references: [id])
+  dossiers Dossier[]
+
+  @@map("clients")
+}
+
 model Dossier {
   id             String   @id @default(uuid())
   cabinetId      String   @map("cabinet_id")
+  clientId       String?  @map("client_id")
   numeroDossier  String   @map("numero_dossier")
   nomAffaire     String   @map("nom_affaire")
   nomClient      String   @map("nom_client")
@@ -97,6 +123,7 @@ model Dossier {
   updatedAt      DateTime @updatedAt @map("updated_at")
 
   cabinet Cabinet @relation(fields: [cabinetId], references: [id])
+  client  Client? @relation(fields: [clientId], references: [id])
   creePar User    @relation("DossierCreatedBy", fields: [createdBy], references: [id])
   actions Action[]
 
@@ -105,16 +132,22 @@ model Dossier {
 }
 
 model Action {
-  id                String     @id @default(uuid())
-  dossierId         String     @map("dossier_id")
-  typeAction        TypeAction @map("type_action")
+  id                String       @id @default(uuid())
+  dossierId         String       @map("dossier_id")
+  typeAction        TypeAction   @map("type_action")
   canal             Canal
-  contenuGenere     String?    @map("contenu_genere")
-  dateAudience      DateTime?  @map("date_audience")
-  prochaineAudience DateTime?  @map("prochaine_audience")
-  piecesPrevoir     String?    @map("pieces_prevoir")
-  createdBy         String     @map("created_by")
-  createdAt         DateTime   @default(now()) @map("created_at")
+  contenuGenere     String?      @map("contenu_genere")
+  dateAudience      DateTime?    @map("date_audience")
+  prochaineAudience DateTime?    @map("prochaine_audience")
+  piecesPrevoir     String?      @map("pieces_prevoir")
+  // Statut de validation/envoi (remplace l'envoi automatique par mail).
+  statut            StatutAction @default(brouillon)
+  documentUrl       String?      @map("document_url")
+  documentId        String?      @map("document_id")
+  destinataireEmail String?      @map("destinataire_email")
+  envoyeAt          DateTime?    @map("envoye_at")
+  createdBy         String       @map("created_by")
+  createdAt         DateTime     @default(now()) @map("created_at")
 
   dossier   Dossier     @relation(fields: [dossierId], references: [id])
   creePar   User        @relation("ActionCreatedBy", fields: [createdBy], references: [id])
@@ -137,12 +170,14 @@ model AuditLog {
 }
 
 model JurisprudenceChunk {
-  id        String                 @id @default(uuid())
-  source    String
-  reference String
-  contenu   String
-  embedding Unsupported("vector")?
-  createdAt DateTime               @default(now()) @map("created_at")
+  id          String                 @id @default(uuid())
+  source      String
+  reference   String
+  juridiction String?
+  dateDecision String?               @map("date_decision")
+  contenu     String
+  embedding   Unsupported("vector")?
+  createdAt   DateTime               @default(now()) @map("created_at")
 
   @@map("jurisprudence_chunks")
 }

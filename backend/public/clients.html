@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aurore — Clients</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <span class="brand">Aurore</span>
+    <nav>
+      <a href="/dashboard.html">Dossiers</a>
+      <a href="/nouvelle-action.html">Nouvelle action</a>
+      <a href="/clients.html">Clients</a>
+      <a href="/jurisprudence-base.html">Jurisprudence</a>
+      <a href="/collaborateurs.html" id="collab-link" style="display:none;">Collaborateurs</a>
+      <a href="/profil.html">Mon profil</a>
+      <a href="#" id="logout-link">Déconnexion</a>
+    </nav>
+  </header>
+  <div class="page">
+    <h1>Clients du cabinet</h1>
+    <p class="muted">Cette liste n'est visible que par les membres du cabinet.</p>
+
+    <div id="error" class="error"></div>
+
+    <div class="card">
+      <h2>Ajouter un client</h2>
+      <form id="create-form">
+        <label>Nom</label>
+        <input name="nom" required />
+        <label>Email</label>
+        <input name="email" type="email" />
+        <label>Téléphone</label>
+        <input name="telephone" />
+        <label>Notes</label>
+        <textarea name="notes"></textarea>
+        <button type="submit">Ajouter</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2>Liste des clients</h2>
+      <div id="clients-list"><p class="muted">Chargement…</p></div>
+    </div>
+  </div>
+  <script src="/js/api.js"></script>
+  <script>
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str ?? "";
+      return div.innerHTML;
+    }
+
+    async function loadClients() {
+      const listEl = document.getElementById("clients-list");
+      try {
+        const clients = await apiFetch("/api/clients");
+        if (clients.length === 0) {
+          listEl.innerHTML = '<p class="muted">Aucun client enregistré pour l\'instant.</p>';
+          return;
+        }
+        listEl.innerHTML = clients
+          .map(
+            (c) => `
+          <div class="dossier-item">
+            <div>
+              <strong>${escapeHtml(c.nom)}</strong>
+              <div class="meta">${escapeHtml(c.email || "pas d'email")} · ${escapeHtml(c.telephone || "pas de téléphone")} · ${c._count.dossiers} dossier(s)</div>
+            </div>
+          </div>`
+          )
+          .join("");
+      } catch (err) {
+        listEl.innerHTML = `<p class="error visible">${escapeHtml(err.message)}</p>`;
+      }
+    }
+
+    (async () => {
+      const me = await requireSession();
+      if (!me) return;
+      if (me.role === "titulaire") {
+        document.getElementById("collab-link").style.display = "inline";
+      }
+      loadClients();
+    })();
+
+    const errorEl = document.getElementById("error");
+    document.getElementById("create-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      hideError(errorEl);
+      const fd = new FormData(e.target);
+      try {
+        await apiFetch("/api/clients", {
+          method: "POST",
+          body: {
+            nom: fd.get("nom"),
+            email: fd.get("email") || undefined,
+            telephone: fd.get("telephone") || undefined,
+            notes: fd.get("notes") || undefined,
+          },
+        });
+        e.target.reset();
+        loadClients();
+      } catch (err) {
+        showError(errorEl, err.message);
+      }
+    });
+
+    document.getElementById("logout-link").addEventListener("click", async (e) => {
+      e.preventDefault();
+      await apiFetch("/api/auth/logout", { method: "POST" });
+      window.location.href = "/login.html";
+    });
+  </script>
+</body>
+</html>

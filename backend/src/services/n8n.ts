@@ -1,7 +1,11 @@
 import { env } from "../config/env";
 import { ActionOutput } from "../schemas/action";
 
-export type N8nWebhookName = "notes-audience" | "document-juridique" | "whatsapp-reply";
+export type N8nWebhookName =
+  | "notes-audience"
+  | "document-juridique"
+  | "envoyer-email"
+  | "whatsapp-reply";
 
 export interface N8nCallResult {
   ok: boolean;

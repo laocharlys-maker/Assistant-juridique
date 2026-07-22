@@ -18,6 +18,7 @@ import {
   buildJurisprudenceUserPrompt,
 } from "../prompts/webRedaction";
 import { ActionOutput } from "../schemas/action";
+import { searchJurisprudence, formatJurisprudenceContext } from "../services/rag";
 
 export const webActionsRouter = Router();
 
@@ -162,9 +163,14 @@ webActionsRouter.post("/api/actions/web", requireAuth, async (req, res) => {
         argumentaire: redigé,
       };
     } else {
+      const matches = await searchJurisprudence(form.theme);
       const redigé = await llm.redact(
         JURISPRUDENCE_SYSTEM_PROMPT,
-        buildJurisprudenceUserPrompt({ theme: form.theme, juridictions: form.juridictions ?? [] })
+        buildJurisprudenceUserPrompt({
+          theme: form.theme,
+          juridictions: form.juridictions ?? [],
+          sourcesVerifiees: formatJurisprudenceContext(matches),
+        })
       );
 
       // Recherche de jurisprudence : pas forcement liee a un dossier existant.

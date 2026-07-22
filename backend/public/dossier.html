@@ -12,7 +12,10 @@
     <nav>
       <a href="/dashboard.html">Dossiers</a>
       <a href="/nouvelle-action.html">Nouvelle action</a>
+      <a href="/clients.html">Clients</a>
+      <a href="/jurisprudence-base.html">Jurisprudence</a>
       <a href="/collaborateurs.html" id="collab-link" style="display:none;">Collaborateurs</a>
+      <a href="/profil.html">Mon profil</a>
       <a href="#" id="logout-link">Déconnexion</a>
     </nav>
   </header>
@@ -68,20 +71,88 @@
           return;
         }
 
-        actionsEl.innerHTML = dossier.actions
-          .map(
-            (a) => `
-          <div class="action-item">
-            <span class="tag">${TYPE_LABELS[a.typeAction] || a.typeAction} · ${a.canal}</span>
-            <div><strong>Réalisé par ${escapeHtml(a.creePar.nom)}</strong> — ${new Date(a.createdAt).toLocaleString("fr-FR")}</div>
-            <pre>${escapeHtml(a.contenuGenere || "")}</pre>
-          </div>`
-          )
-          .join("");
+        actionsEl.innerHTML = dossier.actions.map(renderAction).join("");
+        actionsEl.querySelectorAll("[data-valider]").forEach((btn) => {
+          btn.addEventListener("click", () => validerAction(btn.dataset.valider));
+        });
+        actionsEl.querySelectorAll("[data-envoyer-form]").forEach((form) => {
+          form.addEventListener("submit", (e) => {
+            e.preventDefault();
+            const fd = new FormData(form);
+            envoyerAction(form.dataset.envoyerForm, fd.get("email"));
+          });
+        });
       } catch (err) {
         contentEl.innerHTML = `<p class="error visible">${escapeHtml(err.message)}</p>`;
       }
     })();
+
+    const STATUT_LABELS = {
+      brouillon: "Génération en cours…",
+      en_attente_validation: "Prêt — à valider",
+      valide: "Validé",
+      envoye: "Envoyé au client",
+    };
+
+    function renderAction(a) {
+      const statutLabel = STATUT_LABELS[a.statut] || a.statut;
+      const docLink = a.documentUrl
+        ? `<a href="${escapeHtml(a.documentUrl)}" target="_blank" rel="noopener">Ouvrir / modifier le document</a>`
+        : "";
+
+      let controls = "";
+      if (a.statut === "en_attente_validation") {
+        controls = `
+          <div style="margin-top:10px;">
+            <button type="button" class="secondary" data-valider="${a.id}">Marquer comme validé</button>
+          </div>
+          <form data-envoyer-form="${a.id}" style="margin-top:10px; display:flex; gap:8px; align-items:flex-end;">
+            <div style="flex:1;">
+              <label style="margin:0 0 4px;">Envoyer au client (email)</label>
+              <input type="email" name="email" placeholder="client@example.com" required />
+            </div>
+            <button type="submit">Envoyer</button>
+          </form>`;
+      } else if (a.statut === "valide") {
+        controls = `
+          <form data-envoyer-form="${a.id}" style="margin-top:10px; display:flex; gap:8px; align-items:flex-end;">
+            <div style="flex:1;">
+              <label style="margin:0 0 4px;">Envoyer au client (email)</label>
+              <input type="email" name="email" placeholder="client@example.com" required />
+            </div>
+            <button type="submit">Envoyer</button>
+          </form>`;
+      } else if (a.statut === "envoye") {
+        controls = `<p class="muted" style="margin-top:8px;">Envoyé à ${escapeHtml(a.destinataireEmail || "")} le ${a.envoyeAt ? new Date(a.envoyeAt).toLocaleString("fr-FR") : ""}</p>`;
+      }
+
+      return `
+        <div class="action-item">
+          <span class="tag">${TYPE_LABELS[a.typeAction] || a.typeAction} · ${a.canal} · ${escapeHtml(statutLabel)}</span>
+          <div><strong>Réalisé par ${escapeHtml(a.creePar.nom)}</strong> — ${new Date(a.createdAt).toLocaleString("fr-FR")}</div>
+          ${docLink ? `<div style="margin:6px 0;">${docLink}</div>` : ""}
+          <pre>${escapeHtml(a.contenuGenere || "")}</pre>
+          ${controls}
+        </div>`;
+    }
+
+    async function validerAction(actionId) {
+      try {
+        await apiFetch(`/api/actions/${actionId}/valider`, { method: "POST" });
+        window.location.reload();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    async function envoyerAction(actionId, email) {
+      try {
+        await apiFetch(`/api/actions/${actionId}/envoyer`, { method: "POST", body: { email } });
+        window.location.reload();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
 
     document.getElementById("logout-link").addEventListener("click", async (e) => {
       e.preventDefault();

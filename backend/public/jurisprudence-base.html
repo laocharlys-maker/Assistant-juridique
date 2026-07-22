@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aurore — Base de jurisprudence</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <span class="brand">Aurore</span>
+    <nav>
+      <a href="/dashboard.html">Dossiers</a>
+      <a href="/nouvelle-action.html">Nouvelle action</a>
+      <a href="/clients.html">Clients</a>
+      <a href="/jurisprudence-base.html">Jurisprudence</a>
+      <a href="/collaborateurs.html" id="collab-link" style="display:none;">Collaborateurs</a>
+      <a href="/profil.html">Mon profil</a>
+      <a href="#" id="logout-link">Déconnexion</a>
+    </nav>
+  </header>
+  <div class="page">
+    <h1>Base de jurisprudence du cabinet</h1>
+    <p class="muted">Ajoute ici des textes de loi et décisions que tu as toi-même vérifiés. Aurore ne citera dans ses recherches de jurisprudence QUE les décisions présentes dans cette base — jamais une référence inventée.</p>
+
+    <div id="error" class="error"></div>
+
+    <div class="card">
+      <h2>Ajouter une source</h2>
+      <form id="create-form">
+        <label>Source (ex: OHADA, Code béninois, Cour Suprême)</label>
+        <input name="source" required />
+        <label>Référence exacte (ex: Arrêt n° 12/2024 CCJA du 15/03/2024)</label>
+        <input name="reference" required />
+        <label>Juridiction</label>
+        <input name="juridiction" placeholder="ex: CCJA, Cour d'Appel de Cotonou" />
+        <label>Date de la décision</label>
+        <input name="dateDecision" type="date" />
+        <label>Contenu / résumé (le plus complet possible)</label>
+        <textarea name="contenu" required style="min-height:160px;"></textarea>
+        <button type="submit">Indexer dans la base</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2>Sources déjà indexées</h2>
+      <div id="entries-list"><p class="muted">Chargement…</p></div>
+    </div>
+  </div>
+  <script src="/js/api.js"></script>
+  <script>
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str ?? "";
+      return div.innerHTML;
+    }
+
+    async function loadEntries() {
+      const listEl = document.getElementById("entries-list");
+      try {
+        const entries = await apiFetch("/api/jurisprudence-base");
+        if (entries.length === 0) {
+          listEl.innerHTML = '<p class="muted">Aucune source indexée pour l\'instant — les recherches de jurisprudence indiqueront qu\'aucune source vérifiée n\'est disponible.</p>';
+          return;
+        }
+        listEl.innerHTML = entries
+          .map(
+            (e) => `
+          <div class="action-item">
+            <span class="tag">${escapeHtml(e.source)}${e.juridiction ? " · " + escapeHtml(e.juridiction) : ""}</span>
+            <div><strong>${escapeHtml(e.reference)}</strong>${e.dateDecision ? " — " + escapeHtml(e.dateDecision) : ""}</div>
+            <pre>${escapeHtml(e.contenu)}</pre>
+            <button type="button" class="secondary" data-delete="${e.id}">Supprimer</button>
+          </div>`
+          )
+          .join("");
+        listEl.querySelectorAll("[data-delete]").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            if (!confirm("Supprimer cette source de la base ?")) return;
+            await apiFetch(`/api/jurisprudence-base/${btn.dataset.delete}`, { method: "DELETE" });
+            loadEntries();
+          });
+        });
+      } catch (err) {
+        listEl.innerHTML = `<p class="error visible">${escapeHtml(err.message)}</p>`;
+      }
+    }
+
+    (async () => {
+      const me = await requireSession();
+      if (!me) return;
+      if (me.role === "titulaire") {
+        document.getElementById("collab-link").style.display = "inline";
+      }
+      loadEntries();
+    })();
+
+    const errorEl = document.getElementById("error");
+    document.getElementById("create-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      hideError(errorEl);
+      const fd = new FormData(e.target);
+      try {
+        await apiFetch("/api/jurisprudence-base", {
+          method: "POST",
+          body: {
+            source: fd.get("source"),
+            reference: fd.get("reference"),
+            juridiction: fd.get("juridiction") || undefined,
+            dateDecision: fd.get("dateDecision") || undefined,
+            contenu: fd.get("contenu"),
+          },
+        });
+        e.target.reset();
+        loadEntries();
+      } catch (err) {
+        showError(errorEl, err.message);
+      }
+    });
+
+    document.getElementById("logout-link").addEventListener("click", async (e) => {
+      e.preventDefault();
+      await apiFetch("/api/auth/logout", { method: "POST" });
+      window.location.href = "/login.html";
+    });
+  </script>
+</body>
+</html>
