@@ -5,8 +5,8 @@
   --border: #e2e0da;
   --text: #1f2320;
   --muted: #6b6f6a;
-  --accent: #2f5d4f;
-  --accent-hover: #24473c;
+  --accent: #1d4ed8;
+  --accent-hover: #1739a8;
   --danger: #b3432b;
   --sidebar-bg: #16233a;
   --sidebar-text: #cbd4e3;
@@ -24,9 +24,9 @@ body {
 }
 
 .page {
-  max-width: 880px;
+  max-width: 1100px;
   margin: 0 auto;
-  padding: 32px 20px 64px;
+  padding: 32px 32px 64px;
 }
 
 header.topbar {
@@ -201,8 +201,6 @@ button.secondary:hover { background: #eef3f1; }
 .main-area {
   flex: 1;
   min-width: 0;
-  display: flex;
-  flex-direction: column;
 }
 
 header.app-topbar {

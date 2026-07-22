@@ -41,7 +41,7 @@ function initLayout(me) {
       <button type="button" id="sidebar-toggle" class="icon-btn hamburger" aria-label="Afficher/masquer le menu" title="Menu">
         <span></span><span></span><span></span>
       </button>
-      <img src="/logo-aurore.png" alt="" class="brand-logo" onerror="this.style.display='none'" />
+      <img src="/logo-aurore-header.png" alt="" class="brand-logo" onerror="this.style.display='none'" />
       <span class="brand-word">AURORE</span>
     </div>
     <div class="topbar-right">
