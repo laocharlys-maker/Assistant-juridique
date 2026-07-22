@@ -188,6 +188,7 @@ webActionsRouter.post("/api/actions/web", requireAuth, async (req, res) => {
           nomAffaire: form.theme,
           nomClient: "Non applicable",
           createdBy: auth!.userId,
+          estRecherche: true,
         },
       });
       dossierId = dossier.id;
@@ -228,6 +229,7 @@ webActionsRouter.post("/api/actions/web", requireAuth, async (req, res) => {
           nomAffaire: form.question,
           nomClient: "Non applicable",
           createdBy: auth!.userId,
+          estRecherche: true,
         },
       });
       dossierId = dossier.id;

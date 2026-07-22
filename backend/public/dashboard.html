@@ -3,14 +3,19 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Aurore — Dossiers</title>
+  <title>Aurore — Documents générés</title>
   <link rel="icon" type="image/png" href="/favicon-256.png" />
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
   <div class="page">
-    <h1 id="greeting">Dossiers</h1>
+    <h1 id="greeting">Documents générés</h1>
     <p class="muted" id="subtitle" style="display:none;"></p>
+
+    <div class="tabs" id="vue-tabs">
+      <button class="tab active" data-vue="dossiers">Dossiers</button>
+      <button class="tab" data-vue="recherches">Recherches</button>
+    </div>
 
     <div class="tabs" id="scope-tabs" style="display:none;">
       <button class="tab active" data-scope="mine">Mes dossiers</button>
@@ -25,6 +30,7 @@
   <script src="/js/layout.js"></script>
   <script>
     let currentScope = "mine";
+    let currentVue = "dossiers";
 
     const STATUT_TAG_LABELS = {
       a_jour: "à jour",
@@ -32,32 +38,42 @@
       cloture: "clôturé",
     };
 
-    async function loadDossiers(scope) {
+    async function loadDossiers() {
       const listEl = document.getElementById("dossiers-list");
       listEl.innerHTML = '<p class="muted">Chargement…</p>';
       try {
-        const { dossiers, scope: appliedScope } = await apiFetch(`/api/dossiers?scope=${scope}`);
+        const { dossiers, scope: appliedScope, vue: appliedVue } = await apiFetch(
+          `/api/dossiers?scope=${currentScope}&vue=${currentVue}`
+        );
         currentScope = appliedScope;
-        document.querySelectorAll(".tab").forEach((btn) => {
+        currentVue = appliedVue;
+        document.querySelectorAll("#scope-tabs .tab").forEach((btn) => {
           btn.classList.toggle("active", btn.dataset.scope === appliedScope);
+        });
+        document.querySelectorAll("#vue-tabs .tab").forEach((btn) => {
+          btn.classList.toggle("active", btn.dataset.vue === appliedVue);
         });
 
         if (dossiers.length === 0) {
-          listEl.innerHTML = '<p class="muted">Aucun dossier pour l\'instant.</p>';
+          listEl.innerHTML = `<p class="muted">${appliedVue === "recherches" ? "Aucune recherche pour l'instant." : "Aucun dossier pour l'instant."}</p>`;
           return;
         }
 
         listEl.innerHTML = dossiers
-          .map(
-            (d) => `
+          .map((d) => {
+            const titre = appliedVue === "recherches" ? d.nomAffaire : `${d.numeroDossier} — ${d.nomAffaire}`;
+            const meta = appliedVue === "recherches"
+              ? `${d._count.actions} action(s) · créé par ${escapeHtml(d.creePar.nom)}`
+              : `${escapeHtml(d.nomClient)} · ${d._count.actions} action(s) · créé par ${escapeHtml(d.creePar.nom)}`;
+            return `
           <div class="dossier-item">
             <div>
               <span class="badge badge-${d.statutTag}">${STATUT_TAG_LABELS[d.statutTag] || d.statutTag}</span>
-              <div><a href="/dossier.html?id=${d.id}">${escapeHtml(d.numeroDossier)} — ${escapeHtml(d.nomAffaire)}</a></div>
-              <div class="meta">${escapeHtml(d.nomClient)} · ${d._count.actions} action(s) · créé par ${escapeHtml(d.creePar.nom)}</div>
+              <div><a href="/dossier.html?id=${d.id}">${escapeHtml(titre)}</a></div>
+              <div class="meta">${meta}</div>
             </div>
-          </div>`
-          )
+          </div>`;
+          })
           .join("");
       } catch (err) {
         listEl.innerHTML = `<p class="error visible">${escapeHtml(err.message)}</p>`;
@@ -78,8 +94,11 @@
 
       if (me.role === "titulaire") {
         document.getElementById("scope-tabs").style.display = "flex";
-        document.querySelectorAll(".tab").forEach((btn) => {
-          btn.addEventListener("click", () => loadDossiers(btn.dataset.scope));
+        document.querySelectorAll("#scope-tabs .tab").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            currentScope = btn.dataset.scope;
+            loadDossiers();
+          });
         });
       } else if (me.responsable) {
         const subtitleEl = document.getElementById("subtitle");
@@ -87,7 +106,14 @@
         subtitleEl.style.display = "block";
       }
 
-      loadDossiers("mine");
+      document.querySelectorAll("#vue-tabs .tab").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          currentVue = btn.dataset.vue;
+          loadDossiers();
+        });
+      });
+
+      loadDossiers();
     })();
   </script>
 </body>

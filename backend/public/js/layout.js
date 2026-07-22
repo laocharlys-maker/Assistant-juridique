@@ -1,6 +1,6 @@
 const NAV_ITEMS = [
   { href: "/tableau-de-bord.html", label: "Tableau de bord", roles: ["titulaire"] },
-  { href: "/dashboard.html", label: "Dossiers", roles: ["titulaire", "collaborateur"] },
+  { href: "/dashboard.html", label: "Documents générés", roles: ["titulaire", "collaborateur"] },
   { href: "/nouvelle-action.html", label: "Nouvelle action", roles: ["titulaire", "collaborateur"] },
   { href: "/clients.html", label: "Clients", roles: ["titulaire", "collaborateur"] },
   { href: "/jurisprudence-base.html", label: "Jurisprudence", roles: ["titulaire", "collaborateur"] },

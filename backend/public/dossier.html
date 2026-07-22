@@ -33,6 +33,7 @@
 
     let me = null;
     let cabinetHasEntete = false;
+    let clientsAvecEmail = [];
 
     (async () => {
       me = await requireSession();
@@ -44,6 +45,13 @@
         cabinetHasEntete = !!cabinet.enteteUrl;
       } catch {
         cabinetHasEntete = false;
+      }
+
+      try {
+        const clients = await apiFetch("/api/clients");
+        clientsAvecEmail = clients.filter((c) => c.email);
+      } catch {
+        clientsAvecEmail = [];
       }
 
       const id = new URLSearchParams(window.location.search).get("id");
@@ -134,6 +142,22 @@
             enteteCheckbox.addEventListener("click", (e) => e.stopPropagation());
             enteteCheckbox.addEventListener("change", update);
           }
+
+          const emailInput = document.getElementById(`email-${a.id}`);
+          const envoyerMoiBtn = actionsEl.querySelector(`[data-envoyer-moi="${a.id}"]`);
+          const envoyerClientSelect = actionsEl.querySelector(`[data-envoyer-client="${a.id}"]`);
+          if (envoyerMoiBtn && emailInput) {
+            envoyerMoiBtn.addEventListener("click", (e) => {
+              e.stopPropagation();
+              emailInput.value = me.email;
+            });
+          }
+          if (envoyerClientSelect && emailInput) {
+            envoyerClientSelect.addEventListener("click", (e) => e.stopPropagation());
+            envoyerClientSelect.addEventListener("change", () => {
+              if (envoyerClientSelect.value) emailInput.value = envoyerClientSelect.value;
+            });
+          }
         });
       } catch (err) {
         contentEl.innerHTML = `<p class="error visible">${escapeHtml(err.message)}</p>`;
@@ -219,12 +243,29 @@
           </div>
           <p class="muted" style="margin-top:8px;">L'envoi au client sera possible une fois l'action validée.</p>`;
       } else if (a.statut === "valide") {
+        const isRecherche = a.typeAction === "jurisprudence" || a.typeAction === "recherche_juridique";
+        const rechercheEnvoiControls = isRecherche
+          ? `<div style="margin:0 0 8px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+               <button type="button" class="secondary" data-envoyer-moi="${a.id}" style="margin:0;">M'envoyer à moi-même</button>
+               ${
+                 clientsAvecEmail.length > 0
+                   ? `<select data-envoyer-client="${a.id}" style="width:auto;">
+                        <option value="">— ou choisir un client —</option>
+                        ${clientsAvecEmail
+                          .map((c) => `<option value="${escapeHtml(c.email)}">${escapeHtml(c.nom)}</option>`)
+                          .join("")}
+                      </select>`
+                   : ""
+               }
+             </div>`
+          : "";
         controls = `
           <form data-envoyer-form="${a.id}" style="margin-top:10px;">
+            ${rechercheEnvoiControls}
             <div style="display:flex; gap:8px; align-items:flex-end;">
               <div style="flex:1;">
-                <label style="margin:0 0 4px;">Envoyer au client (email)</label>
-                <input type="email" name="email" placeholder="client@example.com" required />
+                <label style="margin:0 0 4px;">Envoyer à (email)</label>
+                <input type="email" name="email" id="email-${a.id}" placeholder="client@example.com" required />
               </div>
               <button type="submit">Envoyer</button>
             </div>

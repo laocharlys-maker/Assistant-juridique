@@ -172,6 +172,9 @@ model Dossier {
   nomJuge       String?  @map("nom_juge")
   createdBy     String   @map("created_by")
   statut        String   @default("actif")
+  // true pour les fiches creees par une recherche (jurisprudence /
+  // recherche juridique) : ce ne sont pas de vrais dossiers clients.
+  estRecherche  Boolean  @default(false) @map("est_recherche")
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 

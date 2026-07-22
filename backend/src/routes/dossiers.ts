@@ -36,9 +36,14 @@ dossiersRouter.get("/api/dossiers", requireAuth, async (req, res) => {
 
   const accessibleAvocatIds = scope === "mine" ? await getAccessibleAvocatIds(auth!) : null;
 
+  // "dossiers" (par defaut) = vrais dossiers clients ; "recherches" = fiches
+  // creees par une recherche de jurisprudence / recherche juridique.
+  const vue = req.query.vue === "recherches" ? "recherches" : "dossiers";
+
   const dossiers = await prisma.dossier.findMany({
     where: {
       cabinetId: auth!.cabinetId,
+      estRecherche: vue === "recherches",
       ...(accessibleAvocatIds ? { createdBy: { in: accessibleAvocatIds } } : {}),
     },
     orderBy: { updatedAt: "desc" },
@@ -51,7 +56,7 @@ dossiersRouter.get("/api/dossiers", requireAuth, async (req, res) => {
     statutTag: d.statut === "cloture" ? "cloture" : tags.get(d.id) || "a_jour",
   }));
 
-  return res.json({ scope, dossiers: dossiersAvecTag });
+  return res.json({ scope, vue, dossiers: dossiersAvecTag });
 });
 
 dossiersRouter.get("/api/dossiers/:id", requireAuth, async (req, res) => {
