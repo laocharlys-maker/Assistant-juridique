@@ -3,7 +3,7 @@
   "nodes": [
     {
       "parameters": {
-        "content": "## Aurore - Veille juridique hebdomadaire\n\nCe workflow reçoit, une fois par semaine (déclenché par un cron côté backend, pas par n8n), le résumé de veille juridique déjà généré et sourcé par le backend (recherche web + synthèse IA).\n\nCe workflow ne fait QUE l'envoi email : pas de génération, pas de décision, pas de Docs/Sheets — le backend appelle ce webhook une fois PAR destinataire (chaque avocat/titulaire qui n'a pas désactivé la réception dans Paramètres).\n\n**Webhook actif, appelé par le backend :**\n- /webhook/veille-juridique\n\nPayload reçu : { actionId, dossierId, cabinetNom, periode, contenu, destinataireEmail, destinataireNom }",
+        "content": "## Aurore - Veille juridique hebdomadaire\n\nCe workflow reçoit, une fois par semaine (déclenché par un cron côté backend, pas par n8n), le résumé de veille juridique déjà généré et sourcé par le backend (recherche web + synthèse IA).\n\nCe workflow ne fait QUE l'envoi email : pas de génération, pas de décision, pas de Docs/Sheets — le backend appelle ce webhook une fois PAR destinataire (chaque avocat/titulaire qui n'a pas désactivé la réception dans Paramètres).\n\n**Webhook actif, appelé par le backend :**\n- /webhook/veille-juridique\n\nPayload reçu : { actionId, dossierId, cabinetNom, periode, contenu, contenuHtml, destinataireEmail, destinataireNom }. contenuHtml est un email complet déjà mis en forme (titres, listes, gras) — c'est lui qui est envoyé tel quel par Gmail (emailType: html).",
         "height": 300,
         "width": 480
       },
@@ -31,8 +31,8 @@
       "parameters": {
         "sendTo": "={{ $json.body.destinataireEmail }}",
         "subject": "=Veille juridique - {{ $json.body.cabinetNom }} - {{ $json.body.periode }}",
-        "emailType": "text",
-        "message": "=Bonjour {{ $json.body.destinataireNom }},\n\nVoici le résumé de la veille juridique hebdomadaire du cabinet ({{ $json.body.periode }}) :\n\n{{ $json.body.contenu }}\n\n---\nCe résumé est généré automatiquement à partir de recherches web récentes ; il ne remplace pas une vérification par l'avocat. Tu peux désactiver la réception de cet email dans Paramètres > Ma réception de la veille juridique.\n\nCordialement,\nAurore",
+        "emailType": "html",
+        "message": "={{ $json.body.contenuHtml }}",
         "options": {}
       },
       "id": "gmail-veille-juridique",

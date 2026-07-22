@@ -4,6 +4,7 @@ import { searchWeb, formatWebSearchContext } from "./tavily";
 import { callN8nWebhook } from "./n8n";
 import { logAuditStep } from "./audit";
 import { splitSujets, periodeLabel } from "./veilleJuridiqueUtils";
+import { buildVeilleEmailHtml } from "./veilleJuridiqueEmail";
 import {
   VEILLE_JURIDIQUE_SYSTEM_PROMPT,
   buildVeilleJuridiqueUserPrompt,
@@ -61,12 +62,19 @@ export async function runVeilleForCabinet(cabinetId: string, llm: LlmProvider): 
   });
 
   for (const destinataire of destinataires) {
+    const contenuHtml = buildVeilleEmailHtml({
+      cabinetNom: cabinet.nom,
+      periode,
+      destinataireNom: destinataire.nom,
+      digestMarkdown: digest,
+    });
     const n8nResult = await callN8nWebhook("veille-juridique", {
       actionId: action.id,
       dossierId: dossier.id,
       cabinetNom: cabinet.nom,
       periode,
       contenu: digest,
+      contenuHtml,
       destinataireEmail: destinataire.email,
       destinataireNom: destinataire.nom,
     });
