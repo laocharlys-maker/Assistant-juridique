@@ -302,7 +302,7 @@
         "nodeCredentialType": "googleDocsOAuth2Api",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ (() => { const content = $json.body.content; const last = content[content.length - 1]; const paraStart = last.startIndex; const insertAt = last.endIndex - 1; const newEnd = last.endIndex; const alignment = $('Webhook - Envoyer Email').item.json.body.signatureAlignment || 'END'; return { requests: [ { insertInlineImage: { uri: $('Webhook - Envoyer Email').item.json.body.signatureUrl, location: { index: insertAt }, objectSize: { height: { magnitude: 50, unit: 'PT' }, width: { magnitude: 150, unit: 'PT' } } } }, { updateParagraphStyle: { paragraphStyle: { alignment: alignment }, range: { startIndex: paraStart, endIndex: newEnd }, fields: 'alignment' } } ] }; })() }}",
+        "jsonBody": "={{ (() => { const content = $json.body.content; const last = content[content.length - 1]; const paraStart = last.startIndex; const insertAt = last.endIndex - 1; const newEnd = last.endIndex + 1; const alignment = $('Webhook - Envoyer Email').item.json.body.signatureAlignment || 'END'; return { requests: [ { insertInlineImage: { uri: $('Webhook - Envoyer Email').item.json.body.signatureUrl, location: { index: insertAt }, objectSize: { height: { magnitude: 50, unit: 'PT' }, width: { magnitude: 150, unit: 'PT' } } } }, { updateParagraphStyle: { paragraphStyle: { alignment: alignment }, range: { startIndex: paraStart, endIndex: newEnd }, fields: 'alignment' } } ] }; })() }}",
         "options": {}
       },
       "id": "insert-signature",
