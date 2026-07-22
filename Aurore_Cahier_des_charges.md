@@ -164,13 +164,45 @@ jurisprudence_chunks
 | Base de données | PostgreSQL (+ pgvector pour le RAG) |
 | Intégration WhatsApp + Google Workspace | n8n (rôle recentré : exécution d'effets de bord uniquement) |
 | WhatsApp | Evolution API (auto-hébergé sur le VPS du cabinet) |
-| LLM (extraction / rédaction / recherche) | Gemini (gratuit) pour le développement ; bascule possible vers Claude (Anthropic) en production, via une couche d'abstraction dans le backend (`LLM_PROVIDER`) — sortie structurée validée par schéma dans les deux cas |
+| LLM (extraction / rédaction / recherche) | Groq (gratuit, Llama 3.3 70B) pour le développement — quota Gemini gratuit constaté à 0 sur le projet Google actuel ; bascule possible vers Gemini ou Claude (Anthropic) en production via `LLM_PROVIDER` — sortie structurée validée par schéma dans les trois cas |
 | Transcription vocale WhatsApp | Google Gemini, conservé côté n8n indépendamment du fournisseur choisi ci-dessus |
 | Recherche web complémentaire | Tavily |
 | Stockage documents | Google Workspace (Docs, Sheets, Calendar, Drive) |
 | Email | Gmail SMTP (via n8n ou API directe) |
 | Frontend | HTML/JS (dashboard + formulaires), migration React si besoin |
 | Hébergement | VPS Hostinger (Ubuntu 22.04) |
+
+---
+
+### 6.1 Déploiement HTTPS du backend
+
+Le backend est accessible en production sur `https://aurore.srv1300783.hstgr.cloud`,
+via le même conteneur Traefik que n8n (`/docker/n8n/docker-compose.yml`), plutôt
+que via nginx (déjà occupé par un autre projet du VPS, et en conflit avec Traefik
+sur les ports 80/443).
+
+**Principe :** Traefik route `aurore.srv1300783.hstgr.cloud` vers le backend qui
+tourne directement sur l'hôte (port 3001, hors Docker), via une configuration
+dynamique par fichier plutôt que des labels Docker (le backend n'étant pas
+conteneurisé) :
+- `/docker/n8n/dynamic/aurore.yml` : déclare le routeur Traefik (règle de host,
+  certificat Let's Encrypt via le même `certresolver` que n8n) et le service
+  cible `http://host.docker.internal:3001`
+- `docker-compose.yml` (service `traefik`) : ajout de `extra_hosts:
+  host.docker.internal:host-gateway` et du provider `--providers.file.directory`
+  pour lire ce fichier
+
+**Piège rencontré (à retenir)** : `host-gateway` résout systématiquement vers
+l'IP du réseau `bridge` par défaut de Docker (`172.17.0.1`), **même si** le
+conteneur Traefik tourne sur un réseau Compose dédié (`n8n_default`,
+`172.18.0.0/16` dans notre cas). Le pare-feu (`ufw`) doit donc autoriser le port
+3001 depuis toute la plage privée Docker (`172.16.0.0/12`), pas seulement le
+sous-réseau du conteneur — sinon la requête time-out silencieusement (paquet
+DROP, pas de refus explicite, difficile à diagnostiquer).
+
+**Si le backend est un jour conteneurisé**, remplacer cette configuration par
+des labels Traefik directs sur son conteneur (comme pour `n8n`), et supprimer
+le fichier `dynamic/aurore.yml` ainsi que la règle ufw associée.
 
 ---
 
