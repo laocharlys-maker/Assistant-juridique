@@ -212,3 +212,22 @@ export function buildVeilleJuridiqueUserPrompt(facts: {
     .join("\n\n---\n\n");
   return `Periode couverte : ${facts.periode}\n\n${blocsThemes}`;
 }
+
+// Traduction de texte juridique, dans les deux sens FR <-> EN.
+export const TRADUCTION_FR_VERS_EN_SYSTEM_PROMPT = `Tu es une traductrice juridique professionnelle. Traduis le texte fourni du francais vers l'anglais.
+Consignes :
+- Traduis fidelement, sans ajouter, retirer ou interpreter le contenu.
+- Conserve la structure du texte source (paragraphes, listes, numerotation, mise en forme).
+- Utilise la terminologie juridique anglaise appropriee.
+Reponds uniquement avec le texte traduit, sans commentaire, sans balise markdown.`;
+
+export const TRADUCTION_EN_VERS_FR_SYSTEM_PROMPT = `You are a professional legal translator. Translate the provided text from English to French.
+Instructions:
+- Translate faithfully, without adding, removing, or interpreting content.
+- Preserve the structure of the source text (paragraphs, lists, numbering, formatting).
+- Use appropriate French legal terminology (Beninese/French civil law usage).
+Reply only with the translated text, no comments, no markdown.`;
+
+export function buildTraductionUserPrompt(texteSource: string): string {
+  return `Texte à traduire :\n${texteSource}`;
+}

@@ -62,6 +62,12 @@ export const resumePdfFormSchema = z.object({
   contexte: z.string().optional(),
 });
 
+export const traductionFormSchema = z.object({
+  type_action: z.literal("traduction"),
+  sens: z.enum(["fr_vers_en", "en_vers_fr"]),
+  texte_source: z.string().min(1),
+});
+
 export const webActionFormSchema = z.discriminatedUnion("type_action", [
   notesFormSchema,
   redacFormSchema,
@@ -71,6 +77,7 @@ export const webActionFormSchema = z.discriminatedUnion("type_action", [
   jurisprudenceFormSchema,
   rechercheJuridiqueFormSchema,
   resumePdfFormSchema,
+  traductionFormSchema,
 ]);
 
 export type WebActionForm = z.infer<typeof webActionFormSchema>;

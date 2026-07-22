@@ -20,6 +20,7 @@
       <button class="tab" data-type="jurisprudence">Recherche de jurisprudence</button>
       <button class="tab" data-type="recherche_juridique">Recherche juridique</button>
       <button class="tab" data-type="resume_pdf">Résumé de jurisprudence (PDF)</button>
+      <button class="tab" data-type="traduction">Traduction FR ⇄ EN</button>
     </div>
 
     <div id="error" class="error"></div>
@@ -131,6 +132,18 @@
         <button type="submit">Générer le résumé</button>
         <p class="muted" style="margin-top:8px;">Pour les documents longs (10-20 pages), le document est découpé et résumé par étapes avant la synthèse finale. Uniquement les informations présentes dans le document sont utilisées.</p>
       </form>
+
+      <form id="traduction-form" class="action-form" style="display:none;">
+        <label>Sens de la traduction</label>
+        <select name="sens" required>
+          <option value="fr_vers_en">Français → Anglais</option>
+          <option value="en_vers_fr">Anglais → Français</option>
+        </select>
+        <label>Texte à traduire</label>
+        <textarea name="texte_source" required placeholder="Colle ici le texte à traduire"></textarea>
+        <button type="submit">Traduire</button>
+        <p class="muted" style="margin-top:8px;">Traduction fidèle, sans ajout ni interprétation. Les textes longs sont découpés puis recomposés automatiquement.</p>
+      </form>
     </div>
   </div>
   <script src="/js/api.js"></script>
@@ -151,6 +164,7 @@
       jurisprudence: document.getElementById("jurisprudence-form"),
       recherche_juridique: document.getElementById("recherche_juridique-form"),
       resume_pdf: document.getElementById("resume_pdf-form"),
+      traduction: document.getElementById("traduction-form"),
     };
     document.querySelectorAll(".tab").forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -326,6 +340,16 @@
       } catch (err) {
         showError(errorEl, err.message || "Impossible de lire ce fichier");
       }
+    });
+
+    forms.traduction.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const fd = new FormData(forms.traduction);
+      submitForm(
+        "traduction",
+        { sens: fd.get("sens"), texte_source: fd.get("texte_source") },
+        forms.traduction.querySelector('button[type="submit"]')
+      );
     });
   </script>
 </body>

@@ -24,6 +24,7 @@ import { ActionOutput } from "../schemas/action";
 import { searchJurisprudence, formatJurisprudenceContext } from "../services/rag";
 import { searchWeb, formatWebSearchContext } from "../services/tavily";
 import { summarizeLongText } from "../services/resumePdf";
+import { translateText } from "../services/traduction";
 
 export const webActionsRouter = Router();
 
@@ -250,7 +251,7 @@ webActionsRouter.post("/api/actions/web", requireAuth, async (req, res) => {
         synthese: null,
         argumentaire: redigé,
       };
-    } else {
+    } else if (form.type_action === "resume_pdf") {
       const base64Data = form.pdfDataUrl.replace(/^data:application\/pdf;base64,/, "");
       const pdfBuffer = Buffer.from(base64Data, "base64");
 
@@ -302,6 +303,41 @@ webActionsRouter.post("/api/actions/web", requireAuth, async (req, res) => {
         pieces_prevoir: null,
         synthese: null,
         argumentaire: redigé,
+      };
+    } else {
+      const traduit = await translateText(llm, form.sens, form.texte_source);
+      const nomAffaire = `Traduction ${form.sens === "fr_vers_en" ? "FR → EN" : "EN → FR"}`;
+
+      // Traduction : pas forcement liee a un dossier existant.
+      const dossier = await prisma.dossier.upsert({
+        where: {
+          cabinetId_numeroDossier: { cabinetId: auth!.cabinetId, numeroDossier: `TRAD-${Date.now()}` },
+        },
+        update: {},
+        create: {
+          cabinetId: auth!.cabinetId,
+          numeroDossier: `TRAD-${Date.now()}`,
+          nomAffaire,
+          nomClient: "Non applicable",
+          createdBy: auth!.userId,
+          estRecherche: true,
+        },
+      });
+      dossierId = dossier.id;
+
+      action = {
+        type_action: "traduction",
+        categorie_texte: "Traduction",
+        numero_dossier: null,
+        nom_affaire: nomAffaire,
+        nom_client: null,
+        nom_juge: null,
+        date_audience: null,
+        decision: null,
+        prochaine_audience: null,
+        pieces_prevoir: null,
+        synthese: null,
+        argumentaire: traduit,
       };
     }
 

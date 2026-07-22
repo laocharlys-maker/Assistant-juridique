@@ -23,6 +23,7 @@ const TYPE_LABELS: Record<string, string> = {
   recherche_juridique: "Recherche juridique",
   resume_pdf: "Résumé de jurisprudence",
   veille_juridique: "Veille juridique",
+  traduction: "Traduction",
 };
 
 const COMBINING_DIACRITICS = new RegExp("[\\u0300-\\u036f]", "g");

@@ -14,6 +14,7 @@ const REQUIRED_FIELDS_BY_TYPE: Record<ActionOutput["type_action"], (keyof Action
   conclusions: ["nom_affaire"],
   assignation: ["nom_affaire"],
   mise_en_demeure: ["nom_affaire"],
+  traduction: [],
 };
 
 const FIELD_LABELS: Partial<Record<keyof ActionOutput, string>> = {
