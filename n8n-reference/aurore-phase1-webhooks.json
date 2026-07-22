@@ -257,15 +257,58 @@
     },
     {
       "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            {
+              "id": "has-signature",
+              "leftValue": "={{ $json.body.signatureUrl }}",
+              "rightValue": "",
+              "operator": { "type": "string", "operation": "notEmpty", "singleValue": true }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-signature",
+      "name": "A une signature ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [-880, 700]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://docs.googleapis.com/v1/documents/{{ $json.body.documentId }}:batchUpdate",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDocsOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"requests\": [ { \"insertInlineImage\": { \"uri\": $json.body.signatureUrl, \"endOfSegmentLocation\": { \"segmentId\": \"\" }, \"objectSize\": { \"height\": { \"magnitude\": 50, \"unit\": \"PT\" }, \"width\": { \"magnitude\": 150, \"unit\": \"PT\" } } } } ] } }}",
+        "options": {}
+      },
+      "id": "insert-signature",
+      "name": "Inserer la signature",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-640, 620],
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "credentials": { "googleDocsOAuth2Api": { "id": "QXSjOT7rKVMaSx9k", "name": "Google Docs account" } },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
         "operation": "download",
-        "fileId": { "__rl": true, "value": "={{ $json.body.documentId }}", "mode": "id" },
+        "fileId": { "__rl": true, "value": "={{ $('Webhook - Envoyer Email').item.json.body.documentId }}", "mode": "id" },
         "options": { "googleFileConversion": { "conversion": { "docsToFormat": "application/pdf" } } }
       },
       "id": "download-envoyer-email",
       "name": "Export PDF (Envoi)",
       "type": "n8n-nodes-base.googleDrive",
       "typeVersion": 3,
-      "position": [-880, 780],
+      "position": [-400, 780],
       "retryOnFail": true,
       "waitBetweenTries": 5000,
       "credentials": { "googleDriveOAuth2Api": { "id": "goVqvudbc5Sn8Rit", "name": "Google Drive account" } }
@@ -326,7 +369,14 @@
     "Copy file (Document Juridique)": { "main": [[{ "node": "Update a document (Document Juridique)", "type": "main", "index": 0 }]] },
     "Update a document (Document Juridique)": { "main": [[{ "node": "Callback backend (Document Juridique)", "type": "main", "index": 0 }]] },
 
-    "Webhook - Envoyer Email": { "main": [[{ "node": "Export PDF (Envoi)", "type": "main", "index": 0 }]] },
+    "Webhook - Envoyer Email": { "main": [[{ "node": "A une signature ?", "type": "main", "index": 0 }]] },
+    "A une signature ?": {
+      "main": [
+        [{ "node": "Inserer la signature", "type": "main", "index": 0 }],
+        [{ "node": "Export PDF (Envoi)", "type": "main", "index": 0 }]
+      ]
+    },
+    "Inserer la signature": { "main": [[{ "node": "Export PDF (Envoi)", "type": "main", "index": 0 }]] },
     "Export PDF (Envoi)": { "main": [[{ "node": "Gmail - Envoi au client", "type": "main", "index": 0 }]] }
   },
   "pinData": {},

@@ -63,11 +63,18 @@ actionsCallbackRouter.post("/api/actions/:id/envoyer", requireAuth, async (req, 
     return res.status(409).json({ error: "Le document n'est pas encore prêt" });
   }
 
+  const currentUser = await prisma.user.findUnique({ where: { id: req.auth!.userId } });
+  const signatureUrl =
+    currentUser?.signatureUrl && env.PUBLIC_BASE_URL
+      ? `${env.PUBLIC_BASE_URL.replace(/\/$/, "")}${currentUser.signatureUrl}`
+      : null;
+
   const n8nResult = await callN8nWebhook("envoyer-email", {
     actionId: action.id,
     documentId: action.documentId,
     destinataireEmail: parsed.data.email,
     nomAffaire: action.dossier.nomAffaire,
+    signatureUrl,
   });
 
   await logAuditStep(
