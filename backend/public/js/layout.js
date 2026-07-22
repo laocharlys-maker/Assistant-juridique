@@ -7,7 +7,8 @@ const NAV_ITEMS = [
   { href: "/delais-calculateur.html", label: "Délais", roles: ["titulaire", "avocat", "collaborateur"] },
   { href: "/collaborateurs.html", label: "Équipe", roles: ["titulaire", "avocat"] },
   { href: "/factures.html", label: "Créer facture", roles: ["titulaire", "avocat"] },
-  { href: "/parametres.html#veille-cabinet-card", label: "Veille juridique", roles: ["titulaire", "avocat"] },
+  { href: "/parametres.html#veille-cabinet-card", label: "Veille juridique", roles: ["titulaire"] },
+  { href: "/parametres.html#veille-perso-card", label: "Veille juridique", roles: ["avocat"] },
   { href: "/parametres.html", label: "Paramètres", roles: ["titulaire", "avocat"] },
 ];
 
