@@ -3,7 +3,13 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
-import { buildDocx, buildPdf, SignatureAlignment, SignatureInput } from "../services/documentExport";
+import {
+  buildDocx,
+  buildPdf,
+  SignatureAlignment,
+  SignatureInput,
+  EnteteInput,
+} from "../services/documentExport";
 
 export const documentExportRouter = Router();
 
@@ -50,10 +56,10 @@ async function loadExportInput(actionId: string, cabinetId: string) {
 
 const PUBLIC_DIR = path.join(__dirname, "..", "..", "public");
 
-async function readSignatureFile(signatureUrl: string): Promise<{ buffer: Buffer; type: "png" | "jpg" }> {
-  const filePath = path.join(PUBLIC_DIR, signatureUrl);
+async function readImageFile(imageUrl: string): Promise<{ buffer: Buffer; type: "png" | "jpg" }> {
+  const filePath = path.join(PUBLIC_DIR, imageUrl);
   const buffer = await fs.readFile(filePath);
-  const type = signatureUrl.toLowerCase().endsWith(".jpg") || signatureUrl.toLowerCase().endsWith(".jpeg")
+  const type = imageUrl.toLowerCase().endsWith(".jpg") || imageUrl.toLowerCase().endsWith(".jpeg")
     ? "jpg"
     : "png";
   return { buffer, type };
@@ -93,7 +99,7 @@ async function resolveSignature(
   }
 
   try {
-    const { buffer, type } = await readSignatureFile(signatureUrl);
+    const { buffer, type } = await readImageFile(signatureUrl);
     return { ok: true, signature: { buffer, alignment, type } };
   } catch {
     return { ok: false, error: "Signature introuvable sur le serveur" };
@@ -112,6 +118,19 @@ function parseSignatureQuery(req: import("express").Request): {
   return { avecSignature, alignment };
 }
 
+async function resolveEntete(cabinetId: string, avecEntete: boolean): Promise<EnteteInput | undefined> {
+  if (!avecEntete) return undefined;
+
+  const cabinet = await prisma.cabinet.findUnique({ where: { id: cabinetId } });
+  if (!cabinet?.enteteUrl) return undefined;
+
+  try {
+    return await readImageFile(cabinet.enteteUrl);
+  } catch {
+    return undefined;
+  }
+}
+
 documentExportRouter.get("/api/actions/:id/word", requireAuth, async (req, res) => {
   const loaded = await loadExportInput(req.params.id, req.auth!.cabinetId);
   if (!loaded) {
@@ -123,8 +142,9 @@ documentExportRouter.get("/api/actions/:id/word", requireAuth, async (req, res) 
   if (!signatureResolution.ok) {
     return res.status(403).json({ error: signatureResolution.error });
   }
+  const entete = await resolveEntete(req.auth!.cabinetId, req.query.avecEntete === "1");
 
-  const buffer = await buildDocx({ ...loaded.input, signature: signatureResolution.signature });
+  const buffer = await buildDocx({ ...loaded.input, signature: signatureResolution.signature, entete });
   const filename = `${slugify(loaded.input.typeLabel)}-${slugify(loaded.input.numeroDossier)}.docx`;
   res.setHeader(
     "Content-Type",
@@ -145,8 +165,9 @@ documentExportRouter.get("/api/actions/:id/pdf", requireAuth, async (req, res) =
   if (!signatureResolution.ok) {
     return res.status(403).json({ error: signatureResolution.error });
   }
+  const entete = await resolveEntete(req.auth!.cabinetId, req.query.avecEntete === "1");
 
-  const buffer = await buildPdf({ ...loaded.input, signature: signatureResolution.signature });
+  const buffer = await buildPdf({ ...loaded.input, signature: signatureResolution.signature, entete });
   const filename = `${slugify(loaded.input.typeLabel)}-${slugify(loaded.input.numeroDossier)}.pdf`;
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);

@@ -9,6 +9,11 @@ export interface SignatureInput {
   type: "png" | "jpg";
 }
 
+export interface EnteteInput {
+  buffer: Buffer;
+  type: "png" | "jpg";
+}
+
 export interface ExportInput {
   cabinetNom: string;
   numeroDossier: string;
@@ -18,6 +23,7 @@ export interface ExportInput {
   auteurNom: string;
   date: Date;
   signature?: SignatureInput;
+  entete?: EnteteInput;
 }
 
 function formatDate(date: Date): string {
@@ -41,6 +47,22 @@ export async function buildDocx(input: ExportInput): Promise<Buffer> {
           spacing: { after: 200 },
         })
     );
+
+  const enteteParagraph = input.entete
+    ? [
+        new Paragraph({
+          children: [
+            new ImageRun({
+              data: input.entete.buffer,
+              transformation: { width: 300, height: 90 },
+              type: input.entete.type,
+            }),
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 300 },
+        }),
+      ]
+    : [];
 
   const signatureParagraph = input.signature
     ? [
@@ -69,6 +91,7 @@ export async function buildDocx(input: ExportInput): Promise<Buffer> {
     sections: [
       {
         children: [
+          ...enteteParagraph,
           new Paragraph({
             text: input.cabinetNom,
             heading: HeadingLevel.HEADING_1,
@@ -115,6 +138,15 @@ export async function buildPdf(input: ExportInput): Promise<Buffer> {
     doc.on("data", (chunk) => chunks.push(chunk));
     doc.on("end", () => resolve(Buffer.concat(chunks)));
     doc.on("error", reject);
+
+    if (input.entete) {
+      const usableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+      const enteteWidth = 260;
+      doc.image(input.entete.buffer, doc.page.margins.left + (usableWidth - enteteWidth) / 2, doc.y, {
+        width: enteteWidth,
+      });
+      doc.moveDown(3.5);
+    }
 
     doc.font("Helvetica-Bold").fontSize(16).text(input.cabinetNom, { align: "center" });
     doc.moveDown(0.3);

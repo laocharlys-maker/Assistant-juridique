@@ -50,6 +50,9 @@ enum UniteDelai {
 model Cabinet {
   id        String   @id @default(uuid())
   nom       String
+  // Image d'en-tete (logo/bandeau) inseree en haut des documents, a la
+  // demande (case a cocher), jamais automatiquement.
+  enteteUrl String?  @map("entete_url")
   createdAt DateTime @default(now()) @map("created_at")
 
   users      User[]

@@ -31,11 +31,19 @@
     };
 
     let me = null;
+    let cabinetHasEntete = false;
 
     (async () => {
       me = await requireSession();
       if (!me) return;
       initLayout(me);
+
+      try {
+        const cabinet = await apiFetch("/api/cabinet");
+        cabinetHasEntete = !!cabinet.enteteUrl;
+      } catch {
+        cabinetHasEntete = false;
+      }
 
       const id = new URLSearchParams(window.location.search).get("id");
       const contentEl = document.getElementById("content");
@@ -105,12 +113,26 @@
         dossier.actions.forEach((a) => {
           const checkbox = document.getElementById(`avecSignatureDL-${a.id}`);
           const select = document.getElementById(`positionSignatureDL-${a.id}`);
-          if (!checkbox || !select) return;
-          const update = () => updateDownloadLinks(a.id, checkbox.checked, select.value);
-          checkbox.addEventListener("click", (e) => e.stopPropagation());
-          select.addEventListener("click", (e) => e.stopPropagation());
-          checkbox.addEventListener("change", update);
-          select.addEventListener("change", update);
+          const enteteCheckbox = document.getElementById(`avecEnteteDL-${a.id}`);
+
+          const update = () =>
+            updateDownloadLinks(
+              a.id,
+              checkbox ? checkbox.checked : false,
+              select ? select.value : "END",
+              enteteCheckbox ? enteteCheckbox.checked : false
+            );
+
+          if (checkbox && select) {
+            checkbox.addEventListener("click", (e) => e.stopPropagation());
+            select.addEventListener("click", (e) => e.stopPropagation());
+            checkbox.addEventListener("change", update);
+            select.addEventListener("change", update);
+          }
+          if (enteteCheckbox) {
+            enteteCheckbox.addEventListener("click", (e) => e.stopPropagation());
+            enteteCheckbox.addEventListener("change", update);
+          }
         });
       } catch (err) {
         contentEl.innerHTML = `<p class="error visible">${escapeHtml(err.message)}</p>`;
@@ -162,6 +184,15 @@
               <a href="/api/actions/${a.id}/word" id="word-link-${a.id}">Télécharger en Word</a> ·
               <a href="/api/actions/${a.id}/pdf" id="pdf-link-${a.id}">Télécharger en PDF</a>
             </div>
+            ${
+              cabinetHasEntete
+                ? `<div style="margin:6px 0 0;">
+                     <label style="display:flex; align-items:center; gap:6px; font-weight:400; margin:0;">
+                       <input type="checkbox" id="avecEnteteDL-${a.id}" style="width:auto;" /> Insérer l'en-tête du cabinet
+                     </label>
+                   </div>`
+                : ""
+            }
             ${
               hasSignatureOption
                 ? `<div style="margin:6px 0 0; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
@@ -217,8 +248,16 @@
         </div>`;
     }
 
-    function updateDownloadLinks(actionId, avecSignature, positionSignature) {
-      const query = avecSignature ? `?avecSignature=1&positionSignature=${positionSignature}` : "";
+    function updateDownloadLinks(actionId, avecSignature, positionSignature, avecEntete) {
+      const params = new URLSearchParams();
+      if (avecSignature) {
+        params.set("avecSignature", "1");
+        params.set("positionSignature", positionSignature);
+      }
+      if (avecEntete) {
+        params.set("avecEntete", "1");
+      }
+      const query = params.toString() ? `?${params.toString()}` : "";
       const wordLink = document.getElementById(`word-link-${actionId}`);
       const pdfLink = document.getElementById(`pdf-link-${actionId}`);
       if (wordLink) wordLink.href = `/api/actions/${actionId}/word${query}`;
