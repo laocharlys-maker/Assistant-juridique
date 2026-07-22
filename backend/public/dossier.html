@@ -124,6 +124,9 @@
       const docLink = a.documentUrl
         ? `<a href="${escapeHtml(a.documentUrl)}" target="_blank" rel="noopener">Ouvrir / modifier le document</a>`
         : "";
+      const downloadLinks = a.contenuGenere
+        ? `<a href="/api/actions/${a.id}/word">Télécharger en Word</a> · <a href="/api/actions/${a.id}/pdf">Télécharger en PDF</a>`
+        : "";
 
       const canUseOwnSignature = me && me.role !== "collaborateur" && me.signatureUrl;
       const canUseResponsableSignature = me && me.role === "collaborateur" && me.peutUtiliserSignatureResponsable;
@@ -175,6 +178,7 @@
           </button>
           <div class="accordion-body">
             ${docLink ? `<div style="margin:6px 0;">${docLink}</div>` : ""}
+            ${downloadLinks ? `<div style="margin:6px 0;" class="muted">${downloadLinks}</div>` : ""}
             <pre>${escapeHtml(a.contenuGenere || "")}</pre>
             ${controls}
           </div>

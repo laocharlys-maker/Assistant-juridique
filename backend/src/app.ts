@@ -13,6 +13,7 @@ import { signatureRouter } from "./routes/signature";
 import { jurisprudenceBaseRouter } from "./routes/jurisprudenceBase";
 import { delaisRouter } from "./routes/delais";
 import { statsRouter } from "./routes/stats";
+import { documentExportRouter } from "./routes/documentExport";
 
 export const app = express();
 
@@ -30,4 +31,5 @@ app.use(signatureRouter);
 app.use(jurisprudenceBaseRouter);
 app.use(delaisRouter);
 app.use(statsRouter);
+app.use(documentExportRouter);
 app.use(express.static(path.join(__dirname, "..", "public")));
