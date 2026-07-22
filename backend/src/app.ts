@@ -14,6 +14,7 @@ import { jurisprudenceBaseRouter } from "./routes/jurisprudenceBase";
 import { delaisRouter } from "./routes/delais";
 import { statsRouter } from "./routes/stats";
 import { documentExportRouter } from "./routes/documentExport";
+import { cabinetRouter } from "./routes/cabinet";
 
 export const app = express();
 
@@ -32,4 +33,5 @@ app.use(jurisprudenceBaseRouter);
 app.use(delaisRouter);
 app.use(statsRouter);
 app.use(documentExportRouter);
+app.use(cabinetRouter);
 app.use(express.static(path.join(__dirname, "..", "public")));

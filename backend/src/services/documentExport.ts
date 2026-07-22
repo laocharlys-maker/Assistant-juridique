@@ -1,5 +1,13 @@
-import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } from "docx";
+import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, ImageRun } from "docx";
 import PDFDocument from "pdfkit";
+
+export type SignatureAlignment = "START" | "CENTER" | "END";
+
+export interface SignatureInput {
+  buffer: Buffer;
+  alignment: SignatureAlignment;
+  type: "png" | "jpg";
+}
 
 export interface ExportInput {
   cabinetNom: string;
@@ -9,11 +17,18 @@ export interface ExportInput {
   contenu: string;
   auteurNom: string;
   date: Date;
+  signature?: SignatureInput;
 }
 
 function formatDate(date: Date): string {
   return date.toLocaleDateString("fr-FR", { year: "numeric", month: "long", day: "numeric" });
 }
+
+const DOCX_ALIGNMENT: Record<SignatureAlignment, (typeof AlignmentType)[keyof typeof AlignmentType]> = {
+  START: AlignmentType.LEFT,
+  CENTER: AlignmentType.CENTER,
+  END: AlignmentType.RIGHT,
+};
 
 export async function buildDocx(input: ExportInput): Promise<Buffer> {
   const paragraphesContenu = input.contenu
@@ -26,6 +41,22 @@ export async function buildDocx(input: ExportInput): Promise<Buffer> {
           spacing: { after: 200 },
         })
     );
+
+  const signatureParagraph = input.signature
+    ? [
+        new Paragraph({
+          children: [
+            new ImageRun({
+              data: input.signature.buffer,
+              transformation: { width: 150, height: 60 },
+              type: input.signature.type,
+            }),
+          ],
+          alignment: DOCX_ALIGNMENT[input.signature.alignment],
+          spacing: { before: 200 },
+        }),
+      ]
+    : [];
 
   const doc = new Document({
     styles: {
@@ -66,6 +97,7 @@ export async function buildDocx(input: ExportInput): Promise<Buffer> {
             spacing: { after: 400 },
           }),
           ...paragraphesContenu,
+          ...signatureParagraph,
         ],
       },
     ],
@@ -73,6 +105,8 @@ export async function buildDocx(input: ExportInput): Promise<Buffer> {
 
   return Packer.toBuffer(doc);
 }
+
+const PDF_SIGNATURE_WIDTH = 150;
 
 export async function buildPdf(input: ExportInput): Promise<Buffer> {
   return new Promise((resolve, reject) => {
@@ -102,6 +136,18 @@ export async function buildPdf(input: ExportInput): Promise<Buffer> {
     for (const paragraphe of paragraphes) {
       doc.text(paragraphe.trim(), { align: "justify" });
       doc.moveDown(0.6);
+    }
+
+    if (input.signature) {
+      doc.moveDown(1);
+      const usableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+      let x = doc.page.margins.left;
+      if (input.signature.alignment === "CENTER") {
+        x = doc.page.margins.left + (usableWidth - PDF_SIGNATURE_WIDTH) / 2;
+      } else if (input.signature.alignment === "END") {
+        x = doc.page.margins.left + usableWidth - PDF_SIGNATURE_WIDTH;
+      }
+      doc.image(input.signature.buffer, x, doc.y, { width: PDF_SIGNATURE_WIDTH });
     }
 
     doc.end();

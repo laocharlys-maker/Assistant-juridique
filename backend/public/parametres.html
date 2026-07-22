@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aurore — Paramètres</title>
+  <link rel="icon" type="image/png" href="/favicon-256.png" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="page">
+    <h1>Paramètres</h1>
+
+    <div id="error" class="error"></div>
+
+    <div class="card">
+      <h2>Cabinet</h2>
+      <form id="cabinet-form">
+        <label>Nom du cabinet</label>
+        <input name="nom" required />
+        <button type="submit">Enregistrer</button>
+      </form>
+    </div>
+  </div>
+  <script src="/js/api.js"></script>
+  <script src="/js/layout.js"></script>
+  <script>
+    (async () => {
+      const me = await requireSession();
+      if (!me) return;
+      initLayout(me);
+
+      if (me.role !== "titulaire") {
+        document.querySelector(".page").innerHTML =
+          '<p class="error visible">Cette page est réservée au titulaire du cabinet.</p>';
+        return;
+      }
+
+      try {
+        const cabinet = await apiFetch("/api/cabinet");
+        document.querySelector('#cabinet-form input[name="nom"]').value = cabinet.nom;
+      } catch (err) {
+        showError(document.getElementById("error"), err.message);
+      }
+    })();
+
+    const errorEl = document.getElementById("error");
+    document.getElementById("cabinet-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      hideError(errorEl);
+      const fd = new FormData(e.target);
+      try {
+        await apiFetch("/api/cabinet", { method: "PATCH", body: { nom: fd.get("nom") } });
+      } catch (err) {
+        showError(errorEl, err.message);
+      }
+    });
+  </script>
+</body>
+</html>

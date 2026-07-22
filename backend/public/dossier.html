@@ -101,6 +101,17 @@
             );
           });
         });
+
+        dossier.actions.forEach((a) => {
+          const checkbox = document.getElementById(`avecSignatureDL-${a.id}`);
+          const select = document.getElementById(`positionSignatureDL-${a.id}`);
+          if (!checkbox || !select) return;
+          const update = () => updateDownloadLinks(a.id, checkbox.checked, select.value);
+          checkbox.addEventListener("click", (e) => e.stopPropagation());
+          select.addEventListener("click", (e) => e.stopPropagation());
+          checkbox.addEventListener("change", update);
+          select.addEventListener("change", update);
+        });
       } catch (err) {
         contentEl.innerHTML = `<p class="error visible">${escapeHtml(err.message)}</p>`;
       }
@@ -124,17 +135,15 @@
       const docLink = a.documentUrl
         ? `<a href="${escapeHtml(a.documentUrl)}" target="_blank" rel="noopener">Ouvrir / modifier le document</a>`
         : "";
-      const downloadLinks = a.contenuGenere
-        ? `<a href="/api/actions/${a.id}/word">Télécharger en Word</a> · <a href="/api/actions/${a.id}/pdf">Télécharger en PDF</a>`
-        : "";
 
       const canUseOwnSignature = me && me.role !== "collaborateur" && me.signatureUrl;
       const canUseResponsableSignature = me && me.role === "collaborateur" && me.peutUtiliserSignatureResponsable;
       const signatureLabel = canUseResponsableSignature
         ? `Insérer la signature de ${escapeHtml(me.responsable?.nom || "mon responsable")}`
         : "Insérer ma signature";
+      const hasSignatureOption = canUseOwnSignature || canUseResponsableSignature;
 
-      const signatureCheckbox = canUseOwnSignature || canUseResponsableSignature
+      const signatureCheckbox = hasSignatureOption
         ? `<div style="margin:8px 0 0; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
              <label style="display:flex; align-items:center; gap:6px; font-weight:400; margin:0;">
                <input type="checkbox" name="avecSignature" id="avecSignature-${a.id}" style="width:auto;" /> ${signatureLabel}
@@ -145,6 +154,29 @@
                <option value="END" selected>Alignée à droite</option>
              </select>
            </div>`
+        : "";
+
+      const downloadLinks = a.contenuGenere
+        ? `<div style="margin:6px 0;" class="muted">
+            <div>
+              <a href="/api/actions/${a.id}/word" id="word-link-${a.id}">Télécharger en Word</a> ·
+              <a href="/api/actions/${a.id}/pdf" id="pdf-link-${a.id}">Télécharger en PDF</a>
+            </div>
+            ${
+              hasSignatureOption
+                ? `<div style="margin:6px 0 0; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                     <label style="display:flex; align-items:center; gap:6px; font-weight:400; margin:0;">
+                       <input type="checkbox" id="avecSignatureDL-${a.id}" style="width:auto;" /> ${signatureLabel} dans le téléchargement
+                     </label>
+                     <select id="positionSignatureDL-${a.id}" style="width:auto;">
+                       <option value="START">Alignée à gauche</option>
+                       <option value="CENTER">Centrée</option>
+                       <option value="END" selected>Alignée à droite</option>
+                     </select>
+                   </div>`
+                : ""
+            }
+          </div>`
         : "";
 
       let controls = "";
@@ -178,11 +210,19 @@
           </button>
           <div class="accordion-body">
             ${docLink ? `<div style="margin:6px 0;">${docLink}</div>` : ""}
-            ${downloadLinks ? `<div style="margin:6px 0;" class="muted">${downloadLinks}</div>` : ""}
+            ${downloadLinks}
             <pre>${escapeHtml(a.contenuGenere || "")}</pre>
             ${controls}
           </div>
         </div>`;
+    }
+
+    function updateDownloadLinks(actionId, avecSignature, positionSignature) {
+      const query = avecSignature ? `?avecSignature=1&positionSignature=${positionSignature}` : "";
+      const wordLink = document.getElementById(`word-link-${actionId}`);
+      const pdfLink = document.getElementById(`pdf-link-${actionId}`);
+      if (wordLink) wordLink.href = `/api/actions/${actionId}/word${query}`;
+      if (pdfLink) pdfLink.href = `/api/actions/${actionId}/pdf${query}`;
     }
 
     async function validerAction(actionId) {

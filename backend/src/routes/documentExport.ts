@@ -1,7 +1,9 @@
 import { Router } from "express";
+import fs from "node:fs/promises";
+import path from "node:path";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
-import { buildDocx, buildPdf } from "../services/documentExport";
+import { buildDocx, buildPdf, SignatureAlignment, SignatureInput } from "../services/documentExport";
 
 export const documentExportRouter = Router();
 
@@ -46,13 +48,83 @@ async function loadExportInput(actionId: string, cabinetId: string) {
   };
 }
 
+const PUBLIC_DIR = path.join(__dirname, "..", "..", "public");
+
+async function readSignatureFile(signatureUrl: string): Promise<{ buffer: Buffer; type: "png" | "jpg" }> {
+  const filePath = path.join(PUBLIC_DIR, signatureUrl);
+  const buffer = await fs.readFile(filePath);
+  const type = signatureUrl.toLowerCase().endsWith(".jpg") || signatureUrl.toLowerCase().endsWith(".jpeg")
+    ? "jpg"
+    : "png";
+  return { buffer, type };
+}
+
+type SignatureResolution =
+  | { ok: true; signature: SignatureInput | undefined }
+  | { ok: false; error: string };
+
+async function resolveSignature(
+  userId: string,
+  avecSignature: boolean,
+  alignment: SignatureAlignment
+): Promise<SignatureResolution> {
+  if (!avecSignature) {
+    return { ok: true, signature: undefined };
+  }
+
+  const currentUser = await prisma.user.findUnique({
+    where: { id: userId },
+    include: { responsable: true },
+  });
+
+  let signatureUrl: string | null = null;
+  if (currentUser?.role === "collaborateur") {
+    if (currentUser.partageSignatureActif && currentUser.responsable?.signatureUrl) {
+      signatureUrl = currentUser.responsable.signatureUrl;
+    } else {
+      return { ok: false, error: "Ton avocat responsable ne t'a pas autorisé à insérer sa signature" };
+    }
+  } else {
+    signatureUrl = currentUser?.signatureUrl ?? null;
+  }
+
+  if (!signatureUrl) {
+    return { ok: false, error: "Aucune signature disponible" };
+  }
+
+  try {
+    const { buffer, type } = await readSignatureFile(signatureUrl);
+    return { ok: true, signature: { buffer, alignment, type } };
+  } catch {
+    return { ok: false, error: "Signature introuvable sur le serveur" };
+  }
+}
+
+function parseSignatureQuery(req: import("express").Request): {
+  avecSignature: boolean;
+  alignment: SignatureAlignment;
+} {
+  const avecSignature = req.query.avecSignature === "1";
+  const rawAlignment = typeof req.query.positionSignature === "string" ? req.query.positionSignature : "END";
+  const alignment: SignatureAlignment = ["START", "CENTER", "END"].includes(rawAlignment)
+    ? (rawAlignment as SignatureAlignment)
+    : "END";
+  return { avecSignature, alignment };
+}
+
 documentExportRouter.get("/api/actions/:id/word", requireAuth, async (req, res) => {
   const loaded = await loadExportInput(req.params.id, req.auth!.cabinetId);
   if (!loaded) {
     return res.status(404).json({ error: "Document introuvable" });
   }
 
-  const buffer = await buildDocx(loaded.input);
+  const { avecSignature, alignment } = parseSignatureQuery(req);
+  const signatureResolution = await resolveSignature(req.auth!.userId, avecSignature, alignment);
+  if (!signatureResolution.ok) {
+    return res.status(403).json({ error: signatureResolution.error });
+  }
+
+  const buffer = await buildDocx({ ...loaded.input, signature: signatureResolution.signature });
   const filename = `${slugify(loaded.input.typeLabel)}-${slugify(loaded.input.numeroDossier)}.docx`;
   res.setHeader(
     "Content-Type",
@@ -68,7 +140,13 @@ documentExportRouter.get("/api/actions/:id/pdf", requireAuth, async (req, res) =
     return res.status(404).json({ error: "Document introuvable" });
   }
 
-  const buffer = await buildPdf(loaded.input);
+  const { avecSignature, alignment } = parseSignatureQuery(req);
+  const signatureResolution = await resolveSignature(req.auth!.userId, avecSignature, alignment);
+  if (!signatureResolution.ok) {
+    return res.status(403).json({ error: signatureResolution.error });
+  }
+
+  const buffer = await buildPdf({ ...loaded.input, signature: signatureResolution.signature });
   const filename = `${slugify(loaded.input.typeLabel)}-${slugify(loaded.input.numeroDossier)}.pdf`;
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);

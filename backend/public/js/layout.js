@@ -6,6 +6,7 @@ const NAV_ITEMS = [
   { href: "/jurisprudence-base.html", label: "Jurisprudence", roles: ["titulaire", "collaborateur"] },
   { href: "/delais-calculateur.html", label: "Délais", roles: ["titulaire", "collaborateur"] },
   { href: "/collaborateurs.html", label: "Collaborateurs", roles: ["titulaire"] },
+  { href: "/parametres.html", label: "Paramètres", roles: ["titulaire"] },
 ];
 
 function initLayout(me) {
