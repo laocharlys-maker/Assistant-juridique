@@ -9,11 +9,16 @@ export const statsRouter = Router();
 statsRouter.get("/api/stats", requireAuth, requireAvocat, async (req, res) => {
   const cabinetId = req.auth!.cabinetId;
 
-  // L'admin (titulaire) voit les stats de tout le cabinet ; un avocat ne
-  // voit que les siennes (ses propres dossiers + ceux de ses
-  // collaborateurs).
+  // Par defaut : l'admin (titulaire) voit tout le cabinet, un avocat ne
+  // voit que les siennes. Chacun peut basculer explicitement via
+  // ?scope=mine|cabinet.
+  const defaultScope = req.auth!.role === "titulaire" ? "cabinet" : "mine";
+  const requestedScope = req.query.scope === "mine" || req.query.scope === "cabinet"
+    ? req.query.scope
+    : defaultScope;
+
   const accessibleAvocatIds =
-    req.auth!.role === "titulaire" ? null : await getAccessibleAvocatIds(req.auth!);
+    requestedScope === "cabinet" ? null : await getAccessibleAvocatIds(req.auth!);
 
   const now = new Date();
   const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
@@ -56,5 +61,5 @@ statsRouter.get("/api/stats", requireAuth, requireAvocat, async (req, res) => {
     }),
   ]);
 
-  return res.json({ dossiersActifs, crCeMois, echeances7Jours });
+  return res.json({ scope: requestedScope, dossiersActifs, crCeMois, echeances7Jours });
 });

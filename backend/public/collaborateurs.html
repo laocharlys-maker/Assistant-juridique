@@ -20,6 +20,17 @@
       <p>Mot de passe : <code id="new-account-password"></code></p>
     </div>
 
+    <div class="card">
+      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+        <h2 style="margin:0;">Membres du cabinet</h2>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button type="button" class="secondary btn-sm" id="toggle-avocat-btn" style="display:none; margin:0;">+ Ajouter un avocat</button>
+          <button type="button" class="secondary btn-sm" id="toggle-collab-btn" style="margin:0;">+ Ajouter un collaborateur</button>
+        </div>
+      </div>
+      <div id="users-list"><p class="muted">Chargement…</p></div>
+    </div>
+
     <div class="card" id="create-avocat-card" style="display:none;">
       <h2>Ajouter un avocat</h2>
       <p class="muted">Un avocat gère ses propres dossiers et peut créer ses propres collaborateurs.</p>
@@ -32,7 +43,7 @@
       </form>
     </div>
 
-    <div class="card">
+    <div class="card" id="create-collab-card" style="display:none;">
       <h2>Ajouter un collaborateur</h2>
       <p class="muted">Le nouveau compte dépendra automatiquement de toi.</p>
       <form id="create-form">
@@ -42,11 +53,6 @@
         <input name="email" type="email" required />
         <button type="submit">Créer le compte</button>
       </form>
-    </div>
-
-    <div class="card">
-      <h2>Membres du cabinet</h2>
-      <div id="users-list"><p class="muted">Chargement…</p></div>
     </div>
   </div>
   <script src="/js/api.js"></script>
@@ -94,20 +100,20 @@
                   ${u.accesTousDossiers ? " · accès à tous les dossiers du cabinet" : ""}
                 </div>
               </div>
-              <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <div style="display:flex; gap:6px; flex-wrap:wrap;">
                 ${
                   isMyCollaborateur
-                    ? `<button type="button" class="secondary" data-toggle-signature="${u.id}" data-actif="${u.partageSignatureActif}">
-                        ${u.partageSignatureActif ? "Retirer l'accès à ma signature" : "Autoriser l'accès à ma signature"}
+                    ? `<button type="button" class="secondary btn-sm" data-toggle-signature="${u.id}" data-actif="${u.partageSignatureActif}">
+                        ${u.partageSignatureActif ? "Retirer accès signature" : "Autoriser accès signature"}
                       </button>`
-                    : `<button type="button" class="secondary" data-toggle-access="${u.id}" data-granted="${hasExtraAccess}">
-                        ${hasExtraAccess ? "Retirer l'accès à mes dossiers" : "Donner accès à mes dossiers"}
+                    : `<button type="button" class="secondary btn-sm" data-toggle-access="${u.id}" data-granted="${hasExtraAccess}">
+                        ${hasExtraAccess ? "Retirer accès dossiers" : "Donner accès dossiers"}
                       </button>`
                 }
                 ${
                   me.role === "titulaire"
-                    ? `<button type="button" class="secondary" data-toggle-all-access="${u.id}" data-actif="${u.accesTousDossiers}">
-                        ${u.accesTousDossiers ? "Retirer l'accès à tous les dossiers" : "Donner accès à tous les dossiers"}
+                    ? `<button type="button" class="secondary btn-sm" data-toggle-all-access="${u.id}" data-actif="${u.accesTousDossiers}">
+                        ${u.accesTousDossiers ? "Retirer accès tous dossiers" : "Donner accès tous dossiers"}
                       </button>`
                     : ""
                 }
@@ -179,10 +185,19 @@
         return;
       }
       if (me.role === "titulaire") {
-        document.getElementById("create-avocat-card").style.display = "block";
+        document.getElementById("toggle-avocat-btn").style.display = "inline-block";
       }
       loadUsers();
     })();
+
+    document.getElementById("toggle-avocat-btn").addEventListener("click", () => {
+      const card = document.getElementById("create-avocat-card");
+      card.style.display = card.style.display === "none" ? "block" : "none";
+    });
+    document.getElementById("toggle-collab-btn").addEventListener("click", () => {
+      const card = document.getElementById("create-collab-card");
+      card.style.display = card.style.display === "none" ? "block" : "none";
+    });
 
     const errorEl = document.getElementById("error");
     document.getElementById("create-form").addEventListener("submit", async (e) => {
@@ -198,6 +213,7 @@
         document.getElementById("new-account-email").textContent = user.email;
         document.getElementById("new-account-password").textContent = user.password;
         document.getElementById("new-account").style.display = "block";
+        document.getElementById("create-collab-card").style.display = "none";
         e.target.reset();
         loadUsers();
       } catch (err) {
@@ -205,28 +221,26 @@
       }
     });
 
-    const createAvocatForm = document.getElementById("create-avocat-form");
-    if (createAvocatForm) {
-      createAvocatForm.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        hideError(errorEl);
-        document.getElementById("new-account").style.display = "none";
-        const fd = new FormData(e.target);
-        try {
-          const user = await apiFetch("/api/users/avocats", {
-            method: "POST",
-            body: { nom: fd.get("nom"), email: fd.get("email") },
-          });
-          document.getElementById("new-account-email").textContent = user.email;
-          document.getElementById("new-account-password").textContent = user.password;
-          document.getElementById("new-account").style.display = "block";
-          e.target.reset();
-          loadUsers();
-        } catch (err) {
-          showError(errorEl, err.message);
-        }
-      });
-    }
+    document.getElementById("create-avocat-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      hideError(errorEl);
+      document.getElementById("new-account").style.display = "none";
+      const fd = new FormData(e.target);
+      try {
+        const user = await apiFetch("/api/users/avocats", {
+          method: "POST",
+          body: { nom: fd.get("nom"), email: fd.get("email") },
+        });
+        document.getElementById("new-account-email").textContent = user.email;
+        document.getElementById("new-account-password").textContent = user.password;
+        document.getElementById("new-account").style.display = "block";
+        document.getElementById("create-avocat-card").style.display = "none";
+        e.target.reset();
+        loadUsers();
+      } catch (err) {
+        showError(errorEl, err.message);
+      }
+    });
   </script>
 </body>
 </html>

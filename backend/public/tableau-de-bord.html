@@ -14,6 +14,11 @@
 
     <div id="error" class="error"></div>
 
+    <div class="tabs" id="scope-tabs" style="display:none;">
+      <button class="tab" data-scope="mine">Mes statistiques</button>
+      <button class="tab" data-scope="cabinet">Tout le cabinet</button>
+    </div>
+
     <div class="stat-grid" id="stat-grid">
       <div class="stat-card">
         <div class="stat-label">Dossiers actifs</div>
@@ -34,6 +39,23 @@
   <script src="/js/api.js"></script>
   <script src="/js/layout.js"></script>
   <script>
+    async function loadStats(scope) {
+      const errorEl = document.getElementById("error");
+      hideError(errorEl);
+      try {
+        const query = scope ? `?scope=${scope}` : "";
+        const stats = await apiFetch(`/api/stats${query}`);
+        document.querySelectorAll("#scope-tabs .tab").forEach((btn) => {
+          btn.classList.toggle("active", btn.dataset.scope === stats.scope);
+        });
+        document.getElementById("stat-dossiers").textContent = stats.dossiersActifs;
+        document.getElementById("stat-cr").textContent = stats.crCeMois;
+        document.getElementById("stat-echeances").textContent = stats.echeances7Jours;
+      } catch (err) {
+        showError(errorEl, err.message);
+      }
+    }
+
     (async () => {
       const me = await requireSession();
       if (!me) return;
@@ -53,14 +75,12 @@
         day: "numeric",
       });
 
-      try {
-        const stats = await apiFetch("/api/stats");
-        document.getElementById("stat-dossiers").textContent = stats.dossiersActifs;
-        document.getElementById("stat-cr").textContent = stats.crCeMois;
-        document.getElementById("stat-echeances").textContent = stats.echeances7Jours;
-      } catch (err) {
-        showError(document.getElementById("error"), err.message);
-      }
+      document.getElementById("scope-tabs").style.display = "flex";
+      document.querySelectorAll("#scope-tabs .tab").forEach((btn) => {
+        btn.addEventListener("click", () => loadStats(btn.dataset.scope));
+      });
+
+      loadStats();
     })();
   </script>
 </body>

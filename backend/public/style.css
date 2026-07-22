@@ -99,6 +99,8 @@ button:hover { background: var(--accent-hover); }
 button.secondary { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
 button.secondary:hover { background: #eef3f1; }
 
+button.btn-sm { padding: 5px 10px; font-size: 0.8rem; margin-top: 0; }
+
 .error {
   background: #fbe9e5;
   color: var(--danger);
