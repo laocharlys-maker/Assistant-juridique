@@ -61,17 +61,20 @@ model Cabinet {
 }
 
 model User {
-  id             String   @id @default(uuid())
-  cabinetId      String   @map("cabinet_id")
-  nom            String
-  email          String   @unique
-  motDePasseHash String   @map("mot_de_passe_hash")
-  role           UserRole @default(collaborateur)
+  id                    String   @id @default(uuid())
+  cabinetId             String   @map("cabinet_id")
+  nom                   String
+  email                 String   @unique
+  motDePasseHash        String   @map("mot_de_passe_hash")
+  role                  UserRole @default(collaborateur)
   // Avocat dont depend directement ce collaborateur (null pour un titulaire).
-  responsableId  String?  @map("responsable_id")
+  responsableId         String?  @map("responsable_id")
   // Chemin public de l'image de signature (ex: /uploads/signatures/xxx.png).
-  signatureUrl   String?  @map("signature_url")
-  createdAt      DateTime @default(now()) @map("created_at")
+  signatureUrl          String?  @map("signature_url")
+  // Un collaborateur peut, si son avocat responsable l'autorise, inserer
+  // la signature de ce dernier lors de l'envoi d'un document.
+  partageSignatureActif Boolean  @default(false) @map("partage_signature_actif")
+  createdAt             DateTime @default(now()) @map("created_at")
 
   cabinet           Cabinet       @relation(fields: [cabinetId], references: [id])
   responsable       User?         @relation("ResponsableCollaborateurs", fields: [responsableId], references: [id])

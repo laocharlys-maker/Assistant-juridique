@@ -26,6 +26,12 @@
   <script>
     let currentScope = "mine";
 
+    const STATUT_TAG_LABELS = {
+      a_jour: "à jour",
+      echeance_proche: "échéance proche",
+      cloture: "clôturé",
+    };
+
     async function loadDossiers(scope) {
       const listEl = document.getElementById("dossiers-list");
       listEl.innerHTML = '<p class="muted">Chargement…</p>';
@@ -46,7 +52,8 @@
             (d) => `
           <div class="dossier-item">
             <div>
-              <a href="/dossier.html?id=${d.id}">${escapeHtml(d.numeroDossier)} — ${escapeHtml(d.nomAffaire)}</a>
+              <span class="badge badge-${d.statutTag}">${STATUT_TAG_LABELS[d.statutTag] || d.statutTag}</span>
+              <div><a href="/dossier.html?id=${d.id}">${escapeHtml(d.numeroDossier)} — ${escapeHtml(d.nomAffaire)}</a></div>
               <div class="meta">${escapeHtml(d.nomClient)} · ${d._count.actions} action(s) · créé par ${escapeHtml(d.creePar.nom)}</div>
             </div>
           </div>`

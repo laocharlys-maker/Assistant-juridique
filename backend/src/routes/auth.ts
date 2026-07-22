@@ -56,11 +56,20 @@ authRouter.get("/api/auth/me", requireAuth, async (req, res) => {
       role: true,
       cabinetId: true,
       signatureUrl: true,
-      responsable: { select: { nom: true } },
+      partageSignatureActif: true,
+      responsable: { select: { nom: true, signatureUrl: true } },
     },
   });
   if (!user) {
     return res.status(404).json({ error: "Utilisateur introuvable" });
   }
-  return res.json(user);
+
+  const peutUtiliserSignatureResponsable =
+    user.role === "collaborateur" && user.partageSignatureActif && !!user.responsable?.signatureUrl;
+
+  return res.json({
+    ...user,
+    responsable: user.responsable ? { nom: user.responsable.nom } : null,
+    peutUtiliserSignatureResponsable,
+  });
 });

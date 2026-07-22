@@ -72,10 +72,30 @@ actionsCallbackRouter.post("/api/actions/:id/envoyer", requireAuth, async (req, 
 
   let signatureUrl: string | null = null;
   if (parsed.data.avecSignature) {
-    const currentUser = await prisma.user.findUnique({ where: { id: req.auth!.userId } });
+    const currentUser = await prisma.user.findUnique({
+      where: { id: req.auth!.userId },
+      include: { responsable: true },
+    });
+
+    let signaturePath: string | null = null;
+    if (currentUser?.role === "collaborateur") {
+      // Un collaborateur n'insere jamais sa propre signature via ce
+      // mecanisme : uniquement celle de son responsable, et seulement si
+      // celui-ci l'y a explicitement autorise.
+      if (currentUser.partageSignatureActif && currentUser.responsable?.signatureUrl) {
+        signaturePath = currentUser.responsable.signatureUrl;
+      } else {
+        return res.status(403).json({
+          error: "Ton avocat responsable ne t'a pas autorisé à insérer sa signature",
+        });
+      }
+    } else {
+      signaturePath = currentUser?.signatureUrl ?? null;
+    }
+
     signatureUrl =
-      currentUser?.signatureUrl && env.PUBLIC_BASE_URL
-        ? `${env.PUBLIC_BASE_URL.replace(/\/$/, "")}${currentUser.signatureUrl}`
+      signaturePath && env.PUBLIC_BASE_URL
+        ? `${env.PUBLIC_BASE_URL.replace(/\/$/, "")}${signaturePath}`
         : null;
   }
 

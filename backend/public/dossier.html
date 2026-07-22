@@ -48,12 +48,27 @@
         const dossier = await apiFetch(`/api/dossiers/${id}`);
         contentEl.innerHTML = `
           <div class="card">
+            <span class="badge badge-${dossier.statutTag}">${STATUT_TAG_LABELS[dossier.statutTag] || dossier.statutTag}</span>
             <h1>${escapeHtml(dossier.numeroDossier)} — ${escapeHtml(dossier.nomAffaire)}</h1>
             <p class="muted">Client : ${escapeHtml(dossier.nomClient)} · Juge : ${escapeHtml(dossier.nomJuge || "non précisé")} · créé par ${escapeHtml(dossier.creePar.nom)}</p>
+            <button type="button" class="secondary" id="toggle-cloture-btn" data-statut="${dossier.statut}">
+              ${dossier.statut === "cloture" ? "Rouvrir le dossier" : "Clôturer le dossier"}
+            </button>
           </div>
           <h2>Historique (${dossier.actions.length})</h2>
           <div id="actions-list"></div>
         `;
+
+        document.getElementById("toggle-cloture-btn").addEventListener("click", async (e) => {
+          const statutActuel = e.target.dataset.statut;
+          const nouveauStatut = statutActuel === "cloture" ? "actif" : "cloture";
+          try {
+            await apiFetch(`/api/dossiers/${id}`, { method: "PATCH", body: { statut: nouveauStatut } });
+            window.location.reload();
+          } catch (err) {
+            alert(err.message);
+          }
+        });
 
         const actionsEl = document.getElementById("actions-list");
         if (dossier.actions.length === 0) {
@@ -98,16 +113,28 @@
       envoye: "Envoyé au client",
     };
 
+    const STATUT_TAG_LABELS = {
+      a_jour: "à jour",
+      echeance_proche: "échéance proche",
+      cloture: "clôturé",
+    };
+
     function renderAction(a) {
       const statutLabel = STATUT_LABELS[a.statut] || a.statut;
       const docLink = a.documentUrl
         ? `<a href="${escapeHtml(a.documentUrl)}" target="_blank" rel="noopener">Ouvrir / modifier le document</a>`
         : "";
 
-      const signatureCheckbox = me && me.signatureUrl
+      const canUseOwnSignature = me && me.role !== "collaborateur" && me.signatureUrl;
+      const canUseResponsableSignature = me && me.role === "collaborateur" && me.peutUtiliserSignatureResponsable;
+      const signatureLabel = canUseResponsableSignature
+        ? `Insérer la signature de ${escapeHtml(me.responsable?.nom || "mon responsable")}`
+        : "Insérer ma signature";
+
+      const signatureCheckbox = canUseOwnSignature || canUseResponsableSignature
         ? `<div style="margin:8px 0 0; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
              <label style="display:flex; align-items:center; gap:6px; font-weight:400; margin:0;">
-               <input type="checkbox" name="avecSignature" id="avecSignature-${a.id}" style="width:auto;" /> Insérer ma signature
+               <input type="checkbox" name="avecSignature" id="avecSignature-${a.id}" style="width:auto;" /> ${signatureLabel}
              </label>
              <select name="positionSignature" style="width:auto;">
                <option value="START">Alignée à gauche</option>

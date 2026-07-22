@@ -30,6 +30,7 @@ usersRouter.get("/api/users", requireAuth, requireTitulaire, async (req, res) =>
       role: true,
       createdAt: true,
       responsableId: true,
+      partageSignatureActif: true,
       responsable: { select: { id: true, nom: true } },
       accesAccordes: { select: { avocat: { select: { id: true, nom: true } } } },
     },
@@ -116,6 +117,43 @@ usersRouter.delete(
   async (req, res) => {
     await prisma.accesSupplementaire.deleteMany({
       where: { collaborateurId: req.params.collaborateurId, avocatId: req.auth!.userId },
+    });
+    return res.json({ ok: true });
+  }
+);
+
+// Un avocat autorise (ou pas) son propre collaborateur direct a inserer sa
+// signature lors de l'envoi d'un document. Ne concerne que la relation
+// responsable direct <-> collaborateur (pas les acces supplementaires).
+const partageSignatureSchema = z.object({
+  actif: z.boolean(),
+});
+
+usersRouter.patch(
+  "/api/users/:id/partage-signature",
+  requireAuth,
+  requireTitulaire,
+  async (req, res) => {
+    const parsed = partageSignatureSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Requête invalide" });
+    }
+
+    const collaborateur = await prisma.user.findFirst({
+      where: {
+        id: req.params.id,
+        cabinetId: req.auth!.cabinetId,
+        role: "collaborateur",
+        responsableId: req.auth!.userId,
+      },
+    });
+    if (!collaborateur) {
+      return res.status(404).json({ error: "Ce collaborateur ne dépend pas de toi" });
+    }
+
+    await prisma.user.update({
+      where: { id: collaborateur.id },
+      data: { partageSignatureActif: parsed.data.actif },
     });
     return res.json({ ok: true });
   }

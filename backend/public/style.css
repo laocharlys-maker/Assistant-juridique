@@ -272,3 +272,16 @@ header.app-topbar {
 .stat-card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 18px; }
 .stat-card .stat-label { color: var(--muted); font-size: 0.85rem; }
 .stat-card .stat-value { font-size: 2rem; font-weight: 700; margin-top: 6px; }
+
+.badge {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 3px 9px;
+  border-radius: 999px;
+}
+.badge-a_jour { background: #e2f3e6; color: #1f7a3d; }
+.badge-echeance_proche { background: #fbe9e5; color: var(--danger); }
+.badge-cloture { background: #eceae4; color: var(--muted); }

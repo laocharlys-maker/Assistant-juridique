@@ -80,13 +80,17 @@
                   ${autresAcces ? ` · accès supplémentaire : ${autresAcces}` : ""}
                 </div>
               </div>
-              ${
-                isMyCollaborateur
-                  ? ""
-                  : `<button type="button" class="secondary" data-toggle-access="${u.id}" data-granted="${hasExtraAccess}">
-                      ${hasExtraAccess ? "Retirer l'accès à mes dossiers" : "Donner accès à mes dossiers"}
-                    </button>`
-              }
+              <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                ${
+                  isMyCollaborateur
+                    ? `<button type="button" class="secondary" data-toggle-signature="${u.id}" data-actif="${u.partageSignatureActif}">
+                        ${u.partageSignatureActif ? "Retirer l'accès à ma signature" : "Autoriser l'accès à ma signature"}
+                      </button>`
+                    : `<button type="button" class="secondary" data-toggle-access="${u.id}" data-granted="${hasExtraAccess}">
+                        ${hasExtraAccess ? "Retirer l'accès à mes dossiers" : "Donner accès à mes dossiers"}
+                      </button>`
+                }
+              </div>
             </div>`;
           })
           .join("");
@@ -101,6 +105,22 @@
               } else {
                 await apiFetch("/api/users/access-grants", { method: "POST", body: { collaborateurId } });
               }
+              loadUsers();
+            } catch (err) {
+              showError(document.getElementById("error"), err.message);
+            }
+          });
+        });
+
+        listEl.querySelectorAll("[data-toggle-signature]").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            const collaborateurId = btn.dataset.toggleSignature;
+            const actif = btn.dataset.actif === "true";
+            try {
+              await apiFetch(`/api/users/${collaborateurId}/partage-signature`, {
+                method: "PATCH",
+                body: { actif: !actif },
+              });
               loadUsers();
             } catch (err) {
               showError(document.getElementById("error"), err.message);
