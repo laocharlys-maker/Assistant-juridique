@@ -73,6 +73,16 @@
         : `<p class="muted">Aucun en-tête enregistré pour l'instant.</p>`;
     }
 
+    function scrollToHashTarget() {
+      if (!window.location.hash) return;
+      const target = document.querySelector(window.location.hash);
+      if (!target) return;
+      target.scrollIntoView({ block: "start" });
+      target.classList.add("highlight-target");
+      setTimeout(() => target.classList.remove("highlight-target"), 2000);
+    }
+    window.addEventListener("hashchange", scrollToHashTarget);
+
     (async () => {
       const me = await requireSession();
       if (!me) return;
@@ -104,16 +114,7 @@
         showError(document.getElementById("error"), err.message);
       }
 
-      if (window.location.hash) {
-        const target = document.querySelector(window.location.hash);
-        if (target) {
-          setTimeout(() => {
-            target.scrollIntoView({ block: "start" });
-            target.classList.add("highlight-target");
-            setTimeout(() => target.classList.remove("highlight-target"), 2000);
-          }, 150);
-        }
-      }
+      setTimeout(scrollToHashTarget, 150);
     })();
 
     const errorEl = document.getElementById("error");
