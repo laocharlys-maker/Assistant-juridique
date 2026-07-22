@@ -1,0 +1,76 @@
+{
+  "name": "Aurore - Veille juridique hebdomadaire",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Aurore - Veille juridique hebdomadaire\n\nCe workflow reçoit, une fois par semaine (déclenché par un cron côté backend, pas par n8n), le résumé de veille juridique déjà généré et sourcé par le backend (recherche web + synthèse IA).\n\nCe workflow ne fait QUE l'envoi email : pas de génération, pas de décision, pas de Docs/Sheets — le backend appelle ce webhook une fois PAR destinataire (chaque avocat/titulaire qui n'a pas désactivé la réception dans Paramètres).\n\n**Webhook actif, appelé par le backend :**\n- /webhook/veille-juridique\n\nPayload reçu : { actionId, dossierId, cabinetNom, periode, contenu, destinataireEmail, destinataireNom }",
+        "height": 300,
+        "width": 480
+      },
+      "id": "sticky-note-veille",
+      "name": "Note - Lire avant de modifier",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-1120, -260]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "veille-juridique",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "webhook-veille-juridique",
+      "name": "Webhook - Veille Juridique",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-1120, 0],
+      "webhookId": "aurore-veille-juridique"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.body.destinataireEmail }}",
+        "subject": "=Veille juridique - {{ $json.body.cabinetNom }} - {{ $json.body.periode }}",
+        "emailType": "text",
+        "message": "=Bonjour {{ $json.body.destinataireNom }},\n\nVoici le résumé de la veille juridique hebdomadaire du cabinet ({{ $json.body.periode }}) :\n\n{{ $json.body.contenu }}\n\n---\nCe résumé est généré automatiquement à partir de recherches web récentes ; il ne remplace pas une vérification par l'avocat. Tu peux désactiver la réception de cet email dans Paramètres > Ma réception de la veille juridique.\n\nCordialement,\nAurore",
+        "options": {}
+      },
+      "id": "gmail-veille-juridique",
+      "name": "Gmail - Envoi veille",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [-880, 0],
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "bhJH2gq7NAqpxE1w",
+          "name": "Gmail account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook - Veille Juridique": {
+      "main": [
+        [
+          {
+            "node": "Gmail - Envoi veille",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Africa/Lagos"
+  },
+  "meta": {
+    "instanceId": "cf3b35ea3fbd4c4b62321a0bd56ce34ad5c7db5f6f4a0a7fc60b51dffe9ccdfa"
+  },
+  "tags": []
+}
