@@ -30,6 +30,7 @@ enum TypeAction {
   mise_en_demeure
   traduction
   resume_pdf
+  veille_juridique
 }
 
 enum StatutExecution {
@@ -55,6 +56,12 @@ model Cabinet {
   // Image d'en-tete (logo/bandeau) inseree en haut des documents, a la
   // demande (case a cocher), jamais automatiquement.
   enteteUrl String?  @map("entete_url")
+  // Sujets/mots-cles a surveiller pour la veille juridique hebdomadaire,
+  // saisis en texte libre par le titulaire (separes par virgule ou saut de
+  // ligne).
+  veilleSujets String? @map("veille_sujets")
+  // La veille hebdomadaire n'est envoyee que si activee explicitement.
+  veilleActive Boolean @default(false) @map("veille_active")
   createdAt DateTime @default(now()) @map("created_at")
 
   users      User[]
@@ -82,6 +89,9 @@ model User {
   // Accorde par l'admin a un collaborateur : accede a TOUS les dossiers
   // du cabinet, pas seulement ceux de son responsable / des acces accordes.
   accesTousDossiers     Boolean  @default(false) @map("acces_tous_dossiers")
+  // Un avocat/titulaire peut se desinscrire de la veille juridique
+  // hebdomadaire par email (sans effet pour un collaborateur).
+  recoitVeille          Boolean  @default(true) @map("recoit_veille")
   createdAt             DateTime @default(now()) @map("created_at")
 
   cabinet           Cabinet       @relation(fields: [cabinetId], references: [id])

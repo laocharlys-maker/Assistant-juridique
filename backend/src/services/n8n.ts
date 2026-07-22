@@ -6,7 +6,8 @@ export type N8nWebhookName =
   | "document-juridique"
   | "envoyer-email"
   | "whatsapp-reply"
-  | "creer-rappel-delai";
+  | "creer-rappel-delai"
+  | "veille-juridique";
 
 export interface N8nCallResult {
   ok: boolean;

@@ -57,6 +57,7 @@ authRouter.get("/api/auth/me", requireAuth, async (req, res) => {
       cabinetId: true,
       signatureUrl: true,
       partageSignatureActif: true,
+      recoitVeille: true,
       responsable: { select: { nom: true, signatureUrl: true } },
     },
   });

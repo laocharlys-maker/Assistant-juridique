@@ -11,7 +11,13 @@ export const cabinetRouter = Router();
 cabinetRouter.get("/api/cabinet", requireAuth, async (req, res) => {
   const cabinet = await prisma.cabinet.findUnique({
     where: { id: req.auth!.cabinetId },
-    select: { id: true, nom: true, enteteUrl: true },
+    select: {
+      id: true,
+      nom: true,
+      enteteUrl: true,
+      veilleSujets: true,
+      veilleActive: true,
+    },
   });
   if (!cabinet) {
     return res.status(404).json({ error: "Cabinet introuvable" });
@@ -34,6 +40,24 @@ cabinetRouter.patch("/api/cabinet", requireAuth, requireAdmin, async (req, res) 
     data: { nom: parsed.data.nom },
   });
   return res.json({ id: cabinet.id, nom: cabinet.nom });
+});
+
+const updateVeilleSchema = z.object({
+  veilleSujets: z.string().optional(),
+  veilleActive: z.boolean().optional(),
+});
+
+cabinetRouter.patch("/api/cabinet/veille", requireAuth, requireAdmin, async (req, res) => {
+  const parsed = updateVeilleSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Requête invalide" });
+  }
+
+  const cabinet = await prisma.cabinet.update({
+    where: { id: req.auth!.cabinetId },
+    data: parsed.data,
+  });
+  return res.json({ veilleSujets: cabinet.veilleSujets, veilleActive: cabinet.veilleActive });
 });
 
 const ENTETE_UPLOAD_DIR = path.join(__dirname, "..", "..", "public", "uploads", "entetes");

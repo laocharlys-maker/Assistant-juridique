@@ -231,3 +231,23 @@ usersRouter.patch(
     return res.json({ ok: true });
   }
 );
+
+// Un avocat ou le titulaire choisit de recevoir (ou non) le resume
+// hebdomadaire de veille juridique par email. Sans effet pour un
+// collaborateur (qui ne fait pas partie des destinataires).
+const recoitVeilleSchema = z.object({
+  actif: z.boolean(),
+});
+
+usersRouter.patch("/api/users/me/veille", requireAuth, requireAvocat, async (req, res) => {
+  const parsed = recoitVeilleSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Requête invalide" });
+  }
+
+  await prisma.user.update({
+    where: { id: req.auth!.userId },
+    data: { recoitVeille: parsed.data.actif },
+  });
+  return res.json({ ok: true });
+});
