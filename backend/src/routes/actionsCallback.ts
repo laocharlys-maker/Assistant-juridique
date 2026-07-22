@@ -44,6 +44,7 @@ actionsCallbackRouter.post("/api/actions/document-callback", async (req, res) =>
 
 const envoyerSchema = z.object({
   email: z.string().email(),
+  avecSignature: z.boolean().optional().default(false),
 });
 
 actionsCallbackRouter.post("/api/actions/:id/envoyer", requireAuth, async (req, res) => {
@@ -63,11 +64,14 @@ actionsCallbackRouter.post("/api/actions/:id/envoyer", requireAuth, async (req, 
     return res.status(409).json({ error: "Le document n'est pas encore prêt" });
   }
 
-  const currentUser = await prisma.user.findUnique({ where: { id: req.auth!.userId } });
-  const signatureUrl =
-    currentUser?.signatureUrl && env.PUBLIC_BASE_URL
-      ? `${env.PUBLIC_BASE_URL.replace(/\/$/, "")}${currentUser.signatureUrl}`
-      : null;
+  let signatureUrl: string | null = null;
+  if (parsed.data.avecSignature) {
+    const currentUser = await prisma.user.findUnique({ where: { id: req.auth!.userId } });
+    signatureUrl =
+      currentUser?.signatureUrl && env.PUBLIC_BASE_URL
+        ? `${env.PUBLIC_BASE_URL.replace(/\/$/, "")}${currentUser.signatureUrl}`
+        : null;
+  }
 
   const n8nResult = await callN8nWebhook("envoyer-email", {
     actionId: action.id,
