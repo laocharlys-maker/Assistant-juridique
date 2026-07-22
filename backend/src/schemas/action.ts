@@ -5,6 +5,7 @@ export const TYPE_ACTION_VALUES = [
   "redac",
   "jurisprudence",
   "recherche_juridique",
+  "resume_pdf",
   "conclusions",
   "assignation",
   "mise_en_demeure",

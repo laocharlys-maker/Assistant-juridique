@@ -155,3 +155,39 @@ Contexte / obligation non respectee : ${facts.contexte}
 Delai accorde : ${facts.delaiJours} jours
 Date du jour : ${dateActuelle()}`;
 }
+
+// Resume d'un extrait de document long (etape "map" du decoupage) : un
+// resume factuel dense, pas encore mis en forme en fiche finale.
+export const RESUME_PDF_EXTRAIT_SYSTEM_PROMPT = `Tu es une assistante juridique. On te donne un extrait (partie d'un document plus long) d'une decision de justice ou d'un texte juridique.
+Fais-en un resume factuel et dense, en conservant tous les elements juridiquement importants : faits, parties, arguments, references citees (articles, numeros d'arret, dates), motifs, dispositif.
+Ne commente pas, n'ajoute rien qui ne soit pas dans l'extrait, ne structure pas en fiche : un paragraphe de resume dense suffit.
+Reponds uniquement avec ce resume, sans titre ni commentaire hors-sujet.`;
+
+// Fiche de synthese finale (etape "reduce", ou passage unique si le texte
+// est assez court).
+export const RESUME_PDF_SYSTEM_PROMPT = `Tu es Aurore, assistante juridique experte pour un cabinet d'avocats beninois.
+On te fournit le texte (ou les resumes successifs) d'un document juridique long deja extrait. Redige une FICHE DE SYNTHESE structuree ainsi :
+- Resume du contexte
+- Faits essentiels
+- Decision et motifs
+- Portee et enseignements pratiques pour le cabinet
+
+REGLE ABSOLUE : tu ne dois utiliser QUE les informations presentes dans le texte source fourni ci-dessous. N'invente JAMAIS une reference, une date, une juridiction ou un fait qui n'y figure pas. Si une information usuelle d'une fiche de jurisprudence (ex: numero d'arret) est absente du texte fourni, ecris "non precise dans le document" plutot que de la deviner.
+Reponds uniquement avec le texte de la fiche, sans balise markdown, sans commentaire hors-sujet.`;
+
+export function buildResumePdfExtraitUserPrompt(facts: {
+  partieIndex: number;
+  partieTotal: number;
+  extrait: string;
+}): string {
+  return `Extrait ${facts.partieIndex}/${facts.partieTotal} du document :
+${facts.extrait}`;
+}
+
+export function buildResumePdfUserPrompt(facts: {
+  contexte?: string;
+  texteSource: string;
+}): string {
+  return `${facts.contexte ? `Contexte donne par l'avocat : ${facts.contexte}\n\n` : ""}Texte source :
+${facts.texteSource}`;
+}

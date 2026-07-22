@@ -1,4 +1,5 @@
 import { Router } from "express";
+import pdfParse from "pdf-parse";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
 import { getLlmProvider } from "../services/llm";
@@ -22,6 +23,7 @@ import {
 import { ActionOutput } from "../schemas/action";
 import { searchJurisprudence, formatJurisprudenceContext } from "../services/rag";
 import { searchWeb, formatWebSearchContext } from "../services/tavily";
+import { summarizeLongText } from "../services/resumePdf";
 
 export const webActionsRouter = Router();
 
@@ -207,7 +209,7 @@ webActionsRouter.post("/api/actions/web", requireAuth, async (req, res) => {
         synthese: null,
         argumentaire: redigé,
       };
-    } else {
+    } else if (form.type_action === "recherche_juridique") {
       const resultats = await searchWeb(form.question);
       const redigé = await llm.redact(
         RECHERCHE_JURIDIQUE_SYSTEM_PROMPT,
@@ -239,6 +241,59 @@ webActionsRouter.post("/api/actions/web", requireAuth, async (req, res) => {
         categorie_texte: "Recherche juridique",
         numero_dossier: null,
         nom_affaire: form.question,
+        nom_client: null,
+        nom_juge: null,
+        date_audience: null,
+        decision: null,
+        prochaine_audience: null,
+        pieces_prevoir: null,
+        synthese: null,
+        argumentaire: redigé,
+      };
+    } else {
+      const base64Data = form.pdfDataUrl.replace(/^data:application\/pdf;base64,/, "");
+      const pdfBuffer = Buffer.from(base64Data, "base64");
+
+      let texteExtrait: string;
+      try {
+        const parsed = await pdfParse(pdfBuffer);
+        texteExtrait = parsed.text.trim();
+      } catch (error) {
+        console.error("Erreur extraction texte PDF :", error);
+        return res.status(400).json({ error: "Impossible de lire ce PDF (fichier corrompu ou non supporté)" });
+      }
+
+      if (texteExtrait.length === 0) {
+        return res
+          .status(400)
+          .json({ error: "Aucun texte détecté dans ce PDF (peut-être un scan sans OCR)" });
+      }
+
+      const redigé = await summarizeLongText(llm, texteExtrait, form.contexte);
+      const nomAffaire = form.contexte?.slice(0, 120) || "Résumé de document PDF";
+
+      // Resume PDF : pas forcement lie a un dossier existant.
+      const dossier = await prisma.dossier.upsert({
+        where: {
+          cabinetId_numeroDossier: { cabinetId: auth!.cabinetId, numeroDossier: `RESUME-${Date.now()}` },
+        },
+        update: {},
+        create: {
+          cabinetId: auth!.cabinetId,
+          numeroDossier: `RESUME-${Date.now()}`,
+          nomAffaire,
+          nomClient: "Non applicable",
+          createdBy: auth!.userId,
+          estRecherche: true,
+        },
+      });
+      dossierId = dossier.id;
+
+      action = {
+        type_action: "resume_pdf",
+        categorie_texte: "Résumé de jurisprudence",
+        numero_dossier: null,
+        nom_affaire: nomAffaire,
         nom_client: null,
         nom_juge: null,
         date_audience: null,

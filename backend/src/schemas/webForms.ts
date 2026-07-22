@@ -55,6 +55,13 @@ export const rechercheJuridiqueFormSchema = z.object({
   question: z.string().min(1),
 });
 
+export const resumePdfFormSchema = z.object({
+  type_action: z.literal("resume_pdf"),
+  // Data URL base64 "data:application/pdf;base64,...."
+  pdfDataUrl: z.string().regex(/^data:application\/pdf;base64,/),
+  contexte: z.string().optional(),
+});
+
 export const webActionFormSchema = z.discriminatedUnion("type_action", [
   notesFormSchema,
   redacFormSchema,
@@ -63,6 +70,7 @@ export const webActionFormSchema = z.discriminatedUnion("type_action", [
   miseEnDemeureFormSchema,
   jurisprudenceFormSchema,
   rechercheJuridiqueFormSchema,
+  resumePdfFormSchema,
 ]);
 
 export type WebActionForm = z.infer<typeof webActionFormSchema>;

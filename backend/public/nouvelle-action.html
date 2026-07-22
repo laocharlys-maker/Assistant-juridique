@@ -19,6 +19,7 @@
       <button class="tab" data-type="mise_en_demeure">Mise en demeure</button>
       <button class="tab" data-type="jurisprudence">Recherche de jurisprudence</button>
       <button class="tab" data-type="recherche_juridique">Recherche juridique</button>
+      <button class="tab" data-type="resume_pdf">Résumé de jurisprudence (PDF)</button>
     </div>
 
     <div id="error" class="error"></div>
@@ -121,6 +122,15 @@
         <button type="submit">Lancer la recherche</button>
         <p class="muted" style="margin-top:8px;">Recherche sur le web (droit général, textes, doctrine), avec citation systématique des sources trouvées. Ne remplace pas une vérification par l'avocat.</p>
       </form>
+
+      <form id="resume_pdf-form" class="action-form" style="display:none;">
+        <label>Document PDF (décision de justice, texte juridique...)</label>
+        <input name="pdf" type="file" accept="application/pdf" required />
+        <label>Contexte (optionnel)</label>
+        <textarea name="contexte" placeholder="ex: précision sur ce que tu cherches dans ce document"></textarea>
+        <button type="submit">Générer le résumé</button>
+        <p class="muted" style="margin-top:8px;">Pour les documents longs (10-20 pages), le document est découpé et résumé par étapes avant la synthèse finale. Uniquement les informations présentes dans le document sont utilisées.</p>
+      </form>
     </div>
   </div>
   <script src="/js/api.js"></script>
@@ -140,6 +150,7 @@
       mise_en_demeure: document.getElementById("mise_en_demeure-form"),
       jurisprudence: document.getElementById("jurisprudence-form"),
       recherche_juridique: document.getElementById("recherche_juridique-form"),
+      resume_pdf: document.getElementById("resume_pdf-form"),
     };
     document.querySelectorAll(".tab").forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -285,6 +296,36 @@
         { question: fd.get("question") },
         forms.recherche_juridique.querySelector('button[type="submit"]')
       );
+    });
+
+    function readFileAsDataUrl(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(file);
+      });
+    }
+
+    forms.resume_pdf.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const fd = new FormData(forms.resume_pdf);
+      const file = fd.get("pdf");
+      if (!file || file.size === 0) {
+        showError(errorEl, "Choisis un fichier PDF");
+        return;
+      }
+      const submitButton = forms.resume_pdf.querySelector('button[type="submit"]');
+      try {
+        const pdfDataUrl = await readFileAsDataUrl(file);
+        await submitForm(
+          "resume_pdf",
+          { pdfDataUrl, contexte: fd.get("contexte") || undefined },
+          submitButton
+        );
+      } catch (err) {
+        showError(errorEl, err.message || "Impossible de lire ce fichier");
+      }
     });
   </script>
 </body>

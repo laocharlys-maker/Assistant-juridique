@@ -21,6 +21,7 @@ const TYPE_LABELS: Record<string, string> = {
   mise_en_demeure: "Mise en demeure",
   jurisprudence: "Recherche de jurisprudence",
   recherche_juridique: "Recherche juridique",
+  resume_pdf: "Résumé de jurisprudence",
 };
 
 const COMBINING_DIACRITICS = new RegExp("[\\u0300-\\u036f]", "g");

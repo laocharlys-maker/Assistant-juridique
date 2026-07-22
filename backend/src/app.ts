@@ -18,7 +18,7 @@ import { cabinetRouter } from "./routes/cabinet";
 
 export const app = express();
 
-app.use(express.json({ limit: "5mb" }));
+app.use(express.json({ limit: "15mb" }));
 app.use(cookieParser());
 app.use(healthRouter);
 app.use(actionsRouter);

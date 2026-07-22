@@ -10,6 +10,7 @@ const REQUIRED_FIELDS_BY_TYPE: Record<ActionOutput["type_action"], (keyof Action
   redac: ["nom_affaire"],
   jurisprudence: [],
   recherche_juridique: [],
+  resume_pdf: [],
   conclusions: ["nom_affaire"],
   assignation: ["nom_affaire"],
   mise_en_demeure: ["nom_affaire"],
