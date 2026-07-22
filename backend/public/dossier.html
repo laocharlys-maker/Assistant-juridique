@@ -81,7 +81,12 @@
           form.addEventListener("submit", (e) => {
             e.preventDefault();
             const fd = new FormData(form);
-            envoyerAction(form.dataset.envoyerForm, fd.get("email"), fd.get("avecSignature") === "on");
+            envoyerAction(
+              form.dataset.envoyerForm,
+              fd.get("email"),
+              fd.get("avecSignature") === "on",
+              fd.get("positionSignature") || "END"
+            );
           });
         });
       } catch (err) {
@@ -103,9 +108,16 @@
         : "";
 
       const signatureCheckbox = me && me.signatureUrl
-        ? `<label style="display:flex; align-items:center; gap:6px; margin:8px 0 0; font-weight:400;">
-             <input type="checkbox" name="avecSignature" style="width:auto;" /> Insérer ma signature dans le document
-           </label>`
+        ? `<div style="margin:8px 0 0; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+             <label style="display:flex; align-items:center; gap:6px; font-weight:400; margin:0;">
+               <input type="checkbox" name="avecSignature" id="avecSignature-${a.id}" style="width:auto;" /> Insérer ma signature
+             </label>
+             <select name="positionSignature" style="width:auto;">
+               <option value="START">Alignée à gauche</option>
+               <option value="CENTER">Centrée</option>
+               <option value="END" selected>Alignée à droite</option>
+             </select>
+           </div>`
         : "";
 
       let controls = "";
@@ -150,11 +162,11 @@
       }
     }
 
-    async function envoyerAction(actionId, email, avecSignature) {
+    async function envoyerAction(actionId, email, avecSignature, positionSignature) {
       try {
         await apiFetch(`/api/actions/${actionId}/envoyer`, {
           method: "POST",
-          body: { email, avecSignature },
+          body: { email, avecSignature, positionSignature },
         });
         window.location.reload();
       } catch (err) {

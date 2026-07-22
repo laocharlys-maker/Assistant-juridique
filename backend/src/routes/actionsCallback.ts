@@ -45,6 +45,7 @@ actionsCallbackRouter.post("/api/actions/document-callback", async (req, res) =>
 const envoyerSchema = z.object({
   email: z.string().email(),
   avecSignature: z.boolean().optional().default(false),
+  positionSignature: z.enum(["START", "CENTER", "END"]).optional().default("END"),
 });
 
 actionsCallbackRouter.post("/api/actions/:id/envoyer", requireAuth, async (req, res) => {
@@ -84,6 +85,7 @@ actionsCallbackRouter.post("/api/actions/:id/envoyer", requireAuth, async (req, 
     destinataireEmail: parsed.data.email,
     nomAffaire: action.dossier.nomAffaire,
     signatureUrl,
+    signatureAlignment: parsed.data.positionSignature,
   });
 
   await logAuditStep(
