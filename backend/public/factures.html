@@ -17,6 +17,10 @@
     <div class="card">
       <h2>Nouvelle facture</h2>
       <form id="facture-form">
+        <label>Client</label>
+        <select id="client-select">
+          <option value="">— tous les clients —</option>
+        </select>
         <label>Dossier concerné</label>
         <select name="dossierId" id="dossier-select" required></select>
         <label>Description</label>
@@ -54,21 +58,62 @@
     const STATUT_LABELS = { brouillon: "Brouillon", envoyee: "Envoyée", payee: "Payée" };
 
     const errorEl = document.getElementById("error");
+    const clientSelect = document.getElementById("client-select");
     const dossierSelect = document.getElementById("dossier-select");
     const listEl = document.getElementById("factures-list");
 
-    async function loadDossiers() {
-      const { dossiers } = await apiFetch("/api/dossiers?scope=cabinet");
-      dossierSelect.innerHTML = dossiers
-        .map((d) => `<option value="${d.id}">${escapeHtml(d.numeroDossier)} — ${escapeHtml(d.nomAffaire)}</option>`)
-        .join("");
+    let allDossiers = [];
+    let allClients = [];
+
+    function renderDossierOptions(dossiers) {
+      dossierSelect.innerHTML = dossiers.length
+        ? dossiers
+            .map((d) => `<option value="${d.id}">${escapeHtml(d.numeroDossier)} — ${escapeHtml(d.nomAffaire)}</option>`)
+            .join("")
+        : '<option value="">— aucun dossier pour ce client —</option>';
+    }
+
+    function dossiersDuClient(client) {
+      return allDossiers.filter(
+        (d) => d.clientId === client.id || d.nomClient.trim().toLowerCase() === client.nom.trim().toLowerCase()
+      );
+    }
+
+    async function loadClientsEtDossiers() {
+      const [{ dossiers }, clients] = await Promise.all([
+        apiFetch("/api/dossiers?scope=cabinet"),
+        apiFetch("/api/clients"),
+      ]);
+      allDossiers = dossiers;
+      allClients = clients;
+
+      clientSelect.innerHTML =
+        '<option value="">— tous les clients —</option>' +
+        clients.map((c) => `<option value="${c.id}">${escapeHtml(c.nom)}</option>`).join("");
+
+      renderDossierOptions(allDossiers);
 
       const params = new URLSearchParams(window.location.search);
       const preselect = params.get("dossierId");
-      if (preselect && dossiers.some((d) => d.id === preselect)) {
-        dossierSelect.value = preselect;
+      if (preselect) {
+        const dossier = allDossiers.find((d) => d.id === preselect);
+        if (dossier) {
+          const client = clients.find(
+            (c) => c.id === dossier.clientId || c.nom.trim().toLowerCase() === dossier.nomClient.trim().toLowerCase()
+          );
+          if (client) {
+            clientSelect.value = client.id;
+            renderDossierOptions(dossiersDuClient(client));
+          }
+          dossierSelect.value = preselect;
+        }
       }
     }
+
+    clientSelect.addEventListener("change", () => {
+      const client = allClients.find((c) => c.id === clientSelect.value);
+      renderDossierOptions(client ? dossiersDuClient(client) : allDossiers);
+    });
 
     async function envoyerFacture(id) {
       const email = prompt("Email du destinataire :");
@@ -135,7 +180,7 @@
           '<p class="error visible">Cette page est réservée aux avocats et à l\'administrateur du cabinet.</p>';
         return;
       }
-      await Promise.all([loadDossiers(), loadFactures()]);
+      await Promise.all([loadClientsEtDossiers(), loadFactures()]);
     })();
 
     document.getElementById("facture-form").addEventListener("submit", async (e) => {

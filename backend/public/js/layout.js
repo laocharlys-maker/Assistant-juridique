@@ -6,7 +6,8 @@ const NAV_ITEMS = [
   { href: "/jurisprudence-base.html", label: "Jurisprudence", roles: ["titulaire", "avocat", "collaborateur"] },
   { href: "/delais-calculateur.html", label: "Délais", roles: ["titulaire", "avocat", "collaborateur"] },
   { href: "/collaborateurs.html", label: "Équipe", roles: ["titulaire", "avocat"] },
-  { href: "/factures.html", label: "Facturation", roles: ["titulaire", "avocat"] },
+  { href: "/factures.html", label: "Créer facture", roles: ["titulaire", "avocat"] },
+  { href: "/parametres.html#veille-cabinet-card", label: "Veille juridique", roles: ["titulaire", "avocat"] },
   { href: "/parametres.html", label: "Paramètres", roles: ["titulaire", "avocat"] },
 ];
 
