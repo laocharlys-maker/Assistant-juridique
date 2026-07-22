@@ -64,10 +64,17 @@ actionsCallbackRouter.post("/api/actions/:id/envoyer", requireAuth, async (req, 
   if (!action.documentUrl || !action.documentId) {
     return res.status(409).json({ error: "Le document n'est pas encore prêt" });
   }
-  if (action.statut !== "valide") {
+  // Les recherches (jurisprudence / recherche juridique) n'ont pas
+  // d'etape de validation manuelle : des qu'elles sont pretes, elles
+  // peuvent etre envoyees directement.
+  const validationRequise = !action.dossier.estRecherche;
+  if (validationRequise && action.statut !== "valide") {
     return res
       .status(409)
       .json({ error: "L'action doit être validée avant de pouvoir être envoyée" });
+  }
+  if (!validationRequise && action.statut !== "valide" && action.statut !== "en_attente_validation") {
+    return res.status(409).json({ error: "Le document n'est pas encore prêt" });
   }
 
   let signatureUrl: string | null = null;

@@ -9,7 +9,7 @@
 </head>
 <body>
   <div class="page">
-    <p><a href="/dashboard.html">&larr; Retour aux dossiers</a></p>
+    <p><a href="/dashboard.html" id="back-link">&larr; Retour aux dossiers</a></p>
     <div id="content"><p class="muted">Chargement…</p></div>
   </div>
   <script src="/js/api.js"></script>
@@ -34,6 +34,7 @@
     let me = null;
     let cabinetHasEntete = false;
     let clientsAvecEmail = [];
+    let currentDossierEstRecherche = false;
 
     (async () => {
       me = await requireSession();
@@ -63,29 +64,42 @@
 
       try {
         const dossier = await apiFetch(`/api/dossiers/${id}`);
+        currentDossierEstRecherche = !!dossier.estRecherche;
+
+        document.getElementById("back-link").textContent = currentDossierEstRecherche
+          ? "← Retour aux recherches"
+          : "← Retour aux dossiers";
+
         contentEl.innerHTML = `
           <div class="card">
             <span class="badge badge-${dossier.statutTag}">${STATUT_TAG_LABELS[dossier.statutTag] || dossier.statutTag}</span>
             <h1>${escapeHtml(dossier.numeroDossier)} — ${escapeHtml(dossier.nomAffaire)}</h1>
             <p class="muted">Client : ${escapeHtml(dossier.nomClient)} · Juge : ${escapeHtml(dossier.nomJuge || "non précisé")} · créé par ${escapeHtml(dossier.creePar.nom)}</p>
-            <button type="button" class="secondary" id="toggle-cloture-btn" data-statut="${dossier.statut}">
-              ${dossier.statut === "cloture" ? "Rouvrir le dossier" : "Clôturer le dossier"}
-            </button>
+            ${
+              currentDossierEstRecherche
+                ? ""
+                : `<button type="button" class="secondary" id="toggle-cloture-btn" data-statut="${dossier.statut}">
+                    ${dossier.statut === "cloture" ? "Rouvrir le dossier" : "Clôturer le dossier"}
+                  </button>`
+            }
           </div>
           <h2>Historique (${dossier.actions.length})</h2>
           <div id="actions-list"></div>
         `;
 
-        document.getElementById("toggle-cloture-btn").addEventListener("click", async (e) => {
-          const statutActuel = e.target.dataset.statut;
-          const nouveauStatut = statutActuel === "cloture" ? "actif" : "cloture";
-          try {
-            await apiFetch(`/api/dossiers/${id}`, { method: "PATCH", body: { statut: nouveauStatut } });
-            window.location.reload();
-          } catch (err) {
-            alert(err.message);
-          }
-        });
+        const clotureBtn = document.getElementById("toggle-cloture-btn");
+        if (clotureBtn) {
+          clotureBtn.addEventListener("click", async (e) => {
+            const statutActuel = e.target.dataset.statut;
+            const nouveauStatut = statutActuel === "cloture" ? "actif" : "cloture";
+            try {
+              await apiFetch(`/api/dossiers/${id}`, { method: "PATCH", body: { statut: nouveauStatut } });
+              window.location.reload();
+            } catch (err) {
+              alert(err.message);
+            }
+          });
+        }
 
         const actionsEl = document.getElementById("actions-list");
         if (dossier.actions.length === 0) {
@@ -219,7 +233,7 @@
                 : ""
             }
             ${
-              hasSignatureOption
+              hasSignatureOption && !currentDossierEstRecherche
                 ? `<div style="margin:6px 0 0; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
                      <label style="display:flex; align-items:center; gap:6px; font-weight:400; margin:0;">
                        <input type="checkbox" id="avecSignatureDL-${a.id}" style="width:auto;" /> ${signatureLabel} dans le téléchargement
@@ -236,15 +250,14 @@
         : "";
 
       let controls = "";
-      if (a.statut === "en_attente_validation") {
+      if (a.statut === "en_attente_validation" && !currentDossierEstRecherche) {
         controls = `
           <div style="margin-top:10px;">
             <button type="button" class="secondary" data-valider="${a.id}">Marquer comme validé</button>
           </div>
           <p class="muted" style="margin-top:8px;">L'envoi au client sera possible une fois l'action validée.</p>`;
-      } else if (a.statut === "valide") {
-        const isRecherche = a.typeAction === "jurisprudence" || a.typeAction === "recherche_juridique";
-        const rechercheEnvoiControls = isRecherche
+      } else if (a.statut === "valide" || (a.statut === "en_attente_validation" && currentDossierEstRecherche)) {
+        const rechercheEnvoiControls = currentDossierEstRecherche
           ? `<div style="margin:0 0 8px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
                <button type="button" class="secondary" data-envoyer-moi="${a.id}" style="margin:0;">M'envoyer à moi-même</button>
                ${

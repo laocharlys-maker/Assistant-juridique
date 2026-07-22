@@ -31,6 +31,7 @@
   <script>
     let currentScope = "mine";
     let currentVue = "dossiers";
+    let currentUserRole = null;
 
     const STATUT_TAG_LABELS = {
       a_jour: "à jour",
@@ -53,6 +54,8 @@
         document.querySelectorAll("#vue-tabs .tab").forEach((btn) => {
           btn.classList.toggle("active", btn.dataset.vue === appliedVue);
         });
+        document.getElementById("scope-tabs").style.display =
+          currentUserRole === "titulaire" && appliedVue === "dossiers" ? "flex" : "none";
 
         if (dossiers.length === 0) {
           listEl.innerHTML = `<p class="muted">${appliedVue === "recherches" ? "Aucune recherche pour l'instant." : "Aucun dossier pour l'instant."}</p>`;
@@ -92,8 +95,9 @@
       initLayout(me);
       document.getElementById("greeting").textContent = `Bienvenue ${me.nom}`;
 
+      currentUserRole = me.role;
+
       if (me.role === "titulaire") {
-        document.getElementById("scope-tabs").style.display = "flex";
         document.querySelectorAll("#scope-tabs .tab").forEach((btn) => {
           btn.addEventListener("click", () => {
             currentScope = btn.dataset.scope;
