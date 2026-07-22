@@ -34,6 +34,8 @@
     let me = null;
     let cabinetHasEntete = false;
     let clientsAvecEmail = [];
+    let avocatsAnnuaire = [];
+    let collaborateursAnnuaire = [];
     let currentDossierEstRecherche = false;
 
     (async () => {
@@ -53,6 +55,16 @@
         clientsAvecEmail = clients.filter((c) => c.email);
       } catch {
         clientsAvecEmail = [];
+      }
+
+      try {
+        const annuaire = await apiFetch("/api/users/annuaire");
+        const autres = annuaire.filter((u) => u.id !== me.id);
+        avocatsAnnuaire = autres.filter((u) => u.role === "titulaire");
+        collaborateursAnnuaire = autres.filter((u) => u.role === "collaborateur");
+      } catch {
+        avocatsAnnuaire = [];
+        collaborateursAnnuaire = [];
       }
 
       const id = new URLSearchParams(window.location.search).get("id");
@@ -159,19 +171,25 @@
 
           const emailInput = document.getElementById(`email-${a.id}`);
           const envoyerMoiBtn = actionsEl.querySelector(`[data-envoyer-moi="${a.id}"]`);
-          const envoyerClientSelect = actionsEl.querySelector(`[data-envoyer-client="${a.id}"]`);
           if (envoyerMoiBtn && emailInput) {
             envoyerMoiBtn.addEventListener("click", (e) => {
               e.stopPropagation();
               emailInput.value = me.email;
             });
           }
-          if (envoyerClientSelect && emailInput) {
-            envoyerClientSelect.addEventListener("click", (e) => e.stopPropagation());
-            envoyerClientSelect.addEventListener("change", () => {
-              if (envoyerClientSelect.value) emailInput.value = envoyerClientSelect.value;
+
+          [
+            `[data-envoyer-client="${a.id}"]`,
+            `[data-envoyer-avocat="${a.id}"]`,
+            `[data-envoyer-collaborateur="${a.id}"]`,
+          ].forEach((selector) => {
+            const select = actionsEl.querySelector(selector);
+            if (!select || !emailInput) return;
+            select.addEventListener("click", (e) => e.stopPropagation());
+            select.addEventListener("change", () => {
+              if (select.value) emailInput.value = select.value;
             });
-          }
+          });
         });
       } catch (err) {
         contentEl.innerHTML = `<p class="error visible">${escapeHtml(err.message)}</p>`;
@@ -266,6 +284,26 @@
                         <option value="">— ou choisir un client —</option>
                         ${clientsAvecEmail
                           .map((c) => `<option value="${escapeHtml(c.email)}">${escapeHtml(c.nom)}</option>`)
+                          .join("")}
+                      </select>`
+                   : ""
+               }
+               ${
+                 avocatsAnnuaire.length > 0
+                   ? `<select data-envoyer-avocat="${a.id}" style="width:auto;">
+                        <option value="">— ou choisir un membre du cabinet —</option>
+                        ${avocatsAnnuaire
+                          .map((u) => `<option value="${escapeHtml(u.email)}">${escapeHtml(u.nom)}</option>`)
+                          .join("")}
+                      </select>`
+                   : ""
+               }
+               ${
+                 collaborateursAnnuaire.length > 0
+                   ? `<select data-envoyer-collaborateur="${a.id}" style="width:auto;">
+                        <option value="">— ou choisir un collaborateur —</option>
+                        ${collaborateursAnnuaire
+                          .map((u) => `<option value="${escapeHtml(u.email)}">${escapeHtml(u.nom)}</option>`)
                           .join("")}
                       </select>`
                    : ""

@@ -20,6 +20,18 @@ const createUserSchema = z.object({
   email: z.string().email(),
 });
 
+// Annuaire minimal du cabinet (id/nom/email/role), accessible a tout membre
+// authentifie - utilise par ex. pour choisir un destinataire interne lors
+// de l'envoi d'un document, sans exposer la hierarchie ou les acces.
+usersRouter.get("/api/users/annuaire", requireAuth, async (req, res) => {
+  const users = await prisma.user.findMany({
+    where: { cabinetId: req.auth!.cabinetId },
+    select: { id: true, nom: true, email: true, role: true },
+    orderBy: { nom: "asc" },
+  });
+  return res.json(users);
+});
+
 usersRouter.get("/api/users", requireAuth, requireTitulaire, async (req, res) => {
   const users = await prisma.user.findMany({
     where: { cabinetId: req.auth!.cabinetId },
