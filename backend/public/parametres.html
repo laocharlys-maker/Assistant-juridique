@@ -107,9 +107,11 @@
       if (window.location.hash) {
         const target = document.querySelector(window.location.hash);
         if (target) {
-          target.scrollIntoView({ block: "start" });
-          target.classList.add("highlight-target");
-          setTimeout(() => target.classList.remove("highlight-target"), 2000);
+          setTimeout(() => {
+            target.scrollIntoView({ block: "start" });
+            target.classList.add("highlight-target");
+            setTimeout(() => target.classList.remove("highlight-target"), 2000);
+          }, 150);
         }
       }
     })();
