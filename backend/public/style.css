@@ -18,7 +18,7 @@
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  font-family: Arial, Helvetica, "Segoe UI", sans-serif;
   background: var(--bg);
   color: var(--text);
 }
@@ -267,6 +267,14 @@ header.app-topbar {
 .accordion-header:hover { background: #f5f4f0; }
 .accordion-body { padding: 0 14px 14px; display: none; }
 .accordion-item.open .accordion-body { display: block; }
+.accordion-body pre {
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  font-family: inherit;
+  font-size: 0.9rem;
+  margin: 8px 0 0;
+}
 
 .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-bottom: 24px; }
 .stat-card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 18px; }

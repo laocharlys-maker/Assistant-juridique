@@ -28,6 +28,13 @@ export async function buildDocx(input: ExportInput): Promise<Buffer> {
     );
 
   const doc = new Document({
+    styles: {
+      default: {
+        document: {
+          run: { font: "Arial" },
+        },
+      },
+    },
     sections: [
       {
         children: [
