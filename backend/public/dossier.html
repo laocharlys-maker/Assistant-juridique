@@ -60,7 +60,7 @@
       try {
         const annuaire = await apiFetch("/api/users/annuaire");
         const autres = annuaire.filter((u) => u.id !== me.id);
-        avocatsAnnuaire = autres.filter((u) => u.role === "titulaire");
+        avocatsAnnuaire = autres.filter((u) => u.role === "titulaire" || u.role === "avocat");
         collaborateursAnnuaire = autres.filter((u) => u.role === "collaborateur");
       } catch {
         avocatsAnnuaire = [];

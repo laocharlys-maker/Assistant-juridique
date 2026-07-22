@@ -39,7 +39,7 @@
       if (!me) return;
       initLayout(me);
 
-      if (me.role !== "titulaire") {
+      if (me.role === "collaborateur") {
         document.querySelector(".page").innerHTML =
           '<p class="error visible">Cette page est réservée aux avocats du cabinet.</p>';
         return;

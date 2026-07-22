@@ -1,19 +1,12 @@
-import { Router, Request, Response, NextFunction } from "express";
+import { Router } from "express";
 import crypto from "node:crypto";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
+import { requireAdmin, requireAvocat } from "../middleware/roles";
 import { hashPassword } from "../services/auth";
 
 export const usersRouter = Router();
-
-function requireTitulaire(req: Request, res: Response, next: NextFunction): void {
-  if (req.auth?.role !== "titulaire") {
-    res.status(403).json({ error: "Réservé au titulaire du cabinet" });
-    return;
-  }
-  next();
-}
 
 const createUserSchema = z.object({
   nom: z.string().min(1),
@@ -32,7 +25,7 @@ usersRouter.get("/api/users/annuaire", requireAuth, async (req, res) => {
   return res.json(users);
 });
 
-usersRouter.get("/api/users", requireAuth, requireTitulaire, async (req, res) => {
+usersRouter.get("/api/users", requireAuth, requireAvocat, async (req, res) => {
   const users = await prisma.user.findMany({
     where: { cabinetId: req.auth!.cabinetId },
     select: {
@@ -43,6 +36,7 @@ usersRouter.get("/api/users", requireAuth, requireTitulaire, async (req, res) =>
       createdAt: true,
       responsableId: true,
       partageSignatureActif: true,
+      accesTousDossiers: true,
       responsable: { select: { id: true, nom: true } },
       accesAccordes: { select: { avocat: { select: { id: true, nom: true } } } },
     },
@@ -51,7 +45,9 @@ usersRouter.get("/api/users", requireAuth, requireTitulaire, async (req, res) =>
   return res.json(users);
 });
 
-usersRouter.post("/api/users", requireAuth, requireTitulaire, async (req, res) => {
+// Cree un compte collaborateur, rattache par defaut a l'avocat (ou admin)
+// qui le cree.
+usersRouter.post("/api/users", requireAuth, requireAvocat, async (req, res) => {
   const parsed = createUserSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "Formulaire invalide", details: parsed.error.issues });
@@ -85,13 +81,47 @@ usersRouter.post("/api/users", requireAuth, requireTitulaire, async (req, res) =
   });
 });
 
-// Acces supplementaires : un avocat (titulaire) accorde a un collaborateur
+// Cree un compte avocat - reserve a l'admin. Un avocat n'a pas de
+// responsable et gere ses propres dossiers/collaborateurs.
+usersRouter.post("/api/users/avocats", requireAuth, requireAdmin, async (req, res) => {
+  const parsed = createUserSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Formulaire invalide", details: parsed.error.issues });
+  }
+  const { nom, email } = parsed.data;
+
+  const existing = await prisma.user.findUnique({ where: { email } });
+  if (existing) {
+    return res.status(409).json({ error: "Un compte existe déjà avec cet email" });
+  }
+
+  const plainPassword = crypto.randomBytes(9).toString("base64url");
+  const user = await prisma.user.create({
+    data: {
+      cabinetId: req.auth!.cabinetId,
+      nom,
+      email,
+      motDePasseHash: await hashPassword(plainPassword),
+      role: "avocat",
+    },
+  });
+
+  return res.status(201).json({
+    id: user.id,
+    nom: user.nom,
+    email: user.email,
+    role: user.role,
+    password: plainPassword,
+  });
+});
+
+// Acces supplementaires : un avocat (ou l'admin) accorde a un collaborateur
 // (pas forcement le sien) le droit de voir ses propres dossiers.
 const grantAccessSchema = z.object({
   collaborateurId: z.string().uuid(),
 });
 
-usersRouter.post("/api/users/access-grants", requireAuth, requireTitulaire, async (req, res) => {
+usersRouter.post("/api/users/access-grants", requireAuth, requireAvocat, async (req, res) => {
   const parsed = grantAccessSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "Requête invalide", details: parsed.error.issues });
@@ -125,7 +155,7 @@ usersRouter.post("/api/users/access-grants", requireAuth, requireTitulaire, asyn
 usersRouter.delete(
   "/api/users/access-grants/:collaborateurId",
   requireAuth,
-  requireTitulaire,
+  requireAvocat,
   async (req, res) => {
     await prisma.accesSupplementaire.deleteMany({
       where: { collaborateurId: req.params.collaborateurId, avocatId: req.auth!.userId },
@@ -144,7 +174,7 @@ const partageSignatureSchema = z.object({
 usersRouter.patch(
   "/api/users/:id/partage-signature",
   requireAuth,
-  requireTitulaire,
+  requireAvocat,
   async (req, res) => {
     const parsed = partageSignatureSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -166,6 +196,37 @@ usersRouter.patch(
     await prisma.user.update({
       where: { id: collaborateur.id },
       data: { partageSignatureActif: parsed.data.actif },
+    });
+    return res.json({ ok: true });
+  }
+);
+
+// L'admin accorde (ou retire) a un collaborateur l'acces a TOUS les
+// dossiers du cabinet, quel que soit son responsable direct.
+const accesTousDossiersSchema = z.object({
+  actif: z.boolean(),
+});
+
+usersRouter.patch(
+  "/api/users/:id/acces-tous-dossiers",
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    const parsed = accesTousDossiersSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Requête invalide" });
+    }
+
+    const collaborateur = await prisma.user.findFirst({
+      where: { id: req.params.id, cabinetId: req.auth!.cabinetId, role: "collaborateur" },
+    });
+    if (!collaborateur) {
+      return res.status(404).json({ error: "Collaborateur introuvable dans ce cabinet" });
+    }
+
+    await prisma.user.update({
+      where: { id: collaborateur.id },
+      data: { accesTousDossiers: parsed.data.actif },
     });
     return res.json({ ok: true });
   }

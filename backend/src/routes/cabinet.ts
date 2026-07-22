@@ -1,19 +1,12 @@
-import { Router, Request, Response, NextFunction } from "express";
+import { Router } from "express";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
+import { requireAdmin } from "../middleware/roles";
 
 export const cabinetRouter = Router();
-
-function requireTitulaire(req: Request, res: Response, next: NextFunction): void {
-  if (req.auth?.role !== "titulaire") {
-    res.status(403).json({ error: "Réservé au titulaire du cabinet" });
-    return;
-  }
-  next();
-}
 
 cabinetRouter.get("/api/cabinet", requireAuth, async (req, res) => {
   const cabinet = await prisma.cabinet.findUnique({
@@ -30,7 +23,7 @@ const updateCabinetSchema = z.object({
   nom: z.string().min(1),
 });
 
-cabinetRouter.patch("/api/cabinet", requireAuth, requireTitulaire, async (req, res) => {
+cabinetRouter.patch("/api/cabinet", requireAuth, requireAdmin, async (req, res) => {
   const parsed = updateCabinetSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "Nom invalide" });
@@ -49,7 +42,7 @@ const uploadEnteteSchema = z.object({
   imageDataUrl: z.string().regex(/^data:image\/(png|jpeg);base64,/),
 });
 
-cabinetRouter.post("/api/cabinet/entete", requireAuth, requireTitulaire, async (req, res) => {
+cabinetRouter.post("/api/cabinet/entete", requireAuth, requireAdmin, async (req, res) => {
   const parsed = uploadEnteteSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "Image invalide (PNG ou JPEG attendu)" });
@@ -76,7 +69,7 @@ cabinetRouter.post("/api/cabinet/entete", requireAuth, requireTitulaire, async (
   return res.json({ enteteUrl });
 });
 
-cabinetRouter.delete("/api/cabinet/entete", requireAuth, requireTitulaire, async (req, res) => {
+cabinetRouter.delete("/api/cabinet/entete", requireAuth, requireAdmin, async (req, res) => {
   await prisma.cabinet.update({ where: { id: req.auth!.cabinetId }, data: { enteteUrl: null } });
   return res.json({ ok: true });
 });

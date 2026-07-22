@@ -41,7 +41,8 @@
             password: document.getElementById("password").value,
           },
         });
-        window.location.href = user.role === "titulaire" ? "/tableau-de-bord.html" : "/dashboard.html";
+        window.location.href =
+          user.role === "titulaire" || user.role === "avocat" ? "/tableau-de-bord.html" : "/dashboard.html";
       } catch (err) {
         showError(errorEl, err.message);
       }

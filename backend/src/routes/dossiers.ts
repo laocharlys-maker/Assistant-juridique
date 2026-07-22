@@ -6,6 +6,13 @@ import { getAccessibleAvocatIds } from "../services/access";
 
 export const dossiersRouter = Router();
 
+// Titulaire (admin) et avocat peuvent tous deux voir l'ensemble du cabinet
+// (vue "cabinet" / acces direct par id) ; seul un collaborateur est
+// restreint a son perimetre (getAccessibleAvocatIds).
+function peutVoirTouLeCabinet(role: string | undefined): boolean {
+  return role === "titulaire" || role === "avocat";
+}
+
 // Calcule l'etiquette de statut d'un dossier : "cloture" si marque comme
 // tel, "echeance_proche" si un delai calcule pour ce dossier arrive dans
 // les 7 jours, sinon "a_jour".
@@ -30,9 +37,9 @@ async function computeStatutTags(dossierIds: string[]): Promise<Map<string, stri
 dossiersRouter.get("/api/dossiers", requireAuth, async (req, res) => {
   const { auth } = req;
   // Un collaborateur ne peut jamais demander la vue "cabinet" complète ;
-  // seul un titulaire le peut.
+  // seuls le titulaire (admin) et un avocat le peuvent.
   const requestedScope = req.query.scope === "cabinet" ? "cabinet" : "mine";
-  const scope = requestedScope === "cabinet" && auth!.role === "titulaire" ? "cabinet" : "mine";
+  const scope = requestedScope === "cabinet" && peutVoirTouLeCabinet(auth!.role) ? "cabinet" : "mine";
 
   const accessibleAvocatIds = scope === "mine" ? await getAccessibleAvocatIds(auth!) : null;
 
@@ -62,10 +69,11 @@ dossiersRouter.get("/api/dossiers", requireAuth, async (req, res) => {
 dossiersRouter.get("/api/dossiers/:id", requireAuth, async (req, res) => {
   const { auth } = req;
 
-  // Un titulaire voit tout le cabinet ; un collaborateur seulement les
-  // dossiers des avocats auxquels il a accès.
-  const accessibleAvocatIds =
-    auth!.role === "titulaire" ? null : await getAccessibleAvocatIds(auth!);
+  // Le titulaire (admin) et un avocat voient tout le cabinet ; un
+  // collaborateur seulement les dossiers des avocats auxquels il a accès.
+  const accessibleAvocatIds = peutVoirTouLeCabinet(auth!.role)
+    ? null
+    : await getAccessibleAvocatIds(auth!);
 
   const dossier = await prisma.dossier.findFirst({
     where: {
@@ -103,8 +111,9 @@ dossiersRouter.patch("/api/dossiers/:id", requireAuth, async (req, res) => {
     return res.status(400).json({ error: "Statut invalide" });
   }
 
-  const accessibleAvocatIds =
-    auth!.role === "titulaire" ? null : await getAccessibleAvocatIds(auth!);
+  const accessibleAvocatIds = peutVoirTouLeCabinet(auth!.role)
+    ? null
+    : await getAccessibleAvocatIds(auth!);
 
   const dossier = await prisma.dossier.findFirst({
     where: {

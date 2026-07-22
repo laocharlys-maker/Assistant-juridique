@@ -54,8 +54,9 @@
         document.querySelectorAll("#vue-tabs .tab").forEach((btn) => {
           btn.classList.toggle("active", btn.dataset.vue === appliedVue);
         });
+        const peutVoirCabinet = currentUserRole === "titulaire" || currentUserRole === "avocat";
         document.getElementById("scope-tabs").style.display =
-          currentUserRole === "titulaire" && appliedVue === "dossiers" ? "flex" : "none";
+          peutVoirCabinet && appliedVue === "dossiers" ? "flex" : "none";
 
         if (dossiers.length === 0) {
           listEl.innerHTML = `<p class="muted">${appliedVue === "recherches" ? "Aucune recherche pour l'instant." : "Aucun dossier pour l'instant."}</p>`;
@@ -97,7 +98,7 @@
 
       currentUserRole = me.role;
 
-      if (me.role === "titulaire") {
+      if (me.role === "titulaire" || me.role === "avocat") {
         document.querySelectorAll("#scope-tabs .tab").forEach((btn) => {
           btn.addEventListener("click", () => {
             currentScope = btn.dataset.scope;

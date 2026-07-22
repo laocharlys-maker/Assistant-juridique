@@ -1,11 +1,11 @@
 const NAV_ITEMS = [
-  { href: "/tableau-de-bord.html", label: "Tableau de bord", roles: ["titulaire"] },
-  { href: "/dashboard.html", label: "Documents générés", roles: ["titulaire", "collaborateur"] },
-  { href: "/nouvelle-action.html", label: "Nouvelle action", roles: ["titulaire", "collaborateur"] },
-  { href: "/clients.html", label: "Clients", roles: ["titulaire", "collaborateur"] },
-  { href: "/jurisprudence-base.html", label: "Jurisprudence", roles: ["titulaire", "collaborateur"] },
-  { href: "/delais-calculateur.html", label: "Délais", roles: ["titulaire", "collaborateur"] },
-  { href: "/collaborateurs.html", label: "Collaborateurs", roles: ["titulaire"] },
+  { href: "/tableau-de-bord.html", label: "Tableau de bord", roles: ["titulaire", "avocat"] },
+  { href: "/dashboard.html", label: "Documents générés", roles: ["titulaire", "avocat", "collaborateur"] },
+  { href: "/nouvelle-action.html", label: "Nouvelle action", roles: ["titulaire", "avocat", "collaborateur"] },
+  { href: "/clients.html", label: "Clients", roles: ["titulaire", "avocat", "collaborateur"] },
+  { href: "/jurisprudence-base.html", label: "Jurisprudence", roles: ["titulaire", "avocat", "collaborateur"] },
+  { href: "/delais-calculateur.html", label: "Délais", roles: ["titulaire", "avocat", "collaborateur"] },
+  { href: "/collaborateurs.html", label: "Équipe", roles: ["titulaire", "avocat"] },
   { href: "/parametres.html", label: "Paramètres", roles: ["titulaire"] },
 ];
 

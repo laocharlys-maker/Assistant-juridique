@@ -100,7 +100,7 @@
       initLayout(me);
       if (me.role !== "titulaire") {
         document.querySelector(".page").innerHTML =
-          '<p class="error visible">Cette page est réservée au titulaire du cabinet.</p>';
+          '<p class="error visible">Cette page est réservée à l\'administrateur du cabinet.</p>';
         return;
       }
       loadTypes();
