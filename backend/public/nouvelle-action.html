@@ -36,6 +36,7 @@
       <h2>Résultat</h2>
       <p class="muted" id="result-meta"></p>
       <pre id="result-text" style="white-space: pre-wrap;"></pre>
+      <button type="button" class="secondary" id="reset-form-btn">Nouvelle génération</button>
     </div>
 
     <div class="card">
@@ -184,8 +185,11 @@
     const resultEl = document.getElementById("result");
     const resultMetaEl = document.getElementById("result-meta");
     const resultTextEl = document.getElementById("result-text");
+    const resetFormBtn = document.getElementById("reset-form-btn");
 
-    async function submitForm(type, payload) {
+    let lastSubmitButton = null;
+
+    async function submitForm(type, payload, submitButton) {
       hideError(errorEl);
       resultEl.style.display = "none";
       try {
@@ -195,10 +199,22 @@
           : "Texte généré, mais la génération du document a échoué — vérifie la configuration.";
         resultTextEl.textContent = res.contenu;
         resultEl.style.display = "block";
+        if (submitButton) {
+          submitButton.disabled = true;
+          lastSubmitButton = submitButton;
+        }
       } catch (err) {
         showError(errorEl, err.message);
       }
     }
+
+    resetFormBtn.addEventListener("click", () => {
+      if (lastSubmitButton) {
+        lastSubmitButton.disabled = false;
+        lastSubmitButton = null;
+      }
+      resultEl.style.display = "none";
+    });
 
     forms.notes.addEventListener("submit", (e) => {
       e.preventDefault();
@@ -211,7 +227,7 @@
         decision: fd.get("decision"),
         prochaine_audience: fd.get("prochaine_audience") || undefined,
         pieces_prevoir: listValues("pieces-list"),
-      });
+      }, forms.notes.querySelector('button[type="submit"]'));
     });
 
     forms.redac.addEventListener("submit", (e) => {
@@ -222,7 +238,7 @@
         nom_affaire: fd.get("nom_affaire"),
         contexte: fd.get("contexte"),
         axes_argumentation: listValues("axes-list-redac"),
-      });
+      }, forms.redac.querySelector('button[type="submit"]'));
     });
 
     forms.conclusions.addEventListener("submit", (e) => {
@@ -233,7 +249,7 @@
         nom_affaire: fd.get("nom_affaire"),
         contexte: fd.get("contexte"),
         axes_argumentation: listValues("axes-list-conclusions"),
-      });
+      }, forms.conclusions.querySelector('button[type="submit"]'));
     });
 
     forms.assignation.addEventListener("submit", (e) => {
@@ -244,7 +260,7 @@
         nom_affaire: fd.get("nom_affaire"),
         contexte: fd.get("contexte"),
         axes_argumentation: listValues("axes-list-assignation"),
-      });
+      }, forms.assignation.querySelector('button[type="submit"]'));
     });
 
     forms.mise_en_demeure.addEventListener("submit", (e) => {
@@ -256,7 +272,7 @@
         destinataire: fd.get("destinataire"),
         contexte: fd.get("contexte"),
         delai_jours: fd.get("delai_jours"),
-      });
+      }, forms.mise_en_demeure.querySelector('button[type="submit"]'));
     });
 
     forms.jurisprudence.addEventListener("submit", (e) => {
@@ -266,7 +282,7 @@
         .split(",")
         .map((s) => s.trim())
         .filter(Boolean);
-      submitForm("jurisprudence", { theme: fd.get("theme"), juridictions });
+      submitForm("jurisprudence", { theme: fd.get("theme"), juridictions }, forms.jurisprudence.querySelector('button[type="submit"]'));
     });
   </script>
 </body>
