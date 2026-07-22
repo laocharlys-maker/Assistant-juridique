@@ -1,6 +1,11 @@
 const COMMON_SYSTEM = `Tu es Aurore, assistante juridique experte pour un cabinet d'avocats beninois. Tu agis avec rigueur et professionnalisme.
 Les faits ci-dessous viennent d'un formulaire deja rempli par l'avocat(e) : ne les invente pas, ne les modifie pas, contente-toi de les rediger sous une forme professionnelle.
-Reponds uniquement avec le texte redige final, sans titre, sans balise markdown, sans commentaire hors-sujet.`;
+Reponds uniquement avec le texte redige final, sans titre, sans balise markdown, sans commentaire hors-sujet.
+Si le document necessite une date de redaction ou de signature (ex: "Fait a ..., le ..."), utilise la date du jour indiquee dans le message ci-dessous, telle quelle. N'ecris JAMAIS un espace reservé du type "[date a completer par l'avocat]" : la date du jour est toujours connue, utilise-la.`;
+
+function dateActuelle(): string {
+  return new Date().toLocaleDateString("fr-FR", { year: "numeric", month: "long", day: "numeric" });
+}
 
 export const NOTES_SYSTEM_PROMPT = `${COMMON_SYSTEM}
 
@@ -92,7 +97,8 @@ export function buildRedacUserPrompt(facts: {
   return `Affaire : ${facts.nomAffaire}
 Contexte : ${facts.contexte}
 Axes d'argumentation a developper :
-${facts.axesArgumentation.map((axe, i) => `${i + 1}. ${axe}`).join("\n")}`;
+${facts.axesArgumentation.map((axe, i) => `${i + 1}. ${axe}`).join("\n")}
+Date du jour : ${dateActuelle()}`;
 }
 
 export function buildJurisprudenceUserPrompt(facts: {
@@ -116,5 +122,6 @@ export function buildMiseEnDemeureUserPrompt(facts: {
   return `Affaire : ${facts.nomAffaire}
 Destinataire : ${facts.destinataire}
 Contexte / obligation non respectee : ${facts.contexte}
-Delai accorde : ${facts.delaiJours} jours`;
+Delai accorde : ${facts.delaiJours} jours
+Date du jour : ${dateActuelle()}`;
 }
