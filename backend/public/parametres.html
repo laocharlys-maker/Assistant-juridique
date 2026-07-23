@@ -9,39 +9,51 @@
 </head>
 <body>
   <div class="page">
-    <h1>Paramètres</h1>
+    <div class="page-hero">
+      <div class="eyebrow">Cabinet</div>
+      <h1>Paramètres</h1>
+      <p>Identité, documents et règles de conservation du cabinet.</p>
+    </div>
 
     <div id="error" class="error"></div>
 
-    <div class="card">
-      <h2>Cabinet</h2>
-      <form id="cabinet-form">
-        <label>Nom du cabinet</label>
-        <input name="nom" required />
-        <button type="submit">Enregistrer</button>
-        <span id="cabinet-saved" class="muted" style="display:none; margin-left:10px;">Enregistré ✓</span>
-      </form>
-    </div>
+    <div class="settings-grid">
+      <div class="settings-card">
+        <div class="icon-badge"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l8-4 8 4v14"/><path d="M9 9h1"/><path d="M9 13h1"/><path d="M14 9h1"/><path d="M14 13h1"/></svg></div>
+        <h3>Identité du cabinet</h3>
+        <p class="desc">Nom utilisé dans l'appli et sur les documents générés.</p>
+        <form id="cabinet-form">
+          <label>Nom du cabinet</label>
+          <input name="nom" required />
+          <button type="submit" class="btn-sm">Enregistrer</button>
+          <span id="cabinet-saved" class="muted" style="display:none; margin-left:10px;">Enregistré ✓</span>
+        </form>
+      </div>
 
-    <div class="card">
-      <h2>En-tête du cabinet</h2>
-      <p class="muted">Une image d'en-tête (logo, bandeau...) que tu pourras insérer en haut des documents envoyés ou téléchargés, via une case à cocher — jamais automatiquement.</p>
-      <div id="current-entete"></div>
-      <label>Nouvelle image d'en-tête</label>
-      <input type="file" id="entete-file" accept="image/png,image/jpeg" />
-      <button type="button" id="upload-entete-btn">Enregistrer</button>
-      <button type="button" class="secondary" id="remove-entete-btn">Retirer l'en-tête</button>
-    </div>
+      <div class="settings-card">
+        <div class="icon-badge"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></div>
+        <h3>En-tête du cabinet</h3>
+        <p class="desc">Logo ou bandeau insérable en haut des documents, via une case à cocher — jamais automatiquement.</p>
+        <div id="current-entete"></div>
+        <label>Nouvelle image d'en-tête</label>
+        <input type="file" id="entete-file" accept="image/png,image/jpeg" />
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <button type="button" id="upload-entete-btn" class="btn-sm">Enregistrer</button>
+          <button type="button" class="secondary btn-sm" id="remove-entete-btn">Retirer l'en-tête</button>
+        </div>
+      </div>
 
-    <div class="card">
-      <h2>Archivage automatique des dossiers</h2>
-      <p class="muted">Un dossier clôturé est automatiquement rangé dans "Archives" après ce délai — rien n'est jamais supprimé, il reste consultable et peut être rouvert à tout moment.</p>
-      <form id="retention-form">
-        <label>Délai avant archivage (en mois)</label>
-        <input name="archivageDelaiMois" type="number" min="1" max="60" required />
-        <button type="submit">Enregistrer</button>
-        <span id="retention-saved" class="muted" style="display:none; margin-left:10px;">Enregistré ✓</span>
-      </form>
+      <div class="settings-card">
+        <div class="icon-badge"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg></div>
+        <h3>Archivage automatique</h3>
+        <p class="desc">Un dossier clôturé est rangé dans "Archives" après ce délai — rien n'est jamais supprimé, tout reste consultable et réouvrable.</p>
+        <form id="retention-form">
+          <label>Délai avant archivage (en mois)</label>
+          <input name="archivageDelaiMois" type="number" min="1" max="60" required />
+          <button type="submit" class="btn-sm">Enregistrer</button>
+          <span id="retention-saved" class="muted" style="display:none; margin-left:10px;">Enregistré ✓</span>
+        </form>
+      </div>
     </div>
   </div>
   <script src="/js/api.js"></script>
@@ -56,7 +68,7 @@
     function renderEntete(enteteUrl) {
       const el = document.getElementById("current-entete");
       el.innerHTML = enteteUrl
-        ? `<p>En-tête actuel :</p><img src="${escapeHtml(enteteUrl)}" alt="En-tête" style="max-width:320px; border:1px solid #e2e0da; border-radius:6px; padding:8px;" />`
+        ? `<p>En-tête actuel :</p><img src="${escapeHtml(enteteUrl)}" alt="En-tête" style="max-width:100%; border:1px solid var(--border); border-radius:8px; padding:8px;" />`
         : `<p class="muted">Aucun en-tête enregistré pour l'instant.</p>`;
     }
 

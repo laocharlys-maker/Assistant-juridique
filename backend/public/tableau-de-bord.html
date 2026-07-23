@@ -9,8 +9,11 @@
 </head>
 <body>
   <div class="page">
-    <h1 id="greeting">Tableau de bord</h1>
-    <p class="muted" id="date"></p>
+    <div class="page-hero">
+      <div class="eyebrow" id="date-eyebrow"></div>
+      <h1 id="greeting">Tableau de bord</h1>
+      <p>Vue d'ensemble de l'activité du cabinet.</p>
+    </div>
 
     <div id="error" class="error"></div>
 
@@ -34,11 +37,114 @@
       </div>
     </div>
 
+    <div class="chart-grid">
+      <div class="card chart-card">
+        <h2>Documents générés — 6 derniers mois</h2>
+        <div id="trend-chart"></div>
+      </div>
+      <div class="card chart-card">
+        <h2>Répartition par type</h2>
+        <div id="type-breakdown"></div>
+      </div>
+    </div>
+
     <p class="muted"><a href="/dashboard.html">Voir tous les dossiers →</a></p>
   </div>
   <script src="/js/api.js"></script>
   <script src="/js/layout.js"></script>
   <script>
+    const TYPE_LABELS = {
+      notes: "Compte-rendu",
+      redac: "Plaidoirie",
+      conclusions: "Conclusions",
+      assignation: "Assignation",
+      mise_en_demeure: "Mise en demeure",
+      jurisprudence: "Jurisprudence",
+      recherche_juridique: "Recherche juridique",
+      resume_pdf: "Résumé PDF",
+      veille_juridique: "Veille juridique",
+      traduction: "Traduction",
+      plainte: "Plainte",
+      contrat: "Contrat",
+      notification_date: "Notification",
+      requete: "Requête",
+    };
+
+    function renderTrendChart(evolutionMensuelle) {
+      const el = document.getElementById("trend-chart");
+      if (!evolutionMensuelle || evolutionMensuelle.length === 0) {
+        el.innerHTML = '<p class="trend-empty">Pas encore assez d\'activité pour afficher une tendance.</p>';
+        return;
+      }
+      const points = evolutionMensuelle.map((m) => {
+        const [, label] = m.mois.split("|");
+        return { label, total: m.total };
+      });
+      const max = Math.max(1, ...points.map((p) => p.total));
+      const w = 560, h = 180, padL = 8, padR = 8, padT = 18, padB = 26;
+      const plotW = w - padL - padR;
+      const plotH = h - padT - padB;
+      const stepX = points.length > 1 ? plotW / (points.length - 1) : 0;
+      const coords = points.map((p, i) => ({
+        x: padL + stepX * i,
+        y: padT + plotH - (p.total / max) * plotH,
+        ...p,
+      }));
+
+      const linePath = coords.map((c, i) => `${i === 0 ? "M" : "L"}${c.x.toFixed(1)},${c.y.toFixed(1)}`).join(" ");
+      const areaPath = `${linePath} L${coords[coords.length - 1].x.toFixed(1)},${padT + plotH} L${coords[0].x.toFixed(1)},${padT + plotH} Z`;
+
+      const gridLines = [0.25, 0.5, 0.75, 1].map((f) => {
+        const y = padT + plotH * (1 - f);
+        return `<line x1="${padL}" y1="${y}" x2="${w - padR}" y2="${y}" stroke="var(--hairline)" stroke-width="1" />`;
+      }).join("");
+
+      const dots = coords.map((c, i) => {
+        const isLast = i === coords.length - 1;
+        return `
+          <circle cx="${c.x}" cy="${c.y}" r="${isLast ? 4.5 : 3}" fill="${isLast ? "var(--accent)" : "var(--panel)"}" stroke="var(--accent)" stroke-width="2" />
+          ${isLast ? `<text x="${c.x}" y="${c.y - 12}" text-anchor="end" class="trend-value-label">${c.total}</text>` : ""}
+          <text x="${c.x}" y="${h - 6}" text-anchor="middle" class="trend-axis-label">${c.label}</text>
+        `;
+      }).join("");
+
+      el.innerHTML = `
+        <div class="trend-chart-wrap">
+          <svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="var(--accent)" stop-opacity="0.28" />
+                <stop offset="100%" stop-color="var(--accent)" stop-opacity="0" />
+              </linearGradient>
+            </defs>
+            ${gridLines}
+            <path d="${areaPath}" fill="url(#trendFill)" />
+            <path d="${linePath}" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" />
+            ${dots}
+          </svg>
+        </div>
+      `;
+    }
+
+    function renderTypeBreakdown(repartitionTypes) {
+      const el = document.getElementById("type-breakdown");
+      if (!repartitionTypes || repartitionTypes.length === 0) {
+        el.innerHTML = '<p class="trend-empty">Aucun document généré sur la période.</p>';
+        return;
+      }
+      const max = Math.max(1, ...repartitionTypes.map((t) => t.total));
+      el.innerHTML = repartitionTypes
+        .map(
+          (t) => `
+        <div class="type-bar-row">
+          <div class="type-bar-label">${TYPE_LABELS[t.type] || t.type}</div>
+          <div class="type-bar-track"><div class="type-bar-fill" style="width:${Math.max(6, (t.total / max) * 100)}%"></div></div>
+          <div class="type-bar-value">${t.total}</div>
+        </div>`
+        )
+        .join("");
+    }
+
     async function loadStats(scope) {
       const errorEl = document.getElementById("error");
       hideError(errorEl);
@@ -51,6 +157,8 @@
         document.getElementById("stat-dossiers").textContent = stats.dossiersActifs;
         document.getElementById("stat-cr").textContent = stats.crCeMois;
         document.getElementById("stat-echeances").textContent = stats.echeances7Jours;
+        renderTrendChart(stats.evolutionMensuelle);
+        renderTypeBreakdown(stats.repartitionTypes);
       } catch (err) {
         showError(errorEl, err.message);
       }
@@ -68,7 +176,7 @@
       }
 
       document.getElementById("greeting").textContent = `Bonjour, ${me.nom}`;
-      document.getElementById("date").textContent = new Date().toLocaleDateString("fr-FR", {
+      document.getElementById("date-eyebrow").textContent = new Date().toLocaleDateString("fr-FR", {
         weekday: "long",
         year: "numeric",
         month: "long",

@@ -9,11 +9,14 @@
 </head>
 <body>
   <div class="page">
-    <h1>Équipe du cabinet</h1>
-    <p class="muted">Un collaborateur voit par défaut les dossiers de l'avocat qui a créé son compte. Tu peux, en plus, lui donner accès à tes propres dossiers même si ce n'est pas son responsable direct.</p>
+    <div class="page-hero">
+      <div class="eyebrow">Cabinet</div>
+      <h1>Équipe</h1>
+      <p>Un collaborateur voit par défaut les dossiers de l'avocat qui a créé son compte. Tu peux, en plus, lui donner accès à tes propres dossiers même si ce n'est pas son responsable direct.</p>
+    </div>
 
     <div id="error" class="error"></div>
-    <div id="new-account" class="card" style="display:none; background:#eef3f1;">
+    <div id="new-account" class="card" style="display:none; border-color: var(--success); background: var(--success-tint);">
       <h2>Compte créé</h2>
       <p>Transmets ces identifiants à la personne concernée (ils ne seront plus affichés après) :</p>
       <p><strong id="new-account-email"></strong></p>
@@ -24,35 +27,37 @@
       <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
         <h2 style="margin:0;">Membres du cabinet</h2>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
-          <button type="button" class="secondary btn-sm" id="toggle-avocat-btn" style="display:none; margin:0;">+ Ajouter un avocat</button>
-          <button type="button" class="secondary btn-sm" id="toggle-collab-btn" style="margin:0;">+ Ajouter un collaborateur</button>
+          <button type="button" class="secondary btn-sm" id="toggle-avocat-btn" style="display:none;">+ Ajouter un avocat</button>
+          <button type="button" class="secondary btn-sm" id="toggle-collab-btn">+ Ajouter un collaborateur</button>
         </div>
       </div>
       <div id="users-list"><p class="muted">Chargement…</p></div>
     </div>
 
-    <div class="card" id="create-avocat-card" style="display:none;">
-      <h2>Ajouter un avocat</h2>
-      <p class="muted">Un avocat gère ses propres dossiers et peut créer ses propres collaborateurs.</p>
-      <form id="create-avocat-form">
-        <label>Nom</label>
-        <input name="nom" required />
-        <label>Email</label>
-        <input name="email" type="email" required />
-        <button type="submit">Créer le compte avocat</button>
-      </form>
-    </div>
+    <div class="settings-grid">
+      <div class="settings-card" id="create-avocat-card" style="display:none;">
+        <h3>Ajouter un avocat</h3>
+        <p class="desc">Un avocat gère ses propres dossiers et peut créer ses propres collaborateurs.</p>
+        <form id="create-avocat-form">
+          <label>Nom</label>
+          <input name="nom" required />
+          <label>Email</label>
+          <input name="email" type="email" required />
+          <button type="submit" class="btn-sm">Créer le compte avocat</button>
+        </form>
+      </div>
 
-    <div class="card" id="create-collab-card" style="display:none;">
-      <h2>Ajouter un collaborateur</h2>
-      <p class="muted">Le nouveau compte dépendra automatiquement de toi.</p>
-      <form id="create-form">
-        <label>Nom</label>
-        <input name="nom" required />
-        <label>Email</label>
-        <input name="email" type="email" required />
-        <button type="submit">Créer le compte</button>
-      </form>
+      <div class="settings-card" id="create-collab-card" style="display:none;">
+        <h3>Ajouter un collaborateur</h3>
+        <p class="desc">Le nouveau compte dépendra automatiquement de toi.</p>
+        <form id="create-form">
+          <label>Nom</label>
+          <input name="nom" required />
+          <label>Email</label>
+          <input name="email" type="email" required />
+          <button type="submit" class="btn-sm">Créer le compte</button>
+        </form>
+      </div>
     </div>
   </div>
   <script src="/js/api.js"></script>

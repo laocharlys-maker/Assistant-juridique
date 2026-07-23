@@ -24,7 +24,9 @@ statsRouter.get("/api/stats", requireAuth, requireAvocat, async (req, res) => {
   const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   const in7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-  const [dossiersActifs, crCeMois, echeances7Jours] = await Promise.all([
+  const sixMoisAvant = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 5, 1));
+
+  const [dossiersActifs, crCeMois, echeances7Jours, actionsRecentes] = await Promise.all([
     prisma.dossier.count({
       where: {
         cabinetId,
@@ -59,7 +61,47 @@ statsRouter.get("/api/stats", requireAuth, requireAvocat, async (req, res) => {
           : {}),
       },
     }),
+    prisma.action.findMany({
+      where: {
+        createdAt: { gte: sixMoisAvant },
+        dossier: {
+          cabinetId,
+          ...(accessibleAvocatIds ? { createdBy: { in: accessibleAvocatIds } } : {}),
+        },
+      },
+      select: { createdAt: true, typeAction: true },
+    }),
   ]);
 
-  return res.json({ scope: requestedScope, dossiersActifs, crCeMois, echeances7Jours });
+  // Evolution mensuelle (6 derniers mois, y compris les mois sans activite).
+  const evolutionMensuelle: { mois: string; total: number }[] = [];
+  for (let i = 5; i >= 0; i--) {
+    const moisDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
+    const cle = `${moisDate.getUTCFullYear()}-${String(moisDate.getUTCMonth() + 1).padStart(2, "0")}`;
+    const label = moisDate.toLocaleDateString("fr-FR", { month: "short", timeZone: "UTC" });
+    const total = actionsRecentes.filter((a) => {
+      const d = a.createdAt;
+      return d.getUTCFullYear() === moisDate.getUTCFullYear() && d.getUTCMonth() === moisDate.getUTCMonth();
+    }).length;
+    evolutionMensuelle.push({ mois: `${cle}|${label}`, total });
+  }
+
+  // Repartition par type de document (6 derniers mois), triee par volume.
+  const compteParType = new Map<string, number>();
+  for (const a of actionsRecentes) {
+    compteParType.set(a.typeAction, (compteParType.get(a.typeAction) ?? 0) + 1);
+  }
+  const repartitionTypes = Array.from(compteParType.entries())
+    .map(([type, total]) => ({ type, total }))
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 6);
+
+  return res.json({
+    scope: requestedScope,
+    dossiersActifs,
+    crCeMois,
+    echeances7Jours,
+    evolutionMensuelle,
+    repartitionTypes,
+  });
 });

@@ -9,35 +9,48 @@
 </head>
 <body>
   <div class="page">
-    <h1>Calcul de délai de procédure</h1>
-    <p class="muted">Calcul déterministe (pas d'IA) à partir des délais validés par le cabinet. <a href="/delais-types.html" id="manage-types-link" style="display:none;">Gérer le référentiel des délais</a></p>
-
-    <div id="error" class="error"></div>
-    <div id="empty-warning" class="error" style="display:none;">Aucun délai n'est encore défini dans le référentiel du cabinet. Demande à l'administrateur d'en ajouter via "Gérer le référentiel des délais".</div>
-
-    <div class="card">
-      <form id="calc-form">
-        <label>Type de délai</label>
-        <select name="delaiTypeId" id="delai-type-select" required></select>
-        <label>Date de départ (signification, notification, décision...)</label>
-        <input name="dateDepart" type="date" required />
-        <label>Dossier concerné (optionnel)</label>
-        <select name="dossierId" id="dossier-select">
-          <option value="">— aucun —</option>
-        </select>
-        <label style="display:flex; align-items:center; gap:8px; font-weight:400;">
-          <input type="checkbox" name="creerRappelCalendar" style="width:auto;" />
-          Créer un rappel dans Google Calendar
-        </label>
-        <button type="submit">Calculer</button>
-      </form>
+    <div class="page-hero">
+      <div class="eyebrow">Procédure</div>
+      <h1>Délais</h1>
+      <p>Calcul déterministe (pas d'IA) à partir des délais validés par le cabinet.</p>
     </div>
 
-    <div id="result" class="card" style="display:none;"></div>
+    <div id="error" class="error"></div>
+    <div id="empty-warning" class="error" style="display:none;">Aucun délai n'est encore défini dans le référentiel du cabinet. Demande à l'administrateur d'en ajouter via "Gérer les délais".</div>
 
     <div class="card">
-      <h2>Historique</h2>
+      <div style="display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:8px;">
+        <h2 style="margin:0;">Historique des délais</h2>
+        <span class="muted" id="history-count"></span>
+      </div>
       <div id="history-list"><p class="muted">Chargement…</p></div>
+    </div>
+
+    <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom: 4px;">
+      <button type="button" class="secondary" id="manage-types-link" style="display:none;">Gérer les délais</button>
+      <button type="button" id="toggle-calc-btn">+ Calculer un délai</button>
+    </div>
+
+    <div class="collapse-panel" id="calc-panel">
+      <div class="collapse-panel-inner">
+        <form id="calc-form">
+          <label>Type de délai</label>
+          <select name="delaiTypeId" id="delai-type-select" required></select>
+          <label>Date de départ (signification, notification, décision...)</label>
+          <input name="dateDepart" type="date" required />
+          <label>Dossier concerné (optionnel)</label>
+          <select name="dossierId" id="dossier-select">
+            <option value="">— aucun —</option>
+          </select>
+          <label style="display:flex; align-items:center; gap:8px; font-weight:400;">
+            <input type="checkbox" name="creerRappelCalendar" style="width:auto;" />
+            Créer un rappel dans Google Calendar
+          </label>
+          <button type="submit">Calculer</button>
+        </form>
+
+        <div id="result" style="display:none; margin-top:20px; padding-top:16px; border-top:1px solid var(--hairline);"></div>
+      </div>
     </div>
   </div>
   <script src="/js/api.js"></script>
@@ -81,8 +94,10 @@
 
     async function loadHistory() {
       const listEl = document.getElementById("history-list");
+      const countEl = document.getElementById("history-count");
       try {
         const calculs = await apiFetch("/api/delais/historique");
+        countEl.textContent = calculs.length > 0 ? `${calculs.length} calcul${calculs.length > 1 ? "s" : ""}` : "";
         if (calculs.length === 0) {
           listEl.innerHTML = '<p class="muted">Aucun calcul effectué pour l\'instant.</p>';
           return;
@@ -107,10 +122,21 @@
       if (!me) return;
       initLayout(me);
       if (me.role === "titulaire") {
-        document.getElementById("manage-types-link").style.display = "inline";
+        document.getElementById("manage-types-link").style.display = "inline-block";
       }
       await Promise.all([loadTypes(), loadDossiers(), loadHistory()]);
     })();
+
+    document.getElementById("manage-types-link").addEventListener("click", () => {
+      window.location.href = "/delais-types.html";
+    });
+
+    const calcPanel = document.getElementById("calc-panel");
+    const toggleCalcBtn = document.getElementById("toggle-calc-btn");
+    toggleCalcBtn.addEventListener("click", () => {
+      calcPanel.classList.toggle("open");
+      toggleCalcBtn.textContent = calcPanel.classList.contains("open") ? "Réduire" : "+ Calculer un délai";
+    });
 
     document.getElementById("calc-form").addEventListener("submit", async (e) => {
       e.preventDefault();

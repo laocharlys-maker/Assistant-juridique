@@ -34,7 +34,7 @@
     function renderCurrent(signatureUrl) {
       const el = document.getElementById("current-signature");
       el.innerHTML = signatureUrl
-        ? `<p>Signature actuelle :</p><img src="${escapeHtml(signatureUrl)}" alt="Signature" style="max-width:240px; border:1px solid #e2e0da; border-radius:6px; padding:8px;" />`
+        ? `<p>Signature actuelle :</p><img src="${escapeHtml(signatureUrl)}" alt="Signature" style="max-width:240px; border:1px solid var(--border); border-radius:8px; padding:8px;" />`
         : `<p class="muted">Aucune signature enregistrée pour l'instant.</p>`;
     }
 
