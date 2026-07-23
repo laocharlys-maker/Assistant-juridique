@@ -15,6 +15,7 @@
     <div class="tabs" id="vue-tabs">
       <button class="tab active" data-vue="dossiers">Dossiers</button>
       <button class="tab" data-vue="recherches">Recherches</button>
+      <button class="tab" data-vue="traductions">Documents traduits</button>
     </div>
 
     <div class="tabs" id="scope-tabs" style="display:none;">
@@ -59,14 +60,19 @@
           peutVoirCabinet && appliedVue === "dossiers" ? "flex" : "none";
 
         if (dossiers.length === 0) {
-          listEl.innerHTML = `<p class="muted">${appliedVue === "recherches" ? "Aucune recherche pour l'instant." : "Aucun dossier pour l'instant."}</p>`;
+          const emptyLabels = {
+            dossiers: "Aucun dossier pour l'instant.",
+            recherches: "Aucune recherche pour l'instant.",
+            traductions: "Aucun document traduit pour l'instant.",
+          };
+          listEl.innerHTML = `<p class="muted">${emptyLabels[appliedVue]}</p>`;
           return;
         }
 
         listEl.innerHTML = dossiers
           .map((d) => {
-            const titre = appliedVue === "recherches" ? d.nomAffaire : `${d.numeroDossier} — ${d.nomAffaire}`;
-            const meta = appliedVue === "recherches"
+            const titre = appliedVue !== "dossiers" ? d.nomAffaire : `${d.numeroDossier} — ${d.nomAffaire}`;
+            const meta = appliedVue !== "dossiers"
               ? `${d._count.actions} action(s) · créé par ${escapeHtml(d.creePar.nom)}`
               : `${escapeHtml(d.nomClient)} · ${d._count.actions} action(s) · créé par ${escapeHtml(d.creePar.nom)}`;
             return `

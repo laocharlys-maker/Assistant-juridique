@@ -136,6 +136,21 @@ button.btn-sm { padding: 5px 10px; font-size: 0.8rem; margin-top: 0; }
 }
 .tabs button.tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 
+.spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-left: 8px;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-top-color: #fff;
+  border-radius: 50%;
+  vertical-align: middle;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 .action-item {
   border: 1px solid var(--border);
   border-radius: 8px;

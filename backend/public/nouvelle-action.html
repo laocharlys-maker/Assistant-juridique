@@ -228,9 +228,21 @@
 
     let lastSubmitButton = null;
 
+    function setButtonLoading(submitButton, loading) {
+      if (!submitButton) return;
+      if (loading) {
+        submitButton.dataset.originalText = submitButton.textContent;
+        submitButton.disabled = true;
+        submitButton.innerHTML = `${submitButton.dataset.originalText}<span class="spinner"></span>`;
+      } else {
+        submitButton.innerHTML = submitButton.dataset.originalText || submitButton.textContent;
+      }
+    }
+
     async function submitForm(type, payload, submitButton) {
       hideError(errorEl);
       resultEl.style.display = "none";
+      setButtonLoading(submitButton, true);
       try {
         const res = await apiFetch("/api/actions/web", { method: "POST", body: { type_action: type, ...payload } });
         resultMetaEl.textContent = res.n8nDispatched
@@ -245,11 +257,14 @@
           resultDownloadsEl.style.display = "none";
         }
         resultEl.style.display = "block";
+        setButtonLoading(submitButton, false);
         if (submitButton) {
           submitButton.disabled = true;
           lastSubmitButton = submitButton;
         }
       } catch (err) {
+        setButtonLoading(submitButton, false);
+        if (submitButton) submitButton.disabled = false;
         showError(errorEl, err.message);
       }
     }

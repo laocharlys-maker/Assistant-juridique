@@ -44,13 +44,18 @@ dossiersRouter.get("/api/dossiers", requireAuth, async (req, res) => {
   const accessibleAvocatIds = scope === "mine" ? await getAccessibleAvocatIds(auth!) : null;
 
   // "dossiers" (par defaut) = vrais dossiers clients ; "recherches" = fiches
-  // creees par une recherche de jurisprudence / recherche juridique.
-  const vue = req.query.vue === "recherches" ? "recherches" : "dossiers";
+  // creees par une recherche de jurisprudence / recherche juridique / veille ;
+  // "traductions" = fiches de traduction, isolees des autres recherches.
+  const vueParam = req.query.vue;
+  const vue =
+    vueParam === "recherches" ? "recherches" : vueParam === "traductions" ? "traductions" : "dossiers";
 
   const dossiers = await prisma.dossier.findMany({
     where: {
       cabinetId: auth!.cabinetId,
-      estRecherche: vue === "recherches",
+      estRecherche: vue !== "dossiers",
+      ...(vue === "traductions" ? { numeroDossier: { startsWith: "TRAD-" } } : {}),
+      ...(vue === "recherches" ? { numeroDossier: { not: { startsWith: "TRAD-" } } } : {}),
       ...(accessibleAvocatIds ? { createdBy: { in: accessibleAvocatIds } } : {}),
     },
     orderBy: { updatedAt: "desc" },
