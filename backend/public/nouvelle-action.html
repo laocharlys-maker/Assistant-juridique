@@ -143,12 +143,25 @@
           <option value="fr_vers_en">Français → Anglais</option>
           <option value="en_vers_fr">Anglais → Français</option>
         </select>
-        <label>Texte à traduire</label>
-        <textarea name="texte_source" placeholder="Colle ici le texte à traduire"></textarea>
-        <label>Ou un document (PDF / Word)</label>
-        <input name="document" type="file" accept="application/pdf,.docx" />
+        <label>Source</label>
+        <label style="display:flex; align-items:center; gap:8px; font-weight:400;">
+          <input type="radio" name="source_type" value="texte" checked style="width:auto;" />
+          Texte collé
+        </label>
+        <label style="display:flex; align-items:center; gap:8px; font-weight:400; margin-bottom:10px;">
+          <input type="radio" name="source_type" value="document" style="width:auto;" />
+          Document (PDF / Word)
+        </label>
+        <div id="traduction-texte-field">
+          <label>Texte à traduire</label>
+          <textarea name="texte_source" placeholder="Colle ici le texte à traduire"></textarea>
+        </div>
+        <div id="traduction-document-field" style="display:none;">
+          <label>Document à traduire</label>
+          <input name="document" type="file" accept="application/pdf,.docx" />
+        </div>
         <button type="submit">Traduire</button>
-        <p class="muted" style="margin-top:8px;">Traduction fidèle, sans ajout ni interprétation. Les textes longs sont découpés puis recomposés automatiquement. Renseigne soit le texte, soit un document, pas les deux.</p>
+        <p class="muted" style="margin-top:8px;">Traduction fidèle, sans ajout ni interprétation. Les textes longs sont découpés puis recomposés automatiquement.</p>
       </form>
     </div>
   </div>
@@ -359,21 +372,40 @@
       }
     });
 
+    forms.traduction.querySelectorAll('input[name="source_type"]').forEach((radio) => {
+      radio.addEventListener("change", () => {
+        const isDocument = forms.traduction.querySelector('input[name="source_type"]:checked').value === "document";
+        document.getElementById("traduction-texte-field").style.display = isDocument ? "none" : "block";
+        document.getElementById("traduction-document-field").style.display = isDocument ? "block" : "none";
+      });
+    });
+
     forms.traduction.addEventListener("submit", async (e) => {
       e.preventDefault();
       const fd = new FormData(forms.traduction);
+      const sourceType = fd.get("source_type");
       const texteSource = fd.get("texte_source");
       const file = fd.get("document");
-      if (!texteSource && (!file || file.size === 0)) {
-        showError(errorEl, "Colle un texte ou choisis un document à traduire");
+
+      if (sourceType === "texte" && !texteSource) {
+        showError(errorEl, "Colle le texte à traduire");
         return;
       }
+      if (sourceType === "document" && (!file || file.size === 0)) {
+        showError(errorEl, "Choisis un document à traduire");
+        return;
+      }
+
       const submitButton = forms.traduction.querySelector('button[type="submit"]');
       try {
-        const documentDataUrl = file && file.size > 0 ? await readFileAsDataUrl(file) : undefined;
+        const documentDataUrl = sourceType === "document" ? await readFileAsDataUrl(file) : undefined;
         await submitForm(
           "traduction",
-          { sens: fd.get("sens"), texte_source: texteSource || undefined, documentDataUrl },
+          {
+            sens: fd.get("sens"),
+            texte_source: sourceType === "texte" ? texteSource : undefined,
+            documentDataUrl,
+          },
           submitButton
         );
       } catch (err) {
