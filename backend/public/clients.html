@@ -53,6 +53,8 @@
         <input name="objet" id="email-modal-objet" required />
         <label>Message</label>
         <textarea name="message" required style="min-height:160px;"></textarea>
+        <label>Pièce jointe (optionnel)</label>
+        <input type="file" id="email-modal-attachment" />
         <div style="display:flex; gap:10px; margin-top:18px;">
           <button type="submit">Envoyer</button>
           <button type="button" class="secondary" id="email-modal-cancel">Annuler</button>
@@ -168,6 +170,15 @@
       if (e.target.id === "email-modal") closeEmailModal();
     });
 
+    function readFileAsDataUrl(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(file);
+      });
+    }
+
     document.getElementById("email-form").addEventListener("submit", async (e) => {
       e.preventDefault();
       const modalErrorEl = document.getElementById("email-modal-error");
@@ -177,9 +188,16 @@
       const submitBtn = e.target.querySelector('button[type="submit"]');
       submitBtn.disabled = true;
       try {
+        const file = document.getElementById("email-modal-attachment").files[0];
+        const pieceJointeDataUrl = file ? await readFileAsDataUrl(file) : undefined;
         const res = await apiFetch(`/api/clients/${clientId}/envoyer-email`, {
           method: "POST",
-          body: { objet: fd.get("objet"), message: fd.get("message") },
+          body: {
+            objet: fd.get("objet"),
+            message: fd.get("message"),
+            pieceJointeDataUrl,
+            pieceJointeNom: file ? file.name : undefined,
+          },
         });
         if (!res.n8nDispatched) {
           showError(modalErrorEl, "L'email n'a pas pu être transmis (n8n indisponible). Réessaie dans quelques instants.");
@@ -188,7 +206,7 @@
         }
         closeEmailModal();
       } catch (err) {
-        showError(modalErrorEl, err.message);
+        showError(modalErrorEl, err.message || "Impossible de lire la pièce jointe");
         submitBtn.disabled = false;
       }
     });

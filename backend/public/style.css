@@ -584,7 +584,8 @@ header.app-topbar {
   flex-shrink: 0;
   transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
 }
-.icon-action:hover { background: var(--accent-tint); border-color: var(--accent); color: var(--accent-hover); box-shadow: none; }
+.icon-action:hover { background: var(--accent-tint); border-color: var(--accent); color: var(--accent-hover); box-shadow: none; transform: translateY(-1px); }
+.icon-action:active { transform: translateY(0); }
 .icon-action.is-on { background: var(--accent-tint); border-color: var(--accent); color: var(--accent-hover); }
 .icon-action.is-danger:hover { background: var(--danger-tint); border-color: var(--danger); color: var(--danger); }
 .icon-action.is-gold { background: var(--accent-tint); border-color: var(--accent); color: var(--accent-hover); }

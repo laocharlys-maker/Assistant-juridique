@@ -55,6 +55,10 @@ clientsRouter.get("/api/clients/:id", requireAuth, async (req, res) => {
 const envoyerEmailSchema = z.object({
   objet: z.string().min(1),
   message: z.string().min(1),
+  // Piece jointe optionnelle (data URL base64, tous types courants : PDF,
+  // Word, images...). Nom de fichier fourni separement pour l'email.
+  pieceJointeDataUrl: z.string().regex(/^data:[^;]+;base64,/).optional(),
+  pieceJointeNom: z.string().optional(),
 });
 
 // Envoie un email libre (objet + message) a un client depuis sa fiche.
@@ -84,6 +88,8 @@ clientsRouter.post("/api/clients/:id/envoyer-email", requireAuth, async (req, re
     destinataireNom: client.nom,
     objet: parsed.data.objet,
     message: parsed.data.message,
+    pieceJointeDataUrl: parsed.data.pieceJointeDataUrl ?? null,
+    pieceJointeNom: parsed.data.pieceJointeNom ?? null,
     envoyeParNom: auteur?.nom ?? null,
     envoyeParEmail: auteur?.email ?? null,
   });
