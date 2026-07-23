@@ -30,6 +30,18 @@ function formatDate(date: Date): string {
   return date.toLocaleDateString("fr-FR", { year: "numeric", month: "long", day: "numeric" });
 }
 
+// Certains prompts de redaction (assignation, plainte...) structurent le
+// texte avec des titres de section en MAJUSCULES sur leur propre ligne
+// (ex: "PAR CES MOTIFS"), sans balise markdown - on les detecte ici pour
+// les mettre en valeur (gras) dans les exports Word/PDF plutot que de les
+// afficher comme un paragraphe normal.
+function isHeaderLine(line: string): boolean {
+  const trimmed = line.trim();
+  if (trimmed.length === 0 || trimmed.length > 100) return false;
+  if (!/[A-ZÀ-Ý]/.test(trimmed)) return false;
+  return trimmed === trimmed.toUpperCase();
+}
+
 const DOCX_ALIGNMENT: Record<SignatureAlignment, (typeof AlignmentType)[keyof typeof AlignmentType]> = {
   START: AlignmentType.LEFT,
   CENTER: AlignmentType.CENTER,
@@ -40,13 +52,19 @@ export async function buildDocx(input: ExportInput): Promise<Buffer> {
   const paragraphesContenu = input.contenu
     .split(/\n+/)
     .filter((line) => line.trim().length > 0)
-    .map(
-      (line) =>
-        new Paragraph({
-          children: [new TextRun(line.trim())],
-          spacing: { after: 200 },
-        })
-    );
+    .map((line) => {
+      const trimmed = line.trim();
+      if (isHeaderLine(trimmed)) {
+        return new Paragraph({
+          children: [new TextRun({ text: trimmed, bold: true })],
+          spacing: { before: 200, after: 150 },
+        });
+      }
+      return new Paragraph({
+        children: [new TextRun(trimmed)],
+        spacing: { after: 200 },
+      });
+    });
 
   const enteteParagraph = input.entete
     ? [
@@ -163,11 +181,17 @@ export async function buildPdf(input: ExportInput): Promise<Buffer> {
       .text(`Rédigé par ${input.auteurNom} — ${formatDate(input.date)}`, { align: "center" });
     doc.moveDown(1.2);
 
-    doc.font("Helvetica").fontSize(11);
     const paragraphes = input.contenu.split(/\n+/).filter((line) => line.trim().length > 0);
     for (const paragraphe of paragraphes) {
-      doc.text(paragraphe.trim(), { align: "justify" });
-      doc.moveDown(0.6);
+      const trimmed = paragraphe.trim();
+      if (isHeaderLine(trimmed)) {
+        doc.moveDown(0.4);
+        doc.font("Helvetica-Bold").fontSize(11).text(trimmed, { align: "left" });
+        doc.moveDown(0.3);
+      } else {
+        doc.font("Helvetica").fontSize(11).text(trimmed, { align: "justify" });
+        doc.moveDown(0.6);
+      }
     }
 
     if (input.signature) {

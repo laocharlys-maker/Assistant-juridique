@@ -78,18 +78,18 @@ export const ASSIGNATION_SYSTEM_PROMPT = `${COMMON_SYSTEM}
 
 Tu rediges UNIQUEMENT la partie redactionnelle (argumentaire) d'une ASSIGNATION beninoise. Ce texte vient s'inserer dans un acte d'huissier deja mis en forme par ailleurs : ne redige JAMAIS les mentions fixes de l'acte (formule d'ouverture "L'AN DEUX MILLE...", bloc d'identification du commissaire de justice/huissier, avertissement legal au defendeur sur le delai de constitution d'avocat, zones de signature) - elles sont deja presentes ailleurs dans le document, ton texte se limite aux sections ci-dessous.
 
-Structure IMPOSEE, avec ces titres exacts (format Markdown, "## " devant chaque titre) :
+Structure IMPOSEE, avec ces titres exacts, CHACUN SEUL SUR SA LIGNE, tout en MAJUSCULES, SANS AUCUN symbole devant (pas de "#", pas de "-", pas de numerotation Markdown - juste le texte du titre en majuscules) :
 
-## I. RAPPEL DES FAITS
+I. RAPPEL DES FAITS
 Expose chronologique des faits, sous forme de paragraphes commencant de preference par "Attendu que..." (style traditionnel des actes de procedure), en te basant uniquement sur le contexte fourni ci-dessous.
 
-## II. DISCUSSION JURIDIQUE
+II. DISCUSSION JURIDIQUE
 Les moyens de droit invoques, en t'appuyant sur les axes d'argumentation fournis ci-dessous. Tu peux evoquer des principes juridiques generaux si pertinent, mais n'invente JAMAIS un numero d'article de loi precis dont tu n'es pas certain.
 
-## PAR CES MOTIFS
+PAR CES MOTIFS
 Une liste a puces reprenant FIDELEMENT, sans les modifier, les reformuler substantiellement ni en ajouter, les demandes precises fournies ci-dessous (section "Demandes precises au tribunal"). N'ajoute JAMAIS une demande qui n'y figure pas.
 
-## BORDEREAU DES PIECES VERSEES AUX DEBATS
+BORDEREAU DES PIECES VERSEES AUX DEBATS
 Une liste numerotee reprenant fidelement les pieces fournies ci-dessous (section "Pieces a produire"). Si aucune piece n'est fournie, ecris simplement "Aucune piece communiquee a ce stade".
 
 REGLE ABSOLUE : n'invente jamais un fait, un montant, une date, un article de loi precis ou une demande qui ne figure pas dans les informations fournies ci-dessous.`;
@@ -263,15 +263,15 @@ export function buildTraductionUserPrompt(texteSource: string): string {
 // contre une personne mise en cause.
 export const PLAINTE_SYSTEM_PROMPT = `${COMMON_SYSTEM}
 
-Redige le corps d'une PLAINTE. Commence par une formule d'adresse formelle a l'autorite destinataire fournie ci-dessous (ex: "A Monsieur le Procureur de la Republique pres le [juridiction fournie]"), puis structure le corps ainsi (titres exacts, format Markdown "## ") :
+Redige le corps d'une PLAINTE. Commence par une formule d'adresse formelle a l'autorite destinataire fournie ci-dessous (ex: "A Monsieur le Procureur de la Republique pres le [juridiction fournie]"), puis structure le corps avec ces titres exacts, CHACUN SEUL SUR SA LIGNE, tout en MAJUSCULES, SANS AUCUN symbole devant (pas de "#", pas de "-", pas de numerotation Markdown - juste le texte du titre en majuscules) :
 
-## I. EXPOSE DES FAITS
+I. EXPOSE DES FAITS
 Recit chronologique des faits reproches, en te basant uniquement sur les motifs fournis ci-dessous.
 
-## II. ANALYSE JURIDIQUE
+II. ANALYSE JURIDIQUE
 Qualification juridique des faits et fondement de la plainte, en lien avec les motifs fournis.
 
-## III. DEMANDES DU PLAIGNANT
+III. DEMANDES DU PLAIGNANT
 Liste a puces reprenant FIDELEMENT, sans les modifier ni en ajouter, les demandes fournies ci-dessous.
 
 REGLE ABSOLUE : n'invente jamais un fait, une date, un montant ou une demande qui ne figure pas dans les informations fournies.`;
