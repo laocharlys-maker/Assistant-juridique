@@ -25,8 +25,10 @@ import { searchJurisprudence, formatJurisprudenceContext } from "../services/rag
 import { searchWeb, formatWebSearchContext } from "../services/tavily";
 import { summarizeLongText } from "../services/resumePdf";
 import { translateText, extractTextFromDocument } from "../services/traduction";
+import { aiActionsLimiter } from "../middleware/rateLimit";
 
 export const webActionsRouter = Router();
+webActionsRouter.use(aiActionsLimiter);
 
 // redac / conclusions / assignation partagent la meme forme de donnees
 // (dossier existant + contexte + axes d'argumentation), seuls le prompt et

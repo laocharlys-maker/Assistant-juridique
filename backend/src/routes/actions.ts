@@ -5,8 +5,10 @@ import { getLlmProvider, LlmOutputError } from "../services/llm";
 import { validateExtraction, buildClarificationMessage } from "../services/validation";
 import { callN8nWebhook, webhookForAction } from "../services/n8n";
 import { logAuditStep } from "../services/audit";
+import { aiActionsLimiter } from "../middleware/rateLimit";
 
 export const actionsRouter = Router();
+actionsRouter.use(aiActionsLimiter);
 
 const whatsappRequestSchema = z.object({
   cabinetId: z.string().uuid(),

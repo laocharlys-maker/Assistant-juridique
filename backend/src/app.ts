@@ -16,10 +16,17 @@ import { statsRouter } from "./routes/stats";
 import { documentExportRouter } from "./routes/documentExport";
 import { cabinetRouter } from "./routes/cabinet";
 import { facturesRouter } from "./routes/factures";
+import { globalApiLimiter } from "./middleware/rateLimit";
 
 export const app = express();
 
+// Le backend est derriere un reverse proxy (Traefik) : sans ceci, toutes les
+// requetes semblent venir de l'IP du proxy et le rate limiting par IP ne
+// sert plus a rien.
+app.set("trust proxy", 1);
+
 app.use(express.json({ limit: "15mb" }));
+app.use("/api", globalApiLimiter);
 app.use(cookieParser());
 app.use(healthRouter);
 app.use(actionsRouter);

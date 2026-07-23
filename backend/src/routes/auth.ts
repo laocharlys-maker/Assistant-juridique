@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { verifyPassword, signAuthToken } from "../services/auth";
 import { requireAuth } from "../middleware/requireAuth";
+import { loginLimiter } from "../middleware/rateLimit";
 import { env } from "../config/env";
 
 export const authRouter = Router();
@@ -12,7 +13,7 @@ const loginSchema = z.object({
   password: z.string().min(1),
 });
 
-authRouter.post("/api/auth/login", async (req, res) => {
+authRouter.post("/api/auth/login", loginLimiter, async (req, res) => {
   const parsed = loginSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "Email ou mot de passe invalide" });
