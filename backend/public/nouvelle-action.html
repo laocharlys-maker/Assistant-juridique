@@ -89,6 +89,8 @@
         <input name="numero_dossier" required />
         <label>Nom de l'affaire</label>
         <input name="nom_affaire" required />
+        <label>Défendeur (partie assignée)</label>
+        <input name="destinataire" required placeholder="Nom / raison sociale du défendeur" />
         <label>Contexte de l'affaire</label>
         <textarea name="contexte" required></textarea>
         <label>Axes d'argumentation / moyens de droit</label>
@@ -320,6 +322,7 @@
       submitForm("assignation", {
         numero_dossier: fd.get("numero_dossier"),
         nom_affaire: fd.get("nom_affaire"),
+        destinataire: fd.get("destinataire"),
         contexte: fd.get("contexte"),
         axes_argumentation: listValues("axes-list-assignation"),
       }, forms.assignation.querySelector('button[type="submit"]'));

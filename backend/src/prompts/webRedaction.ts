@@ -113,9 +113,10 @@ export function buildRedacUserPrompt(facts: {
   nomAffaire: string;
   contexte: string;
   axesArgumentation: string[];
+  destinataire?: string;
 }): string {
   return `Affaire : ${facts.nomAffaire}
-Contexte : ${facts.contexte}
+${facts.destinataire ? `Partie assignee (defendeur) : ${facts.destinataire}\n` : ""}Contexte : ${facts.contexte}
 Axes d'argumentation a developper :
 ${facts.axesArgumentation.map((axe, i) => `${i + 1}. ${axe}`).join("\n")}
 Date du jour : ${dateActuelle()}`;

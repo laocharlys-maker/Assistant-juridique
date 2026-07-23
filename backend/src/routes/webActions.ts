@@ -104,12 +104,14 @@ webActionsRouter.post("/api/actions/web", requireAuth, async (req, res) => {
       form.type_action === "assignation"
     ) {
       const config = TEXTE_JURIDIQUE_CONFIG[form.type_action];
+      const destinataire = form.type_action === "assignation" ? form.destinataire : undefined;
       const redigé = await llm.redact(
         config.systemPrompt,
         buildRedacUserPrompt({
           nomAffaire: form.nom_affaire,
           contexte: form.contexte,
           axesArgumentation: form.axes_argumentation,
+          destinataire,
         })
       );
 
@@ -121,12 +123,22 @@ webActionsRouter.post("/api/actions/web", requireAuth, async (req, res) => {
       }
       dossierId = dossier.id;
 
+      // Le destinataire affiche sur le document depend du type : le defendeur
+      // assigne pour une assignation, le client pour des conclusions ; la
+      // plaidoirie reste sur le template generique (pas de destinataire affiche).
+      const nomClientAffiche =
+        form.type_action === "assignation"
+          ? form.destinataire
+          : form.type_action === "conclusions"
+            ? dossier.nomClient
+            : null;
+
       action = {
         type_action: form.type_action,
         categorie_texte: config.categorieTexte,
         numero_dossier: form.numero_dossier,
         nom_affaire: form.nom_affaire,
-        nom_client: null,
+        nom_client: nomClientAffiche,
         nom_juge: null,
         date_audience: null,
         decision: null,
@@ -159,7 +171,7 @@ webActionsRouter.post("/api/actions/web", requireAuth, async (req, res) => {
         categorie_texte: "Mise en demeure",
         numero_dossier: form.numero_dossier,
         nom_affaire: form.nom_affaire,
-        nom_client: null,
+        nom_client: form.destinataire,
         nom_juge: null,
         date_audience: null,
         decision: null,

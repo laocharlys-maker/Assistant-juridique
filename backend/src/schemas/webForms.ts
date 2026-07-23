@@ -33,6 +33,8 @@ export const conclusionsFormSchema = z.object({
 export const assignationFormSchema = z.object({
   type_action: z.literal("assignation"),
   ...texteJuridiqueFields,
+  // Le defendeur assigne - distinct du client, sert d'adresse sur l'acte.
+  destinataire: z.string().min(1),
 });
 
 export const miseEnDemeureFormSchema = z.object({

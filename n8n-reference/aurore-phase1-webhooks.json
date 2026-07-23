@@ -246,9 +246,8 @@
         "operation": "copy",
         "fileId": {
           "__rl": true,
-          "value": "11UJjGPgo5izYksaYTSPRnnQ_fUq3h4N9mNex1TjOkcg",
-          "mode": "id",
-          "cachedResultName": "Template Texte"
+          "value": "={{ ({ conclusions: '1vZnm4nfwP_yQP0eHhL7ZjXuPhvyp4ZFAodeuCMJSfWM', assignation: '1EGNwi1HbiihLaOh1xL06UB2louo2LjpojvYfchuUS2o', mise_en_demeure: '14xOgITFq9QUH01jd-UwEMEeKx99miirSBNHTi0iK9wQ' })[$json.body.type_action] || '11UJjGPgo5izYksaYTSPRnnQ_fUq3h4N9mNex1TjOkcg' }}",
+          "mode": "id"
         },
         "name": "={{ $json.body.categorie_texte }}",
         "options": {}
@@ -285,6 +284,26 @@
               "action": "replaceAll",
               "text": "{{argumentaire}}",
               "replaceText": "={{ $('Webhook - Document Juridique').item.json.body.argumentaire }}"
+            },
+            {
+              "action": "replaceAll",
+              "text": "{{nom_client}}",
+              "replaceText": "={{ $('Webhook - Document Juridique').item.json.body.nom_client }}"
+            },
+            {
+              "action": "replaceAll",
+              "text": "{{nom_affaire}}",
+              "replaceText": "={{ $('Webhook - Document Juridique').item.json.body.nom_affaire }}"
+            },
+            {
+              "action": "replaceAll",
+              "text": "{{num_dossier}}",
+              "replaceText": "={{ $('Webhook - Document Juridique').item.json.body.numero_dossier }}"
+            },
+            {
+              "action": "replaceAll",
+              "text": "{{ $now.format('dd/MM/yyyy') }}",
+              "replaceText": "={{ $now.format('dd/MM/yyyy') }}"
             }
           ]
         }
