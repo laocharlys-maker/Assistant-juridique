@@ -17,6 +17,7 @@ cabinetRouter.get("/api/cabinet", requireAuth, async (req, res) => {
       enteteUrl: true,
       veilleSujets: true,
       veilleActive: true,
+      archivageDelaiMois: true,
     },
   });
   if (!cabinet) {
@@ -58,6 +59,23 @@ cabinetRouter.patch("/api/cabinet/veille", requireAuth, requireAdmin, async (req
     data: parsed.data,
   });
   return res.json({ veilleSujets: cabinet.veilleSujets, veilleActive: cabinet.veilleActive });
+});
+
+const updateRetentionSchema = z.object({
+  archivageDelaiMois: z.number().int().min(1).max(60),
+});
+
+cabinetRouter.patch("/api/cabinet/retention", requireAuth, requireAdmin, async (req, res) => {
+  const parsed = updateRetentionSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Délai invalide (entre 1 et 60 mois)" });
+  }
+
+  const cabinet = await prisma.cabinet.update({
+    where: { id: req.auth!.cabinetId },
+    data: { archivageDelaiMois: parsed.data.archivageDelaiMois },
+  });
+  return res.json({ archivageDelaiMois: cabinet.archivageDelaiMois });
 });
 
 const ENTETE_UPLOAD_DIR = path.join(__dirname, "..", "..", "public", "uploads", "entetes");

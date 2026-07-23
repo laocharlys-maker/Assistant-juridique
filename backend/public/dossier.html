@@ -90,6 +90,7 @@
             <span class="badge badge-${dossier.statutTag}">${STATUT_TAG_LABELS[dossier.statutTag] || dossier.statutTag}</span>
             <h1>${escapeHtml(dossier.numeroDossier)} — ${escapeHtml(dossier.nomAffaire)}</h1>
             <p class="muted">Client : ${escapeHtml(dossier.nomClient)} · Juge : ${escapeHtml(dossier.nomJuge || "non précisé")} · créé par ${escapeHtml(dossier.creePar.nom)}</p>
+            ${dossier.archivedAt ? `<p class="muted">Archivé automatiquement le ${new Date(dossier.archivedAt).toLocaleDateString("fr-FR")} — toujours consultable, réactivable via "Rouvrir le dossier".</p>` : ""}
             ${
               currentDossierEstRecherche
                 ? ""

@@ -43,17 +43,26 @@ dossiersRouter.get("/api/dossiers", requireAuth, async (req, res) => {
 
   const accessibleAvocatIds = scope === "mine" ? await getAccessibleAvocatIds(auth!) : null;
 
-  // "dossiers" (par defaut) = vrais dossiers clients ; "recherches" = fiches
-  // creees par une recherche de jurisprudence / recherche juridique / veille ;
+  // "dossiers" (par defaut) = vrais dossiers clients actifs (non archives) ;
+  // "archives" = dossiers clients archives automatiquement apres cloture ;
+  // "recherches" = fiches de jurisprudence / recherche juridique / veille ;
   // "traductions" = fiches de traduction, isolees des autres recherches.
   const vueParam = req.query.vue;
   const vue =
-    vueParam === "recherches" ? "recherches" : vueParam === "traductions" ? "traductions" : "dossiers";
+    vueParam === "recherches"
+      ? "recherches"
+      : vueParam === "traductions"
+        ? "traductions"
+        : vueParam === "archives"
+          ? "archives"
+          : "dossiers";
 
   const dossiers = await prisma.dossier.findMany({
     where: {
       cabinetId: auth!.cabinetId,
-      estRecherche: vue !== "dossiers",
+      estRecherche: vue === "recherches" || vue === "traductions",
+      ...(vue === "dossiers" ? { archivedAt: null } : {}),
+      ...(vue === "archives" ? { archivedAt: { not: null } } : {}),
       ...(vue === "traductions" ? { numeroDossier: { startsWith: "TRAD-" } } : {}),
       ...(vue === "recherches" ? { numeroDossier: { not: { startsWith: "TRAD-" } } } : {}),
       ...(accessibleAvocatIds ? { createdBy: { in: accessibleAvocatIds } } : {}),
@@ -131,6 +140,12 @@ dossiersRouter.patch("/api/dossiers/:id", requireAuth, async (req, res) => {
     return res.status(404).json({ error: "Dossier introuvable" });
   }
 
-  await prisma.dossier.update({ where: { id: dossier.id }, data: { statut: parsed.data.statut } });
+  await prisma.dossier.update({
+    where: { id: dossier.id },
+    data:
+      parsed.data.statut === "cloture"
+        ? { statut: "cloture", dateCloture: new Date() }
+        : { statut: "actif", dateCloture: null, archivedAt: null },
+  });
   return res.json({ ok: true });
 });

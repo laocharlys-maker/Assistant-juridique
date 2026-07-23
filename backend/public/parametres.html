@@ -32,6 +32,17 @@
       <button type="button" id="upload-entete-btn">Enregistrer</button>
       <button type="button" class="secondary" id="remove-entete-btn">Retirer l'en-tête</button>
     </div>
+
+    <div class="card">
+      <h2>Archivage automatique des dossiers</h2>
+      <p class="muted">Un dossier clôturé est automatiquement rangé dans "Archives" après ce délai — rien n'est jamais supprimé, il reste consultable et peut être rouvert à tout moment.</p>
+      <form id="retention-form">
+        <label>Délai avant archivage (en mois)</label>
+        <input name="archivageDelaiMois" type="number" min="1" max="60" required />
+        <button type="submit">Enregistrer</button>
+        <span id="retention-saved" class="muted" style="display:none; margin-left:10px;">Enregistré ✓</span>
+      </form>
+    </div>
   </div>
   <script src="/js/api.js"></script>
   <script src="/js/layout.js"></script>
@@ -64,6 +75,7 @@
         const cabinet = await apiFetch("/api/cabinet");
         document.querySelector('#cabinet-form input[name="nom"]').value = cabinet.nom;
         renderEntete(cabinet.enteteUrl);
+        document.querySelector('#retention-form input[name="archivageDelaiMois"]').value = cabinet.archivageDelaiMois;
       } catch (err) {
         showError(document.getElementById("error"), err.message);
       }
@@ -112,6 +124,24 @@
     document.getElementById("remove-entete-btn").addEventListener("click", async () => {
       await apiFetch("/api/cabinet/entete", { method: "DELETE" });
       renderEntete(null);
+    });
+
+    document.getElementById("retention-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      hideError(errorEl);
+      const fd = new FormData(e.target);
+      const savedEl = document.getElementById("retention-saved");
+      savedEl.style.display = "none";
+      try {
+        await apiFetch("/api/cabinet/retention", {
+          method: "PATCH",
+          body: { archivageDelaiMois: Number(fd.get("archivageDelaiMois")) },
+        });
+        savedEl.style.display = "inline";
+        setTimeout(() => { savedEl.style.display = "none"; }, 3000);
+      } catch (err) {
+        showError(errorEl, err.message);
+      }
     });
   </script>
 </body>

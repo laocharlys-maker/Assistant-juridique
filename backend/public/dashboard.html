@@ -16,6 +16,7 @@
       <button class="tab active" data-vue="dossiers">Dossiers</button>
       <button class="tab" data-vue="recherches">Recherches</button>
       <button class="tab" data-vue="traductions">Documents traduits</button>
+      <button class="tab" data-vue="archives">Archives</button>
     </div>
 
     <div class="tabs" id="scope-tabs" style="display:none;">
@@ -56,14 +57,16 @@
           btn.classList.toggle("active", btn.dataset.vue === appliedVue);
         });
         const peutVoirCabinet = currentUserRole === "titulaire" || currentUserRole === "avocat";
+        const estVueDossier = appliedVue === "dossiers" || appliedVue === "archives";
         document.getElementById("scope-tabs").style.display =
-          peutVoirCabinet && appliedVue === "dossiers" ? "flex" : "none";
+          peutVoirCabinet && estVueDossier ? "flex" : "none";
 
         if (dossiers.length === 0) {
           const emptyLabels = {
             dossiers: "Aucun dossier pour l'instant.",
             recherches: "Aucune recherche pour l'instant.",
             traductions: "Aucun document traduit pour l'instant.",
+            archives: "Aucun dossier archivé pour l'instant.",
           };
           listEl.innerHTML = `<p class="muted">${emptyLabels[appliedVue]}</p>`;
           return;
@@ -71,10 +74,10 @@
 
         listEl.innerHTML = dossiers
           .map((d) => {
-            const titre = appliedVue !== "dossiers" ? d.nomAffaire : `${d.numeroDossier} — ${d.nomAffaire}`;
-            const meta = appliedVue !== "dossiers"
-              ? `${d._count.actions} action(s) · créé par ${escapeHtml(d.creePar.nom)}`
-              : `${escapeHtml(d.nomClient)} · ${d._count.actions} action(s) · créé par ${escapeHtml(d.creePar.nom)}`;
+            const titre = estVueDossier ? `${d.numeroDossier} — ${d.nomAffaire}` : d.nomAffaire;
+            const meta = estVueDossier
+              ? `${escapeHtml(d.nomClient)} · ${d._count.actions} action(s) · créé par ${escapeHtml(d.creePar.nom)}`
+              : `${d._count.actions} action(s) · créé par ${escapeHtml(d.creePar.nom)}`;
             return `
           <div class="dossier-item">
             <div>

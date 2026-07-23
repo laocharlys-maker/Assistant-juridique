@@ -68,6 +68,10 @@ model Cabinet {
   veilleSujets String? @map("veille_sujets")
   // La veille hebdomadaire n'est envoyee que si activee explicitement.
   veilleActive Boolean @default(false) @map("veille_active")
+  // Delai (en mois) apres la cloture d'un dossier avant archivage
+  // automatique. N'entraine jamais de suppression, juste un rangement hors
+  // de la liste par defaut.
+  archivageDelaiMois Int @default(6) @map("archivage_delai_mois")
   createdAt DateTime @default(now()) @map("created_at")
 
   users      User[]
@@ -197,6 +201,13 @@ model Dossier {
   // true pour les fiches creees par une recherche (jurisprudence /
   // recherche juridique) : ce ne sont pas de vrais dossiers clients.
   estRecherche  Boolean  @default(false) @map("est_recherche")
+  // Date de passage a "cloture" - sert de point de depart au delai
+  // d'archivage automatique. Remise a null si le dossier est rouvert.
+  dateCloture   DateTime? @map("date_cloture")
+  // Rempli automatiquement une fois le delai d'archivage ecoule depuis
+  // dateCloture. N'entraine jamais de suppression : juste masque de la
+  // liste "Dossiers" par defaut, toujours consultable via "Archives".
+  archivedAt    DateTime? @map("archived_at")
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
