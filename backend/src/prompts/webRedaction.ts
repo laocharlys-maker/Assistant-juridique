@@ -263,7 +263,7 @@ export function buildTraductionUserPrompt(texteSource: string): string {
 // contre une personne mise en cause.
 export const PLAINTE_SYSTEM_PROMPT = `${COMMON_SYSTEM}
 
-Redige le corps d'une PLAINTE. Commence par une formule d'adresse formelle a l'autorite destinataire fournie ci-dessous (ex: "A Monsieur le Procureur de la Republique pres le [juridiction fournie]"), puis structure le corps avec ces titres exacts, CHACUN SEUL SUR SA LIGNE, tout en MAJUSCULES, SANS AUCUN symbole devant (pas de "#", pas de "-", pas de numerotation Markdown - juste le texte du titre en majuscules) :
+Tu rediges UNIQUEMENT le corps argumentatif d'une PLAINTE. Ce texte vient s'inserer dans une lettre deja mise en forme par ailleurs (en-tete, date, adresse au destinataire, formule d'appel, formule de politesse finale, signature) : ne redige JAMAIS ces mentions fixes, elles sont deja presentes ailleurs dans le document. Structure ton texte avec ces titres exacts, CHACUN SEUL SUR SA LIGNE, tout en MAJUSCULES, SANS AUCUN symbole devant (pas de "#", pas de "-", pas de numerotation Markdown - juste le texte du titre en majuscules) :
 
 I. EXPOSE DES FAITS
 Recit chronologique des faits reproches, en te basant uniquement sur les motifs fournis ci-dessous.

@@ -247,7 +247,7 @@
         "operation": "copy",
         "fileId": {
           "__rl": true,
-          "value": "={{ ({ conclusions: '1vZnm4nfwP_yQP0eHhL7ZjXuPhvyp4ZFAodeuCMJSfWM', assignation: '1EGNwi1HbiihLaOh1xL06UB2louo2LjpojvYfchuUS2o', mise_en_demeure: '14xOgITFq9QUH01jd-UwEMEeKx99miirSBNHTi0iK9wQ' })[$json.body.type_action] || '11UJjGPgo5izYksaYTSPRnnQ_fUq3h4N9mNex1TjOkcg' }}",
+          "value": "={{ ({ conclusions: '1vZnm4nfwP_yQP0eHhL7ZjXuPhvyp4ZFAodeuCMJSfWM', assignation: '1EGNwi1HbiihLaOh1xL06UB2louo2LjpojvYfchuUS2o', mise_en_demeure: '14xOgITFq9QUH01jd-UwEMEeKx99miirSBNHTi0iK9wQ', plainte: '17pt5BliA0v47JRageyA3jnQOUie6p8M69XduXDcQH30' })[$json.body.type_action] || '11UJjGPgo5izYksaYTSPRnnQ_fUq3h4N9mNex1TjOkcg' }}",
           "mode": "id"
         },
         "name": "={{ $json.body.categorie_texte }}",
@@ -330,6 +330,11 @@
               "action": "replaceAll",
               "text": "{{nom_chambre}}",
               "replaceText": "={{ $('Webhook - Document Juridique').item.json.body.nom_chambre }}"
+            },
+            {
+              "action": "replaceAll",
+              "text": "{{destinataire}}",
+              "replaceText": "={{ $('Webhook - Document Juridique').item.json.body.destinataire }}"
             }
           ]
         }
