@@ -312,6 +312,11 @@
             },
             {
               "action": "replaceAll",
+              "text": "{{nom_avocat}}",
+              "replaceText": "={{ $('Webhook - Document Juridique').item.json.body.nom_avocat }}"
+            },
+            {
+              "action": "replaceAll",
               "text": "{{nom_juridiction}}",
               "replaceText": "={{ $('Webhook - Document Juridique').item.json.body.nom_juridiction }}"
             },

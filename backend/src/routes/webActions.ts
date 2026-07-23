@@ -191,6 +191,7 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
       if (form.type_action === "assignation") {
         extraWebhookFields = {
           nom_defendeur: form.destinataire,
+          nom_avocat: form.nom_avocat,
           nom_juridiction: form.nom_juridiction,
           nom_chambre: form.nom_chambre ?? null,
         };
