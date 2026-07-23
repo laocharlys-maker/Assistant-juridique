@@ -65,7 +65,14 @@ export const resumePdfFormSchema = z.object({
 export const traductionFormSchema = z.object({
   type_action: z.literal("traduction"),
   sens: z.enum(["fr_vers_en", "en_vers_fr"]),
-  texte_source: z.string().min(1),
+  texte_source: z.string().optional(),
+  // Data URL base64 d'un PDF ou d'un .docx, alternative au texte colle.
+  documentDataUrl: z
+    .string()
+    .regex(
+      /^data:(application\/pdf|application\/vnd\.openxmlformats-officedocument\.wordprocessingml\.document);base64,/
+    )
+    .optional(),
 });
 
 export const webActionFormSchema = z.discriminatedUnion("type_action", [

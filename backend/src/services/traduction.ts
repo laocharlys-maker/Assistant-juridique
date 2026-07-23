@@ -1,3 +1,5 @@
+import pdfParse from "pdf-parse";
+import mammoth from "mammoth";
 import { LlmProvider } from "./llm/types";
 import { splitIntoChunks } from "./resumePdf";
 import {
@@ -14,6 +16,25 @@ const SYSTEM_PROMPT_BY_SENS: Record<SensTraduction, string> = {
   fr_vers_en: TRADUCTION_FR_VERS_EN_SYSTEM_PROMPT,
   en_vers_fr: TRADUCTION_EN_VERS_FR_SYSTEM_PROMPT,
 };
+
+// Extrait le texte d'un PDF ou d'un .docx fourni en data URL base64, pour
+// permettre de traduire un document uploade plutot qu'un texte colle.
+export async function extractTextFromDocument(documentDataUrl: string): Promise<string> {
+  const matches = documentDataUrl.match(/^data:([^;]+);base64,(.+)$/);
+  if (!matches) {
+    throw new Error("Format de document invalide");
+  }
+  const [, mimeType, base64Data] = matches;
+  const buffer = Buffer.from(base64Data, "base64");
+
+  if (mimeType === "application/pdf") {
+    const parsed = await pdfParse(buffer);
+    return parsed.text.trim();
+  }
+
+  const result = await mammoth.extractRawText({ buffer });
+  return result.value.trim();
+}
 
 export async function translateText(
   llm: LlmProvider,

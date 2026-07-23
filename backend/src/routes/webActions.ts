@@ -24,7 +24,7 @@ import { ActionOutput } from "../schemas/action";
 import { searchJurisprudence, formatJurisprudenceContext } from "../services/rag";
 import { searchWeb, formatWebSearchContext } from "../services/tavily";
 import { summarizeLongText } from "../services/resumePdf";
-import { translateText } from "../services/traduction";
+import { translateText, extractTextFromDocument } from "../services/traduction";
 
 export const webActionsRouter = Router();
 
@@ -305,7 +305,22 @@ webActionsRouter.post("/api/actions/web", requireAuth, async (req, res) => {
         argumentaire: redigé,
       };
     } else {
-      const traduit = await translateText(llm, form.sens, form.texte_source);
+      let texteSource = form.texte_source?.trim() ?? "";
+      if (!texteSource && form.documentDataUrl) {
+        try {
+          texteSource = await extractTextFromDocument(form.documentDataUrl);
+        } catch (error) {
+          console.error("Erreur extraction texte document :", error);
+          return res
+            .status(400)
+            .json({ error: "Impossible de lire ce document (fichier corrompu ou non supporté)" });
+        }
+      }
+      if (!texteSource) {
+        return res.status(400).json({ error: "Fournis un texte ou un document à traduire" });
+      }
+
+      const traduit = await translateText(llm, form.sens, texteSource);
       const nomAffaire = `Traduction ${form.sens === "fr_vers_en" ? "FR → EN" : "EN → FR"}`;
 
       // Traduction : pas forcement liee a un dossier existant.
