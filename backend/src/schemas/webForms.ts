@@ -27,11 +27,17 @@ const texteJuridiqueFields = {
 export const redacFormSchema = z.object({
   type_action: z.literal("redac"),
   ...texteJuridiqueFields,
+  // Contrairement a assignation/conclusions, une plaidoirie "rapide" peut
+  // etre generee sans rattachement precis a un dossier numerote.
+  numero_dossier: z.string().optional(),
+  nom_affaire: z.string().optional(),
 });
 
 export const conclusionsFormSchema = z.object({
   type_action: z.literal("conclusions"),
   ...texteJuridiqueFields,
+  numero_dossier: z.string().optional(),
+  nom_affaire: z.string().optional(),
 });
 
 export const assignationFormSchema = z.object({
@@ -154,11 +160,14 @@ export const notificationDateFormSchema = z.object({
 
 export const requeteFormSchema = z.object({
   type_action: z.literal("requete"),
-  numero_dossier: z.string().min(1),
-  nom_affaire: z.string().min(1),
+  numero_dossier: z.string().optional(),
+  nom_affaire: z.string().optional(),
   nom_client: z.string().min(1).optional(),
-  destinataire: z.string().min(1),
-  nom_juridiction: z.string().min(1),
+  // Civilite du destinataire, composee avec la juridiction et la ville par
+  // le backend pour former l'adresse complete du courrier. Facultatif.
+  destinataire: z.string().optional(),
+  nom_juridiction: z.string().optional(),
+  ville: z.string().optional(),
   objet: z.string().min(1),
   motifs: z.string().min(1),
 });

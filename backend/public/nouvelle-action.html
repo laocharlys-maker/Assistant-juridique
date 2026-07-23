@@ -63,10 +63,10 @@
       </form>
 
       <form id="redac-form" class="action-form" style="display:none;">
-        <label>Numéro de dossier concerné</label>
-        <input name="numero_dossier" required />
-        <label>Nom de l'affaire</label>
-        <input name="nom_affaire" required />
+        <label>Numéro de dossier concerné (optionnel)</label>
+        <input name="numero_dossier" placeholder="Laisse vide si non applicable" />
+        <label>Nom de l'affaire (optionnel)</label>
+        <input name="nom_affaire" placeholder="Laisse vide si non applicable" />
         <label>Nom du client (si nouveau dossier)</label>
         <input name="nom_client" placeholder="Laisse vide si le dossier existe déjà" />
         <label>Contexte de l'affaire</label>
@@ -79,10 +79,10 @@
       </form>
 
       <form id="conclusions-form" class="action-form" style="display:none;">
-        <label>Numéro de dossier concerné</label>
-        <input name="numero_dossier" required />
-        <label>Nom de l'affaire</label>
-        <input name="nom_affaire" required />
+        <label>Numéro de dossier concerné (optionnel)</label>
+        <input name="numero_dossier" placeholder="Laisse vide si non applicable" />
+        <label>Nom de l'affaire (optionnel)</label>
+        <input name="nom_affaire" placeholder="Laisse vide si non applicable" />
         <label>Nom du client (si nouveau dossier)</label>
         <input name="nom_client" placeholder="Laisse vide si le dossier existe déjà" />
         <label>Contexte de l'affaire</label>
@@ -248,16 +248,23 @@
       </form>
 
       <form id="requete-form" class="action-form" style="display:none;">
-        <label>Numéro de dossier concerné</label>
-        <input name="numero_dossier" required />
-        <label>Nom de l'affaire</label>
-        <input name="nom_affaire" required />
+        <label>Numéro de dossier concerné (optionnel)</label>
+        <input name="numero_dossier" placeholder="Laisse vide si non applicable" />
+        <label>Nom de l'affaire (optionnel)</label>
+        <input name="nom_affaire" placeholder="Laisse vide si non applicable" />
         <label>Nom du client (si nouveau dossier)</label>
         <input name="nom_client" placeholder="Laisse vide si le dossier existe déjà" />
-        <label>Destinataire</label>
-        <input name="destinataire" required placeholder="ex: Monsieur le Procureur de la République près le Tribunal de..." />
-        <label>Juridiction</label>
-        <input name="nom_juridiction" required placeholder="ex: Tribunal Judiciaire de Cotonou" />
+        <label>Destinataire (optionnel)</label>
+        <select name="destinataire">
+          <option value="">— Non précisé —</option>
+          <option value="M. le Président">M. le Président</option>
+          <option value="Mme la Présidente">Mme la Présidente</option>
+          <option value="M. le Procureur de la République près">M. le Procureur de la République près</option>
+        </select>
+        <label>Juridiction (optionnel)</label>
+        <select name="nom_juridiction" id="requete-juridiction"></select>
+        <label>Ville (optionnel)</label>
+        <select name="ville" id="requete-ville"></select>
         <label>Objet de la requête</label>
         <input name="objet" required placeholder="ex: Demande de fixation de date d'audience" />
         <label>Motifs</label>
@@ -364,6 +371,8 @@
       initLayout(me);
       populateSelect(document.getElementById("plainte-juridiction"), JURIDICTIONS_BENIN);
       populateSelect(document.getElementById("plainte-ville"), VILLES_BENIN);
+      populateSelect(document.getElementById("requete-juridiction"), JURIDICTIONS_BENIN);
+      populateSelect(document.getElementById("requete-ville"), VILLES_BENIN);
       ["assignation-nom-avocat", "plainte-nom-avocat"].forEach((id) => {
         const input = document.getElementById(id);
         if (input) input.value = me.nom;
@@ -510,8 +519,8 @@
       e.preventDefault();
       const fd = new FormData(forms.redac);
       submitForm("redac", {
-        numero_dossier: fd.get("numero_dossier"),
-        nom_affaire: fd.get("nom_affaire"),
+        numero_dossier: fd.get("numero_dossier") || undefined,
+        nom_affaire: fd.get("nom_affaire") || undefined,
         nom_client: fd.get("nom_client") || undefined,
         contexte: fd.get("contexte"),
         axes_argumentation: listValues("axes-list-redac"),
@@ -522,8 +531,8 @@
       e.preventDefault();
       const fd = new FormData(forms.conclusions);
       submitForm("conclusions", {
-        numero_dossier: fd.get("numero_dossier"),
-        nom_affaire: fd.get("nom_affaire"),
+        numero_dossier: fd.get("numero_dossier") || undefined,
+        nom_affaire: fd.get("nom_affaire") || undefined,
         nom_client: fd.get("nom_client") || undefined,
         contexte: fd.get("contexte"),
         axes_argumentation: listValues("axes-list-conclusions"),
@@ -625,11 +634,12 @@
       e.preventDefault();
       const fd = new FormData(forms.requete);
       submitForm("requete", {
-        numero_dossier: fd.get("numero_dossier"),
-        nom_affaire: fd.get("nom_affaire"),
+        numero_dossier: fd.get("numero_dossier") || undefined,
+        nom_affaire: fd.get("nom_affaire") || undefined,
         nom_client: fd.get("nom_client") || undefined,
-        destinataire: fd.get("destinataire"),
-        nom_juridiction: fd.get("nom_juridiction"),
+        destinataire: fd.get("destinataire") || undefined,
+        nom_juridiction: fd.get("nom_juridiction") || undefined,
+        ville: fd.get("ville") || undefined,
         objet: fd.get("objet"),
         motifs: fd.get("motifs"),
       }, forms.requete.querySelector('button[type="submit"]'));

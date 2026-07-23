@@ -50,24 +50,36 @@ type DossierLookupResult =
   | { ok: true; dossier: Awaited<ReturnType<typeof prisma.dossier.findFirstOrThrow>> }
   | { ok: false; error: string };
 
-// Utilise pour redac/conclusions/assignation/mise_en_demeure : si le dossier
-// existe deja on le reutilise tel quel, sinon on le cree a la volee (utile
-// pour une nouvelle affaire qui commence directement par une assignation ou
-// une mise en demeure, sans compte-rendu d'audience prealable) - mais il
-// faut alors le nom du client, jamais devine.
+// Utilise pour redac/conclusions/assignation/mise_en_demeure/requete : si le
+// dossier existe deja on le reutilise tel quel, sinon on le cree a la volee
+// (utile pour une nouvelle affaire qui commence directement par une
+// assignation ou une mise en demeure, sans compte-rendu d'audience
+// prealable) - mais il faut alors le nom du client, jamais devine.
+//
+// Pour les types ou le numero de dossier est facultatif (plaidoirie,
+// conclusions, requete "rapides", sans suivi de dossier precis) : les
+// documents generes sans numero sont regroupes dans un dossier partage
+// "SANS-NUMERO" par cabinet (meme convention que le canal WhatsApp), cree
+// automatiquement au premier usage plutot que de bloquer la generation.
 async function findOrCreateDossier(facts: {
   cabinetId: string;
   userId: string;
-  numeroDossier: string;
-  nomAffaire: string;
+  numeroDossier?: string;
+  nomAffaire?: string;
   nomClient?: string;
 }): Promise<DossierLookupResult> {
+  const numeroDossierFourni = !!facts.numeroDossier?.trim();
+  const numeroDossier = facts.numeroDossier?.trim() || "SANS-NUMERO";
+
   const existing = await prisma.dossier.findFirst({
-    where: { cabinetId: facts.cabinetId, numeroDossier: facts.numeroDossier },
+    where: { cabinetId: facts.cabinetId, numeroDossier },
   });
   if (existing) return { ok: true, dossier: existing };
 
-  if (!facts.nomClient) {
+  // Si aucun numero n'a ete fourni, on cree le dossier partage "SANS-NUMERO"
+  // avec des valeurs par defaut plutot que d'exiger le nom du client.
+  const nomClient = facts.nomClient || (numeroDossierFourni ? undefined : "Non précisé");
+  if (!nomClient) {
     return {
       ok: false,
       error:
@@ -78,9 +90,9 @@ async function findOrCreateDossier(facts: {
   const dossier = await prisma.dossier.create({
     data: {
       cabinetId: facts.cabinetId,
-      numeroDossier: facts.numeroDossier,
-      nomAffaire: facts.nomAffaire,
-      nomClient: facts.nomClient,
+      numeroDossier,
+      nomAffaire: facts.nomAffaire?.trim() || "Document sans dossier",
+      nomClient,
       createdBy: facts.userId,
     },
   });
@@ -204,7 +216,7 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
       const redigé = await llm.redact(
         config.systemPrompt,
         buildRedacUserPrompt({
-          nomAffaire: form.nom_affaire,
+          nomAffaire: form.nom_affaire || "non précisée",
           contexte: form.contexte,
           axesArgumentation: form.axes_argumentation,
           destinataire,
@@ -249,8 +261,8 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
       action = {
         type_action: form.type_action,
         categorie_texte: config.categorieTexte,
-        numero_dossier: form.numero_dossier,
-        nom_affaire: form.nom_affaire,
+        numero_dossier: dossier.numeroDossier,
+        nom_affaire: dossier.nomAffaire,
         nom_client: nomClientAffiche,
         nom_juridiction: null,
         nom_chambre: null,
@@ -627,14 +639,14 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
         argumentaire: redigé,
       };
     } else {
+      const destinataireCompose = composeDestinataire(form.destinataire, form.nom_juridiction, form.ville);
       const redigé = await llm.redact(
         REQUETE_SYSTEM_PROMPT,
         buildRequeteUserPrompt({
           nomAffaire: form.nom_affaire,
-          destinataire: form.destinataire,
+          destinataire: destinataireCompose,
           objet: form.objet,
           motifs: form.motifs,
-          juridiction: form.nom_juridiction,
         })
       );
 
@@ -653,8 +665,8 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
       action = {
         type_action: "requete",
         categorie_texte: "Requête",
-        numero_dossier: form.numero_dossier,
-        nom_affaire: form.nom_affaire,
+        numero_dossier: dossierLookup.dossier.numeroDossier,
+        nom_affaire: dossierLookup.dossier.nomAffaire,
         nom_client: dossierLookup.dossier.nomClient,
         nom_juridiction: null,
         nom_chambre: null,

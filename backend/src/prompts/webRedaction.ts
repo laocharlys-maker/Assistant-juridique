@@ -404,15 +404,13 @@ Redige une REQUETE (courrier formel adresse a une autorite judiciaire). Commence
 REGLE ABSOLUE : n'invente jamais un motif, un fait ou une demande qui ne figure pas dans les informations fournies ci-dessous.`;
 
 export function buildRequeteUserPrompt(facts: {
-  nomAffaire: string;
-  destinataire: string;
+  nomAffaire?: string;
+  destinataire?: string;
   objet: string;
   motifs: string;
-  juridiction: string;
 }): string {
-  return `Affaire : ${facts.nomAffaire}
-Destinataire : ${facts.destinataire}
-Juridiction concernee : ${facts.juridiction}
+  return `Affaire : ${facts.nomAffaire || "non précisée"}
+Destinataire : ${facts.destinataire || "non précisé"}
 Objet de la requete : ${facts.objet}
 Motifs : ${facts.motifs}
 Date du jour : ${dateActuelle()}`;
