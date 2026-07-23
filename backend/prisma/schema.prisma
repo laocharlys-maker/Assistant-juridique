@@ -31,6 +31,10 @@ enum TypeAction {
   traduction
   resume_pdf
   veille_juridique
+  plainte
+  contrat
+  notification_date
+  requete
 }
 
 enum StatutExecution {

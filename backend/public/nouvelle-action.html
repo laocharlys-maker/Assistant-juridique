@@ -17,6 +17,10 @@
       <button class="tab" data-type="conclusions">Conclusions</button>
       <button class="tab" data-type="assignation">Assignation</button>
       <button class="tab" data-type="mise_en_demeure">Mise en demeure</button>
+      <button class="tab" data-type="plainte">Plainte</button>
+      <button class="tab" data-type="contrat">Contrat</button>
+      <button class="tab" data-type="notification_date">Notification de date</button>
+      <button class="tab" data-type="requete">Requête</button>
       <button class="tab" data-type="jurisprudence">Recherche de jurisprudence</button>
       <button class="tab" data-type="recherche_juridique">Recherche juridique</button>
       <button class="tab" data-type="resume_pdf">Résumé de jurisprudence (PDF)</button>
@@ -99,6 +103,8 @@
         <input name="nom_client" placeholder="Laisse vide si le dossier existe déjà" />
         <label>Avocat en charge</label>
         <input name="nom_avocat" id="assignation-nom-avocat" required />
+        <label>Huissier / Commissaire de justice</label>
+        <input name="nom_huissier" required placeholder="Nom de l'huissier chargé de la délivrance" />
         <label>Juridiction</label>
         <input name="nom_juridiction" required placeholder="ex: Tribunal Judiciaire de Cotonou" />
         <label>Chambre (optionnel)</label>
@@ -134,6 +140,120 @@
         <label>Délai accordé (en jours)</label>
         <input name="delai_jours" type="number" min="1" value="15" required />
         <button type="submit">Générer la mise en demeure</button>
+      </form>
+
+      <form id="plainte-form" class="action-form" style="display:none;">
+        <label>Numéro de dossier concerné</label>
+        <input name="numero_dossier" required />
+        <label>Nom de l'affaire</label>
+        <input name="nom_affaire" required />
+        <label>Nom du client / plaignant (si nouveau dossier)</label>
+        <input name="nom_client" placeholder="Laisse vide si le dossier existe déjà" />
+        <label>Nom du défendeur / mis en cause</label>
+        <input name="nom_defendeur" required />
+        <label>Destinataire</label>
+        <input name="destinataire" required placeholder="ex: Procureur de la République près le Tribunal de..." />
+        <label>Avocat en charge</label>
+        <input name="nom_avocat" id="plainte-nom-avocat" required />
+        <label>Juridiction</label>
+        <input name="nom_juridiction" required placeholder="ex: Tribunal Judiciaire de Cotonou" />
+        <label>Chambre (optionnel)</label>
+        <input name="nom_chambre" placeholder="ex: Chambre correctionnelle" />
+        <label>Motifs de la plainte</label>
+        <textarea name="motifs" required></textarea>
+        <label>Demande(s) du plaignant / client</label>
+        <ul class="pieces-list" id="demandes-list-plainte"></ul>
+        <button type="button" class="secondary" data-add-list="demandes-list-plainte">+ Ajouter une demande</button>
+        <br />
+        <label>Preuves fournies (optionnel)</label>
+        <ul class="pieces-list" id="preuves-list-plainte"></ul>
+        <button type="button" class="secondary" data-add-list="preuves-list-plainte">+ Ajouter une preuve</button>
+        <br />
+        <button type="submit">Générer la plainte</button>
+      </form>
+
+      <form id="contrat-form" class="action-form" style="display:none;">
+        <label>Numéro de dossier concerné</label>
+        <input name="numero_dossier" required />
+        <label>Nom de l'affaire</label>
+        <input name="nom_affaire" required />
+        <label>Nom du client (si nouveau dossier)</label>
+        <input name="nom_client" placeholder="Laisse vide si le dossier existe déjà" />
+        <label style="display:flex; align-items:center; gap:8px; font-weight:400;">
+          <input type="checkbox" name="est_avenant" id="contrat-est-avenant" style="width:auto;" />
+          Il s'agit d'un avenant à un contrat existant
+        </label>
+        <div id="contrat-normal-fields">
+          <label>Type de contrat</label>
+          <input name="type_contrat" placeholder="ex: Contrat de prestation de services" />
+          <label>Partie 1</label>
+          <input name="partie_1" />
+          <label>Partie 2</label>
+          <input name="partie_2" />
+          <label>Objet du contrat</label>
+          <textarea name="objet"></textarea>
+          <label>Obligations des parties</label>
+          <textarea name="obligations"></textarea>
+          <label>Durée</label>
+          <input name="duree" placeholder="ex: 12 mois renouvelables" />
+          <label>Rémunération</label>
+          <input name="remuneration" />
+          <label>Date d'effet</label>
+          <input name="date_effet" type="date" />
+          <label>Conditions de résiliation</label>
+          <textarea name="conditions_resiliation"></textarea>
+          <label>Clauses particulières (optionnel)</label>
+          <ul class="pieces-list" id="clauses-list-contrat"></ul>
+          <button type="button" class="secondary" data-add-list="clauses-list-contrat">+ Ajouter une clause</button>
+        </div>
+        <div id="contrat-avenant-fields" style="display:none;">
+          <label>Référence du contrat initial</label>
+          <input name="reference_contrat_initial" placeholder="ex: Contrat de prestation du 12/01/2025" />
+          <label>Objet de l'avenant</label>
+          <textarea name="objet_avenant"></textarea>
+        </div>
+        <br />
+        <button type="submit">Générer le contrat</button>
+      </form>
+
+      <form id="notification_date-form" class="action-form" style="display:none;">
+        <label>Numéro de dossier concerné</label>
+        <input name="numero_dossier" required />
+        <label>Nom de l'affaire</label>
+        <input name="nom_affaire" required />
+        <label>Nom du client (si nouveau dossier)</label>
+        <input name="nom_client" placeholder="Laisse vide si le dossier existe déjà" />
+        <label>Destinataire</label>
+        <input name="destinataire" required />
+        <label>Objet de la notification</label>
+        <input name="objet" required placeholder="ex: Notification de la date d'audience" />
+        <label>Date notifiée</label>
+        <input name="date_notifiee" type="date" required />
+        <label>Lieu (optionnel)</label>
+        <input name="lieu" placeholder="ex: Tribunal Judiciaire de Cotonou, salle 3" />
+        <label>Juridiction (optionnel)</label>
+        <input name="nom_juridiction" />
+        <label>Précisions (optionnel)</label>
+        <textarea name="precisions"></textarea>
+        <button type="submit">Générer la notification</button>
+      </form>
+
+      <form id="requete-form" class="action-form" style="display:none;">
+        <label>Numéro de dossier concerné</label>
+        <input name="numero_dossier" required />
+        <label>Nom de l'affaire</label>
+        <input name="nom_affaire" required />
+        <label>Nom du client (si nouveau dossier)</label>
+        <input name="nom_client" placeholder="Laisse vide si le dossier existe déjà" />
+        <label>Destinataire</label>
+        <input name="destinataire" required placeholder="ex: Monsieur le Procureur de la République près le Tribunal de..." />
+        <label>Juridiction</label>
+        <input name="nom_juridiction" required placeholder="ex: Tribunal Judiciaire de Cotonou" />
+        <label>Objet de la requête</label>
+        <input name="objet" required placeholder="ex: Demande de fixation de date d'audience" />
+        <label>Motifs</label>
+        <textarea name="motifs" required></textarea>
+        <button type="submit">Générer la requête</button>
       </form>
 
       <form id="jurisprudence-form" class="action-form" style="display:none;">
@@ -196,8 +316,10 @@
       const me = await requireSession();
       if (!me) return;
       initLayout(me);
-      const nomAvocatInput = document.getElementById("assignation-nom-avocat");
-      if (nomAvocatInput) nomAvocatInput.value = me.nom;
+      ["assignation-nom-avocat", "plainte-nom-avocat"].forEach((id) => {
+        const input = document.getElementById(id);
+        if (input) input.value = me.nom;
+      });
     })();
 
     const forms = {
@@ -206,6 +328,10 @@
       conclusions: document.getElementById("conclusions-form"),
       assignation: document.getElementById("assignation-form"),
       mise_en_demeure: document.getElementById("mise_en_demeure-form"),
+      plainte: document.getElementById("plainte-form"),
+      contrat: document.getElementById("contrat-form"),
+      notification_date: document.getElementById("notification_date-form"),
+      requete: document.getElementById("requete-form"),
       jurisprudence: document.getElementById("jurisprudence-form"),
       recherche_juridique: document.getElementById("recherche_juridique-form"),
       resume_pdf: document.getElementById("resume_pdf-form"),
@@ -238,6 +364,17 @@
     addListItem("axes-list-assignation", "ex: Manquement contractuel");
     addListItem("demandes-list-assignation", "ex: Condamner au paiement de 500 000 FCFA");
     addListItem("pieces-list-assignation", "ex: Copie du contrat");
+    addListItem("demandes-list-plainte", "ex: Poursuites contre le mis en cause");
+    addListItem("preuves-list-plainte", "ex: Copie de la plainte initiale");
+    addListItem("clauses-list-contrat", "ex: Clause de confidentialité");
+
+    const contratEstAvenant = document.getElementById("contrat-est-avenant");
+    if (contratEstAvenant) {
+      contratEstAvenant.addEventListener("change", () => {
+        document.getElementById("contrat-normal-fields").style.display = contratEstAvenant.checked ? "none" : "block";
+        document.getElementById("contrat-avenant-fields").style.display = contratEstAvenant.checked ? "block" : "none";
+      });
+    }
 
     function listValues(listId) {
       return Array.from(document.querySelectorAll(`#${listId} input`))
@@ -353,6 +490,7 @@
         destinataire: fd.get("destinataire"),
         nom_client: fd.get("nom_client") || undefined,
         nom_avocat: fd.get("nom_avocat"),
+        nom_huissier: fd.get("nom_huissier"),
         nom_juridiction: fd.get("nom_juridiction"),
         nom_chambre: fd.get("nom_chambre") || undefined,
         contexte: fd.get("contexte"),
@@ -373,6 +511,78 @@
         contexte: fd.get("contexte"),
         delai_jours: fd.get("delai_jours"),
       }, forms.mise_en_demeure.querySelector('button[type="submit"]'));
+    });
+
+    forms.plainte.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const fd = new FormData(forms.plainte);
+      submitForm("plainte", {
+        numero_dossier: fd.get("numero_dossier"),
+        nom_affaire: fd.get("nom_affaire"),
+        nom_client: fd.get("nom_client") || undefined,
+        nom_defendeur: fd.get("nom_defendeur"),
+        destinataire: fd.get("destinataire"),
+        nom_avocat: fd.get("nom_avocat"),
+        nom_juridiction: fd.get("nom_juridiction"),
+        nom_chambre: fd.get("nom_chambre") || undefined,
+        motifs: fd.get("motifs"),
+        demandes: listValues("demandes-list-plainte"),
+        preuves: listValues("preuves-list-plainte"),
+      }, forms.plainte.querySelector('button[type="submit"]'));
+    });
+
+    forms.contrat.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const fd = new FormData(forms.contrat);
+      const estAvenant = fd.get("est_avenant") === "on";
+      submitForm("contrat", {
+        numero_dossier: fd.get("numero_dossier"),
+        nom_affaire: fd.get("nom_affaire"),
+        nom_client: fd.get("nom_client") || undefined,
+        est_avenant: estAvenant,
+        type_contrat: fd.get("type_contrat") || undefined,
+        partie_1: fd.get("partie_1") || undefined,
+        partie_2: fd.get("partie_2") || undefined,
+        objet: fd.get("objet") || undefined,
+        obligations: fd.get("obligations") || undefined,
+        duree: fd.get("duree") || undefined,
+        remuneration: fd.get("remuneration") || undefined,
+        date_effet: fd.get("date_effet") || undefined,
+        conditions_resiliation: fd.get("conditions_resiliation") || undefined,
+        clauses_particulieres: listValues("clauses-list-contrat"),
+        reference_contrat_initial: fd.get("reference_contrat_initial") || undefined,
+        objet_avenant: fd.get("objet_avenant") || undefined,
+      }, forms.contrat.querySelector('button[type="submit"]'));
+    });
+
+    forms.notification_date.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const fd = new FormData(forms.notification_date);
+      submitForm("notification_date", {
+        numero_dossier: fd.get("numero_dossier"),
+        nom_affaire: fd.get("nom_affaire"),
+        nom_client: fd.get("nom_client") || undefined,
+        destinataire: fd.get("destinataire"),
+        objet: fd.get("objet"),
+        date_notifiee: fd.get("date_notifiee"),
+        lieu: fd.get("lieu") || undefined,
+        nom_juridiction: fd.get("nom_juridiction") || undefined,
+        precisions: fd.get("precisions") || undefined,
+      }, forms.notification_date.querySelector('button[type="submit"]'));
+    });
+
+    forms.requete.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const fd = new FormData(forms.requete);
+      submitForm("requete", {
+        numero_dossier: fd.get("numero_dossier"),
+        nom_affaire: fd.get("nom_affaire"),
+        nom_client: fd.get("nom_client") || undefined,
+        destinataire: fd.get("destinataire"),
+        nom_juridiction: fd.get("nom_juridiction"),
+        objet: fd.get("objet"),
+        motifs: fd.get("motifs"),
+      }, forms.requete.querySelector('button[type="submit"]'));
     });
 
     forms.jurisprudence.addEventListener("submit", (e) => {

@@ -256,3 +256,162 @@ Reply only with the translated text, no comments, no markdown.`;
 export function buildTraductionUserPrompt(texteSource: string): string {
   return `Texte à traduire :\n${texteSource}`;
 }
+
+// Plainte : courrier adresse a une autorite (Procureur, commissariat...)
+// contre une personne mise en cause.
+export const PLAINTE_SYSTEM_PROMPT = `${COMMON_SYSTEM}
+
+Redige le corps d'une PLAINTE. Commence par une formule d'adresse formelle a l'autorite destinataire fournie ci-dessous (ex: "A Monsieur le Procureur de la Republique pres le [juridiction fournie]"), puis structure le corps ainsi (titres exacts, format Markdown "## ") :
+
+## I. EXPOSE DES FAITS
+Recit chronologique des faits reproches, en te basant uniquement sur les motifs fournis ci-dessous.
+
+## II. ANALYSE JURIDIQUE
+Qualification juridique des faits et fondement de la plainte, en lien avec les motifs fournis.
+
+## III. DEMANDES DU PLAIGNANT
+Liste a puces reprenant FIDELEMENT, sans les modifier ni en ajouter, les demandes fournies ci-dessous.
+
+REGLE ABSOLUE : n'invente jamais un fait, une date, un montant ou une demande qui ne figure pas dans les informations fournies.`;
+
+export function buildPlainteUserPrompt(facts: {
+  nomAffaire: string;
+  nomDefendeur: string;
+  destinataire: string;
+  juridiction: string;
+  motifs: string;
+  demandes: string[];
+  preuves?: string[];
+}): string {
+  const blocPreuves =
+    facts.preuves && facts.preuves.length > 0
+      ? `\nPreuves fournies :\n${facts.preuves.map((p, i) => `${i + 1}. ${p}`).join("\n")}`
+      : "";
+  return `Affaire : ${facts.nomAffaire}
+Autorite destinataire : ${facts.destinataire}
+Juridiction : ${facts.juridiction}
+Mis en cause : ${facts.nomDefendeur}
+Motifs de la plainte : ${facts.motifs}
+Demandes du plaignant (a reprendre fidelement) :
+${facts.demandes.map((d, i) => `${i + 1}. ${d}`).join("\n")}${blocPreuves}
+Date du jour : ${dateActuelle()}`;
+}
+
+// Contrat (ou avenant a un contrat existant).
+export const CONTRAT_SYSTEM_PROMPT = `${COMMON_SYSTEM}
+
+Si le contexte precise qu'il s'agit d'un AVENANT a un contrat existant, redige un AVENANT court : rappel du contrat initial (reference fournie), objet precis de la modification, puis "Les autres clauses du contrat initial demeurent inchangees."
+
+Sinon, redige un CONTRAT structure en articles numerotes, en n'incluant QUE les articles pour lesquels une information a ete fournie ci-dessous (ne cree jamais un article vide ou avec un contenu invente) :
+- Preambule (parties, qualites)
+- Article 1 - Objet du contrat
+- Article 2 - Obligations des parties
+- Article 3 - Duree
+- Article 4 - Remuneration / contrepartie financiere (uniquement si un montant est fourni)
+- Article 5 - Conditions de resiliation (uniquement si fournies)
+- Articles suivants - Clauses particulieres fournies, une par article
+
+REGLE ABSOLUE : n'invente jamais une clause, un montant, une duree ou une obligation qui ne figure pas dans les informations fournies ci-dessous.`;
+
+export function buildContratUserPrompt(facts: {
+  typeContrat: string;
+  partie1: string;
+  partie2: string;
+  objet: string;
+  obligations: string;
+  duree?: string;
+  remuneration?: string;
+  dateEffet?: string;
+  conditionsResiliation?: string;
+  clausesParticulieres?: string[];
+  estAvenant: boolean;
+  referenceContratInitial?: string;
+  objetAvenant?: string;
+}): string {
+  if (facts.estAvenant) {
+    return `AVENANT a un contrat existant.
+Contrat initial : ${facts.referenceContratInitial ?? "non precise"}
+Objet de la modification : ${facts.objetAvenant ?? "non precise"}
+Date du jour : ${dateActuelle()}`;
+  }
+  const lignes = [
+    `Type de contrat : ${facts.typeContrat}`,
+    `Partie 1 : ${facts.partie1}`,
+    `Partie 2 : ${facts.partie2}`,
+    `Objet : ${facts.objet}`,
+    `Obligations des parties : ${facts.obligations}`,
+  ];
+  if (facts.duree) lignes.push(`Duree : ${facts.duree}`);
+  if (facts.remuneration) lignes.push(`Remuneration : ${facts.remuneration}`);
+  if (facts.dateEffet) lignes.push(`Date d'effet : ${facts.dateEffet}`);
+  if (facts.conditionsResiliation) lignes.push(`Conditions de resiliation : ${facts.conditionsResiliation}`);
+  if (facts.clausesParticulieres && facts.clausesParticulieres.length > 0) {
+    lignes.push(
+      `Clauses particulieres :\n${facts.clausesParticulieres.map((c, i) => `${i + 1}. ${c}`).join("\n")}`
+    );
+  }
+  lignes.push(`Date du jour : ${dateActuelle()}`);
+  return lignes.join("\n");
+}
+
+// Notification de date (audience, comparution, evenement...) a un destinataire.
+export const NOTIFICATION_DATE_SYSTEM_PROMPT = `${COMMON_SYSTEM}
+
+Redige une NOTIFICATION DE DATE (courrier formel bref) informant le destinataire d'une date precise (audience, comparution, rendez-vous...). Commence par une formule d'adresse au destinataire fourni ci-dessous, puis structure ainsi :
+- Objet clair de la notification
+- Rappel du dossier concerne
+- Date, et lieu si fourni, indiques clairement et integralement
+- Precisions complementaires si fournies
+- Formule de politesse
+
+REGLE ABSOLUE : recopie la date fournie exactement, n'invente jamais une date, un lieu ou un dossier qui ne figure pas dans les informations fournies.`;
+
+export function buildNotificationDateUserPrompt(facts: {
+  nomAffaire: string;
+  destinataire: string;
+  objet: string;
+  dateNotifiee: string;
+  lieu?: string;
+  juridiction?: string;
+  precisions?: string;
+}): string {
+  const lignes = [
+    `Affaire : ${facts.nomAffaire}`,
+    `Destinataire : ${facts.destinataire}`,
+    `Objet de la notification : ${facts.objet}`,
+    `Date a notifier : ${facts.dateNotifiee}`,
+  ];
+  if (facts.lieu) lignes.push(`Lieu : ${facts.lieu}`);
+  if (facts.juridiction) lignes.push(`Juridiction concernee : ${facts.juridiction}`);
+  if (facts.precisions) lignes.push(`Precisions complementaires : ${facts.precisions}`);
+  lignes.push(`Date du jour : ${dateActuelle()}`);
+  return lignes.join("\n");
+}
+
+// Requete : courrier adresse a une autorite (Procureur, president de
+// juridiction...) pour formuler une demande precise (ex: fixation de date
+// d'audience).
+export const REQUETE_SYSTEM_PROMPT = `${COMMON_SYSTEM}
+
+Redige une REQUETE (courrier formel adresse a une autorite judiciaire). Commence par une formule d'adresse a l'autorite destinataire fournie ci-dessous, puis structure ainsi :
+- Objet precis de la requete
+- Motifs / justification de la demande
+- Demande precise formulee a l'autorite destinataire
+- Formule de politesse
+
+REGLE ABSOLUE : n'invente jamais un motif, un fait ou une demande qui ne figure pas dans les informations fournies ci-dessous.`;
+
+export function buildRequeteUserPrompt(facts: {
+  nomAffaire: string;
+  destinataire: string;
+  objet: string;
+  motifs: string;
+  juridiction: string;
+}): string {
+  return `Affaire : ${facts.nomAffaire}
+Destinataire : ${facts.destinataire}
+Juridiction concernee : ${facts.juridiction}
+Objet de la requete : ${facts.objet}
+Motifs : ${facts.motifs}
+Date du jour : ${dateActuelle()}`;
+}

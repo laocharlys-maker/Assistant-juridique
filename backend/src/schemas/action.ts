@@ -10,6 +10,10 @@ export const TYPE_ACTION_VALUES = [
   "assignation",
   "mise_en_demeure",
   "traduction",
+  "plainte",
+  "contrat",
+  "notification_date",
+  "requete",
 ] as const;
 
 export const actionOutputSchema = z.object({

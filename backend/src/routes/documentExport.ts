@@ -24,6 +24,10 @@ const TYPE_LABELS: Record<string, string> = {
   resume_pdf: "Résumé de jurisprudence",
   veille_juridique: "Veille juridique",
   traduction: "Traduction",
+  plainte: "Plainte",
+  contrat: "Contrat",
+  notification_date: "Notification de date",
+  requete: "Requête",
 };
 
 const COMBINING_DIACRITICS = new RegExp("[\\u0300-\\u036f]", "g");

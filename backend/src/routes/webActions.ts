@@ -14,11 +14,19 @@ import {
   MISE_EN_DEMEURE_SYSTEM_PROMPT,
   JURISPRUDENCE_SYSTEM_PROMPT,
   RECHERCHE_JURIDIQUE_SYSTEM_PROMPT,
+  PLAINTE_SYSTEM_PROMPT,
+  CONTRAT_SYSTEM_PROMPT,
+  NOTIFICATION_DATE_SYSTEM_PROMPT,
+  REQUETE_SYSTEM_PROMPT,
   buildNotesUserPrompt,
   buildRedacUserPrompt,
   buildMiseEnDemeureUserPrompt,
   buildJurisprudenceUserPrompt,
   buildRechercheJuridiqueUserPrompt,
+  buildPlainteUserPrompt,
+  buildContratUserPrompt,
+  buildNotificationDateUserPrompt,
+  buildRequeteUserPrompt,
 } from "../prompts/webRedaction";
 import { ActionOutput } from "../schemas/action";
 import { searchJurisprudence, formatJurisprudenceContext } from "../services/rag";
@@ -192,6 +200,7 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
         extraWebhookFields = {
           nom_defendeur: form.destinataire,
           nom_avocat: form.nom_avocat,
+          nom_huissier: form.nom_huissier,
           nom_juridiction: form.nom_juridiction,
           nom_chambre: form.nom_chambre ?? null,
         };
@@ -384,7 +393,7 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
         synthese: null,
         argumentaire: redigé,
       };
-    } else {
+    } else if (form.type_action === "traduction") {
       let texteSource = form.texte_source?.trim() ?? "";
       if (!texteSource && form.documentDataUrl) {
         try {
@@ -433,6 +442,177 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
         pieces_prevoir: null,
         synthese: null,
         argumentaire: traduit,
+      };
+    } else if (form.type_action === "plainte") {
+      const redigé = await llm.redact(
+        PLAINTE_SYSTEM_PROMPT,
+        buildPlainteUserPrompt({
+          nomAffaire: form.nom_affaire,
+          nomDefendeur: form.nom_defendeur,
+          destinataire: form.destinataire,
+          juridiction: form.nom_juridiction,
+          motifs: form.motifs,
+          demandes: form.demandes,
+          preuves: form.preuves,
+        })
+      );
+
+      const dossierLookup = await findOrCreateDossier({
+        cabinetId: auth!.cabinetId,
+        userId: auth!.userId,
+        numeroDossier: form.numero_dossier,
+        nomAffaire: form.nom_affaire,
+        nomClient: form.nom_client,
+      });
+      if (!dossierLookup.ok) {
+        return res.status(404).json({ error: dossierLookup.error });
+      }
+      dossierId = dossierLookup.dossier.id;
+
+      extraWebhookFields = {
+        nom_defendeur: form.nom_defendeur,
+        nom_avocat: form.nom_avocat,
+        nom_juridiction: form.nom_juridiction,
+        nom_chambre: form.nom_chambre ?? null,
+      };
+
+      action = {
+        type_action: "plainte",
+        categorie_texte: "Plainte",
+        numero_dossier: form.numero_dossier,
+        nom_affaire: form.nom_affaire,
+        nom_client: dossierLookup.dossier.nomClient,
+        nom_juge: null,
+        date_audience: null,
+        decision: null,
+        prochaine_audience: null,
+        pieces_prevoir: null,
+        synthese: null,
+        argumentaire: redigé,
+      };
+    } else if (form.type_action === "contrat") {
+      const redigé = await llm.redact(
+        CONTRAT_SYSTEM_PROMPT,
+        buildContratUserPrompt({
+          typeContrat: form.type_contrat ?? "non précisé",
+          partie1: form.partie_1 ?? "non précisé",
+          partie2: form.partie_2 ?? "non précisé",
+          objet: form.objet ?? "non précisé",
+          obligations: form.obligations ?? "non précisé",
+          duree: form.duree,
+          remuneration: form.remuneration,
+          dateEffet: form.date_effet,
+          conditionsResiliation: form.conditions_resiliation,
+          clausesParticulieres: form.clauses_particulieres,
+          estAvenant: form.est_avenant ?? false,
+          referenceContratInitial: form.reference_contrat_initial,
+          objetAvenant: form.objet_avenant,
+        })
+      );
+
+      const dossierLookup = await findOrCreateDossier({
+        cabinetId: auth!.cabinetId,
+        userId: auth!.userId,
+        numeroDossier: form.numero_dossier,
+        nomAffaire: form.nom_affaire,
+        nomClient: form.nom_client,
+      });
+      if (!dossierLookup.ok) {
+        return res.status(404).json({ error: dossierLookup.error });
+      }
+      dossierId = dossierLookup.dossier.id;
+
+      action = {
+        type_action: "contrat",
+        categorie_texte: form.est_avenant ? "Avenant au contrat" : "Contrat",
+        numero_dossier: form.numero_dossier,
+        nom_affaire: form.nom_affaire,
+        nom_client: dossierLookup.dossier.nomClient,
+        nom_juge: null,
+        date_audience: null,
+        decision: null,
+        prochaine_audience: null,
+        pieces_prevoir: null,
+        synthese: null,
+        argumentaire: redigé,
+      };
+    } else if (form.type_action === "notification_date") {
+      const redigé = await llm.redact(
+        NOTIFICATION_DATE_SYSTEM_PROMPT,
+        buildNotificationDateUserPrompt({
+          nomAffaire: form.nom_affaire,
+          destinataire: form.destinataire,
+          objet: form.objet,
+          dateNotifiee: form.date_notifiee,
+          lieu: form.lieu,
+          juridiction: form.nom_juridiction,
+          precisions: form.precisions,
+        })
+      );
+
+      const dossierLookup = await findOrCreateDossier({
+        cabinetId: auth!.cabinetId,
+        userId: auth!.userId,
+        numeroDossier: form.numero_dossier,
+        nomAffaire: form.nom_affaire,
+        nomClient: form.nom_client,
+      });
+      if (!dossierLookup.ok) {
+        return res.status(404).json({ error: dossierLookup.error });
+      }
+      dossierId = dossierLookup.dossier.id;
+
+      action = {
+        type_action: "notification_date",
+        categorie_texte: "Notification de date",
+        numero_dossier: form.numero_dossier,
+        nom_affaire: form.nom_affaire,
+        nom_client: dossierLookup.dossier.nomClient,
+        nom_juge: null,
+        date_audience: null,
+        decision: null,
+        prochaine_audience: null,
+        pieces_prevoir: null,
+        synthese: null,
+        argumentaire: redigé,
+      };
+    } else {
+      const redigé = await llm.redact(
+        REQUETE_SYSTEM_PROMPT,
+        buildRequeteUserPrompt({
+          nomAffaire: form.nom_affaire,
+          destinataire: form.destinataire,
+          objet: form.objet,
+          motifs: form.motifs,
+          juridiction: form.nom_juridiction,
+        })
+      );
+
+      const dossierLookup = await findOrCreateDossier({
+        cabinetId: auth!.cabinetId,
+        userId: auth!.userId,
+        numeroDossier: form.numero_dossier,
+        nomAffaire: form.nom_affaire,
+        nomClient: form.nom_client,
+      });
+      if (!dossierLookup.ok) {
+        return res.status(404).json({ error: dossierLookup.error });
+      }
+      dossierId = dossierLookup.dossier.id;
+
+      action = {
+        type_action: "requete",
+        categorie_texte: "Requête",
+        numero_dossier: form.numero_dossier,
+        nom_affaire: form.nom_affaire,
+        nom_client: dossierLookup.dossier.nomClient,
+        nom_juge: null,
+        date_audience: null,
+        decision: null,
+        prochaine_audience: null,
+        pieces_prevoir: null,
+        synthese: null,
+        argumentaire: redigé,
       };
     }
 
