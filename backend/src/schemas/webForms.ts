@@ -143,8 +143,8 @@ export const plainteFormSchema = z.object({
 
 export const contratFormSchema = z.object({
   type_action: z.literal("contrat"),
-  numero_dossier: z.string().min(1),
-  nom_affaire: z.string().min(1),
+  numero_dossier: z.string().optional(),
+  nom_affaire: z.string().optional(),
   nom_client: z.string().min(1).optional(),
   est_avenant: z.boolean().optional(),
   // Champs d'un contrat "normal" - non requis si avenant.
@@ -165,8 +165,8 @@ export const contratFormSchema = z.object({
 
 export const notificationDateFormSchema = z.object({
   type_action: z.literal("notification_date"),
-  numero_dossier: z.string().min(1),
-  nom_affaire: z.string().min(1),
+  numero_dossier: z.string().optional(),
+  nom_affaire: z.string().optional(),
   nom_client: z.string().min(1).optional(),
   destinataire: z.string().min(1),
   objet: z.string().min(1),

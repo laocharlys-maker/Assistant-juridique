@@ -612,8 +612,8 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
       action = {
         type_action: "contrat",
         categorie_texte: form.est_avenant ? "Avenant au contrat" : "Contrat",
-        numero_dossier: form.numero_dossier,
-        nom_affaire: form.nom_affaire,
+        numero_dossier: dossierLookup.dossier.numeroDossier,
+        nom_affaire: dossierLookup.dossier.nomAffaire,
         nom_client: dossierLookup.dossier.nomClient,
         nom_juridiction: null,
         nom_chambre: null,
@@ -628,7 +628,7 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
       const redigé = await llm.redact(
         NOTIFICATION_DATE_SYSTEM_PROMPT,
         buildNotificationDateUserPrompt({
-          nomAffaire: form.nom_affaire,
+          nomAffaire: form.nom_affaire || "non précisée",
           destinataire: form.destinataire,
           objet: form.objet,
           dateNotifiee: form.date_notifiee,
@@ -653,8 +653,8 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
       action = {
         type_action: "notification_date",
         categorie_texte: "Notification de date",
-        numero_dossier: form.numero_dossier,
-        nom_affaire: form.nom_affaire,
+        numero_dossier: dossierLookup.dossier.numeroDossier,
+        nom_affaire: dossierLookup.dossier.nomAffaire,
         nom_client: dossierLookup.dossier.nomClient,
         nom_juridiction: null,
         nom_chambre: null,

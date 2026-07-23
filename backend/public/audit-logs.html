@@ -9,21 +9,53 @@
 </head>
 <body>
   <div class="page">
-    <h1>Journal d'audit</h1>
-    <p class="muted">Historique technique des actions du cabinet (extraction IA, génération du document). Les entrées les plus anciennes sont purgées automatiquement après 24 mois.</p>
+    <div class="page-hero">
+      <div class="eyebrow">Cabinet</div>
+      <h1>Journal d'audit</h1>
+      <p>Historique technique des actions du cabinet (extraction IA, génération du document). Les entrées de plus de 24 mois sont purgées automatiquement.</p>
+    </div>
 
     <div id="error" class="error"></div>
 
     <div class="card">
-      <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
-        <label style="margin:0; font-weight:400;">Filtrer :</label>
-        <select id="filter-statut" style="width:auto;">
-          <option value="">Tout</option>
-          <option value="erreur">Erreurs uniquement</option>
-          <option value="succes">Succès uniquement</option>
-        </select>
+      <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-bottom:12px;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <label style="margin:0; font-weight:400;">Statut :</label>
+          <select id="filter-statut" style="width:auto;">
+            <option value="">Tout</option>
+            <option value="erreur">Erreurs uniquement</option>
+            <option value="succes">Succès uniquement</option>
+          </select>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <label style="margin:0; font-weight:400;">Période :</label>
+          <select id="filter-periode" style="width:auto;">
+            <option value="">Tout</option>
+            <option value="1">Dernier mois</option>
+            <option value="2">2 derniers mois</option>
+            <option value="3">3 derniers mois</option>
+            <option value="6">6 derniers mois</option>
+            <option value="12">12 derniers mois</option>
+          </select>
+        </div>
       </div>
       <div id="logs-list"><p class="muted">Chargement…</p></div>
+    </div>
+
+    <div class="card">
+      <h2>Alléger le journal</h2>
+      <p class="muted">Supprime définitivement les entrées les plus anciennes pour alléger la liste. L'historique récent n'est jamais touché.</p>
+      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+        <label style="margin:0; font-weight:400;">Supprimer les entrées de plus de :</label>
+        <select id="purge-periode" style="width:auto;">
+          <option value="1">1 mois</option>
+          <option value="2">2 mois</option>
+          <option value="3" selected>3 mois</option>
+          <option value="6">6 mois</option>
+          <option value="12">12 mois</option>
+        </select>
+        <button type="button" class="danger" id="purge-btn" style="margin:0;">Supprimer</button>
+      </div>
     </div>
   </div>
   <script src="/js/api.js"></script>
@@ -42,9 +74,13 @@
     async function loadLogs() {
       const listEl = document.getElementById("logs-list");
       const statut = document.getElementById("filter-statut").value;
+      const periode = document.getElementById("filter-periode").value;
       listEl.innerHTML = '<p class="muted">Chargement…</p>';
       try {
-        const qs = statut ? `?statut=${statut}` : "";
+        const params = new URLSearchParams();
+        if (statut) params.set("statut", statut);
+        if (periode) params.set("depuisMois", periode);
+        const qs = params.toString() ? `?${params.toString()}` : "";
         const logs = await apiFetch(`/api/audit-logs${qs}`);
         if (logs.length === 0) {
           listEl.innerHTML = '<p class="muted">Aucune entrée.</p>';
@@ -56,7 +92,7 @@
             <div class="dossier-item">
               <div>
                 <strong>${escapeHtml(l.etape)}</strong>
-                <span style="color:${l.statut === "erreur" ? "#b91c1c" : "#15803d"}; font-weight:600; margin-left:8px;">${l.statut === "erreur" ? "Erreur" : "Succès"}</span>
+                <span style="color:${l.statut === "erreur" ? "var(--danger)" : "var(--success)"}; font-weight:600; margin-left:8px;">${l.statut === "erreur" ? "Erreur" : "Succès"}</span>
                 <div class="meta">
                   ${formatDate(l.timestamp)} · Dossier ${escapeHtml(l.numeroDossier || "-")} — ${escapeHtml(l.nomAffaire || "-")} · ${escapeHtml(l.typeAction)} (${escapeHtml(l.canal)})
                   ${l.detail ? `<br />${escapeHtml(l.detail)}` : ""}
@@ -83,6 +119,22 @@
     })();
 
     document.getElementById("filter-statut").addEventListener("change", loadLogs);
+    document.getElementById("filter-periode").addEventListener("change", loadLogs);
+
+    document.getElementById("purge-btn").addEventListener("click", async () => {
+      const mois = document.getElementById("purge-periode").value;
+      const label = document.getElementById("purge-periode").selectedOptions[0].textContent;
+      if (!confirm(`Supprimer définitivement toutes les entrées du journal de plus de ${label} ? Cette action est irréversible.`)) {
+        return;
+      }
+      try {
+        const res = await apiFetch(`/api/audit-logs?plusVieuxQueMois=${mois}`, { method: "DELETE" });
+        loadLogs();
+        alert(`${res.deleted} entrée(s) supprimée(s).`);
+      } catch (err) {
+        showError(document.getElementById("error"), err.message);
+      }
+    });
   </script>
 </body>
 </html>

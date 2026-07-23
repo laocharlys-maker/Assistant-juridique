@@ -41,6 +41,25 @@
       <div id="clients-list"><p class="muted">Chargement…</p></div>
     </div>
   </div>
+
+  <div class="modal-overlay" id="email-modal" hidden>
+    <div class="modal-box">
+      <h2>Envoyer un email</h2>
+      <p class="muted" id="email-modal-destinataire"></p>
+      <div id="email-modal-error" class="error"></div>
+      <form id="email-form">
+        <input type="hidden" id="email-modal-client-id" />
+        <label>Objet</label>
+        <input name="objet" id="email-modal-objet" required />
+        <label>Message</label>
+        <textarea name="message" required style="min-height:160px;"></textarea>
+        <div style="display:flex; gap:10px; margin-top:18px;">
+          <button type="submit">Envoyer</button>
+          <button type="button" class="secondary" id="email-modal-cancel">Annuler</button>
+        </div>
+      </form>
+    </div>
+  </div>
   <script src="/js/api.js"></script>
   <script src="/js/layout.js"></script>
   <script>
@@ -63,9 +82,9 @@
             const actions = [];
             if (c.email) {
               actions.push(
-                `<a class="icon-action" data-tooltip="Envoyer un email" href="mailto:${escapeHtml(c.email)}">
+                `<button type="button" class="icon-action" data-tooltip="Envoyer un email" data-open-email="${c.id}" data-nom="${escapeHtml(c.nom)}" data-email="${escapeHtml(c.email)}">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/></svg>
-                </a>`
+                </button>`
               );
             }
             if (c.telephone) {
@@ -86,9 +105,27 @@
           </div>`;
           })
           .join("");
+
+        listEl.querySelectorAll("[data-open-email]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            openEmailModal(btn.dataset.openEmail, btn.dataset.nom, btn.dataset.email);
+          });
+        });
       } catch (err) {
         listEl.innerHTML = `<p class="error visible">${escapeHtml(err.message)}</p>`;
       }
+    }
+
+    function openEmailModal(clientId, nom, email) {
+      document.getElementById("email-modal-client-id").value = clientId;
+      document.getElementById("email-modal-destinataire").textContent = `${nom} — ${email}`;
+      document.getElementById("email-form").reset();
+      hideError(document.getElementById("email-modal-error"));
+      document.getElementById("email-modal").hidden = false;
+      document.getElementById("email-modal-objet").focus();
+    }
+    function closeEmailModal() {
+      document.getElementById("email-modal").hidden = true;
     }
 
     (async () => {
@@ -123,6 +160,36 @@
         loadClients();
       } catch (err) {
         showError(errorEl, err.message);
+      }
+    });
+
+    document.getElementById("email-modal-cancel").addEventListener("click", closeEmailModal);
+    document.getElementById("email-modal").addEventListener("click", (e) => {
+      if (e.target.id === "email-modal") closeEmailModal();
+    });
+
+    document.getElementById("email-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const modalErrorEl = document.getElementById("email-modal-error");
+      hideError(modalErrorEl);
+      const clientId = document.getElementById("email-modal-client-id").value;
+      const fd = new FormData(e.target);
+      const submitBtn = e.target.querySelector('button[type="submit"]');
+      submitBtn.disabled = true;
+      try {
+        const res = await apiFetch(`/api/clients/${clientId}/envoyer-email`, {
+          method: "POST",
+          body: { objet: fd.get("objet"), message: fd.get("message") },
+        });
+        if (!res.n8nDispatched) {
+          showError(modalErrorEl, "L'email n'a pas pu être transmis (n8n indisponible). Réessaie dans quelques instants.");
+          submitBtn.disabled = false;
+          return;
+        }
+        closeEmailModal();
+      } catch (err) {
+        showError(modalErrorEl, err.message);
+        submitBtn.disabled = false;
       }
     });
   </script>

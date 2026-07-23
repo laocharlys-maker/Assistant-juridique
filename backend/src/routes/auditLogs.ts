@@ -8,6 +8,9 @@ export const auditLogsRouter = Router();
 
 const querySchema = z.object({
   statut: z.enum(["succes", "erreur"]).optional(),
+  // Ne renvoie que les entrees des N derniers mois (permet de "classer" par
+  // periode) - absent = pas de filtre de date.
+  depuisMois: z.coerce.number().int().positive().max(60).optional(),
   limit: z.coerce.number().int().positive().max(500).default(200),
 });
 
@@ -19,11 +22,16 @@ auditLogsRouter.get("/api/audit-logs", requireAuth, requireAdmin, async (req, re
   if (!parsed.success) {
     return res.status(400).json({ error: "Requête invalide" });
   }
-  const { statut, limit } = parsed.data;
+  const { statut, depuisMois, limit } = parsed.data;
+
+  const depuisDate = depuisMois
+    ? new Date(new Date().setMonth(new Date().getMonth() - depuisMois))
+    : undefined;
 
   const logs = await prisma.auditLog.findMany({
     where: {
       statut,
+      timestamp: depuisDate ? { gte: depuisDate } : undefined,
       action: { dossier: { cabinetId: req.auth!.cabinetId } },
     },
     include: {
@@ -52,4 +60,26 @@ auditLogsRouter.get("/api/audit-logs", requireAuth, requireAdmin, async (req, re
       nomAffaire: log.action.dossier.nomAffaire,
     }))
   );
+});
+
+const purgeQuerySchema = z.object({
+  // Supprime les entrees STRICTEMENT PLUS VIEILLES que N mois - jamais les
+  // plus recentes, pour alleger la liste sans perdre l'historique utile.
+  plusVieuxQueMois: z.coerce.number().int().positive().max(60),
+});
+
+auditLogsRouter.delete("/api/audit-logs", requireAuth, requireAdmin, async (req, res) => {
+  const parsed = purgeQuerySchema.safeParse(req.query);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Requête invalide" });
+  }
+  const cutoff = new Date(new Date().setMonth(new Date().getMonth() - parsed.data.plusVieuxQueMois));
+
+  const { count } = await prisma.auditLog.deleteMany({
+    where: {
+      timestamp: { lt: cutoff },
+      action: { dossier: { cabinetId: req.auth!.cabinetId } },
+    },
+  });
+  return res.json({ deleted: count });
 });

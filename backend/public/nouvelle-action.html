@@ -48,8 +48,8 @@
         <input name="nom_affaire" required />
         <label>Nom du client</label>
         <input name="nom_client" required />
-        <label>Juridiction</label>
-        <input name="nom_juridiction" placeholder="ex: Tribunal Judiciaire de Cotonou" />
+        <label>Juridiction (optionnel)</label>
+        <select name="nom_juridiction" id="notes-juridiction"></select>
         <label>Chambre (optionnel)</label>
         <input name="nom_chambre" placeholder="ex: Chambre civile" />
         <label>Décision / déroulement de l'audience</label>
@@ -219,10 +219,10 @@
       </form>
 
       <form id="contrat-form" class="action-form" style="display:none;">
-        <label>Numéro de dossier concerné</label>
-        <input name="numero_dossier" list="dossiers-datalist" required />
-        <label>Nom de l'affaire</label>
-        <input name="nom_affaire" required />
+        <label>Numéro de dossier concerné (optionnel)</label>
+        <input name="numero_dossier" list="dossiers-datalist" placeholder="Laisse vide si non applicable" />
+        <label>Nom de l'affaire (optionnel)</label>
+        <input name="nom_affaire" placeholder="Laisse vide si non applicable" />
         <label>Nom du client (si nouveau dossier)</label>
         <input name="nom_client" placeholder="Laisse vide si le dossier existe déjà" />
         <label style="display:flex; align-items:center; gap:8px; font-weight:400;">
@@ -263,10 +263,10 @@
       </form>
 
       <form id="notification_date-form" class="action-form" style="display:none;">
-        <label>Numéro de dossier concerné</label>
-        <input name="numero_dossier" list="dossiers-datalist" required />
-        <label>Nom de l'affaire</label>
-        <input name="nom_affaire" required />
+        <label>Numéro de dossier concerné (optionnel)</label>
+        <input name="numero_dossier" list="dossiers-datalist" placeholder="Laisse vide si non applicable" />
+        <label>Nom de l'affaire (optionnel)</label>
+        <input name="nom_affaire" placeholder="Laisse vide si non applicable" />
         <label>Nom du client (si nouveau dossier)</label>
         <input name="nom_client" placeholder="Laisse vide si le dossier existe déjà" />
         <label>Destinataire</label>
@@ -410,6 +410,7 @@
       const me = await requireSession();
       if (!me) return;
       initLayout(me);
+      populateSelect(document.getElementById("notes-juridiction"), JURIDICTIONS_BENIN);
       populateSelect(document.getElementById("plainte-juridiction"), JURIDICTIONS_BENIN);
       populateSelect(document.getElementById("plainte-ville"), VILLES_BENIN);
       populateSelect(document.getElementById("requete-juridiction"), JURIDICTIONS_BENIN);
@@ -689,8 +690,8 @@
       const fd = new FormData(forms.contrat);
       const estAvenant = fd.get("est_avenant") === "on";
       submitForm("contrat", {
-        numero_dossier: fd.get("numero_dossier"),
-        nom_affaire: fd.get("nom_affaire"),
+        numero_dossier: fd.get("numero_dossier") || undefined,
+        nom_affaire: fd.get("nom_affaire") || undefined,
         nom_client: fd.get("nom_client") || undefined,
         est_avenant: estAvenant,
         type_contrat: fd.get("type_contrat") || undefined,
@@ -712,8 +713,8 @@
       e.preventDefault();
       const fd = new FormData(forms.notification_date);
       submitForm("notification_date", {
-        numero_dossier: fd.get("numero_dossier"),
-        nom_affaire: fd.get("nom_affaire"),
+        numero_dossier: fd.get("numero_dossier") || undefined,
+        nom_affaire: fd.get("nom_affaire") || undefined,
         nom_client: fd.get("nom_client") || undefined,
         destinataire: fd.get("destinataire"),
         objet: fd.get("objet"),

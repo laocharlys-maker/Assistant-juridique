@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
+import { callN8nWebhook } from "../services/n8n";
 
 export const clientsRouter = Router();
 
@@ -49,4 +50,43 @@ clientsRouter.get("/api/clients/:id", requireAuth, async (req, res) => {
     return res.status(404).json({ error: "Client introuvable" });
   }
   return res.json(client);
+});
+
+const envoyerEmailSchema = z.object({
+  objet: z.string().min(1),
+  message: z.string().min(1),
+});
+
+// Envoie un email libre (objet + message) a un client depuis sa fiche.
+// Ne passe jamais par le serveur de mail directement : delegue a n8n
+// (meme principe que le reste de l'app - le backend prepare les donnees,
+// n8n s'occupe de l'envoi effectif).
+clientsRouter.post("/api/clients/:id/envoyer-email", requireAuth, async (req, res) => {
+  const parsed = envoyerEmailSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Formulaire invalide", details: parsed.error.issues });
+  }
+
+  const client = await prisma.client.findFirst({
+    where: { id: req.params.id, cabinetId: req.auth!.cabinetId },
+  });
+  if (!client) {
+    return res.status(404).json({ error: "Client introuvable" });
+  }
+  if (!client.email) {
+    return res.status(400).json({ error: "Ce client n'a pas d'adresse email enregistrée" });
+  }
+
+  const auteur = await prisma.user.findUnique({ where: { id: req.auth!.userId } });
+
+  const n8nResult = await callN8nWebhook("envoyer-email-client", {
+    destinataireEmail: client.email,
+    destinataireNom: client.nom,
+    objet: parsed.data.objet,
+    message: parsed.data.message,
+    envoyeParNom: auteur?.nom ?? null,
+    envoyeParEmail: auteur?.email ?? null,
+  });
+
+  return res.json({ ok: true, n8nDispatched: n8nResult.ok });
 });

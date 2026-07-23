@@ -80,7 +80,7 @@
     let me = null;
 
     function iconBtn({ icon, tooltip, dataset, isOn, isDanger }) {
-      const svgInner = document.querySelector(`#icon-svgs [data-icon="${icon}"]`).innerHTML;
+      const svgInner = document.getElementById("icon-svgs").content.querySelector(`[data-icon="${icon}"]`).innerHTML;
       const attrs = Object.entries(dataset).map(([k, v]) => `data-${k}="${v}"`).join(" ");
       return `<button type="button" class="icon-action${isOn ? " is-on" : ""}${isDanger ? " is-danger" : ""}" data-tooltip="${escapeHtml(tooltip)}" ${attrs}>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${svgInner}</svg>

@@ -5,6 +5,7 @@ export type N8nWebhookName =
   | "notes-audience"
   | "document-juridique"
   | "envoyer-email"
+  | "envoyer-email-client"
   | "whatsapp-reply"
   | "creer-rappel-delai"
   | "veille-juridique"
