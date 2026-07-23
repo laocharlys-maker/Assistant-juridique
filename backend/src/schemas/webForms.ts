@@ -38,6 +38,11 @@ export const assignationFormSchema = z.object({
   ...texteJuridiqueFields,
   // Le defendeur assigne - distinct du client, sert d'adresse sur l'acte.
   destinataire: z.string().min(1),
+  // Demandes precises au tribunal ("PAR CES MOTIFS") - jamais devinees par
+  // l'IA, toujours saisies par l'avocat.
+  demandes: z.array(z.string().min(1)).min(1),
+  // Pieces versees aux debats (bordereau) - optionnel, peut etre complete plus tard.
+  pieces: z.array(z.string().min(1)).optional(),
 });
 
 export const miseEnDemeureFormSchema = z.object({

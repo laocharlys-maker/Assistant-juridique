@@ -76,12 +76,23 @@ Redige des CONCLUSIONS (ecriture de procedure) structurees ainsi :
 
 export const ASSIGNATION_SYSTEM_PROMPT = `${COMMON_SYSTEM}
 
-Redige une ASSIGNATION structuree ainsi :
-- Identification des parties (demandeur/defendeur, a completer par l'avocat si manquant)
-- Expose des faits
-- Moyens de droit invoques (en t'appuyant sur les axes d'argumentation fournis)
-- Objet de la demande
-- Formule de citation a comparaitre devant la juridiction competente, a une date que l'avocat completera`;
+Tu rediges UNIQUEMENT la partie redactionnelle (argumentaire) d'une ASSIGNATION beninoise. Ce texte vient s'inserer dans un acte d'huissier deja mis en forme par ailleurs : ne redige JAMAIS les mentions fixes de l'acte (formule d'ouverture "L'AN DEUX MILLE...", bloc d'identification du commissaire de justice/huissier, avertissement legal au defendeur sur le delai de constitution d'avocat, zones de signature) - elles sont deja presentes ailleurs dans le document, ton texte se limite aux sections ci-dessous.
+
+Structure IMPOSEE, avec ces titres exacts (format Markdown, "## " devant chaque titre) :
+
+## I. RAPPEL DES FAITS
+Expose chronologique des faits, sous forme de paragraphes commencant de preference par "Attendu que..." (style traditionnel des actes de procedure), en te basant uniquement sur le contexte fourni ci-dessous.
+
+## II. DISCUSSION JURIDIQUE
+Les moyens de droit invoques, en t'appuyant sur les axes d'argumentation fournis ci-dessous. Tu peux evoquer des principes juridiques generaux si pertinent, mais n'invente JAMAIS un numero d'article de loi precis dont tu n'es pas certain.
+
+## PAR CES MOTIFS
+Une liste a puces reprenant FIDELEMENT, sans les modifier, les reformuler substantiellement ni en ajouter, les demandes precises fournies ci-dessous (section "Demandes precises au tribunal"). N'ajoute JAMAIS une demande qui n'y figure pas.
+
+## BORDEREAU DES PIECES VERSEES AUX DEBATS
+Une liste numerotee reprenant fidelement les pieces fournies ci-dessous (section "Pieces a produire"). Si aucune piece n'est fournie, ecris simplement "Aucune piece communiquee a ce stade".
+
+REGLE ABSOLUE : n'invente jamais un fait, un montant, une date, un article de loi precis ou une demande qui ne figure pas dans les informations fournies ci-dessous.`;
 
 export const MISE_EN_DEMEURE_SYSTEM_PROMPT = `${COMMON_SYSTEM}
 
@@ -115,11 +126,21 @@ export function buildRedacUserPrompt(facts: {
   contexte: string;
   axesArgumentation: string[];
   destinataire?: string;
+  demandes?: string[];
+  pieces?: string[];
 }): string {
+  const blocDemandes =
+    facts.demandes && facts.demandes.length > 0
+      ? `\nDemandes precises au tribunal (a reprendre fidelement dans "PAR CES MOTIFS", sans en ajouter ni en omettre) :\n${facts.demandes.map((d, i) => `${i + 1}. ${d}`).join("\n")}`
+      : "";
+  const blocPieces =
+    facts.pieces && facts.pieces.length > 0
+      ? `\nPieces a produire (a reprendre dans le bordereau) :\n${facts.pieces.map((p, i) => `${i + 1}. ${p}`).join("\n")}`
+      : "";
   return `Affaire : ${facts.nomAffaire}
 ${facts.destinataire ? `Partie assignee (defendeur) : ${facts.destinataire}\n` : ""}Contexte : ${facts.contexte}
 Axes d'argumentation a developper :
-${facts.axesArgumentation.map((axe, i) => `${i + 1}. ${axe}`).join("\n")}
+${facts.axesArgumentation.map((axe, i) => `${i + 1}. ${axe}`).join("\n")}${blocDemandes}${blocPieces}
 Date du jour : ${dateActuelle()}`;
 }
 

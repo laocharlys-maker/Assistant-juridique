@@ -147,6 +147,8 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
     ) {
       const config = TEXTE_JURIDIQUE_CONFIG[form.type_action];
       const destinataire = form.type_action === "assignation" ? form.destinataire : undefined;
+      const demandes = form.type_action === "assignation" ? form.demandes : undefined;
+      const pieces = form.type_action === "assignation" ? form.pieces : undefined;
       const redigé = await llm.redact(
         config.systemPrompt,
         buildRedacUserPrompt({
@@ -154,6 +156,8 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
           contexte: form.contexte,
           axesArgumentation: form.axes_argumentation,
           destinataire,
+          demandes,
+          pieces,
         })
       );
 

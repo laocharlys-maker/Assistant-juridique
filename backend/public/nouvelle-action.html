@@ -103,6 +103,14 @@
         <ul class="pieces-list" id="axes-list-assignation"></ul>
         <button type="button" class="secondary" data-add-list="axes-list-assignation">+ Ajouter un axe</button>
         <br />
+        <label>Demandes précises au tribunal ("Par ces motifs")</label>
+        <ul class="pieces-list" id="demandes-list-assignation"></ul>
+        <button type="button" class="secondary" data-add-list="demandes-list-assignation">+ Ajouter une demande</button>
+        <br />
+        <label>Pièces à produire (optionnel)</label>
+        <ul class="pieces-list" id="pieces-list-assignation"></ul>
+        <button type="button" class="secondary" data-add-list="pieces-list-assignation">+ Ajouter une pièce</button>
+        <br />
         <button type="submit">Générer l'assignation</button>
       </form>
 
@@ -220,6 +228,8 @@
     addListItem("axes-list-redac", "ex: Prescription de l'action");
     addListItem("axes-list-conclusions", "ex: Nullité de la procédure");
     addListItem("axes-list-assignation", "ex: Manquement contractuel");
+    addListItem("demandes-list-assignation", "ex: Condamner au paiement de 500 000 FCFA");
+    addListItem("pieces-list-assignation", "ex: Copie du contrat");
 
     function listValues(listId) {
       return Array.from(document.querySelectorAll(`#${listId} input`))
@@ -336,6 +346,8 @@
         nom_client: fd.get("nom_client") || undefined,
         contexte: fd.get("contexte"),
         axes_argumentation: listValues("axes-list-assignation"),
+        demandes: listValues("demandes-list-assignation"),
+        pieces: listValues("pieces-list-assignation"),
       }, forms.assignation.querySelector('button[type="submit"]'));
     });
 
