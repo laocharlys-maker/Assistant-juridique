@@ -91,6 +91,10 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
   try {
     let dossierId: string;
     let action: ActionOutput;
+    // Champs additionnels specifiques a certains types, transmis a n8n en
+    // plus du contenu ActionOutput standard (ex: nom du defendeur et
+    // juridiction pour une assignation).
+    let extraWebhookFields: Record<string, unknown> = {};
 
     if (form.type_action === "notes") {
       const redigé = await llm.redact(
@@ -174,15 +178,23 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
       const dossier = dossierLookup.dossier;
       dossierId = dossier.id;
 
-      // Le destinataire affiche sur le document depend du type : le defendeur
-      // assigne pour une assignation, le client pour des conclusions ; la
-      // plaidoirie reste sur le template generique (pas de destinataire affiche).
+      // Le nom affiche cote "destinataire" du document depend du type : le
+      // client lui-meme pour des conclusions ; la plaidoirie reste sur le
+      // template generique (pas de destinataire affiche). Pour une
+      // assignation, nom_client reste le VRAI client (voir extraWebhookFields
+      // plus bas pour le defendeur et la juridiction, distincts du client).
       const nomClientAffiche =
-        form.type_action === "assignation"
-          ? form.destinataire
-          : form.type_action === "conclusions"
-            ? dossier.nomClient
-            : null;
+        form.type_action === "conclusions" || form.type_action === "assignation"
+          ? dossier.nomClient
+          : null;
+
+      if (form.type_action === "assignation") {
+        extraWebhookFields = {
+          nom_defendeur: form.destinataire,
+          nom_juridiction: form.nom_juridiction,
+          nom_chambre: form.nom_chambre ?? null,
+        };
+      }
 
       action = {
         type_action: form.type_action,
@@ -442,6 +454,7 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
       ...action,
       dossierId,
       actionId: savedAction.id,
+      ...extraWebhookFields,
     });
 
     await logAuditStep(

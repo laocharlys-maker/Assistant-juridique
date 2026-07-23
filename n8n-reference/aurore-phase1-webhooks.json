@@ -302,8 +302,23 @@
             },
             {
               "action": "replaceAll",
-              "text": "{{ $now.format('dd/MM/yyyy') }}",
+              "text": "{{date_jour}}",
               "replaceText": "={{ $now.format('dd/MM/yyyy') }}"
+            },
+            {
+              "action": "replaceAll",
+              "text": "{{nom_defendeur}}",
+              "replaceText": "={{ $('Webhook - Document Juridique').item.json.body.nom_defendeur }}"
+            },
+            {
+              "action": "replaceAll",
+              "text": "{{nom_juridiction}}",
+              "replaceText": "={{ $('Webhook - Document Juridique').item.json.body.nom_juridiction }}"
+            },
+            {
+              "action": "replaceAll",
+              "text": "{{nom_chambre}}",
+              "replaceText": "={{ $('Webhook - Document Juridique').item.json.body.nom_chambre }}"
             }
           ]
         }

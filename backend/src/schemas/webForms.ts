@@ -38,6 +38,11 @@ export const assignationFormSchema = z.object({
   ...texteJuridiqueFields,
   // Le defendeur assigne - distinct du client, sert d'adresse sur l'acte.
   destinataire: z.string().min(1),
+  // Juridiction saisie (ex: Tribunal Judiciaire de Cotonou) - jamais devinee.
+  nom_juridiction: z.string().min(1),
+  // Chambre au sein de la juridiction (ex: chambre administrative) - pas
+  // toujours connue au moment de la redaction.
+  nom_chambre: z.string().optional(),
   // Demandes precises au tribunal ("PAR CES MOTIFS") - jamais devinees par
   // l'IA, toujours saisies par l'avocat.
   demandes: z.array(z.string().min(1)).min(1),
