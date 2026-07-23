@@ -118,16 +118,25 @@ const JURIDICTIONS_BENIN_GENRE: Record<string, { article: string; possessif: str
   "Cour de Cassation": { article: "la", possessif: "de la" },
 };
 
-// Compose l'adresse du destinataire d'un courrier (plainte) a partir de 3
-// champs facultatifs et independants (civilite, juridiction, ville) saisis
-// via des listes deroulantes - jamais devine, uniquement assemble a partir
-// de ce qui est fourni.
+// Compose l'adresse du destinataire d'un courrier (plainte, requete,
+// plaidoirie/conclusions adressees a un juge ou a la partie adverse) a
+// partir de champs facultatifs et independants (civilite, juridiction,
+// ville, nom de l'avocat) saisis via des listes deroulantes - jamais
+// devine, uniquement assemble a partir de ce qui est fourni.
 function composeDestinataire(
   civilite?: string,
   juridiction?: string,
-  ville?: string
+  ville?: string,
+  nomAvocat?: string
 ): string | undefined {
   if (!civilite) return undefined;
+
+  // Cas particulier : la partie adverse est un confrere, pas une
+  // juridiction - pas d'accord "du/de la [juridiction]" a faire.
+  if (civilite.trim() === "Maître") {
+    return nomAvocat ? `Maître ${nomAvocat}` : "Maître";
+  }
+
   if (!juridiction) return ville ? `${civilite} de ${ville}` : civilite;
 
   const genre = JURIDICTIONS_BENIN_GENRE[juridiction];
@@ -211,6 +220,15 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
     ) {
       const config = TEXTE_JURIDIQUE_CONFIG[form.type_action];
       const destinataire = form.type_action === "assignation" ? form.destinataire : undefined;
+      const adresseA =
+        form.type_action === "redac" || form.type_action === "conclusions"
+          ? composeDestinataire(
+              form.destinataire,
+              form.nom_juridiction,
+              form.ville,
+              form.nom_avocat_destinataire
+            )
+          : undefined;
       const demandes = form.type_action === "assignation" ? form.demandes : undefined;
       const pieces = form.type_action === "assignation" ? form.pieces : undefined;
       const redigé = await llm.redact(
@@ -220,6 +238,7 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
           contexte: form.contexte,
           axesArgumentation: form.axes_argumentation,
           destinataire,
+          adresseA,
           demandes,
           pieces,
         })
@@ -312,13 +331,21 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
         argumentaire: redigé,
       };
     } else if (form.type_action === "jurisprudence") {
-      const matches = await searchJurisprudence(form.theme);
+      // Recherche a plusieurs niveaux : Benin, zone OHADA, Afrique, France,
+      // reste de la francophonie, reste du monde, via le web (Tavily) -
+      // toujours effectuee. La base de jurisprudence propre au cabinet
+      // n'est incluse en plus que si explicitement cochee.
+      const [webResults, cabinetMatches] = await Promise.all([
+        searchWeb(`jurisprudence ${form.theme} Bénin, zone OHADA, Afrique, France, francophonie`),
+        form.inclure_cabinet ? searchJurisprudence(form.theme) : Promise.resolve([]),
+      ]);
       const redigé = await llm.redact(
         JURISPRUDENCE_SYSTEM_PROMPT,
         buildJurisprudenceUserPrompt({
           theme: form.theme,
           juridictions: form.juridictions ?? [],
-          sourcesVerifiees: formatJurisprudenceContext(matches),
+          sourcesWeb: formatWebSearchContext(webResults),
+          sourcesCabinet: form.inclure_cabinet ? formatJurisprudenceContext(cabinetMatches) : undefined,
         })
       );
 
@@ -505,7 +532,7 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
       const redigé = await llm.redact(
         PLAINTE_SYSTEM_PROMPT,
         buildPlainteUserPrompt({
-          nomAffaire: form.nom_affaire,
+          nomAffaire: form.nom_affaire || "non précisée",
           nomDefendeur: form.nom_defendeur,
           destinataire: form.destinataire,
           juridiction: form.nom_juridiction,
@@ -538,8 +565,8 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
       action = {
         type_action: "plainte",
         categorie_texte: "Plainte",
-        numero_dossier: form.numero_dossier,
-        nom_affaire: form.nom_affaire,
+        numero_dossier: dossierLookup.dossier.numeroDossier,
+        nom_affaire: dossierLookup.dossier.nomAffaire,
         nom_client: dossierLookup.dossier.nomClient,
         nom_juridiction: null,
         nom_chambre: null,

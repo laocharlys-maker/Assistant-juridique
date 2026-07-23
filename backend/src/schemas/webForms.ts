@@ -24,6 +24,17 @@ const texteJuridiqueFields = {
   axes_argumentation: z.array(z.string().min(1)).min(1),
 };
 
+// Champs pour adresser la plaidoirie/conclusions a un destinataire precis
+// (le juge, ou la partie adverse via son avocat) - toujours facultatifs,
+// une plaidoirie/conclusions n'a pas forcement besoin d'etre "adressee".
+const destinataireDocumentFields = {
+  destinataire: z.string().optional(),
+  nom_juridiction: z.string().optional(),
+  ville: z.string().optional(),
+  // Nom du confrere destinataire, utilise seulement si destinataire = "Maître".
+  nom_avocat_destinataire: z.string().optional(),
+};
+
 export const redacFormSchema = z.object({
   type_action: z.literal("redac"),
   ...texteJuridiqueFields,
@@ -31,6 +42,7 @@ export const redacFormSchema = z.object({
   // etre generee sans rattachement precis a un dossier numerote.
   numero_dossier: z.string().optional(),
   nom_affaire: z.string().optional(),
+  ...destinataireDocumentFields,
 });
 
 export const conclusionsFormSchema = z.object({
@@ -38,6 +50,7 @@ export const conclusionsFormSchema = z.object({
   ...texteJuridiqueFields,
   numero_dossier: z.string().optional(),
   nom_affaire: z.string().optional(),
+  ...destinataireDocumentFields,
 });
 
 export const assignationFormSchema = z.object({
@@ -75,6 +88,11 @@ export const jurisprudenceFormSchema = z.object({
   type_action: z.literal("jurisprudence"),
   theme: z.string().min(1),
   juridictions: z.array(z.string()).optional(),
+  // Si coché : inclut aussi la base de jurisprudence propre au cabinet en
+  // plus de la recherche web (Bénin, zone OHADA, Afrique, France,
+  // francophonie, reste du monde). Decoche par defaut, la recherche est
+  // deja large sans elle.
+  inclure_cabinet: z.boolean().optional(),
 });
 
 export const rechercheJuridiqueFormSchema = z.object({
@@ -104,8 +122,8 @@ export const traductionFormSchema = z.object({
 
 export const plainteFormSchema = z.object({
   type_action: z.literal("plainte"),
-  numero_dossier: z.string().min(1),
-  nom_affaire: z.string().min(1),
+  numero_dossier: z.string().optional(),
+  nom_affaire: z.string().optional(),
   nom_client: z.string().min(1).optional(),
   // Personne visee par la plainte - distincte du destinataire du courrier.
   nom_defendeur: z.string().min(1),

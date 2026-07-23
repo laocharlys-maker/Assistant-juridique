@@ -28,23 +28,24 @@ Redige une PLAIDOIRIE COMPLETE d'environ 1000 mots structuree ainsi :
 - Expose des faits
 - Discussion juridique (arguments de droit, en t'appuyant sur les axes d'argumentation fournis)
 - Refutation des arguments adverses
-- Conclusion et demandes au tribunal`;
+- Conclusion et demandes au tribunal
+
+Si un destinataire ("Document adresse a") est precise ci-dessous, commence le texte par une formule d'adresse formelle a ce destinataire avant l'exorde. Sinon, ne mentionne aucun destinataire et commence directement par l'exorde.`;
 
 export const JURISPRUDENCE_SYSTEM_PROMPT = `${COMMON_SYSTEM}
 
 Redige une FICHE DE JURISPRUDENCE structuree ainsi :
 - Resume du contexte juridique
 - Textes de loi applicables (a partir de tes connaissances generales du droit)
-- Decisions de justice pertinentes (section "SOURCES VERIFIEES" ci-dessous)
+- Decisions de justice pertinentes, organisees par origine geographique quand plusieurs sont disponibles (Benin, zone OHADA, Afrique, France, reste de la francophonie, reste du monde, base du cabinet) - ne cree une sous-section que pour les origines effectivement representees dans les sources fournies ci-dessous
 - Tendances jurisprudentielles observees a partir de ces sources
 - Strategie recommandee
 
 REGLE ABSOLUE SUR LES DECISIONS DE JUSTICE : tu ne dois citer QUE les decisions
-presentes dans la section "SOURCES VERIFIEES" fournie ci-dessous, avec leur
-reference exacte. Ne cite JAMAIS une decision, un numero d'arret ou une date
-qui ne provient pas de cette liste, meme si tu penses la connaitre par
-ailleurs. Si la liste est vide ou insuffisante, ecris explicitement qu'aucune
-decision verifiee n'est disponible dans la base du cabinet pour ce theme,
+presentes dans les sections "SOURCES" fournies ci-dessous, avec leur reference
+exacte et leur origine. Ne cite JAMAIS une decision, un numero d'arret ou une
+date qui ne provient pas de ces sources, meme si tu penses la connaitre par
+ailleurs. Si les sources sont vides ou insuffisantes, ecris-le explicitement
 plutot que d'inventer ou de deviner une reference.`;
 
 export const RECHERCHE_JURIDIQUE_SYSTEM_PROMPT = `${COMMON_SYSTEM}
@@ -72,7 +73,9 @@ export const CONCLUSIONS_SYSTEM_PROMPT = `${COMMON_SYSTEM}
 Redige des CONCLUSIONS (ecriture de procedure) structurees ainsi :
 - Rappel de la procedure et des parties
 - Discussion (faits puis moyens de droit, en t'appuyant sur les axes d'argumentation fournis)
-- "PAR CES MOTIFS" : liste numerotee des demandes precises au tribunal`;
+- "PAR CES MOTIFS" : liste numerotee des demandes precises au tribunal
+
+Si un destinataire ("Document adresse a") est precise ci-dessous, commence le texte par une formule d'adresse formelle a ce destinataire avant le rappel de la procedure. Sinon, ne mentionne aucun destinataire.`;
 
 export const ASSIGNATION_SYSTEM_PROMPT = `${COMMON_SYSTEM}
 
@@ -128,6 +131,7 @@ export function buildRedacUserPrompt(facts: {
   contexte: string;
   axesArgumentation: string[];
   destinataire?: string;
+  adresseA?: string;
   demandes?: string[];
   pieces?: string[];
 }): string {
@@ -140,7 +144,7 @@ export function buildRedacUserPrompt(facts: {
       ? `\nPieces a produire (a reprendre dans le bordereau) :\n${facts.pieces.map((p, i) => `${i + 1}. ${p}`).join("\n")}`
       : "";
   return `Affaire : ${facts.nomAffaire}
-${facts.destinataire ? `Partie assignee (defendeur) : ${facts.destinataire}\n` : ""}Contexte : ${facts.contexte}
+${facts.destinataire ? `Partie assignee (defendeur) : ${facts.destinataire}\n` : ""}${facts.adresseA ? `Document adresse a : ${facts.adresseA}\n` : ""}Contexte : ${facts.contexte}
 Axes d'argumentation a developper :
 ${facts.axesArgumentation.map((axe, i) => `${i + 1}. ${axe}`).join("\n")}${blocDemandes}${blocPieces}
 Date du jour : ${dateActuelle()}`;
@@ -149,13 +153,17 @@ Date du jour : ${dateActuelle()}`;
 export function buildJurisprudenceUserPrompt(facts: {
   theme: string;
   juridictions: string[];
-  sourcesVerifiees: string;
+  sourcesWeb: string;
+  sourcesCabinet?: string;
 }): string {
+  const blocCabinet = facts.sourcesCabinet
+    ? `\n\nSOURCES DE LA BASE DU CABINET (verifiees, ajoutees manuellement par le cabinet) :\n${facts.sourcesCabinet}`
+    : "";
   return `Theme / mots-cles : ${facts.theme}
 Juridiction(s) ciblee(s) : ${facts.juridictions.join(", ") || "non precisee"}
 
-SOURCES VERIFIEES (base du cabinet - seules sources autorisees pour les decisions citees) :
-${facts.sourcesVerifiees}`;
+SOURCES WEB (Benin, zone OHADA, Afrique, France, reste de la francophonie, reste du monde) :
+${facts.sourcesWeb}${blocCabinet}`;
 }
 
 export function buildRechercheJuridiqueUserPrompt(facts: {
