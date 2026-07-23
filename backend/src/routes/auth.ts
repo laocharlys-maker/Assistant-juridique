@@ -63,6 +63,9 @@ authRouter.get("/api/auth/me", requireAuth, async (req, res) => {
       signatureUrl: true,
       partageSignatureActif: true,
       recoitVeille: true,
+      telephone: true,
+      adresse: true,
+      dateArrivee: true,
       responsable: { select: { nom: true, signatureUrl: true } },
     },
   });

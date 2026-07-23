@@ -285,3 +285,65 @@ usersRouter.patch("/api/users/:id/actif", requireAuth, requireAdmin, async (req,
   });
   return res.json({ ok: true });
 });
+
+// Un admin (titulaire) peut designer un autre membre du cabinet (avocat ou
+// collaborateur) comme admin a son tour - plusieurs titulaires peuvent
+// coexister dans un meme cabinet. Irreversible depuis cette route (pas de
+// retrogradation) : le nouvel admin peut ensuite retrograder quelqu'un
+// d'autre s'il le souhaite, mais jamais se retirer lui-meme par erreur.
+usersRouter.patch("/api/users/:id/promouvoir-admin", requireAuth, requireAdmin, async (req, res) => {
+  if (req.params.id === req.auth!.userId) {
+    return res.status(400).json({ error: "Tu es déjà administrateur" });
+  }
+
+  const target = await prisma.user.findFirst({
+    where: { id: req.params.id, cabinetId: req.auth!.cabinetId },
+  });
+  if (!target) {
+    return res.status(404).json({ error: "Compte introuvable dans ce cabinet" });
+  }
+  if (target.role === "titulaire") {
+    return res.status(400).json({ error: "Ce compte est déjà administrateur" });
+  }
+
+  await prisma.user.update({
+    where: { id: target.id },
+    data: { role: "titulaire", responsableId: null },
+  });
+  return res.json({ ok: true });
+});
+
+// Chacun met a jour ses propres coordonnees (jamais celles d'un tiers).
+const updateProfilSchema = z.object({
+  email: z.string().email().optional(),
+  telephone: z.string().optional(),
+  adresse: z.string().optional(),
+  dateArrivee: z.string().optional(),
+});
+
+usersRouter.patch("/api/users/me", requireAuth, async (req, res) => {
+  const parsed = updateProfilSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Requête invalide", details: parsed.error.issues });
+  }
+  const { email, telephone, adresse, dateArrivee } = parsed.data;
+
+  if (email) {
+    const existing = await prisma.user.findUnique({ where: { email } });
+    if (existing && existing.id !== req.auth!.userId) {
+      return res.status(409).json({ error: "Un compte existe déjà avec cet email" });
+    }
+  }
+
+  const updated = await prisma.user.update({
+    where: { id: req.auth!.userId },
+    data: {
+      email,
+      telephone: telephone ?? undefined,
+      adresse: adresse ?? undefined,
+      dateArrivee: dateArrivee ? new Date(dateArrivee) : undefined,
+    },
+    select: { email: true, telephone: true, adresse: true, dateArrivee: true },
+  });
+  return res.json(updated);
+});

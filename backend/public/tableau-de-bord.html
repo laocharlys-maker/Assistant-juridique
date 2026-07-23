@@ -39,7 +39,12 @@
 
     <div class="chart-grid">
       <div class="card chart-card">
-        <h2>Documents générés — 6 derniers mois</h2>
+        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:8px;">
+          <h2 style="margin:0;">Documents générés — 6 derniers mois</h2>
+          <select id="trend-type-filter" style="width:auto; margin:0;">
+            <option value="">Tous les documents</option>
+          </select>
+        </div>
         <div id="trend-chart"></div>
       </div>
       <div class="card chart-card">
@@ -70,7 +75,9 @@
       requete: "Requête",
     };
 
-    function renderTrendChart(evolutionMensuelle) {
+    let lastEvolution = [];
+
+    function renderTrendChart(evolutionMensuelle, typeFiltre) {
       const el = document.getElementById("trend-chart");
       if (!evolutionMensuelle || evolutionMensuelle.length === 0) {
         el.innerHTML = '<p class="trend-empty">Pas encore assez d\'activité pour afficher une tendance.</p>';
@@ -78,7 +85,8 @@
       }
       const points = evolutionMensuelle.map((m) => {
         const [, label] = m.mois.split("|");
-        return { label, total: m.total };
+        const total = typeFiltre ? m.parType[typeFiltre] || 0 : m.total;
+        return { label, total };
       });
       const max = Math.max(1, ...points.map((p) => p.total));
       const w = 560, h = 180, padL = 8, padR = 8, padT = 18, padB = 26;
@@ -157,7 +165,21 @@
         document.getElementById("stat-dossiers").textContent = stats.dossiersActifs;
         document.getElementById("stat-cr").textContent = stats.crCeMois;
         document.getElementById("stat-echeances").textContent = stats.echeances7Jours;
-        renderTrendChart(stats.evolutionMensuelle);
+
+        lastEvolution = stats.evolutionMensuelle || [];
+        const typesPresents = new Set();
+        lastEvolution.forEach((m) => Object.keys(m.parType || {}).forEach((t) => typesPresents.add(t)));
+        const filterEl = document.getElementById("trend-type-filter");
+        const previousValue = filterEl.value;
+        filterEl.innerHTML =
+          '<option value="">Tous les documents</option>' +
+          Array.from(typesPresents)
+            .sort((a, b) => (TYPE_LABELS[a] || a).localeCompare(TYPE_LABELS[b] || b))
+            .map((t) => `<option value="${t}">${TYPE_LABELS[t] || t}</option>`)
+            .join("");
+        filterEl.value = typesPresents.has(previousValue) ? previousValue : "";
+
+        renderTrendChart(lastEvolution, filterEl.value);
         renderTypeBreakdown(stats.repartitionTypes);
       } catch (err) {
         showError(errorEl, err.message);
@@ -186,6 +208,10 @@
       document.getElementById("scope-tabs").style.display = "flex";
       document.querySelectorAll("#scope-tabs .tab").forEach((btn) => {
         btn.addEventListener("click", () => loadStats(btn.dataset.scope));
+      });
+
+      document.getElementById("trend-type-filter").addEventListener("change", (e) => {
+        renderTrendChart(lastEvolution, e.target.value);
       });
 
       loadStats();

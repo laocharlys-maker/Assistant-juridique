@@ -9,17 +9,45 @@
 </head>
 <body>
   <div class="page">
-    <h1>Ma signature</h1>
-    <p class="muted">Une image de ta signature (PNG ou JPEG, fond transparent de préférence). Elle pourra être insérée dans les documents que tu valides.</p>
+    <div class="page-hero">
+      <div class="eyebrow">Compte</div>
+      <h1>Mon profil</h1>
+      <p>Tes coordonnées et ta signature pour les documents du cabinet.</p>
+    </div>
 
     <div id="error" class="error"></div>
 
-    <div class="card">
-      <div id="current-signature"></div>
-      <label>Nouvelle signature (image)</label>
-      <input type="file" id="signature-file" accept="image/png,image/jpeg" />
-      <button type="button" id="upload-btn">Enregistrer</button>
-      <button type="button" class="secondary" id="remove-btn">Retirer ma signature</button>
+    <div class="settings-grid">
+      <div class="settings-card">
+        <div class="icon-badge"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+        <h3>Coordonnées</h3>
+        <p class="desc">Visibles uniquement par les membres du cabinet.</p>
+        <form id="profil-form">
+          <label>Email</label>
+          <input name="email" type="email" required />
+          <label>Téléphone</label>
+          <input name="telephone" placeholder="ex: +229 01 97 00 00 00" />
+          <label>Adresse</label>
+          <input name="adresse" placeholder="ex: Cotonou, Bénin" />
+          <label>Date d'arrivée au cabinet</label>
+          <input name="dateArrivee" type="date" />
+          <button type="submit" class="btn-sm">Enregistrer</button>
+          <span id="profil-saved" class="muted" style="display:none; margin-left:10px;">Enregistré ✓</span>
+        </form>
+      </div>
+
+      <div class="settings-card">
+        <div class="icon-badge"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></div>
+        <h3>Ma signature</h3>
+        <p class="desc">Image PNG ou JPEG, fond transparent de préférence. Insérable dans les documents que tu valides.</p>
+        <div id="current-signature"></div>
+        <label>Nouvelle signature (image)</label>
+        <input type="file" id="signature-file" accept="image/png,image/jpeg" />
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <button type="button" id="upload-btn" class="btn-sm">Enregistrer</button>
+          <button type="button" class="secondary btn-sm" id="remove-btn">Retirer ma signature</button>
+        </div>
+      </div>
     </div>
   </div>
   <script src="/js/api.js"></script>
@@ -38,14 +66,42 @@
         : `<p class="muted">Aucune signature enregistrée pour l'instant.</p>`;
     }
 
+    const errorEl = document.getElementById("error");
+
     (async () => {
       const me = await requireSession();
       if (!me) return;
       initLayout(me);
       renderCurrent(me.signatureUrl);
+      const form = document.getElementById("profil-form");
+      form.querySelector('input[name="email"]').value = me.email || "";
+      form.querySelector('input[name="telephone"]').value = me.telephone || "";
+      form.querySelector('input[name="adresse"]').value = me.adresse || "";
+      form.querySelector('input[name="dateArrivee"]').value = me.dateArrivee ? me.dateArrivee.slice(0, 10) : "";
     })();
 
-    const errorEl = document.getElementById("error");
+    document.getElementById("profil-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      hideError(errorEl);
+      const fd = new FormData(e.target);
+      const savedEl = document.getElementById("profil-saved");
+      savedEl.style.display = "none";
+      try {
+        await apiFetch("/api/users/me", {
+          method: "PATCH",
+          body: {
+            email: fd.get("email"),
+            telephone: fd.get("telephone") || undefined,
+            adresse: fd.get("adresse") || undefined,
+            dateArrivee: fd.get("dateArrivee") || undefined,
+          },
+        });
+        savedEl.style.display = "inline";
+        setTimeout(() => { savedEl.style.display = "none"; }, 3000);
+      } catch (err) {
+        showError(errorEl, err.message);
+      }
+    });
 
     document.getElementById("upload-btn").addEventListener("click", async () => {
       hideError(errorEl);

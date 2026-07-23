@@ -111,6 +111,12 @@ model User {
   // session en cours, sans supprimer l'historique (dossiers/actions crees
   // par cette personne restent intacts).
   actif                 Boolean  @default(true)
+  telephone             String?
+  adresse               String?
+  // Date d'arrivee au cabinet (peut differer de createdAt, saisie a la main
+  // - utile pour quelqu'un qui a rejoint le cabinet avant l'existence du
+  // compte Aurore).
+  dateArrivee           DateTime? @map("date_arrivee")
   createdAt             DateTime @default(now()) @map("created_at")
 
   cabinet           Cabinet       @relation(fields: [cabinetId], references: [id])

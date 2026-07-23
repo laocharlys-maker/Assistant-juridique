@@ -28,6 +28,7 @@
     </div>
 
     <div id="error" class="error"></div>
+    <datalist id="dossiers-datalist"></datalist>
     <div id="result" class="card" style="display:none;">
       <h2>Résultat</h2>
       <p class="muted" id="result-meta"></p>
@@ -42,7 +43,7 @@
     <div class="card">
       <form id="notes-form" class="action-form">
         <label>Numéro de dossier</label>
-        <input name="numero_dossier" required />
+        <input name="numero_dossier" list="dossiers-datalist" required />
         <label>Nom de l'affaire</label>
         <input name="nom_affaire" required />
         <label>Nom du client</label>
@@ -64,7 +65,7 @@
 
       <form id="redac-form" class="action-form" style="display:none;">
         <label>Numéro de dossier concerné (optionnel)</label>
-        <input name="numero_dossier" placeholder="Laisse vide si non applicable" />
+        <input name="numero_dossier" list="dossiers-datalist" placeholder="Laisse vide si non applicable" />
         <label>Nom de l'affaire (optionnel)</label>
         <input name="nom_affaire" placeholder="Laisse vide si non applicable" />
         <label>Nom du client (si nouveau dossier)</label>
@@ -98,7 +99,7 @@
 
       <form id="conclusions-form" class="action-form" style="display:none;">
         <label>Numéro de dossier concerné (optionnel)</label>
-        <input name="numero_dossier" placeholder="Laisse vide si non applicable" />
+        <input name="numero_dossier" list="dossiers-datalist" placeholder="Laisse vide si non applicable" />
         <label>Nom de l'affaire (optionnel)</label>
         <input name="nom_affaire" placeholder="Laisse vide si non applicable" />
         <label>Nom du client (si nouveau dossier)</label>
@@ -132,7 +133,7 @@
 
       <form id="assignation-form" class="action-form" style="display:none;">
         <label>Numéro de dossier concerné</label>
-        <input name="numero_dossier" required />
+        <input name="numero_dossier" list="dossiers-datalist" required />
         <label>Nom de l'affaire</label>
         <input name="nom_affaire" required />
         <label>Défendeur (partie assignée)</label>
@@ -166,7 +167,7 @@
 
       <form id="mise_en_demeure-form" class="action-form" style="display:none;">
         <label>Numéro de dossier concerné</label>
-        <input name="numero_dossier" required />
+        <input name="numero_dossier" list="dossiers-datalist" required />
         <label>Nom de l'affaire</label>
         <input name="nom_affaire" required />
         <label>Destinataire</label>
@@ -182,7 +183,7 @@
 
       <form id="plainte-form" class="action-form" style="display:none;">
         <label>Numéro de dossier concerné (optionnel)</label>
-        <input name="numero_dossier" placeholder="Laisse vide si non applicable" />
+        <input name="numero_dossier" list="dossiers-datalist" placeholder="Laisse vide si non applicable" />
         <label>Nom de l'affaire (optionnel)</label>
         <input name="nom_affaire" placeholder="Laisse vide si non applicable" />
         <label>Nom du client / plaignant (si nouveau dossier)</label>
@@ -219,7 +220,7 @@
 
       <form id="contrat-form" class="action-form" style="display:none;">
         <label>Numéro de dossier concerné</label>
-        <input name="numero_dossier" required />
+        <input name="numero_dossier" list="dossiers-datalist" required />
         <label>Nom de l'affaire</label>
         <input name="nom_affaire" required />
         <label>Nom du client (si nouveau dossier)</label>
@@ -263,7 +264,7 @@
 
       <form id="notification_date-form" class="action-form" style="display:none;">
         <label>Numéro de dossier concerné</label>
-        <input name="numero_dossier" required />
+        <input name="numero_dossier" list="dossiers-datalist" required />
         <label>Nom de l'affaire</label>
         <input name="nom_affaire" required />
         <label>Nom du client (si nouveau dossier)</label>
@@ -285,7 +286,7 @@
 
       <form id="requete-form" class="action-form" style="display:none;">
         <label>Numéro de dossier concerné (optionnel)</label>
-        <input name="numero_dossier" placeholder="Laisse vide si non applicable" />
+        <input name="numero_dossier" list="dossiers-datalist" placeholder="Laisse vide si non applicable" />
         <label>Nom de l'affaire (optionnel)</label>
         <input name="nom_affaire" placeholder="Laisse vide si non applicable" />
         <label>Nom du client (si nouveau dossier)</label>
@@ -432,7 +433,37 @@
         const input = document.getElementById(id);
         if (input) input.value = me.nom;
       });
+      await loadDossiersForAutofill();
     })();
+
+    // Autocompletion + pre-remplissage : quand on saisit/choisit un numero
+    // de dossier deja existant, le nom de l'affaire (et du client) se
+    // remplissent automatiquement - jamais invente, uniquement recopie
+    // depuis le dossier trouve.
+    const dossiersParNumero = new Map();
+    async function loadDossiersForAutofill() {
+      try {
+        const { dossiers } = await apiFetch("/api/dossiers");
+        const datalist = document.getElementById("dossiers-datalist");
+        datalist.innerHTML = dossiers
+          .map((d) => `<option value="${escapeHtmlAttr(d.numeroDossier)}">${escapeHtmlAttr(d.nomAffaire)}</option>`)
+          .join("");
+        dossiers.forEach((d) => dossiersParNumero.set(d.numeroDossier, d));
+      } catch {
+        // Pas bloquant : la saisie manuelle reste possible sans autocompletion.
+      }
+      document.querySelectorAll('input[name="numero_dossier"]').forEach((input) => {
+        input.addEventListener("input", () => {
+          const dossier = dossiersParNumero.get(input.value.trim());
+          if (!dossier) return;
+          const form = input.closest("form");
+          const nomAffaireInput = form.querySelector('input[name="nom_affaire"]');
+          const nomClientInput = form.querySelector('input[name="nom_client"]');
+          if (nomAffaireInput) nomAffaireInput.value = dossier.nomAffaire;
+          if (nomClientInput) nomClientInput.value = dossier.nomClient;
+        });
+      });
+    }
 
     const forms = {
       notes: document.getElementById("notes-form"),

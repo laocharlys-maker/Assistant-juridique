@@ -34,6 +34,14 @@
       <div id="users-list"><p class="muted">Chargement…</p></div>
     </div>
 
+    <template id="icon-svgs">
+      <span data-icon="power"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></span>
+      <span data-icon="crown"><path d="M3 19h18"/><path d="M5 19 3 8l5.5 4L12 4l3.5 8L21 8l-2 11"/></span>
+      <span data-icon="folder"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></span>
+      <span data-icon="shield"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></span>
+      <span data-icon="pen"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></span>
+    </template>
+
     <div class="settings-grid">
       <div class="settings-card" id="create-avocat-card" style="display:none;">
         <h3>Ajouter un avocat</h3>
@@ -71,6 +79,14 @@
 
     let me = null;
 
+    function iconBtn({ icon, tooltip, dataset, isOn, isDanger }) {
+      const svgInner = document.querySelector(`#icon-svgs [data-icon="${icon}"]`).innerHTML;
+      const attrs = Object.entries(dataset).map(([k, v]) => `data-${k}="${v}"`).join(" ");
+      return `<button type="button" class="icon-action${isOn ? " is-on" : ""}${isDanger ? " is-danger" : ""}" data-tooltip="${escapeHtml(tooltip)}" ${attrs}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${svgInner}</svg>
+      </button>`;
+    }
+
     async function loadUsers() {
       const listEl = document.getElementById("users-list");
       try {
@@ -79,21 +95,27 @@
           .map((u) => {
             if (u.role === "titulaire" || u.role === "avocat") {
               if (u.id === me.id) return "";
+              const actions = [];
+              if (me.role === "titulaire") {
+                if (u.role !== "titulaire") {
+                  actions.push(iconBtn({ icon: "crown", tooltip: "Désigner comme admin", dataset: { "promouvoir-admin": u.id } }));
+                }
+                actions.push(
+                  iconBtn({
+                    icon: "power",
+                    tooltip: u.actif === false ? "Réactiver le compte" : "Désactiver le compte",
+                    dataset: { "toggle-actif": u.id, actif: u.actif !== false },
+                    isDanger: u.actif !== false,
+                  })
+                );
+              }
               return `
               <div class="dossier-item">
                 <div>
                   <strong>${escapeHtml(u.nom)}</strong>
-                  <div class="meta">${escapeHtml(u.email)} · ${u.role === "titulaire" ? "Admin" : "Avocat"}${u.actif === false ? " · <span style=\"color:#b91c1c;\">Compte désactivé</span>" : ""}</div>
+                  <div class="meta">${escapeHtml(u.email)} · ${u.role === "titulaire" ? "Admin" : "Avocat"}${u.actif === false ? ' · <span style="color:var(--danger);">Compte désactivé</span>' : ""}</div>
                 </div>
-                ${
-                  me.role === "titulaire"
-                    ? `<div style="display:flex; gap:6px; flex-wrap:wrap;">
-                        <button type="button" class="secondary btn-sm" data-toggle-actif="${u.id}" data-actif="${u.actif !== false}">
-                          ${u.actif === false ? "Réactiver le compte" : "Désactiver le compte"}
-                        </button>
-                      </div>`
-                    : ""
-                }
+                <div class="icon-action-row">${actions.join("")}</div>
               </div>`;
             }
 
@@ -104,6 +126,46 @@
               .map((a) => escapeHtml(a.avocat.nom))
               .join(", ");
 
+            const actions = [];
+            if (isMyCollaborateur) {
+              actions.push(
+                iconBtn({
+                  icon: "pen",
+                  tooltip: u.partageSignatureActif ? "Retirer l'accès à ma signature" : "Autoriser l'accès à ma signature",
+                  dataset: { "toggle-signature": u.id, actif: u.partageSignatureActif },
+                  isOn: u.partageSignatureActif,
+                })
+              );
+            } else {
+              actions.push(
+                iconBtn({
+                  icon: "folder",
+                  tooltip: hasExtraAccess ? "Retirer l'accès à mes dossiers" : "Donner accès à mes dossiers",
+                  dataset: { "toggle-access": u.id, granted: hasExtraAccess },
+                  isOn: hasExtraAccess,
+                })
+              );
+            }
+            if (me.role === "titulaire") {
+              actions.push(
+                iconBtn({
+                  icon: "shield",
+                  tooltip: u.accesTousDossiers ? "Retirer l'accès à tous les dossiers" : "Donner accès à tous les dossiers",
+                  dataset: { "toggle-all-access": u.id, actif: u.accesTousDossiers },
+                  isOn: u.accesTousDossiers,
+                })
+              );
+              actions.push(iconBtn({ icon: "crown", tooltip: "Désigner comme admin", dataset: { "promouvoir-admin": u.id } }));
+              actions.push(
+                iconBtn({
+                  icon: "power",
+                  tooltip: u.actif === false ? "Réactiver le compte" : "Désactiver le compte",
+                  dataset: { "toggle-actif": u.id, actif: u.actif !== false },
+                  isDanger: u.actif !== false,
+                })
+              );
+            }
+
             return `
             <div class="dossier-item">
               <div>
@@ -112,33 +174,28 @@
                   ${escapeHtml(u.email)} · Collaborateur · dépend de ${responsableLabel}
                   ${autresAcces ? ` · accès supplémentaire : ${autresAcces}` : ""}
                   ${u.accesTousDossiers ? " · accès à tous les dossiers du cabinet" : ""}
-                  ${u.actif === false ? " · <span style=\"color:#b91c1c;\">Compte désactivé</span>" : ""}
+                  ${u.actif === false ? ' · <span style="color:var(--danger);">Compte désactivé</span>' : ""}
                 </div>
               </div>
-              <div style="display:flex; gap:6px; flex-wrap:wrap;">
-                ${
-                  isMyCollaborateur
-                    ? `<button type="button" class="secondary btn-sm" data-toggle-signature="${u.id}" data-actif="${u.partageSignatureActif}">
-                        ${u.partageSignatureActif ? "Retirer accès signature" : "Autoriser accès signature"}
-                      </button>`
-                    : `<button type="button" class="secondary btn-sm" data-toggle-access="${u.id}" data-granted="${hasExtraAccess}">
-                        ${hasExtraAccess ? "Retirer accès dossiers" : "Donner accès dossiers"}
-                      </button>`
-                }
-                ${
-                  me.role === "titulaire"
-                    ? `<button type="button" class="secondary btn-sm" data-toggle-all-access="${u.id}" data-actif="${u.accesTousDossiers}">
-                        ${u.accesTousDossiers ? "Retirer accès tous dossiers" : "Donner accès tous dossiers"}
-                      </button>
-                      <button type="button" class="secondary btn-sm" data-toggle-actif="${u.id}" data-actif="${u.actif !== false}">
-                        ${u.actif === false ? "Réactiver le compte" : "Désactiver le compte"}
-                      </button>`
-                    : ""
-                }
-              </div>
+              <div class="icon-action-row">${actions.join("")}</div>
             </div>`;
           })
           .join("");
+
+        listEl.querySelectorAll("[data-promouvoir-admin]").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            const userId = btn.dataset.promouvoirAdmin;
+            if (!confirm("Désigner ce membre comme administrateur du cabinet ? Il aura alors les mêmes droits que toi (gestion de l'équipe, paramètres, journal d'audit...).")) {
+              return;
+            }
+            try {
+              await apiFetch(`/api/users/${userId}/promouvoir-admin`, { method: "PATCH" });
+              loadUsers();
+            } catch (err) {
+              showError(document.getElementById("error"), err.message);
+            }
+          });
+        });
 
         listEl.querySelectorAll("[data-toggle-access]").forEach((btn) => {
           btn.addEventListener("click", async () => {

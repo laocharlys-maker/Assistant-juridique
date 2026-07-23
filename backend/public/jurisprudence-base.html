@@ -9,31 +9,38 @@
 </head>
 <body>
   <div class="page">
-    <h1>Base de jurisprudence du cabinet</h1>
-    <p class="muted">Ajoute ici des textes de loi et décisions que tu as toi-même vérifiés. Aurore ne citera dans ses recherches de jurisprudence QUE les décisions présentes dans cette base — jamais une référence inventée.</p>
+    <div class="page-hero">
+      <div class="eyebrow">Cabinet</div>
+      <h1>Base de jurisprudence</h1>
+      <p>Ajoute ici des textes de loi et décisions que tu as toi-même vérifiés. Aurore ne citera dans ses recherches de jurisprudence QUE les décisions présentes dans cette base — jamais une référence inventée.</p>
+    </div>
 
     <div id="error" class="error"></div>
 
     <div class="card">
-      <h2>Ajouter une source</h2>
-      <form id="create-form">
-        <label>Source (ex: OHADA, Code béninois, Cour Suprême)</label>
-        <input name="source" required />
-        <label>Référence exacte (ex: Arrêt n° 12/2024 CCJA du 15/03/2024)</label>
-        <input name="reference" required />
-        <label>Juridiction</label>
-        <input name="juridiction" placeholder="ex: CCJA, Cour d'Appel de Cotonou" />
-        <label>Date de la décision</label>
-        <input name="dateDecision" type="date" />
-        <label>Contenu / résumé (le plus complet possible)</label>
-        <textarea name="contenu" required style="min-height:160px;"></textarea>
-        <button type="submit">Indexer dans la base</button>
-      </form>
+      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:8px;">
+        <h2 style="margin:0;">Sources déjà indexées</h2>
+        <button type="button" id="toggle-create-btn">+ Ajouter une source</button>
+      </div>
+      <div id="entries-list"><p class="muted">Chargement…</p></div>
     </div>
 
-    <div class="card">
-      <h2>Sources déjà indexées</h2>
-      <div id="entries-list"><p class="muted">Chargement…</p></div>
+    <div class="collapse-panel" id="create-panel">
+      <div class="collapse-panel-inner">
+        <form id="create-form">
+          <label>Source (ex: OHADA, Code béninois, Cour Suprême)</label>
+          <input name="source" required />
+          <label>Référence exacte (ex: Arrêt n° 12/2024 CCJA du 15/03/2024)</label>
+          <input name="reference" required />
+          <label>Juridiction</label>
+          <input name="juridiction" placeholder="ex: CCJA, Cour d'Appel de Cotonou" />
+          <label>Date de la décision</label>
+          <input name="dateDecision" type="date" />
+          <label>Contenu / résumé (le plus complet possible)</label>
+          <textarea name="contenu" required style="min-height:160px;"></textarea>
+          <button type="submit">Indexer dans la base</button>
+        </form>
+      </div>
     </div>
   </div>
   <script src="/js/api.js"></script>
@@ -83,6 +90,13 @@
       loadEntries();
     })();
 
+    const createPanel = document.getElementById("create-panel");
+    const toggleCreateBtn = document.getElementById("toggle-create-btn");
+    toggleCreateBtn.addEventListener("click", () => {
+      createPanel.classList.toggle("open");
+      toggleCreateBtn.textContent = createPanel.classList.contains("open") ? "Réduire" : "+ Ajouter une source";
+    });
+
     const errorEl = document.getElementById("error");
     document.getElementById("create-form").addEventListener("submit", async (e) => {
       e.preventDefault();
@@ -100,6 +114,8 @@
           },
         });
         e.target.reset();
+        createPanel.classList.remove("open");
+        toggleCreateBtn.textContent = "+ Ajouter une source";
         loadEntries();
       } catch (err) {
         showError(errorEl, err.message);

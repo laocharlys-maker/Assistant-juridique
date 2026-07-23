@@ -73,17 +73,23 @@ statsRouter.get("/api/stats", requireAuth, requireAvocat, async (req, res) => {
     }),
   ]);
 
-  // Evolution mensuelle (6 derniers mois, y compris les mois sans activite).
-  const evolutionMensuelle: { mois: string; total: number }[] = [];
+  // Evolution mensuelle (6 derniers mois, y compris les mois sans activite),
+  // avec le detail par type de document pour permettre au tableau de bord
+  // d'afficher la tendance globale ou filtree sur un seul type.
+  const evolutionMensuelle: { mois: string; total: number; parType: Record<string, number> }[] = [];
   for (let i = 5; i >= 0; i--) {
     const moisDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
     const cle = `${moisDate.getUTCFullYear()}-${String(moisDate.getUTCMonth() + 1).padStart(2, "0")}`;
     const label = moisDate.toLocaleDateString("fr-FR", { month: "short", timeZone: "UTC" });
-    const total = actionsRecentes.filter((a) => {
+    const actionsDuMois = actionsRecentes.filter((a) => {
       const d = a.createdAt;
       return d.getUTCFullYear() === moisDate.getUTCFullYear() && d.getUTCMonth() === moisDate.getUTCMonth();
-    }).length;
-    evolutionMensuelle.push({ mois: `${cle}|${label}`, total });
+    });
+    const parType: Record<string, number> = {};
+    for (const a of actionsDuMois) {
+      parType[a.typeAction] = (parType[a.typeAction] ?? 0) + 1;
+    }
+    evolutionMensuelle.push({ mois: `${cle}|${label}`, total: actionsDuMois.length, parType });
   }
 
   // Repartition par type de document (6 derniers mois), triee par volume.

@@ -8,12 +8,13 @@
   --bg-grad-2: rgba(70, 108, 168, 0.08);
   --panel: #ffffff;
   --panel-alt: #fbfaf6;
-  --border: rgba(28, 40, 62, 0.12);
-  --hairline: rgba(28, 40, 62, 0.10);
+  --border: rgba(22, 35, 59, 0.16);
+  --hairline: rgba(22, 35, 59, 0.10);
   --text: #16233b;
   --text-strong: #0f1a2c;
   --muted: #5c6a84;
   --muted-soft: #8590a6;
+  --placeholder: #aab2c2;
 
   --accent: #a97a29;
   --accent-hover: #8a6420;
@@ -27,10 +28,11 @@
   --warning: #b0790f;
   --warning-tint: rgba(176, 121, 15, 0.12);
 
-  --shadow-sm: 0 2px 8px rgba(20, 30, 50, 0.06);
-  --shadow-md: 0 16px 36px -20px rgba(20, 30, 50, 0.22);
+  --shadow-sm: 0 1px 2px rgba(20, 30, 50, 0.04), 0 10px 24px -16px rgba(20, 30, 50, 0.20);
+  --shadow-md: 0 16px 36px -20px rgba(20, 30, 50, 0.28);
 
-  /* Colonne laterale : fixe, ne change pas avec le theme clair/sombre. */
+  /* Colonne laterale : sombre en mode clair, s'inverse en clair en mode
+     sombre (voir plus bas) pour garder un contraste net avec le contenu. */
   --sidebar-bg: #101d33;
   --sidebar-hairline: rgba(217, 169, 74, 0.16);
   --sidebar-text: #a8b6cc;
@@ -39,6 +41,7 @@
   --sidebar-active-text: #f0cd88;
   --sidebar-active-bar: #e8bd6a;
   --sidebar-group-label: #66799a;
+  --sidebar-brand-word: #f7f9fc;
 
   --font-display: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
 }
@@ -56,6 +59,7 @@
   --text-strong: #f7f9fc;
   --muted: #a8b6cc;
   --muted-soft: #7d8caa;
+  --placeholder: #56698c;
 
   --accent: #d9a94a;
   --accent-hover: #e8bd6a;
@@ -71,6 +75,18 @@
 
   --shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 24px 48px -24px rgba(0, 0, 0, 0.6);
+
+  /* En mode sombre, la colonne laterale s'inverse en clair pour rester
+     nettement distincte du contenu (au lieu de "navy sur navy"). */
+  --sidebar-bg: #f4f1ea;
+  --sidebar-hairline: rgba(169, 122, 41, 0.22);
+  --sidebar-text: #4c5b76;
+  --sidebar-text-hover: #16233b;
+  --sidebar-hover-bg: #ece7db;
+  --sidebar-active-text: #8a6420;
+  --sidebar-active-bar: #a97a29;
+  --sidebar-group-label: #8590a6;
+  --sidebar-brand-word: #16233b;
 }
 
 * { box-sizing: border-box; }
@@ -150,6 +166,11 @@ input:focus, textarea:focus, select:focus {
 }
 
 textarea { min-height: 100px; resize: vertical; }
+
+input::placeholder, textarea::placeholder { color: var(--placeholder); opacity: 1; }
+select:invalid { color: var(--placeholder); }
+
+.required-mark { color: var(--danger); font-weight: 700; }
 
 button {
   margin-top: 18px;
@@ -289,7 +310,7 @@ button.btn-sm { padding: 7px 14px; font-size: 0.82rem; margin-top: 0; }
   flex-shrink: 0;
   background: var(--sidebar-bg);
   overflow: hidden;
-  transition: width 0.18s ease;
+  transition: width 0.18s ease, background 0.2s ease;
   display: flex;
   flex-direction: column;
 }
@@ -314,7 +335,8 @@ button.btn-sm { padding: 7px 14px; font-size: 0.82rem; margin-top: 0; }
   font-family: var(--font-display);
   font-size: 1rem;
   letter-spacing: 0.04em;
-  color: #f7f9fc;
+  color: var(--sidebar-brand-word);
+  transition: color 0.2s ease;
 }
 
 .sidebar nav {
@@ -538,3 +560,55 @@ header.app-topbar {
 .type-bar-track { height: 8px; border-radius: 999px; background: var(--hairline); overflow: hidden; }
 .type-bar-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--accent-300), var(--accent-hover)); }
 .type-bar-value { font-size: 0.8rem; color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+
+/* ---------- Boutons icone compacts avec infobulle au survol ---------- */
+/* Remplacent les rangees de gros boutons texte (ex: actions par membre de
+   l'equipe) par de petits boutons ronds ; le libelle n'apparait qu'au
+   survol/focus, via une bulle plutot que le tooltip natif du navigateur. */
+.icon-action-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.icon-action {
+  position: relative;
+  margin: 0;
+  padding: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: none;
+  flex-shrink: 0;
+  transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+}
+.icon-action:hover { background: var(--accent-tint); border-color: var(--accent); color: var(--accent-hover); box-shadow: none; }
+.icon-action.is-on { background: var(--accent-tint); border-color: var(--accent); color: var(--accent-hover); }
+.icon-action.is-danger:hover { background: var(--danger-tint); border-color: var(--danger); color: var(--danger); }
+.icon-action.is-gold { background: var(--accent-tint); border-color: var(--accent); color: var(--accent-hover); }
+
+.icon-action[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  background: var(--text-strong);
+  color: var(--panel);
+  font-size: 0.74rem;
+  font-weight: 600;
+  white-space: nowrap;
+  padding: 5px 10px;
+  border-radius: 6px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.14s ease, transform 0.14s ease;
+  z-index: 10;
+}
+.icon-action[data-tooltip]:hover::after,
+.icon-action[data-tooltip]:focus-visible::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
