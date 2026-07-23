@@ -61,6 +61,8 @@
         <input name="numero_dossier" required />
         <label>Nom de l'affaire</label>
         <input name="nom_affaire" required />
+        <label>Nom du client (si nouveau dossier)</label>
+        <input name="nom_client" placeholder="Laisse vide si le dossier existe déjà" />
         <label>Contexte de l'affaire</label>
         <textarea name="contexte" required></textarea>
         <label>Axes d'argumentation</label>
@@ -75,6 +77,8 @@
         <input name="numero_dossier" required />
         <label>Nom de l'affaire</label>
         <input name="nom_affaire" required />
+        <label>Nom du client (si nouveau dossier)</label>
+        <input name="nom_client" placeholder="Laisse vide si le dossier existe déjà" />
         <label>Contexte de l'affaire</label>
         <textarea name="contexte" required></textarea>
         <label>Axes d'argumentation / moyens de droit</label>
@@ -91,6 +95,8 @@
         <input name="nom_affaire" required />
         <label>Défendeur (partie assignée)</label>
         <input name="destinataire" required placeholder="Nom / raison sociale du défendeur" />
+        <label>Nom du client (si nouveau dossier)</label>
+        <input name="nom_client" placeholder="Laisse vide si le dossier existe déjà" />
         <label>Contexte de l'affaire</label>
         <textarea name="contexte" required></textarea>
         <label>Axes d'argumentation / moyens de droit</label>
@@ -107,6 +113,8 @@
         <input name="nom_affaire" required />
         <label>Destinataire</label>
         <input name="destinataire" required placeholder="Nom / raison sociale du destinataire" />
+        <label>Nom du client (si nouveau dossier)</label>
+        <input name="nom_client" placeholder="Laisse vide si le dossier existe déjà" />
         <label>Contexte / obligation non respectée</label>
         <textarea name="contexte" required></textarea>
         <label>Délai accordé (en jours)</label>
@@ -300,6 +308,7 @@
       submitForm("redac", {
         numero_dossier: fd.get("numero_dossier"),
         nom_affaire: fd.get("nom_affaire"),
+        nom_client: fd.get("nom_client") || undefined,
         contexte: fd.get("contexte"),
         axes_argumentation: listValues("axes-list-redac"),
       }, forms.redac.querySelector('button[type="submit"]'));
@@ -311,6 +320,7 @@
       submitForm("conclusions", {
         numero_dossier: fd.get("numero_dossier"),
         nom_affaire: fd.get("nom_affaire"),
+        nom_client: fd.get("nom_client") || undefined,
         contexte: fd.get("contexte"),
         axes_argumentation: listValues("axes-list-conclusions"),
       }, forms.conclusions.querySelector('button[type="submit"]'));
@@ -323,6 +333,7 @@
         numero_dossier: fd.get("numero_dossier"),
         nom_affaire: fd.get("nom_affaire"),
         destinataire: fd.get("destinataire"),
+        nom_client: fd.get("nom_client") || undefined,
         contexte: fd.get("contexte"),
         axes_argumentation: listValues("axes-list-assignation"),
       }, forms.assignation.querySelector('button[type="submit"]'));
@@ -335,6 +346,7 @@
         numero_dossier: fd.get("numero_dossier"),
         nom_affaire: fd.get("nom_affaire"),
         destinataire: fd.get("destinataire"),
+        nom_client: fd.get("nom_client") || undefined,
         contexte: fd.get("contexte"),
         delai_jours: fd.get("delai_jours"),
       }, forms.mise_en_demeure.querySelector('button[type="submit"]'));

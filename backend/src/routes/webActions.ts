@@ -37,6 +37,47 @@ const TEXTE_JURIDIQUE_CONFIG = {
   assignation: { systemPrompt: ASSIGNATION_SYSTEM_PROMPT, categorieTexte: "Assignation" },
 } as const;
 
+type DossierLookupResult =
+  | { ok: true; dossier: Awaited<ReturnType<typeof prisma.dossier.findFirstOrThrow>> }
+  | { ok: false; error: string };
+
+// Utilise pour redac/conclusions/assignation/mise_en_demeure : si le dossier
+// existe deja on le reutilise tel quel, sinon on le cree a la volee (utile
+// pour une nouvelle affaire qui commence directement par une assignation ou
+// une mise en demeure, sans compte-rendu d'audience prealable) - mais il
+// faut alors le nom du client, jamais devine.
+async function findOrCreateDossier(facts: {
+  cabinetId: string;
+  userId: string;
+  numeroDossier: string;
+  nomAffaire: string;
+  nomClient?: string;
+}): Promise<DossierLookupResult> {
+  const existing = await prisma.dossier.findFirst({
+    where: { cabinetId: facts.cabinetId, numeroDossier: facts.numeroDossier },
+  });
+  if (existing) return { ok: true, dossier: existing };
+
+  if (!facts.nomClient) {
+    return {
+      ok: false,
+      error:
+        "Dossier introuvable pour ce numéro. Pour créer un nouveau dossier, renseigne aussi le nom du client.",
+    };
+  }
+
+  const dossier = await prisma.dossier.create({
+    data: {
+      cabinetId: facts.cabinetId,
+      numeroDossier: facts.numeroDossier,
+      nomAffaire: facts.nomAffaire,
+      nomClient: facts.nomClient,
+      createdBy: facts.userId,
+    },
+  });
+  return { ok: true, dossier };
+}
+
 webActionsRouter.post("/api/actions/web", requireAuth, async (req, res) => {
   const parsed = webActionFormSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -115,12 +156,17 @@ webActionsRouter.post("/api/actions/web", requireAuth, async (req, res) => {
         })
       );
 
-      const dossier = await prisma.dossier.findFirst({
-        where: { cabinetId: auth!.cabinetId, numeroDossier: form.numero_dossier },
+      const dossierLookup = await findOrCreateDossier({
+        cabinetId: auth!.cabinetId,
+        userId: auth!.userId,
+        numeroDossier: form.numero_dossier,
+        nomAffaire: form.nom_affaire,
+        nomClient: form.nom_client,
       });
-      if (!dossier) {
-        return res.status(404).json({ error: "Dossier introuvable pour ce numéro" });
+      if (!dossierLookup.ok) {
+        return res.status(404).json({ error: dossierLookup.error });
       }
+      const dossier = dossierLookup.dossier;
       dossierId = dossier.id;
 
       // Le destinataire affiche sur le document depend du type : le defendeur
@@ -158,13 +204,17 @@ webActionsRouter.post("/api/actions/web", requireAuth, async (req, res) => {
         })
       );
 
-      const dossier = await prisma.dossier.findFirst({
-        where: { cabinetId: auth!.cabinetId, numeroDossier: form.numero_dossier },
+      const dossierLookup = await findOrCreateDossier({
+        cabinetId: auth!.cabinetId,
+        userId: auth!.userId,
+        numeroDossier: form.numero_dossier,
+        nomAffaire: form.nom_affaire,
+        nomClient: form.nom_client,
       });
-      if (!dossier) {
-        return res.status(404).json({ error: "Dossier introuvable pour ce numéro" });
+      if (!dossierLookup.ok) {
+        return res.status(404).json({ error: dossierLookup.error });
       }
-      dossierId = dossier.id;
+      dossierId = dossierLookup.dossier.id;
 
       action = {
         type_action: "mise_en_demeure",

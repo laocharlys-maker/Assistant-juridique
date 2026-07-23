@@ -13,9 +13,12 @@ export const notesFormSchema = z.object({
 
 // Champs communs a plaidoirie / conclusions / assignation : meme logique
 // (dossier + contexte + axes d'argumentation), seul le texte genere differe.
+// nom_client est optionnel : necessaire seulement si le dossier n'existe pas
+// encore (creation a la volee), ignore si le dossier existe deja.
 const texteJuridiqueFields = {
   numero_dossier: z.string().min(1),
   nom_affaire: z.string().min(1),
+  nom_client: z.string().min(1).optional(),
   contexte: z.string().min(1),
   axes_argumentation: z.array(z.string().min(1)).min(1),
 };
@@ -41,6 +44,7 @@ export const miseEnDemeureFormSchema = z.object({
   type_action: z.literal("mise_en_demeure"),
   numero_dossier: z.string().min(1),
   nom_affaire: z.string().min(1),
+  nom_client: z.string().min(1).optional(),
   destinataire: z.string().min(1),
   contexte: z.string().min(1),
   delai_jours: z.coerce.number().int().positive(),
