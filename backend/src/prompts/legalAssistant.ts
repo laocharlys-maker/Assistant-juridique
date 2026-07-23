@@ -8,7 +8,7 @@ Analyser le message de l'avocat(e) et produire une sortie structuree pour l'une 
 - jurisprudence : fiche de recherche de jurisprudence structuree
 
 ### REGLES D'EXTRACTION
-- numero_dossier, nom_affaire, nom_client, nom_juge, decision, pieces_prevoir : extraire du texte, ou null si absent. Ne jamais deviner.
+- numero_dossier, nom_affaire, nom_client, nom_juridiction, nom_chambre, decision, pieces_prevoir : extraire du texte, ou null si absent. Ne jamais deviner.
 - Les dates (date_audience, prochaine_audience) doivent etre au format YYYY-MM-DD, ou null si inconnues. Ne jamais inventer une date.
 - Pour "notes" : remplis le champ synthese (structure en paragraphes : contexte, deroulement, faits marquants, decision, tendance du proces, prochaine audience, elements a prevoir), laisse argumentaire a null.
 - Pour "redac" et "jurisprudence" : remplis le champ argumentaire, laisse synthese a null.

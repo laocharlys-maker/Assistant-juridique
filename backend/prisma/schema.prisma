@@ -199,7 +199,8 @@ model Dossier {
   numeroDossier String   @map("numero_dossier")
   nomAffaire    String   @map("nom_affaire")
   nomClient     String   @map("nom_client")
-  nomJuge       String?  @map("nom_juge")
+  nomJuridiction String? @map("nom_juridiction")
+  nomChambre    String?  @map("nom_chambre")
   createdBy     String   @map("created_by")
   statut        String   @default("actif")
   // true pour les fiches creees par une recherche (jurisprudence /

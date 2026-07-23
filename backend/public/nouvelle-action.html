@@ -47,8 +47,10 @@
         <input name="nom_affaire" required />
         <label>Nom du client</label>
         <input name="nom_client" required />
-        <label>Nom du juge</label>
-        <input name="nom_juge" />
+        <label>Juridiction</label>
+        <input name="nom_juridiction" placeholder="ex: Tribunal Judiciaire de Cotonou" />
+        <label>Chambre (optionnel)</label>
+        <input name="nom_chambre" placeholder="ex: Chambre civile" />
         <label>Décision / déroulement de l'audience</label>
         <textarea name="decision" required></textarea>
         <label>Date de la prochaine audience</label>
@@ -450,7 +452,8 @@
         numero_dossier: fd.get("numero_dossier"),
         nom_affaire: fd.get("nom_affaire"),
         nom_client: fd.get("nom_client"),
-        nom_juge: fd.get("nom_juge") || undefined,
+        nom_juridiction: fd.get("nom_juridiction") || undefined,
+        nom_chambre: fd.get("nom_chambre") || undefined,
         decision: fd.get("decision"),
         prochaine_audience: fd.get("prochaine_audience") || undefined,
         pieces_prevoir: listValues("pieces-list"),

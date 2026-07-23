@@ -108,14 +108,16 @@ export function buildNotesUserPrompt(facts: {
   numeroDossier: string;
   nomAffaire: string;
   nomClient: string;
-  nomJuge?: string;
+  nomJuridiction?: string;
+  nomChambre?: string;
   decision: string;
   prochaineAudience?: string;
   piecesPrevoir?: string[];
 }): string {
   return `Dossier ${facts.numeroDossier} - ${facts.nomAffaire}
 Client : ${facts.nomClient}
-Juge : ${facts.nomJuge ?? "non precise"}
+Juridiction : ${facts.nomJuridiction ?? "non precisee"}
+Chambre : ${facts.nomChambre ?? "non precisee"}
 Ce qui s'est passe a l'audience : ${facts.decision}
 Prochaine audience : ${facts.prochaineAudience ?? "non fixee"}
 Pieces a prevoir : ${facts.piecesPrevoir?.join(", ") ?? "aucune"}`;

@@ -57,14 +57,16 @@ actionsRouter.post("/api/actions/whatsapp", aiActionsLimiter, async (req, res) =
       update: {
         nomAffaire: extracted.nom_affaire ?? undefined,
         nomClient: extracted.nom_client ?? undefined,
-        nomJuge: extracted.nom_juge ?? undefined,
+        nomJuridiction: extracted.nom_juridiction ?? undefined,
+        nomChambre: extracted.nom_chambre ?? undefined,
       },
       create: {
         cabinetId,
         numeroDossier: extracted.numero_dossier ?? "SANS-NUMERO",
         nomAffaire: extracted.nom_affaire ?? "Affaire sans nom",
         nomClient: extracted.nom_client ?? "Non précisé",
-        nomJuge: extracted.nom_juge,
+        nomJuridiction: extracted.nom_juridiction,
+        nomChambre: extracted.nom_chambre,
         createdBy: userId,
       },
     });
