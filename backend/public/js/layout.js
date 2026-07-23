@@ -8,6 +8,7 @@ const NAV_ITEMS = [
   { href: "/collaborateurs.html", label: "Équipe", roles: ["titulaire", "avocat"] },
   { href: "/factures.html", label: "Créer facture", roles: ["titulaire", "avocat"] },
   { href: "/veille-juridique.html", label: "Veille juridique", roles: ["titulaire", "avocat"] },
+  { href: "/audit-logs.html", label: "Journal d'audit", roles: ["titulaire"] },
   { href: "/parametres.html", label: "Paramètres", roles: ["titulaire"] },
 ];
 

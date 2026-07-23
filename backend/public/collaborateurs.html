@@ -78,8 +78,17 @@
               <div class="dossier-item">
                 <div>
                   <strong>${escapeHtml(u.nom)}</strong>
-                  <div class="meta">${escapeHtml(u.email)} · ${u.role === "titulaire" ? "Admin" : "Avocat"}</div>
+                  <div class="meta">${escapeHtml(u.email)} · ${u.role === "titulaire" ? "Admin" : "Avocat"}${u.actif === false ? " · <span style=\"color:#b91c1c;\">Compte désactivé</span>" : ""}</div>
                 </div>
+                ${
+                  me.role === "titulaire"
+                    ? `<div style="display:flex; gap:6px; flex-wrap:wrap;">
+                        <button type="button" class="secondary btn-sm" data-toggle-actif="${u.id}" data-actif="${u.actif !== false}">
+                          ${u.actif === false ? "Réactiver le compte" : "Désactiver le compte"}
+                        </button>
+                      </div>`
+                    : ""
+                }
               </div>`;
             }
 
@@ -98,6 +107,7 @@
                   ${escapeHtml(u.email)} · Collaborateur · dépend de ${responsableLabel}
                   ${autresAcces ? ` · accès supplémentaire : ${autresAcces}` : ""}
                   ${u.accesTousDossiers ? " · accès à tous les dossiers du cabinet" : ""}
+                  ${u.actif === false ? " · <span style=\"color:#b91c1c;\">Compte désactivé</span>" : ""}
                 </div>
               </div>
               <div style="display:flex; gap:6px; flex-wrap:wrap;">
@@ -114,6 +124,9 @@
                   me.role === "titulaire"
                     ? `<button type="button" class="secondary btn-sm" data-toggle-all-access="${u.id}" data-actif="${u.accesTousDossiers}">
                         ${u.accesTousDossiers ? "Retirer accès tous dossiers" : "Donner accès tous dossiers"}
+                      </button>
+                      <button type="button" class="secondary btn-sm" data-toggle-actif="${u.id}" data-actif="${u.actif !== false}">
+                        ${u.actif === false ? "Réactiver le compte" : "Désactiver le compte"}
                       </button>`
                     : ""
                 }
@@ -145,6 +158,25 @@
             const actif = btn.dataset.actif === "true";
             try {
               await apiFetch(`/api/users/${collaborateurId}/partage-signature`, {
+                method: "PATCH",
+                body: { actif: !actif },
+              });
+              loadUsers();
+            } catch (err) {
+              showError(document.getElementById("error"), err.message);
+            }
+          });
+        });
+
+        listEl.querySelectorAll("[data-toggle-actif]").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            const userId = btn.dataset.toggleActif;
+            const actif = btn.dataset.actif === "true";
+            if (actif && !confirm("Désactiver ce compte ? La personne ne pourra plus se connecter, mais son historique (dossiers, actions) reste intact.")) {
+              return;
+            }
+            try {
+              await apiFetch(`/api/users/${userId}/actif`, {
                 method: "PATCH",
                 body: { actif: !actif },
               });

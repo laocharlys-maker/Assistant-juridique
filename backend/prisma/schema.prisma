@@ -107,6 +107,10 @@ model User {
   // Un avocat/titulaire peut se desinscrire de la veille juridique
   // hebdomadaire par email (sans effet pour un collaborateur).
   recoitVeille          Boolean  @default(true) @map("recoit_veille")
+  // Compte desactive par l'admin : bloque la connexion et invalide toute
+  // session en cours, sans supprimer l'historique (dossiers/actions crees
+  // par cette personne restent intacts).
+  actif                 Boolean  @default(true)
   createdAt             DateTime @default(now()) @map("created_at")
 
   cabinet           Cabinet       @relation(fields: [cabinetId], references: [id])

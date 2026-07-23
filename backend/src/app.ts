@@ -16,6 +16,7 @@ import { statsRouter } from "./routes/stats";
 import { documentExportRouter } from "./routes/documentExport";
 import { cabinetRouter } from "./routes/cabinet";
 import { facturesRouter } from "./routes/factures";
+import { auditLogsRouter } from "./routes/auditLogs";
 import { globalApiLimiter } from "./middleware/rateLimit";
 
 export const app = express();
@@ -43,4 +44,5 @@ app.use(statsRouter);
 app.use(documentExportRouter);
 app.use(cabinetRouter);
 app.use(facturesRouter);
+app.use(auditLogsRouter);
 app.use(express.static(path.join(__dirname, "..", "public")));

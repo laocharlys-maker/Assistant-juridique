@@ -30,6 +30,10 @@ authRouter.post("/api/auth/login", loginLimiter, async (req, res) => {
     return res.status(401).json({ error: "Identifiants incorrects" });
   }
 
+  if (!user.actif) {
+    return res.status(403).json({ error: "Ce compte a été désactivé. Contacte l'administrateur du cabinet." });
+  }
+
   const token = signAuthToken({ userId: user.id, cabinetId: user.cabinetId, role: user.role });
 
   res.cookie("aurore_session", token, {

@@ -18,7 +18,7 @@ const createUserSchema = z.object({
 // de l'envoi d'un document, sans exposer la hierarchie ou les acces.
 usersRouter.get("/api/users/annuaire", requireAuth, async (req, res) => {
   const users = await prisma.user.findMany({
-    where: { cabinetId: req.auth!.cabinetId },
+    where: { cabinetId: req.auth!.cabinetId, actif: true },
     select: { id: true, nom: true, email: true, role: true },
     orderBy: { nom: "asc" },
   });
@@ -37,6 +37,7 @@ usersRouter.get("/api/users", requireAuth, requireAvocat, async (req, res) => {
       responsableId: true,
       partageSignatureActif: true,
       accesTousDossiers: true,
+      actif: true,
       responsable: { select: { id: true, nom: true } },
       accesAccordes: { select: { avocat: { select: { id: true, nom: true } } } },
     },
@@ -248,6 +249,39 @@ usersRouter.patch("/api/users/me/veille", requireAuth, requireAvocat, async (req
   await prisma.user.update({
     where: { id: req.auth!.userId },
     data: { recoitVeille: parsed.data.actif },
+  });
+  return res.json({ ok: true });
+});
+
+// Desactive (ou reactive) un compte : reserve a l'admin. Bloque la
+// connexion et invalide immediatement toute session en cours (verifie a
+// chaque requete par requireAuth), sans toucher a l'historique du compte
+// (dossiers/actions deja crees restent intacts). Pas de suppression reelle :
+// un vrai DELETE casserait les references (dossiers/actions/factures crees
+// par ce compte).
+const setActifSchema = z.object({
+  actif: z.boolean(),
+});
+
+usersRouter.patch("/api/users/:id/actif", requireAuth, requireAdmin, async (req, res) => {
+  const parsed = setActifSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Requête invalide" });
+  }
+  if (req.params.id === req.auth!.userId) {
+    return res.status(400).json({ error: "Impossible de désactiver son propre compte" });
+  }
+
+  const target = await prisma.user.findFirst({
+    where: { id: req.params.id, cabinetId: req.auth!.cabinetId },
+  });
+  if (!target) {
+    return res.status(404).json({ error: "Compte introuvable dans ce cabinet" });
+  }
+
+  await prisma.user.update({
+    where: { id: target.id },
+    data: { actif: parsed.data.actif },
   });
   return res.json({ ok: true });
 });

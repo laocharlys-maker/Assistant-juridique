@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aurore — Journal d'audit</title>
+  <link rel="icon" type="image/png" href="/favicon-256.png" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="page">
+    <h1>Journal d'audit</h1>
+    <p class="muted">Historique technique des actions du cabinet (extraction IA, génération du document). Les entrées les plus anciennes sont purgées automatiquement après 24 mois.</p>
+
+    <div id="error" class="error"></div>
+
+    <div class="card">
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+        <label style="margin:0; font-weight:400;">Filtrer :</label>
+        <select id="filter-statut" style="width:auto;">
+          <option value="">Tout</option>
+          <option value="erreur">Erreurs uniquement</option>
+          <option value="succes">Succès uniquement</option>
+        </select>
+      </div>
+      <div id="logs-list"><p class="muted">Chargement…</p></div>
+    </div>
+  </div>
+  <script src="/js/api.js"></script>
+  <script src="/js/layout.js"></script>
+  <script>
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str ?? "";
+      return div.innerHTML;
+    }
+
+    function formatDate(iso) {
+      return new Date(iso).toLocaleString("fr-FR");
+    }
+
+    async function loadLogs() {
+      const listEl = document.getElementById("logs-list");
+      const statut = document.getElementById("filter-statut").value;
+      listEl.innerHTML = '<p class="muted">Chargement…</p>';
+      try {
+        const qs = statut ? `?statut=${statut}` : "";
+        const logs = await apiFetch(`/api/audit-logs${qs}`);
+        if (logs.length === 0) {
+          listEl.innerHTML = '<p class="muted">Aucune entrée.</p>';
+          return;
+        }
+        listEl.innerHTML = logs
+          .map(
+            (l) => `
+            <div class="dossier-item">
+              <div>
+                <strong>${escapeHtml(l.etape)}</strong>
+                <span style="color:${l.statut === "erreur" ? "#b91c1c" : "#15803d"}; font-weight:600; margin-left:8px;">${l.statut === "erreur" ? "Erreur" : "Succès"}</span>
+                <div class="meta">
+                  ${formatDate(l.timestamp)} · Dossier ${escapeHtml(l.numeroDossier || "-")} — ${escapeHtml(l.nomAffaire || "-")} · ${escapeHtml(l.typeAction)} (${escapeHtml(l.canal)})
+                  ${l.detail ? `<br />${escapeHtml(l.detail)}` : ""}
+                </div>
+              </div>
+            </div>`
+          )
+          .join("");
+      } catch (err) {
+        listEl.innerHTML = `<p class="error visible">${escapeHtml(err.message)}</p>`;
+      }
+    }
+
+    (async () => {
+      const me = await requireSession();
+      if (!me) return;
+      initLayout(me);
+      if (me.role !== "titulaire") {
+        document.querySelector(".page").innerHTML =
+          '<p class="error visible">Cette page est réservée à l\'administrateur du cabinet.</p>';
+        return;
+      }
+      loadLogs();
+    })();
+
+    document.getElementById("filter-statut").addEventListener("change", loadLogs);
+  </script>
+</body>
+</html>
