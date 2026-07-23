@@ -558,6 +558,130 @@
     {
       "parameters": {
         "httpMethod": "POST",
+        "path": "envoyer-email-client",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "webhook-envoyer-email-client",
+      "name": "Webhook - Envoyer Email Client",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1120,
+        950
+      ],
+      "webhookId": "aurore-envoyer-email-client"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "has-attachment",
+              "leftValue": "={{ $json.body.pieceJointeDataUrl }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-piece-jointe",
+      "name": "A une pièce jointe ?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -880,
+        950
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "toBinary",
+        "sourceProperty": "body.pieceJointeDataUrl",
+        "options": {
+          "fileName": "={{ $json.body.pieceJointeNom || 'piece-jointe' }}"
+        }
+      },
+      "id": "convert-to-file-piece-jointe",
+      "name": "Convert to File (Pièce jointe)",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        -640,
+        900
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Webhook - Envoyer Email Client').item.json.body.destinataireEmail }}",
+        "subject": "={{ $('Webhook - Envoyer Email Client').item.json.body.objet }}",
+        "emailType": "text",
+        "message": "={{ $('Webhook - Envoyer Email Client').item.json.body.message }}",
+        "options": {
+          "attachmentsUi": {
+            "attachmentsBinary": [
+              {}
+            ]
+          }
+        }
+      },
+      "id": "gmail-envoyer-email-client-avec-pj",
+      "name": "Gmail - Envoi Client (avec pièce jointe)",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        -400,
+        900
+      ],
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "bhJH2gq7NAqpxE1w",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Webhook - Envoyer Email Client').item.json.body.destinataireEmail }}",
+        "subject": "={{ $('Webhook - Envoyer Email Client').item.json.body.objet }}",
+        "emailType": "text",
+        "message": "={{ $('Webhook - Envoyer Email Client').item.json.body.message }}",
+        "options": {}
+      },
+      "id": "gmail-envoyer-email-client-sans-pj",
+      "name": "Gmail - Envoi Client (sans pièce jointe)",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        -640,
+        1020
+      ],
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "bhJH2gq7NAqpxE1w",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
         "path": "whatsapp-reply",
         "responseMode": "onReceived",
         "options": {}
@@ -775,6 +899,46 @@
         [
           {
             "node": "Gmail - Envoi au client",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook - Envoyer Email Client": {
+      "main": [
+        [
+          {
+            "node": "A une pièce jointe ?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "A une pièce jointe ?": {
+      "main": [
+        [
+          {
+            "node": "Convert to File (Pièce jointe)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gmail - Envoi Client (sans pièce jointe)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert to File (Pièce jointe)": {
+      "main": [
+        [
+          {
+            "node": "Gmail - Envoi Client (avec pièce jointe)",
             "type": "main",
             "index": 0
           }
