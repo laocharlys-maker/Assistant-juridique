@@ -103,10 +103,14 @@ export const plainteFormSchema = z.object({
   nom_client: z.string().min(1).optional(),
   // Personne visee par la plainte - distincte du destinataire du courrier.
   nom_defendeur: z.string().min(1),
-  // Autorite destinataire (ex: Procureur de la Republique pres le Tribunal de...).
-  destinataire: z.string().min(1),
-  nom_juridiction: z.string().min(1),
+  // Civilite/qualite du destinataire (ex: "M. le Procureur de la Republique
+  // pres"), composee avec la juridiction et la ville par le backend pour
+  // former l'adresse complete du courrier. Facultatif.
+  destinataire: z.string().optional(),
+  nom_juridiction: z.string().optional(),
   nom_chambre: z.string().optional(),
+  // Ville de la juridiction saisie, utilisee dans l'adresse du courrier.
+  ville: z.string().optional(),
   nom_avocat: z.string().min(1),
   motifs: z.string().min(1),
   demandes: z.array(z.string().min(1)).min(1),

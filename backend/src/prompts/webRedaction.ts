@@ -279,8 +279,8 @@ REGLE ABSOLUE : n'invente jamais un fait, une date, un montant ou une demande qu
 export function buildPlainteUserPrompt(facts: {
   nomAffaire: string;
   nomDefendeur: string;
-  destinataire: string;
-  juridiction: string;
+  destinataire?: string;
+  juridiction?: string;
   motifs: string;
   demandes: string[];
   preuves?: string[];
@@ -290,8 +290,8 @@ export function buildPlainteUserPrompt(facts: {
       ? `\nPreuves fournies :\n${facts.preuves.map((p, i) => `${i + 1}. ${p}`).join("\n")}`
       : "";
   return `Affaire : ${facts.nomAffaire}
-Autorite destinataire : ${facts.destinataire}
-Juridiction : ${facts.juridiction}
+Autorite destinataire : ${facts.destinataire ?? "non precisee"}
+Juridiction : ${facts.juridiction ?? "non precisee"}
 Mis en cause : ${facts.nomDefendeur}
 Motifs de la plainte : ${facts.motifs}
 Demandes du plaignant (a reprendre fidelement) :

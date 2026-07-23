@@ -153,14 +153,21 @@
         <input name="nom_client" placeholder="Laisse vide si le dossier existe déjà" />
         <label>Nom du défendeur / mis en cause</label>
         <input name="nom_defendeur" required />
-        <label>Destinataire</label>
-        <input name="destinataire" required placeholder="ex: Procureur de la République près le Tribunal de..." />
+        <label>Destinataire (optionnel)</label>
+        <select name="destinataire">
+          <option value="">— Non précisé —</option>
+          <option value="M. le Président">M. le Président</option>
+          <option value="Mme la Présidente">Mme la Présidente</option>
+          <option value="M. le Procureur de la République près">M. le Procureur de la République près</option>
+        </select>
         <label>Avocat en charge</label>
         <input name="nom_avocat" id="plainte-nom-avocat" required />
-        <label>Juridiction</label>
-        <input name="nom_juridiction" required placeholder="ex: Tribunal Judiciaire de Cotonou" />
+        <label>Juridiction (optionnel)</label>
+        <select name="nom_juridiction" id="plainte-juridiction"></select>
         <label>Chambre (optionnel)</label>
         <input name="nom_chambre" placeholder="ex: Chambre correctionnelle" />
+        <label>Ville (optionnel)</label>
+        <select name="ville" id="plainte-ville"></select>
         <label>Motifs de la plainte</label>
         <textarea name="motifs" required></textarea>
         <label>Demande(s) du plaignant / client</label>
@@ -314,10 +321,49 @@
   <script src="/js/api.js"></script>
   <script src="/js/layout.js"></script>
   <script>
+    const JURIDICTIONS_BENIN = [
+      "Tribunal de Première Instance",
+      "Tribunal de commerce",
+      "Tribunal de Conciliation",
+      "Cour d'appel",
+      "Cour de Répression des Infractions Économiques et du Terrorisme",
+      "Cour Suprême du Bénin",
+      "Cour Constitutionnelle du Bénin",
+      "Haute Cour de Justice",
+      "Cour de Cassation",
+    ];
+    const VILLES_BENIN = [
+      "Cotonou",
+      "Lokossa",
+      "Porto-Novo",
+      "Parakou",
+      "Abomey-Calavi",
+      "Abomey",
+      "Bohicon",
+      "Natitingou",
+      "Djougou",
+      "Malanville",
+      "Kandi",
+    ];
+
+    function populateSelect(selectEl, values) {
+      if (!selectEl) return;
+      selectEl.innerHTML =
+        '<option value="">— Non précisé —</option>' +
+        values.map((v) => `<option value="${escapeHtmlAttr(v)}">${v}</option>`).join("");
+    }
+    function escapeHtmlAttr(str) {
+      const div = document.createElement("div");
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
     (async () => {
       const me = await requireSession();
       if (!me) return;
       initLayout(me);
+      populateSelect(document.getElementById("plainte-juridiction"), JURIDICTIONS_BENIN);
+      populateSelect(document.getElementById("plainte-ville"), VILLES_BENIN);
       ["assignation-nom-avocat", "plainte-nom-avocat"].forEach((id) => {
         const input = document.getElementById(id);
         if (input) input.value = me.nom;
@@ -524,10 +570,11 @@
         nom_affaire: fd.get("nom_affaire"),
         nom_client: fd.get("nom_client") || undefined,
         nom_defendeur: fd.get("nom_defendeur"),
-        destinataire: fd.get("destinataire"),
+        destinataire: fd.get("destinataire") || undefined,
         nom_avocat: fd.get("nom_avocat"),
-        nom_juridiction: fd.get("nom_juridiction"),
+        nom_juridiction: fd.get("nom_juridiction") || undefined,
         nom_chambre: fd.get("nom_chambre") || undefined,
+        ville: fd.get("ville") || undefined,
         motifs: fd.get("motifs"),
         demandes: listValues("demandes-list-plainte"),
         preuves: listValues("preuves-list-plainte"),

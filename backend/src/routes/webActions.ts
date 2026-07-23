@@ -87,6 +87,42 @@ async function findOrCreateDossier(facts: {
   return { ok: true, dossier };
 }
 
+// Genre grammatical des juridictions beninoises proposees dans le
+// formulaire de plainte, pour composer une adresse correcte selon la
+// civilite choisie ("du/de la Cour..." ou "pres le/la ..." pour un
+// procureur). Ne couvre que les valeurs de la liste deroulante du formulaire.
+const JURIDICTIONS_BENIN_GENRE: Record<string, { article: string; possessif: string }> = {
+  "Tribunal de Première Instance": { article: "le", possessif: "du" },
+  "Tribunal de commerce": { article: "le", possessif: "du" },
+  "Tribunal de Conciliation": { article: "le", possessif: "du" },
+  "Cour d'appel": { article: "la", possessif: "de la" },
+  "Cour de Répression des Infractions Économiques et du Terrorisme": {
+    article: "la",
+    possessif: "de la",
+  },
+  "Cour Suprême du Bénin": { article: "la", possessif: "de la" },
+  "Cour Constitutionnelle du Bénin": { article: "la", possessif: "de la" },
+  "Haute Cour de Justice": { article: "la", possessif: "de la" },
+  "Cour de Cassation": { article: "la", possessif: "de la" },
+};
+
+// Compose l'adresse du destinataire d'un courrier (plainte) a partir de 3
+// champs facultatifs et independants (civilite, juridiction, ville) saisis
+// via des listes deroulantes - jamais devine, uniquement assemble a partir
+// de ce qui est fourni.
+function composeDestinataire(
+  civilite?: string,
+  juridiction?: string,
+  ville?: string
+): string | undefined {
+  if (!civilite) return undefined;
+  if (!juridiction) return ville ? `${civilite} de ${ville}` : civilite;
+
+  const genre = JURIDICTIONS_BENIN_GENRE[juridiction];
+  const connecteur = civilite.trim().endsWith("près") ? genre?.article ?? "le" : genre?.possessif ?? "du";
+  return `${civilite} ${connecteur} ${juridiction}${ville ? ` de ${ville}` : ""}`;
+}
+
 webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (req, res) => {
   const parsed = webActionFormSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -482,9 +518,9 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
       extraWebhookFields = {
         nom_defendeur: form.nom_defendeur,
         nom_avocat: form.nom_avocat,
-        nom_juridiction: form.nom_juridiction,
+        nom_juridiction: form.nom_juridiction ?? null,
         nom_chambre: form.nom_chambre ?? null,
-        destinataire: form.destinataire,
+        destinataire: composeDestinataire(form.destinataire, form.nom_juridiction, form.ville) ?? null,
       };
 
       action = {
