@@ -28,7 +28,6 @@ import { translateText, extractTextFromDocument } from "../services/traduction";
 import { aiActionsLimiter } from "../middleware/rateLimit";
 
 export const webActionsRouter = Router();
-webActionsRouter.use(aiActionsLimiter);
 
 // redac / conclusions / assignation partagent la meme forme de donnees
 // (dossier existant + contexte + axes d'argumentation), seuls le prompt et
@@ -80,7 +79,7 @@ async function findOrCreateDossier(facts: {
   return { ok: true, dossier };
 }
 
-webActionsRouter.post("/api/actions/web", requireAuth, async (req, res) => {
+webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (req, res) => {
   const parsed = webActionFormSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "Formulaire invalide", details: parsed.error.issues });

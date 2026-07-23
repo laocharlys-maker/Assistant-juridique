@@ -8,7 +8,6 @@ import { logAuditStep } from "../services/audit";
 import { aiActionsLimiter } from "../middleware/rateLimit";
 
 export const actionsRouter = Router();
-actionsRouter.use(aiActionsLimiter);
 
 const whatsappRequestSchema = z.object({
   cabinetId: z.string().uuid(),
@@ -16,7 +15,7 @@ const whatsappRequestSchema = z.object({
   rawText: z.string().min(1),
 });
 
-actionsRouter.post("/api/actions/whatsapp", async (req, res) => {
+actionsRouter.post("/api/actions/whatsapp", aiActionsLimiter, async (req, res) => {
   const parsedRequest = whatsappRequestSchema.safeParse(req.body);
   if (!parsedRequest.success) {
     return res.status(400).json({ error: "Requete invalide", details: parsedRequest.error.issues });
