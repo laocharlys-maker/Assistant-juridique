@@ -82,6 +82,41 @@ export async function buildDocx(input: ExportInput): Promise<Buffer> {
       ]
     : [];
 
+  // Quand il y a un en-tête, il porte deja le nom/l'identite du cabinet -
+  // repeter ce bloc de titre en dessous ne fait que doublonner et chevauche
+  // visuellement l'image (plus large qu'avant).
+  const titreParagraphs = input.entete
+    ? []
+    : [
+        new Paragraph({
+          text: input.cabinetNom,
+          heading: HeadingLevel.HEADING_1,
+          alignment: AlignmentType.CENTER,
+        }),
+        new Paragraph({
+          children: [new TextRun({ text: input.typeLabel, bold: true })],
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 100 },
+        }),
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: `Dossier ${input.numeroDossier} — ${input.nomAffaire}`,
+              italics: true,
+            }),
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 100 },
+        }),
+        new Paragraph({
+          children: [
+            new TextRun({ text: `Rédigé par ${input.auteurNom} — ${formatDate(input.date)}`, size: 18 }),
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 400 },
+        }),
+      ];
+
   const signatureParagraph = input.signature
     ? [
         new Paragraph({
@@ -110,33 +145,7 @@ export async function buildDocx(input: ExportInput): Promise<Buffer> {
       {
         children: [
           ...enteteParagraph,
-          new Paragraph({
-            text: input.cabinetNom,
-            heading: HeadingLevel.HEADING_1,
-            alignment: AlignmentType.CENTER,
-          }),
-          new Paragraph({
-            children: [new TextRun({ text: input.typeLabel, bold: true })],
-            alignment: AlignmentType.CENTER,
-            spacing: { after: 100 },
-          }),
-          new Paragraph({
-            children: [
-              new TextRun({
-                text: `Dossier ${input.numeroDossier} — ${input.nomAffaire}`,
-                italics: true,
-              }),
-            ],
-            alignment: AlignmentType.CENTER,
-            spacing: { after: 100 },
-          }),
-          new Paragraph({
-            children: [
-              new TextRun({ text: `Rédigé par ${input.auteurNom} — ${formatDate(input.date)}`, size: 18 }),
-            ],
-            alignment: AlignmentType.CENTER,
-            spacing: { after: 400 },
-          }),
+          ...titreParagraphs,
           ...paragraphesContenu,
           ...signatureParagraph,
         ],
@@ -166,20 +175,27 @@ export async function buildPdf(input: ExportInput): Promise<Buffer> {
       doc.moveDown(3.5);
     }
 
-    doc.font("Helvetica-Bold").fontSize(16).text(input.cabinetNom, { align: "center" });
-    doc.moveDown(0.3);
-    doc.font("Helvetica-Bold").fontSize(11).text(input.typeLabel, { align: "center" });
-    doc.moveDown(0.2);
-    doc
-      .font("Helvetica-Oblique")
-      .fontSize(10)
-      .text(`Dossier ${input.numeroDossier} — ${input.nomAffaire}`, { align: "center" });
-    doc.moveDown(0.2);
-    doc
-      .font("Helvetica")
-      .fontSize(9)
-      .text(`Rédigé par ${input.auteurNom} — ${formatDate(input.date)}`, { align: "center" });
-    doc.moveDown(1.2);
+    // Quand il y a un en-tête, il porte deja le nom/l'identite du cabinet -
+    // repeter ce bloc de titre en dessous ne fait que doublonner et, avec
+    // un en-tete plus large, chevauche visuellement l'image.
+    if (!input.entete) {
+      doc.font("Helvetica-Bold").fontSize(16).text(input.cabinetNom, { align: "center" });
+      doc.moveDown(0.3);
+      doc.font("Helvetica-Bold").fontSize(11).text(input.typeLabel, { align: "center" });
+      doc.moveDown(0.2);
+      doc
+        .font("Helvetica-Oblique")
+        .fontSize(10)
+        .text(`Dossier ${input.numeroDossier} — ${input.nomAffaire}`, { align: "center" });
+      doc.moveDown(0.2);
+      doc
+        .font("Helvetica")
+        .fontSize(9)
+        .text(`Rédigé par ${input.auteurNom} — ${formatDate(input.date)}`, { align: "center" });
+      doc.moveDown(1.2);
+    } else {
+      doc.moveDown(0.6);
+    }
 
     const paragraphes = input.contenu.split(/\n+/).filter((line) => line.trim().length > 0);
     for (const paragraphe of paragraphes) {
