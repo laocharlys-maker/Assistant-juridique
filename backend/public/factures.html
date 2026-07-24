@@ -9,28 +9,50 @@
 </head>
 <body>
   <div class="page">
-    <h1>Facturation</h1>
-    <p class="muted">Suivi interne des honoraires et des paiements. Ce n'est pas une facture normalisée au sens fiscal (SYGMEF) : celle-ci reste émise séparément par l'avocat sur son propre compte SYGMEF.</p>
+    <div class="page-hero">
+      <div class="eyebrow">Cabinet</div>
+      <h1>Facturation</h1>
+      <p>Suivi interne des honoraires et des paiements. Ce n'est pas une facture normalisée au sens fiscal (SYGMEF) : celle-ci reste émise séparément par l'avocat sur son propre compte SYGMEF.</p>
+    </div>
 
     <div id="error" class="error"></div>
 
-    <div class="card">
-      <h2>Nouvelle facture</h2>
-      <form id="facture-form">
-        <label>Client</label>
-        <select id="client-select">
-          <option value="">— tous les clients —</option>
-        </select>
-        <label>Dossier concerné</label>
-        <select name="dossierId" id="dossier-select" required></select>
-        <label>Description</label>
-        <textarea name="description" required placeholder="ex: Honoraires - Consultation et rédaction d'assignation"></textarea>
-        <label>Montant (F CFA)</label>
-        <input name="montant" type="number" min="1" step="1" required />
-        <label>Échéance (optionnel)</label>
-        <input name="dateEcheance" type="date" />
-        <button type="submit">Créer la facture</button>
-      </form>
+    <div style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap;">
+      <button type="button" class="tab" id="btn-facture-normale">+ Créer une facture</button>
+      <button type="button" class="tab" id="btn-facture-proforma">+ Créer une facture proforma</button>
+    </div>
+
+    <div class="collapse-panel" id="add-panel">
+      <div class="collapse-panel-inner">
+        <div class="card">
+          <h2 id="form-title">Nouvelle facture</h2>
+          <form id="facture-form">
+            <input type="hidden" name="estProforma" id="est-proforma-input" value="false" />
+            <label>Client</label>
+            <input name="clientNom" id="client-input" list="clients-datalist-fact" required placeholder="Choisis un client existant ou saisis-en un nouveau" />
+            <datalist id="clients-datalist-fact"></datalist>
+            <label>Dossier lié (optionnel)</label>
+            <select name="dossierId" id="dossier-select">
+              <option value="">— aucun —</option>
+            </select>
+            <label>Description</label>
+            <textarea name="description" required placeholder="ex: Honoraires - Consultation et rédaction d'assignation"></textarea>
+            <label>Montant HT (F CFA)</label>
+            <input name="montant" id="montant-input" type="number" min="1" step="1" required />
+            <label style="display:flex; align-items:center; gap:8px; font-weight:400;">
+              <input type="checkbox" name="appliquerTva" id="tva-checkbox" style="width:auto;" />
+              Appliquer la TVA (18%)
+            </label>
+            <p class="muted" id="tva-preview"></p>
+            <label>Échéance (optionnel)</label>
+            <input name="dateEcheance" type="date" />
+            <div style="display:flex; gap:10px; margin-top:18px;">
+              <button type="submit" id="submit-facture-btn">Créer la facture</button>
+              <button type="button" class="ghost" id="cancel-add-btn">Annuler</button>
+            </div>
+          </form>
+        </div>
+      </div>
     </div>
 
     <div class="card">
@@ -58,24 +80,27 @@
     const STATUT_LABELS = { brouillon: "Brouillon", envoyee: "Envoyée", payee: "Payée" };
 
     const errorEl = document.getElementById("error");
-    const clientSelect = document.getElementById("client-select");
+    const clientInput = document.getElementById("client-input");
     const dossierSelect = document.getElementById("dossier-select");
     const listEl = document.getElementById("factures-list");
+    const addPanel = document.getElementById("add-panel");
 
     let allDossiers = [];
     let allClients = [];
 
     function renderDossierOptions(dossiers) {
-      dossierSelect.innerHTML = dossiers.length
-        ? dossiers
-            .map((d) => `<option value="${d.id}">${escapeHtml(d.numeroDossier)} — ${escapeHtml(d.nomAffaire)}</option>`)
-            .join("")
-        : '<option value="">— aucun dossier pour ce client —</option>';
+      dossierSelect.innerHTML =
+        '<option value="">— aucun —</option>' +
+        dossiers.map((d) => `<option value="${d.id}">${escapeHtml(d.numeroDossier)} — ${escapeHtml(d.nomAffaire)}</option>`).join("");
     }
 
-    function dossiersDuClient(client) {
+    function dossiersDuClientNom(nom) {
+      const nomLower = nom.trim().toLowerCase();
+      if (!nomLower) return allDossiers;
+      const client = allClients.find((c) => c.nom.trim().toLowerCase() === nomLower);
+      if (!client) return [];
       return allDossiers.filter(
-        (d) => d.clientId === client.id || d.nomClient.trim().toLowerCase() === client.nom.trim().toLowerCase()
+        (d) => d.clientId === client.id || d.nomClient.trim().toLowerCase() === nomLower
       );
     }
 
@@ -87,9 +112,9 @@
       allDossiers = dossiers;
       allClients = clients;
 
-      clientSelect.innerHTML =
-        '<option value="">— tous les clients —</option>' +
-        clients.map((c) => `<option value="${c.id}">${escapeHtml(c.nom)}</option>`).join("");
+      document.getElementById("clients-datalist-fact").innerHTML = clients
+        .map((c) => `<option value="${escapeHtml(c.nom)}"></option>`)
+        .join("");
 
       renderDossierOptions(allDossiers);
 
@@ -102,17 +127,45 @@
             (c) => c.id === dossier.clientId || c.nom.trim().toLowerCase() === dossier.nomClient.trim().toLowerCase()
           );
           if (client) {
-            clientSelect.value = client.id;
-            renderDossierOptions(dossiersDuClient(client));
+            clientInput.value = client.nom;
+            renderDossierOptions(dossiersDuClientNom(client.nom));
           }
           dossierSelect.value = preselect;
+          addPanel.classList.add("open");
         }
       }
     }
 
-    clientSelect.addEventListener("change", () => {
-      const client = allClients.find((c) => c.id === clientSelect.value);
-      renderDossierOptions(client ? dossiersDuClient(client) : allDossiers);
+    clientInput.addEventListener("input", () => {
+      renderDossierOptions(dossiersDuClientNom(clientInput.value));
+    });
+
+    function updateTvaPreview() {
+      const montant = Number(document.getElementById("montant-input").value) || 0;
+      const previewEl = document.getElementById("tva-preview");
+      if (!document.getElementById("tva-checkbox").checked || montant <= 0) {
+        previewEl.textContent = "";
+        return;
+      }
+      const tva = Math.round(montant * 0.18);
+      const ttc = montant + tva;
+      previewEl.textContent = `TVA (18%) : ${formatMontant(tva)} — Total TTC : ${formatMontant(ttc)}`;
+    }
+    document.getElementById("montant-input").addEventListener("input", updateTvaPreview);
+    document.getElementById("tva-checkbox").addEventListener("change", updateTvaPreview);
+
+    function openAddPanel(estProforma) {
+      document.getElementById("est-proforma-input").value = String(estProforma);
+      document.getElementById("form-title").textContent = estProforma ? "Nouvelle facture proforma" : "Nouvelle facture";
+      document.getElementById("submit-facture-btn").textContent = estProforma ? "Créer la facture proforma" : "Créer la facture";
+      addPanel.classList.add("open");
+      clientInput.focus();
+      window.scrollTo({ top: addPanel.offsetTop - 20, behavior: "smooth" });
+    }
+    document.getElementById("btn-facture-normale").addEventListener("click", () => openAddPanel(false));
+    document.getElementById("btn-facture-proforma").addEventListener("click", () => openAddPanel(true));
+    document.getElementById("cancel-add-btn").addEventListener("click", () => {
+      addPanel.classList.remove("open");
     });
 
     async function envoyerFacture(id) {
@@ -143,21 +196,24 @@
           return;
         }
         listEl.innerHTML = factures
-          .map(
-            (f) => `
+          .map((f) => {
+            const montantTtc = f.appliquerTva ? Math.round(f.montant * 1.18) : f.montant;
+            return `
           <div class="action-item">
-            <span class="tag">${escapeHtml(f.numero)} · ${escapeHtml(f.dossier.numeroDossier)} — ${escapeHtml(f.dossier.nomAffaire)}</span>
+            <span class="tag">${escapeHtml(f.numero)}${f.dossier ? ` · ${escapeHtml(f.dossier.numeroDossier)} — ${escapeHtml(f.dossier.nomAffaire)}` : ""}</span>
+            ${f.estProforma ? '<span class="badge badge-echeance_proche">Proforma</span>' : ""}
             <span class="badge badge-${f.statut}">${STATUT_LABELS[f.statut] || f.statut}</span>
+            <div>Client : ${escapeHtml(f.clientNom)}</div>
             <div>${escapeHtml(f.description)}</div>
-            <p><strong>${formatMontant(f.montant)}</strong>${f.dateEcheance ? ` — échéance ${formatDate(f.dateEcheance)}` : ""}</p>
-            <p class="muted">Émise le ${formatDate(f.dateEmission)}${f.envoyeAt ? ` · envoyée le ${formatDate(f.envoyeAt)}${f.destinataireEmail ? " à " + escapeHtml(f.destinataireEmail) : ""}` : ""}${f.payeeAt ? ` · payée le ${formatDate(f.payeeAt)}` : ""}</p>
+            <p><strong>${f.appliquerTva ? `${formatMontant(f.montant)} HT — ${formatMontant(montantTtc)} TTC (TVA 18%)` : formatMontant(f.montant)}</strong>${f.dateEcheance ? ` — échéance ${formatDate(f.dateEcheance)}` : ""}</p>
+            <p class="muted">Émise le ${formatDate(f.dateEmission)} par ${escapeHtml(f.creePar?.nom || "-")}${f.envoyeAt ? ` · envoyée le ${formatDate(f.envoyeAt)}${f.destinataireEmail ? " à " + escapeHtml(f.destinataireEmail) : ""}` : ""}${f.payeeAt ? ` · payée le ${formatDate(f.payeeAt)}` : ""}</p>
             <div style="display:flex; gap:8px; margin-top:8px;">
               <a class="secondary" href="/api/factures/${f.id}/pdf" target="_blank" style="text-decoration:none; padding:6px 12px; border-radius:6px;">Télécharger le PDF</a>
               <button type="button" class="secondary" data-envoyer="${f.id}">Envoyer par email</button>
               ${f.statut !== "payee" ? `<button type="button" class="secondary" data-payee="${f.id}">Marquer payée</button>` : ""}
             </div>
-          </div>`
-          )
+          </div>`;
+          })
           .join("");
 
         listEl.querySelectorAll("[data-envoyer]").forEach((btn) => {
@@ -191,13 +247,18 @@
         await apiFetch("/api/factures", {
           method: "POST",
           body: {
-            dossierId: fd.get("dossierId"),
+            clientNom: fd.get("clientNom"),
+            dossierId: fd.get("dossierId") || undefined,
             description: fd.get("description"),
             montant: Number(fd.get("montant")),
+            appliquerTva: document.getElementById("tva-checkbox").checked,
+            estProforma: document.getElementById("est-proforma-input").value === "true",
             dateEcheance: fd.get("dateEcheance") || undefined,
           },
         });
         e.target.reset();
+        document.getElementById("tva-preview").textContent = "";
+        addPanel.classList.remove("open");
         loadFactures();
       } catch (err) {
         showError(errorEl, err.message);

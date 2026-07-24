@@ -128,7 +128,7 @@
               </div>`;
             }
 
-            const responsableLabel = u.responsable ? escapeHtml(u.responsable.nom) : "aucun";
+            const responsableLabel = u.responsable ? `Collaborateur de Maître ${escapeHtml(u.responsable.nom)}` : "Aucun responsable assigné";
             const isMyCollaborateur = u.responsableId === me.id;
             const hasExtraAccess = (u.accesAccordes || []).some((a) => a.avocat.id === me.id);
             const autresAcces = (u.accesAccordes || [])
@@ -183,7 +183,7 @@
               <div>
                 <strong>${escapeHtml(u.nom)}</strong>
                 <div class="meta">
-                  ${escapeHtml(u.email)} · Collaborateur · dépend de ${responsableLabel}
+                  ${escapeHtml(u.email)} · ${responsableLabel}
                   ${autresAcces ? ` · accès supplémentaire : ${autresAcces}` : ""}
                   ${u.accesTousDossiers ? " · accès à tous les dossiers du cabinet" : ""}
                   ${u.actif === false ? ' · <span style="color:var(--danger);">Compte désactivé</span>' : ""}

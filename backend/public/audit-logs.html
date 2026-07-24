@@ -94,7 +94,7 @@
                 <strong>${escapeHtml(l.etape)}</strong>
                 <span style="color:${l.statut === "erreur" ? "var(--danger)" : "var(--success)"}; font-weight:600; margin-left:8px;">${l.statut === "erreur" ? "Erreur" : "Succès"}</span>
                 <div class="meta">
-                  ${formatDate(l.timestamp)} · Dossier ${escapeHtml(l.numeroDossier || "-")} — ${escapeHtml(l.nomAffaire || "-")} · ${escapeHtml(l.typeAction)} (${escapeHtml(l.canal)})
+                  ${formatDate(l.timestamp)} · Dossier ${escapeHtml(l.numeroDossier || "-")} — ${escapeHtml(l.nomAffaire || "-")} · ${escapeHtml(l.typeAction)} (${escapeHtml(l.canal)}) · Généré par ${escapeHtml(l.genereParNom || "-")}
                   ${l.detail ? `<br />${escapeHtml(l.detail)}` : ""}
                 </div>
               </div>

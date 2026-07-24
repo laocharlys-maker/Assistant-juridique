@@ -24,12 +24,42 @@
     <div class="card" id="create-card" style="display:none;">
       <h2>Ajouter un client</h2>
       <form id="create-form">
-        <label>Nom</label>
+        <label>Nom et prénom</label>
         <input name="nom" required />
         <label>Email</label>
         <input name="email" type="email" />
         <label>Téléphone</label>
         <input name="telephone" />
+        <label>Date de naissance</label>
+        <input name="dateNaissance" type="date" />
+        <label>Lieu de naissance</label>
+        <input name="lieuNaissance" />
+        <label>Quartier de résidence</label>
+        <input name="quartierResidence" />
+        <label>Rue</label>
+        <input name="rue" />
+        <label>Autre précision</label>
+        <input name="autrePrecision" />
+        <label>Maison</label>
+        <input name="maison" />
+        <label>Situation matrimoniale</label>
+        <select name="situationMatrimoniale">
+          <option value="">— Non précisé —</option>
+          <option value="Célibataire">Célibataire</option>
+          <option value="Marié(e)">Marié(e)</option>
+          <option value="Divorcé(e)">Divorcé(e)</option>
+          <option value="Veuf(ve)">Veuf(ve)</option>
+        </select>
+        <label>Fonction</label>
+        <select name="fonction">
+          <option value="">— Non précisé —</option>
+          <option value="Indépendant">Indépendant</option>
+          <option value="Employé">Employé</option>
+        </select>
+        <label>Entreprise</label>
+        <input name="entreprise" />
+        <label>Adresse de l'entreprise</label>
+        <input name="adresseEntreprise" />
         <label>Notes</label>
         <textarea name="notes"></textarea>
         <button type="submit">Ajouter</button>
@@ -62,6 +92,69 @@
       </form>
     </div>
   </div>
+
+  <div class="modal-overlay" id="detail-modal" hidden>
+    <div class="modal-box">
+      <div id="detail-view">
+        <h2 id="detail-nom"></h2>
+        <div id="detail-fields"></div>
+        <div style="display:flex; gap:10px; margin-top:18px;">
+          <button type="button" id="detail-modifier-btn">Modifier</button>
+          <button type="button" class="secondary" id="detail-close-btn">Fermer</button>
+        </div>
+      </div>
+      <div id="detail-edit" style="display:none;">
+        <h2>Modifier le client</h2>
+        <div id="detail-edit-error" class="error"></div>
+        <form id="detail-edit-form">
+          <input type="hidden" id="edit-client-id" />
+          <label>Nom et prénom</label>
+          <input name="nom" id="edit-nom" required />
+          <label>Email</label>
+          <input name="email" id="edit-email" type="email" />
+          <label>Téléphone</label>
+          <input name="telephone" id="edit-telephone" />
+          <label>Date de naissance</label>
+          <input name="dateNaissance" id="edit-dateNaissance" type="date" />
+          <label>Lieu de naissance</label>
+          <input name="lieuNaissance" id="edit-lieuNaissance" />
+          <label>Quartier de résidence</label>
+          <input name="quartierResidence" id="edit-quartierResidence" />
+          <label>Rue</label>
+          <input name="rue" id="edit-rue" />
+          <label>Autre précision</label>
+          <input name="autrePrecision" id="edit-autrePrecision" />
+          <label>Maison</label>
+          <input name="maison" id="edit-maison" />
+          <label>Situation matrimoniale</label>
+          <select name="situationMatrimoniale" id="edit-situationMatrimoniale">
+            <option value="">— Non précisé —</option>
+            <option value="Célibataire">Célibataire</option>
+            <option value="Marié(e)">Marié(e)</option>
+            <option value="Divorcé(e)">Divorcé(e)</option>
+            <option value="Veuf(ve)">Veuf(ve)</option>
+          </select>
+          <label>Fonction</label>
+          <select name="fonction" id="edit-fonction">
+            <option value="">— Non précisé —</option>
+            <option value="Indépendant">Indépendant</option>
+            <option value="Employé">Employé</option>
+          </select>
+          <label>Entreprise</label>
+          <input name="entreprise" id="edit-entreprise" />
+          <label>Adresse de l'entreprise</label>
+          <input name="adresseEntreprise" id="edit-adresseEntreprise" />
+          <label>Notes</label>
+          <textarea name="notes" id="edit-notes"></textarea>
+          <div style="display:flex; gap:10px; margin-top:18px;">
+            <button type="submit">Enregistrer</button>
+            <button type="button" class="ghost" id="edit-cancel-btn">Annuler</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
   <script src="/js/api.js"></script>
   <script src="/js/layout.js"></script>
   <script>
@@ -71,10 +164,17 @@
       return div.innerHTML;
     }
 
+    function formatDate(iso) {
+      return new Date(iso).toLocaleDateString("fr-FR", { year: "numeric", month: "long", day: "numeric" });
+    }
+
+    let clientsCache = [];
+
     async function loadClients() {
       const listEl = document.getElementById("clients-list");
       try {
         const clients = await apiFetch("/api/clients");
+        clientsCache = clients;
         if (clients.length === 0) {
           listEl.innerHTML = '<p class="muted">Aucun client enregistré pour l\'instant.</p>';
           return;
@@ -100,7 +200,7 @@
             return `
           <div class="dossier-item">
             <div>
-              <strong>${escapeHtml(c.nom)}</strong>
+              <strong><a href="#" data-open-detail="${c.id}" style="color:inherit; text-decoration:underline; text-decoration-style:dotted;">${escapeHtml(c.nom)}</a></strong>
               <div class="meta">${escapeHtml(c.email || "pas d'email")} · ${escapeHtml(c.telephone || "pas de téléphone")} · ${c._count.dossiers} dossier(s)</div>
             </div>
             ${actions.length > 0 ? `<div class="icon-action-row">${actions.join("")}</div>` : ""}
@@ -111,6 +211,12 @@
         listEl.querySelectorAll("[data-open-email]").forEach((btn) => {
           btn.addEventListener("click", () => {
             openEmailModal(btn.dataset.openEmail, btn.dataset.nom, btn.dataset.email);
+          });
+        });
+        listEl.querySelectorAll("[data-open-detail]").forEach((link) => {
+          link.addEventListener("click", (e) => {
+            e.preventDefault();
+            openDetailModal(link.dataset.openDetail);
           });
         });
       } catch (err) {
@@ -128,6 +234,67 @@
     }
     function closeEmailModal() {
       document.getElementById("email-modal").hidden = true;
+    }
+
+    const DETAIL_FIELDS = [
+      ["email", "Email"],
+      ["telephone", "Téléphone"],
+      ["dateNaissance", "Date de naissance", formatDate],
+      ["lieuNaissance", "Lieu de naissance"],
+      ["quartierResidence", "Quartier de résidence"],
+      ["rue", "Rue"],
+      ["autrePrecision", "Autre précision"],
+      ["maison", "Maison"],
+      ["situationMatrimoniale", "Situation matrimoniale"],
+      ["fonction", "Fonction"],
+      ["entreprise", "Entreprise"],
+      ["adresseEntreprise", "Adresse de l'entreprise"],
+      ["notes", "Notes"],
+    ];
+
+    function openDetailModal(clientId) {
+      const c = clientsCache.find((x) => x.id === clientId);
+      if (!c) return;
+      document.getElementById("detail-nom").textContent = c.nom;
+      const rows = DETAIL_FIELDS.map(([key, label, formatter]) => {
+        if (!c[key]) return "";
+        const value = formatter ? formatter(c[key]) : c[key];
+        return `<p><strong>${label} :</strong> ${escapeHtml(String(value))}</p>`;
+      })
+        .filter(Boolean)
+        .join("");
+      document.getElementById("detail-fields").innerHTML =
+        rows || '<p class="muted">Aucune information complémentaire renseignée pour ce client.</p>';
+      document.getElementById("detail-modifier-btn").dataset.clientId = clientId;
+      document.getElementById("detail-view").style.display = "block";
+      document.getElementById("detail-edit").style.display = "none";
+      document.getElementById("detail-modal").hidden = false;
+    }
+    function closeDetailModal() {
+      document.getElementById("detail-modal").hidden = true;
+    }
+
+    function openEditForm(clientId) {
+      const c = clientsCache.find((x) => x.id === clientId);
+      if (!c) return;
+      document.getElementById("edit-client-id").value = c.id;
+      document.getElementById("edit-nom").value = c.nom || "";
+      document.getElementById("edit-email").value = c.email || "";
+      document.getElementById("edit-telephone").value = c.telephone || "";
+      document.getElementById("edit-dateNaissance").value = c.dateNaissance ? c.dateNaissance.slice(0, 10) : "";
+      document.getElementById("edit-lieuNaissance").value = c.lieuNaissance || "";
+      document.getElementById("edit-quartierResidence").value = c.quartierResidence || "";
+      document.getElementById("edit-rue").value = c.rue || "";
+      document.getElementById("edit-autrePrecision").value = c.autrePrecision || "";
+      document.getElementById("edit-maison").value = c.maison || "";
+      document.getElementById("edit-situationMatrimoniale").value = c.situationMatrimoniale || "";
+      document.getElementById("edit-fonction").value = c.fonction || "";
+      document.getElementById("edit-entreprise").value = c.entreprise || "";
+      document.getElementById("edit-adresseEntreprise").value = c.adresseEntreprise || "";
+      document.getElementById("edit-notes").value = c.notes || "";
+      hideError(document.getElementById("detail-edit-error"));
+      document.getElementById("detail-view").style.display = "none";
+      document.getElementById("detail-edit").style.display = "block";
     }
 
     (async () => {
@@ -150,12 +317,9 @@
       try {
         await apiFetch("/api/clients", {
           method: "POST",
-          body: {
-            nom: fd.get("nom"),
-            email: fd.get("email") || undefined,
-            telephone: fd.get("telephone") || undefined,
-            notes: fd.get("notes") || undefined,
-          },
+          body: Object.fromEntries(
+            [...fd.entries()].map(([k, v]) => [k, v || undefined])
+          ),
         });
         e.target.reset();
         document.getElementById("create-card").style.display = "none";
@@ -168,6 +332,36 @@
     document.getElementById("email-modal-cancel").addEventListener("click", closeEmailModal);
     document.getElementById("email-modal").addEventListener("click", (e) => {
       if (e.target.id === "email-modal") closeEmailModal();
+    });
+
+    document.getElementById("detail-close-btn").addEventListener("click", closeDetailModal);
+    document.getElementById("detail-modal").addEventListener("click", (e) => {
+      if (e.target.id === "detail-modal") closeDetailModal();
+    });
+    document.getElementById("detail-modifier-btn").addEventListener("click", (e) => {
+      openEditForm(e.target.dataset.clientId);
+    });
+    document.getElementById("edit-cancel-btn").addEventListener("click", () => {
+      document.getElementById("detail-view").style.display = "block";
+      document.getElementById("detail-edit").style.display = "none";
+    });
+
+    document.getElementById("detail-edit-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const editErrorEl = document.getElementById("detail-edit-error");
+      hideError(editErrorEl);
+      const clientId = document.getElementById("edit-client-id").value;
+      const fd = new FormData(e.target);
+      try {
+        await apiFetch(`/api/clients/${clientId}`, {
+          method: "PATCH",
+          body: Object.fromEntries([...fd.entries()].map(([k, v]) => [k, v || undefined])),
+        });
+        await loadClients();
+        closeDetailModal();
+      } catch (err) {
+        showError(editErrorEl, err.message);
+      }
     });
 
     function readFileAsDataUrl(file) {

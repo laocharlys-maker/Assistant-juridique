@@ -7,10 +7,12 @@ export interface FactureInput {
   dateEmission: Date;
   dateEcheance: Date | null;
   nomClient: string;
-  numeroDossier: string;
-  nomAffaire: string;
+  numeroDossier: string | null;
+  nomAffaire: string | null;
   description: string;
   montant: number;
+  appliquerTva: boolean;
+  estProforma: boolean;
   entete?: EnteteInput;
 }
 
@@ -41,7 +43,7 @@ export async function buildFacturePdf(input: FactureInput): Promise<Buffer> {
 
     doc.font("Helvetica-Bold").fontSize(16).text(input.cabinetNom, { align: "center" });
     doc.moveDown(0.3);
-    doc.font("Helvetica-Bold").fontSize(13).text("FACTURE", { align: "center" });
+    doc.font("Helvetica-Bold").fontSize(13).text(input.estProforma ? "FACTURE PROFORMA" : "FACTURE", { align: "center" });
     doc.moveDown(1);
 
     doc.font("Helvetica").fontSize(10);
@@ -52,7 +54,9 @@ export async function buildFacturePdf(input: FactureInput): Promise<Buffer> {
     }
     doc.moveDown(0.8);
     doc.text(`Client : ${input.nomClient}`);
-    doc.text(`Dossier : ${input.numeroDossier} — ${input.nomAffaire}`);
+    if (input.numeroDossier && input.nomAffaire) {
+      doc.text(`Dossier : ${input.numeroDossier} — ${input.nomAffaire}`);
+    }
     doc.moveDown(1.2);
 
     const tableTop = doc.y;
@@ -89,8 +93,19 @@ export async function buildFacturePdf(input: FactureInput): Promise<Buffer> {
       .stroke();
     doc.moveDown(0.8);
 
-    doc.font("Helvetica-Bold").fontSize(12);
-    doc.text(`Total : ${formatMontant(input.montant)}`, { align: "right" });
+    if (input.appliquerTva) {
+      const montantTva = Math.round(input.montant * 0.18);
+      const montantTtc = input.montant + montantTva;
+      doc.font("Helvetica").fontSize(10);
+      doc.text(`Total HT : ${formatMontant(input.montant)}`, { align: "right" });
+      doc.text(`TVA (18%) : ${formatMontant(montantTva)}`, { align: "right" });
+      doc.moveDown(0.2);
+      doc.font("Helvetica-Bold").fontSize(12);
+      doc.text(`Total TTC : ${formatMontant(montantTtc)}`, { align: "right" });
+    } else {
+      doc.font("Helvetica-Bold").fontSize(12);
+      doc.text(`Total : ${formatMontant(input.montant)}`, { align: "right" });
+    }
     doc.moveDown(2);
 
     doc

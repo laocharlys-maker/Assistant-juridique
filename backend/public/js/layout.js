@@ -31,7 +31,7 @@ const NAV_ITEMS = [
       { href: "/collaborateurs.html?filtre=collaborateur", label: "Collaborateurs" },
     ],
   },
-  { href: "/factures.html", label: "Créer facture", roles: ["titulaire", "avocat"], group: "Cabinet", icon: "invoice" },
+  { href: "/factures.html", label: "Facturation", roles: ["titulaire", "avocat"], group: "Cabinet", icon: "invoice" },
   { href: "/veille-juridique.html", label: "Veille juridique", roles: ["titulaire", "avocat"], group: "Cabinet", icon: "radar" },
   { href: "/audit-logs.html", label: "Journal d'audit", roles: ["titulaire"], group: "Cabinet", icon: "audit" },
   { href: "/parametres.html", label: "Paramètres", roles: ["titulaire"], group: "Cabinet", icon: "settings" },

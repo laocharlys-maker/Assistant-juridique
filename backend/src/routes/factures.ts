@@ -9,18 +9,24 @@ import { callN8nWebhook } from "../services/n8n";
 
 export const facturesRouter = Router();
 
-async function genererNumero(cabinetId: string): Promise<string> {
+// Prefixe distinct pour les proforma - series de numerotation independantes,
+// pour qu'une proforma ne "consomme" jamais un numero de facture definitive.
+async function genererNumero(cabinetId: string, estProforma: boolean): Promise<string> {
+  const prefixe = estProforma ? "PROF" : "FACT";
   const annee = new Date().getFullYear();
   const count = await prisma.facture.count({
-    where: { cabinetId, numero: { startsWith: `FACT-${annee}-` } },
+    where: { cabinetId, numero: { startsWith: `${prefixe}-${annee}-` } },
   });
-  return `FACT-${annee}-${String(count + 1).padStart(4, "0")}`;
+  return `${prefixe}-${annee}-${String(count + 1).padStart(4, "0")}`;
 }
 
 const createFactureSchema = z.object({
-  dossierId: z.string().uuid(),
+  clientNom: z.string().min(1),
+  dossierId: z.string().uuid().optional(),
   description: z.string().min(1),
   montant: z.number().int().positive(),
+  appliquerTva: z.boolean().optional().default(false),
+  estProforma: z.boolean().optional().default(false),
   dateEcheance: z.string().optional(),
 });
 
@@ -30,26 +36,35 @@ facturesRouter.post("/api/factures", requireAuth, requireAvocat, async (req, res
     return res.status(400).json({ error: "Formulaire invalide", details: parsed.error.issues });
   }
 
-  const dossier = await prisma.dossier.findFirst({
-    where: { id: parsed.data.dossierId, cabinetId: req.auth!.cabinetId },
-  });
-  if (!dossier) {
-    return res.status(404).json({ error: "Dossier introuvable" });
+  let dossier = null;
+  if (parsed.data.dossierId) {
+    dossier = await prisma.dossier.findFirst({
+      where: { id: parsed.data.dossierId, cabinetId: req.auth!.cabinetId },
+    });
+    if (!dossier) {
+      return res.status(404).json({ error: "Dossier introuvable" });
+    }
   }
 
-  const numero = await genererNumero(req.auth!.cabinetId);
+  const numero = await genererNumero(req.auth!.cabinetId, parsed.data.estProforma);
 
   const facture = await prisma.facture.create({
     data: {
       cabinetId: req.auth!.cabinetId,
-      dossierId: dossier.id,
+      dossierId: dossier?.id,
+      clientNom: parsed.data.clientNom,
       numero,
       description: parsed.data.description,
       montant: parsed.data.montant,
+      appliquerTva: parsed.data.appliquerTva,
+      estProforma: parsed.data.estProforma,
       dateEcheance: parsed.data.dateEcheance ? new Date(parsed.data.dateEcheance) : undefined,
       createdBy: req.auth!.userId,
     },
-    include: { dossier: { select: { numeroDossier: true, nomAffaire: true, nomClient: true } } },
+    include: {
+      dossier: { select: { numeroDossier: true, nomAffaire: true, nomClient: true } },
+      creePar: { select: { nom: true } },
+    },
   });
 
   return res.status(201).json(facture);
@@ -76,7 +91,10 @@ facturesRouter.get("/api/factures", requireAuth, requireAvocat, async (req, res)
 async function loadFacture(id: string, cabinetId: string) {
   return prisma.facture.findFirst({
     where: { id, cabinetId },
-    include: { dossier: { select: { numeroDossier: true, nomAffaire: true, nomClient: true, client: true } } },
+    include: {
+      dossier: { select: { numeroDossier: true, nomAffaire: true, nomClient: true, client: true } },
+      creePar: { select: { nom: true } },
+    },
   });
 }
 
@@ -120,11 +138,13 @@ facturesRouter.get("/api/factures/:id/pdf", requireAuth, requireAvocat, async (r
     numero: facture.numero,
     dateEmission: facture.dateEmission,
     dateEcheance: facture.dateEcheance,
-    nomClient: facture.dossier.nomClient,
-    numeroDossier: facture.dossier.numeroDossier,
-    nomAffaire: facture.dossier.nomAffaire,
+    nomClient: facture.clientNom,
+    numeroDossier: facture.dossier?.numeroDossier ?? null,
+    nomAffaire: facture.dossier?.nomAffaire ?? null,
     description: facture.description,
     montant: facture.montant,
+    appliquerTva: facture.appliquerTva,
+    estProforma: facture.estProforma,
     entete,
   });
 
@@ -156,11 +176,13 @@ facturesRouter.post("/api/factures/:id/envoyer", requireAuth, requireAvocat, asy
     numero: facture.numero,
     dateEmission: facture.dateEmission,
     dateEcheance: facture.dateEcheance,
-    nomClient: facture.dossier.nomClient,
-    numeroDossier: facture.dossier.numeroDossier,
-    nomAffaire: facture.dossier.nomAffaire,
+    nomClient: facture.clientNom,
+    numeroDossier: facture.dossier?.numeroDossier ?? null,
+    nomAffaire: facture.dossier?.nomAffaire ?? null,
     description: facture.description,
     montant: facture.montant,
+    appliquerTva: facture.appliquerTva,
+    estProforma: facture.estProforma,
     entete,
   });
 

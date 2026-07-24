@@ -40,6 +40,7 @@ auditLogsRouter.get("/api/audit-logs", requireAuth, requireAdmin, async (req, re
           typeAction: true,
           canal: true,
           dossier: { select: { numeroDossier: true, nomAffaire: true } },
+          creePar: { select: { nom: true } },
         },
       },
     },
@@ -58,6 +59,7 @@ auditLogsRouter.get("/api/audit-logs", requireAuth, requireAdmin, async (req, re
       canal: log.action.canal,
       numeroDossier: log.action.dossier.numeroDossier,
       nomAffaire: log.action.dossier.nomAffaire,
+      genereParNom: log.action.creePar.nom,
     }))
   );
 });

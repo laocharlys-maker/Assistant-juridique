@@ -15,12 +15,45 @@ clientsRouter.get("/api/clients", requireAuth, async (req, res) => {
   return res.json(clients);
 });
 
-const createClientSchema = z.object({
+// Fiche d'identite : seul le nom est obligatoire, tout le reste est saisi
+// au fil de l'eau selon ce que le cabinet sait deja du client.
+const clientFieldsSchema = {
   nom: z.string().min(1),
   email: z.string().email().optional().or(z.literal("")),
   telephone: z.string().optional(),
   notes: z.string().optional(),
-});
+  dateNaissance: z.string().optional(),
+  lieuNaissance: z.string().optional(),
+  quartierResidence: z.string().optional(),
+  rue: z.string().optional(),
+  autrePrecision: z.string().optional(),
+  maison: z.string().optional(),
+  situationMatrimoniale: z.string().optional(),
+  fonction: z.string().optional(),
+  entreprise: z.string().optional(),
+  adresseEntreprise: z.string().optional(),
+};
+
+const createClientSchema = z.object(clientFieldsSchema);
+
+function clientDataFromParsed(parsed: z.infer<typeof createClientSchema>) {
+  return {
+    nom: parsed.nom,
+    email: parsed.email || null,
+    telephone: parsed.telephone || null,
+    notes: parsed.notes || null,
+    dateNaissance: parsed.dateNaissance ? new Date(parsed.dateNaissance) : null,
+    lieuNaissance: parsed.lieuNaissance || null,
+    quartierResidence: parsed.quartierResidence || null,
+    rue: parsed.rue || null,
+    autrePrecision: parsed.autrePrecision || null,
+    maison: parsed.maison || null,
+    situationMatrimoniale: parsed.situationMatrimoniale || null,
+    fonction: parsed.fonction || null,
+    entreprise: parsed.entreprise || null,
+    adresseEntreprise: parsed.adresseEntreprise || null,
+  };
+}
 
 clientsRouter.post("/api/clients", requireAuth, async (req, res) => {
   const parsed = createClientSchema.safeParse(req.body);
@@ -31,14 +64,34 @@ clientsRouter.post("/api/clients", requireAuth, async (req, res) => {
   const client = await prisma.client.create({
     data: {
       cabinetId: req.auth!.cabinetId,
-      nom: parsed.data.nom,
-      email: parsed.data.email || null,
-      telephone: parsed.data.telephone || null,
-      notes: parsed.data.notes || null,
+      ...clientDataFromParsed(parsed.data),
     },
   });
 
   return res.status(201).json(client);
+});
+
+const updateClientSchema = z.object(clientFieldsSchema);
+
+clientsRouter.patch("/api/clients/:id", requireAuth, async (req, res) => {
+  const parsed = updateClientSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Formulaire invalide", details: parsed.error.issues });
+  }
+
+  const existing = await prisma.client.findFirst({
+    where: { id: req.params.id, cabinetId: req.auth!.cabinetId },
+  });
+  if (!existing) {
+    return res.status(404).json({ error: "Client introuvable" });
+  }
+
+  const client = await prisma.client.update({
+    where: { id: existing.id },
+    data: clientDataFromParsed(parsed.data),
+  });
+
+  return res.json(client);
 });
 
 clientsRouter.get("/api/clients/:id", requireAuth, async (req, res) => {

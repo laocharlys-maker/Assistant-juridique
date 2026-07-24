@@ -166,6 +166,19 @@ model Client {
   notes     String?
   createdAt DateTime @default(now()) @map("created_at")
 
+  // Fiche d'identite detaillee - tous facultatifs, saisis au fil de l'eau
+  // selon ce que le cabinet sait deja du client.
+  dateNaissance          DateTime? @map("date_naissance")
+  lieuNaissance          String?   @map("lieu_naissance")
+  quartierResidence      String?   @map("quartier_residence")
+  rue                    String?
+  autrePrecision         String?   @map("autre_precision")
+  maison                 String?
+  situationMatrimoniale  String?   @map("situation_matrimoniale")
+  fonction               String?
+  entreprise             String?
+  adresseEntreprise      String?   @map("adresse_entreprise")
+
   cabinet  Cabinet   @relation(fields: [cabinetId], references: [id])
   dossiers Dossier[]
 
@@ -281,13 +294,20 @@ model RoleAudience {
 // reste emise separement par l'avocat sur son propre compte SYGMEF. Ce
 // document sert au cabinet pour le suivi (montant, statut, envoi client).
 model Facture {
-  id                String        @id @default(uuid())
-  cabinetId         String        @map("cabinet_id")
-  dossierId         String        @map("dossier_id")
-  numero            String
-  description       String
-  // Montant net en Francs CFA (pas de calcul de TVA).
+  id          String  @id @default(uuid())
+  cabinetId   String  @map("cabinet_id")
+  // Optionnel : une facture (notamment une proforma) peut concerner un
+  // client sans dossier encore ouvert.
+  dossierId   String? @map("dossier_id")
+  // Nom du client tel que saisi/choisi au moment de la facture - independant
+  // du dossier, pour couvrir le cas d'un prospect pas encore en base.
+  clientNom   String  @map("client_nom")
+  numero      String
+  description String
+  // Montant Hors Taxes en Francs CFA.
   montant           Int
+  appliquerTva      Boolean       @default(false) @map("appliquer_tva")
+  estProforma       Boolean       @default(false) @map("est_proforma")
   dateEmission      DateTime      @default(now()) @map("date_emission")
   dateEcheance      DateTime?     @map("date_echeance")
   statut            FactureStatut @default(brouillon)
@@ -297,9 +317,9 @@ model Facture {
   createdBy         String        @map("created_by")
   createdAt         DateTime      @default(now()) @map("created_at")
 
-  cabinet Cabinet @relation(fields: [cabinetId], references: [id])
-  dossier Dossier @relation(fields: [dossierId], references: [id])
-  creePar User    @relation("FactureCreatedBy", fields: [createdBy], references: [id])
+  cabinet Cabinet  @relation(fields: [cabinetId], references: [id])
+  dossier Dossier? @relation(fields: [dossierId], references: [id])
+  creePar User     @relation("FactureCreatedBy", fields: [createdBy], references: [id])
 
   @@unique([cabinetId, numero])
   @@map("factures")
