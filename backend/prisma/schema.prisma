@@ -301,7 +301,9 @@ model Facture {
   dossierId   String? @map("dossier_id")
   // Nom du client tel que saisi/choisi au moment de la facture - independant
   // du dossier, pour couvrir le cas d'un prospect pas encore en base.
-  clientNom   String  @map("client_nom")
+  // Nullable en base pour les factures creees avant l'ajout de ce champ
+  // (toujours fourni obligatoirement a la creation via l'API).
+  clientNom   String? @map("client_nom")
   numero      String
   description String
   // Montant Hors Taxes en Francs CFA.

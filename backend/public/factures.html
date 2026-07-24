@@ -203,7 +203,7 @@
             <span class="tag">${escapeHtml(f.numero)}${f.dossier ? ` · ${escapeHtml(f.dossier.numeroDossier)} — ${escapeHtml(f.dossier.nomAffaire)}` : ""}</span>
             ${f.estProforma ? '<span class="badge badge-echeance_proche">Proforma</span>' : ""}
             <span class="badge badge-${f.statut}">${STATUT_LABELS[f.statut] || f.statut}</span>
-            <div>Client : ${escapeHtml(f.clientNom)}</div>
+            <div>Client : ${escapeHtml(f.clientNom || f.dossier?.nomClient || "-")}</div>
             <div>${escapeHtml(f.description)}</div>
             <p><strong>${f.appliquerTva ? `${formatMontant(f.montant)} HT — ${formatMontant(montantTtc)} TTC (TVA 18%)` : formatMontant(f.montant)}</strong>${f.dateEcheance ? ` — échéance ${formatDate(f.dateEcheance)}` : ""}</p>
             <p class="muted">Émise le ${formatDate(f.dateEmission)} par ${escapeHtml(f.creePar?.nom || "-")}${f.envoyeAt ? ` · envoyée le ${formatDate(f.envoyeAt)}${f.destinataireEmail ? " à " + escapeHtml(f.destinataireEmail) : ""}` : ""}${f.payeeAt ? ` · payée le ${formatDate(f.payeeAt)}` : ""}</p>
