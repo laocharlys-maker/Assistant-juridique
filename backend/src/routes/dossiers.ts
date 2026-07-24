@@ -56,10 +56,20 @@ dossiersRouter.get("/api/dossiers", requireAuth, async (req, res) => {
       return res.status(403).json({ error: "Tu ne supervises pas directement ce membre" });
     }
 
+    // Un dossier compte pour ce membre s'il l'a lui-meme cree, OU s'il y a
+    // genere au moins un document (cas le plus frequent : le dossier
+    // appartient a l'avocat titulaire, le collaborateur y ajoute des actions).
     const dossiers = await prisma.dossier.findMany({
-      where: { cabinetId: auth!.cabinetId, estRecherche: false, createdBy: membreParam },
+      where: {
+        cabinetId: auth!.cabinetId,
+        estRecherche: false,
+        OR: [{ createdBy: membreParam }, { actions: { some: { createdBy: membreParam } } }],
+      },
       orderBy: { updatedAt: "desc" },
-      include: { _count: { select: { actions: true } }, creePar: { select: { nom: true } } },
+      include: {
+        _count: { select: { actions: { where: { createdBy: membreParam } } } },
+        creePar: { select: { nom: true } },
+      },
     });
     const tags = await computeStatutTags(dossiers.map((d) => d.id));
     const dossiersAvecTag = dossiers.map((d) => ({
