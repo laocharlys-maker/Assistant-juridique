@@ -185,6 +185,10 @@
             enteteCheckbox.addEventListener("click", (e) => e.stopPropagation());
             enteteCheckbox.addEventListener("change", update);
           }
+          // L'en-tête est cochée par défaut (si le cabinet en a une) : on
+          // applique tout de suite ce réglage initial aux liens de
+          // téléchargement, sans attendre un changement manuel.
+          update();
 
           const emailInput = document.getElementById(`email-${a.id}`);
           const envoyerMoiBtn = actionsEl.querySelector(`[data-envoyer-moi="${a.id}"]`);
@@ -262,7 +266,7 @@
               cabinetHasEntete
                 ? `<div style="margin:6px 0 0;">
                      <label style="display:flex; align-items:center; gap:6px; font-weight:400; margin:0;">
-                       <input type="checkbox" id="avecEnteteDL-${a.id}" style="width:auto;" /> Insérer l'en-tête du cabinet
+                       <input type="checkbox" id="avecEnteteDL-${a.id}" style="width:auto;" checked /> Insérer l'en-tête du cabinet
                      </label>
                    </div>`
                 : ""
