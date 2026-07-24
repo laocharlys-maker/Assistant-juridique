@@ -93,6 +93,7 @@
       const listEl = document.getElementById("users-list");
       try {
         const usersBruts = await apiFetch("/api/users");
+        const avocatsPourReassignation = usersBruts.filter((u) => u.role === "titulaire" || u.role === "avocat");
         const users =
           filtre === "avocat"
             ? usersBruts.filter((u) => u.role === "titulaire" || u.role === "avocat")
@@ -178,6 +179,18 @@
               );
             }
 
+            const reassignSelect =
+              me.role === "titulaire"
+                ? `<select data-reassign-responsable="${u.id}" style="width:auto; margin:0;">
+                     ${avocatsPourReassignation
+                       .map(
+                         (a) =>
+                           `<option value="${a.id}"${a.id === u.responsableId ? " selected" : ""}>Responsable : ${escapeHtml(a.nom)}</option>`
+                       )
+                       .join("")}
+                   </select>`
+                : "";
+
             return `
             <div class="dossier-item">
               <div>
@@ -189,7 +202,7 @@
                   ${u.actif === false ? ' · <span style="color:var(--danger);">Compte désactivé</span>' : ""}
                 </div>
               </div>
-              <div class="icon-action-row">${actions.join("")}</div>
+              <div class="icon-action-row">${reassignSelect}${actions.join("")}</div>
             </div>`;
           })
           .join("");
@@ -263,6 +276,27 @@
               loadUsers();
             } catch (err) {
               showError(document.getElementById("error"), err.message);
+            }
+          });
+        });
+
+        listEl.querySelectorAll("[data-reassign-responsable]").forEach((sel) => {
+          sel.addEventListener("change", async () => {
+            const collaborateurId = sel.dataset.reassignResponsable;
+            const nomAvocat = sel.selectedOptions[0].textContent.replace("Responsable : ", "");
+            if (!confirm(`Rattacher ce collaborateur à ${nomAvocat} ? Il verra par défaut les dossiers de cet avocat.`)) {
+              loadUsers();
+              return;
+            }
+            try {
+              await apiFetch(`/api/users/${collaborateurId}/responsable`, {
+                method: "PATCH",
+                body: { responsableId: sel.value },
+              });
+              loadUsers();
+            } catch (err) {
+              showError(document.getElementById("error"), err.message);
+              loadUsers();
             }
           });
         });

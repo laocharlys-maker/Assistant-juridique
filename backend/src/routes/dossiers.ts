@@ -6,11 +6,13 @@ import { getAccessibleAvocatIds } from "../services/access";
 
 export const dossiersRouter = Router();
 
-// Titulaire (admin) et avocat peuvent tous deux voir l'ensemble du cabinet
-// (vue "cabinet" / acces direct par id) ; seul un collaborateur est
-// restreint a son perimetre (getAccessibleAvocatIds).
+// Titulaire (admin), avocat et collaborateur peuvent tous demander la vue
+// "cabinet" (liste + detail de tous les dossiers) - un collaborateur reste
+// par defaut sur son perimetre (getAccessibleAvocatIds), mais peut basculer
+// explicitement sur "Vue cabinet" pour parcourir tous les dossiers, sans
+// pour autant pouvoir les cloturer/valider/envoyer (verifie separement).
 function peutVoirTouLeCabinet(role: string | undefined): boolean {
-  return role === "titulaire" || role === "avocat";
+  return role === "titulaire" || role === "avocat" || role === "collaborateur";
 }
 
 // Calcule l'etiquette de statut d'un dossier : "cloture" si marque comme

@@ -56,7 +56,8 @@
         document.querySelectorAll("#vue-tabs .tab").forEach((btn) => {
           btn.classList.toggle("active", btn.dataset.vue === appliedVue);
         });
-        const peutVoirCabinet = currentUserRole === "titulaire" || currentUserRole === "avocat";
+        const peutVoirCabinet =
+          currentUserRole === "titulaire" || currentUserRole === "avocat" || currentUserRole === "collaborateur";
         const estVueDossier = appliedVue === "dossiers" || appliedVue === "archives";
         document.getElementById("scope-tabs").style.display =
           peutVoirCabinet && estVueDossier ? "flex" : "none";
@@ -107,14 +108,15 @@
 
       currentUserRole = me.role;
 
-      if (me.role === "titulaire" || me.role === "avocat") {
+      if (me.role === "titulaire" || me.role === "avocat" || me.role === "collaborateur") {
         document.querySelectorAll("#scope-tabs .tab").forEach((btn) => {
           btn.addEventListener("click", () => {
             currentScope = btn.dataset.scope;
             loadDossiers();
           });
         });
-      } else if (me.responsable) {
+      }
+      if (me.role === "collaborateur" && me.responsable) {
         const subtitleEl = document.getElementById("subtitle");
         subtitleEl.textContent = `Dossiers de ${me.responsable.nom}`;
         subtitleEl.style.display = "block";

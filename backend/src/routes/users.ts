@@ -233,6 +233,49 @@ usersRouter.patch(
   }
 );
 
+// Reassigne le responsable direct d'un collaborateur (l'avocat "titulaire"
+// de la relation) - reserve a l'admin, pour eviter qu'un avocat ne se
+// detache lui-meme un collaborateur d'un confrere sans validation.
+const reassignerResponsableSchema = z.object({
+  responsableId: z.string().uuid(),
+});
+
+usersRouter.patch(
+  "/api/users/:id/responsable",
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    const parsed = reassignerResponsableSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Requête invalide" });
+    }
+
+    const collaborateur = await prisma.user.findFirst({
+      where: { id: req.params.id, cabinetId: req.auth!.cabinetId, role: "collaborateur" },
+    });
+    if (!collaborateur) {
+      return res.status(404).json({ error: "Collaborateur introuvable dans ce cabinet" });
+    }
+
+    const nouveauResponsable = await prisma.user.findFirst({
+      where: {
+        id: parsed.data.responsableId,
+        cabinetId: req.auth!.cabinetId,
+        role: { in: ["titulaire", "avocat"] },
+      },
+    });
+    if (!nouveauResponsable) {
+      return res.status(404).json({ error: "Avocat introuvable dans ce cabinet" });
+    }
+
+    await prisma.user.update({
+      where: { id: collaborateur.id },
+      data: { responsableId: nouveauResponsable.id },
+    });
+    return res.json({ ok: true });
+  }
+);
+
 // Un avocat ou le titulaire choisit de recevoir (ou non) le resume
 // hebdomadaire de veille juridique par email. Sans effet pour un
 // collaborateur (qui ne fait pas partie des destinataires).
