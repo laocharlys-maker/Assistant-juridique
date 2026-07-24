@@ -82,6 +82,10 @@ model Cabinet {
   // automatique. N'entraine jamais de suppression, juste un rangement hors
   // de la liste par defaut.
   archivageDelaiMois Int @default(6) @map("archivage_delai_mois")
+  // Nombre max de documents qu'un collaborateur peut generer par mois
+  // calendaire (protection contre les abus/grosses factures IA). Null =
+  // pas de limite. Ne s'applique jamais aux avocats/titulaire.
+  limiteDocumentsCollaborateurParMois Int? @map("limite_documents_collaborateur_par_mois")
   createdAt DateTime @default(now()) @map("created_at")
 
   users         User[]

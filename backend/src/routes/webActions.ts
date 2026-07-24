@@ -153,6 +153,31 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
   const { auth } = req;
   const llm = getLlmProvider();
 
+  // Quota mensuel optionnel pour les collaborateurs, fixe par l'admin du
+  // cabinet dans Parametres (protection contre les abus de generation -
+  // chaque document genere par IA a un cout). Jamais applique aux
+  // avocats/titulaire.
+  if (auth!.role === "collaborateur") {
+    const cabinet = await prisma.cabinet.findUnique({
+      where: { id: auth!.cabinetId },
+      select: { limiteDocumentsCollaborateurParMois: true },
+    });
+    const limite = cabinet?.limiteDocumentsCollaborateurParMois;
+    if (limite) {
+      const debutMois = new Date();
+      debutMois.setDate(1);
+      debutMois.setHours(0, 0, 0, 0);
+      const count = await prisma.action.count({
+        where: { createdBy: auth!.userId, createdAt: { gte: debutMois } },
+      });
+      if (count >= limite) {
+        return res.status(429).json({
+          error: `Limite de ${limite} documents générés ce mois-ci atteinte. Contacte ton avocat responsable si tu as besoin d'en générer davantage.`,
+        });
+      }
+    }
+  }
+
   try {
     let dossierId: string;
     let action: ActionOutput;

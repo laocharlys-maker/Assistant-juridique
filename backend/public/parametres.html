@@ -54,6 +54,18 @@
           <span id="retention-saved" class="muted" style="display:none; margin-left:10px;">Enregistré ✓</span>
         </form>
       </div>
+
+      <div class="settings-card">
+        <div class="icon-badge"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6"/><path d="M9 17h4"/></svg></div>
+        <h3>Limite de génération pour les collaborateurs</h3>
+        <p class="desc">Nombre maximum de documents qu'un collaborateur peut générer par mois calendaire — protection contre les abus. Ne s'applique jamais aux avocats. Laisser vide = pas de limite.</p>
+        <form id="limite-documents-form">
+          <label>Documents max par collaborateur et par mois</label>
+          <input name="limiteDocumentsCollaborateurParMois" type="number" min="1" max="1000" placeholder="Aucune limite" />
+          <button type="submit" class="btn-sm">Enregistrer</button>
+          <span id="limite-documents-saved" class="muted" style="display:none; margin-left:10px;">Enregistré ✓</span>
+        </form>
+      </div>
     </div>
   </div>
   <script src="/js/api.js"></script>
@@ -88,6 +100,8 @@
         document.querySelector('#cabinet-form input[name="nom"]').value = cabinet.nom;
         renderEntete(cabinet.enteteUrl);
         document.querySelector('#retention-form input[name="archivageDelaiMois"]').value = cabinet.archivageDelaiMois;
+        document.querySelector('#limite-documents-form input[name="limiteDocumentsCollaborateurParMois"]').value =
+          cabinet.limiteDocumentsCollaborateurParMois ?? "";
       } catch (err) {
         showError(document.getElementById("error"), err.message);
       }
@@ -148,6 +162,25 @@
         await apiFetch("/api/cabinet/retention", {
           method: "PATCH",
           body: { archivageDelaiMois: Number(fd.get("archivageDelaiMois")) },
+        });
+        savedEl.style.display = "inline";
+        setTimeout(() => { savedEl.style.display = "none"; }, 3000);
+      } catch (err) {
+        showError(errorEl, err.message);
+      }
+    });
+
+    document.getElementById("limite-documents-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      hideError(errorEl);
+      const fd = new FormData(e.target);
+      const savedEl = document.getElementById("limite-documents-saved");
+      savedEl.style.display = "none";
+      const valeur = fd.get("limiteDocumentsCollaborateurParMois");
+      try {
+        await apiFetch("/api/cabinet/limite-documents", {
+          method: "PATCH",
+          body: { limiteDocumentsCollaborateurParMois: valeur ? Number(valeur) : null },
         });
         savedEl.style.display = "inline";
         setTimeout(() => { savedEl.style.display = "none"; }, 3000);

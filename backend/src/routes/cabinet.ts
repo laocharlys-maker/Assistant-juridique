@@ -18,6 +18,7 @@ cabinetRouter.get("/api/cabinet", requireAuth, async (req, res) => {
       veilleSujets: true,
       veilleActive: true,
       archivageDelaiMois: true,
+      limiteDocumentsCollaborateurParMois: true,
     },
   });
   if (!cabinet) {
@@ -76,6 +77,24 @@ cabinetRouter.patch("/api/cabinet/retention", requireAuth, requireAdmin, async (
     data: { archivageDelaiMois: parsed.data.archivageDelaiMois },
   });
   return res.json({ archivageDelaiMois: cabinet.archivageDelaiMois });
+});
+
+const updateLimiteDocumentsSchema = z.object({
+  // Null/absent = pas de limite.
+  limiteDocumentsCollaborateurParMois: z.number().int().positive().max(1000).nullable(),
+});
+
+cabinetRouter.patch("/api/cabinet/limite-documents", requireAuth, requireAdmin, async (req, res) => {
+  const parsed = updateLimiteDocumentsSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Limite invalide (nombre entier positif, ou vide pour aucune limite)" });
+  }
+
+  const cabinet = await prisma.cabinet.update({
+    where: { id: req.auth!.cabinetId },
+    data: { limiteDocumentsCollaborateurParMois: parsed.data.limiteDocumentsCollaborateurParMois },
+  });
+  return res.json({ limiteDocumentsCollaborateurParMois: cabinet.limiteDocumentsCollaborateurParMois });
 });
 
 const ENTETE_UPLOAD_DIR = path.join(__dirname, "..", "..", "public", "uploads", "entetes");
