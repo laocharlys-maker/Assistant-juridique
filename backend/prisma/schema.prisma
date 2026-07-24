@@ -60,6 +60,12 @@ enum FactureStatut {
   payee
 }
 
+enum StatutRoleAudience {
+  a_preparer
+  pret
+  traite
+}
+
 model Cabinet {
   id        String   @id @default(uuid())
   nom       String
@@ -78,11 +84,12 @@ model Cabinet {
   archivageDelaiMois Int @default(6) @map("archivage_delai_mois")
   createdAt DateTime @default(now()) @map("created_at")
 
-  users      User[]
-  dossiers   Dossier[]
-  clients    Client[]
-  delaiTypes DelaiType[]
-  factures   Facture[]
+  users         User[]
+  dossiers      Dossier[]
+  clients       Client[]
+  delaiTypes    DelaiType[]
+  factures      Facture[]
+  roleAudiences RoleAudience[]
 
   @@map("cabinets")
 }
@@ -127,6 +134,7 @@ model User {
   delaiTypesCrees   DelaiType[]
   delaiCalculsCrees DelaiCalcul[]
   facturesCreees    Facture[]     @relation("FactureCreatedBy")
+  roleAudiencesCreees RoleAudience[] @relation("RoleAudienceCreatedBy")
 
   // Acces supplementaires accordes a CE collaborateur vers d'autres avocats.
   accesAccordes AccesSupplementaire[] @relation("AccesCollaborateur")
@@ -226,15 +234,46 @@ model Dossier {
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
-  cabinet      Cabinet       @relation(fields: [cabinetId], references: [id])
-  client       Client?       @relation(fields: [clientId], references: [id])
-  creePar      User          @relation("DossierCreatedBy", fields: [createdBy], references: [id])
-  actions      Action[]
-  delaiCalculs DelaiCalcul[]
-  factures     Facture[]
+  cabinet       Cabinet        @relation(fields: [cabinetId], references: [id])
+  client        Client?        @relation(fields: [clientId], references: [id])
+  creePar       User           @relation("DossierCreatedBy", fields: [createdBy], references: [id])
+  actions       Action[]
+  delaiCalculs  DelaiCalcul[]
+  factures      Facture[]
+  roleAudiences RoleAudience[]
 
   @@unique([cabinetId, numeroDossier])
   @@map("dossiers")
+}
+
+// Role de la semaine : audiences a venir (une par ligne), saisies
+// manuellement par le cabinet a partir du role recu du greffe/tribunal
+// (document externe, format non standardise - jamais extrait
+// automatiquement). Publie generalement ~10 jours avant la semaine
+// concernee, d'ou l'interet d'avoir une vue dediee pour preparer a temps.
+model RoleAudience {
+  id                 String             @id @default(uuid())
+  cabinetId          String             @map("cabinet_id")
+  dossierId          String?            @map("dossier_id")
+  dateAudience       DateTime           @map("date_audience")
+  juridiction        String
+  chambre            String?
+  procedureNumero    String?            @map("procedure_numero")
+  // Libelle des parties tel que sur le role (ex: "Koffi C/ Kodjo").
+  parties            String
+  qualiteProcedurale String?            @map("qualite_procedurale")
+  objetProcedure     String?            @map("objet_procedure")
+  dernierMotif       String?            @map("dernier_motif")
+  diligences         String?
+  statut             StatutRoleAudience @default(a_preparer)
+  createdBy          String             @map("created_by")
+  createdAt          DateTime           @default(now()) @map("created_at")
+
+  cabinet Cabinet  @relation(fields: [cabinetId], references: [id])
+  dossier Dossier? @relation(fields: [dossierId], references: [id])
+  creePar User     @relation("RoleAudienceCreatedBy", fields: [createdBy], references: [id])
+
+  @@map("role_audiences")
 }
 
 // Suivi interne des honoraires/paiements. Ce n'est PAS une facture

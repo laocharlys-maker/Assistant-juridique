@@ -36,6 +36,39 @@ async function computeStatutTags(dossierIds: string[]): Promise<Map<string, stri
 
 dossiersRouter.get("/api/dossiers", requireAuth, async (req, res) => {
   const { auth } = req;
+
+  // Vue "activite d'un membre" : un avocat/titulaire consulte ce qu'un
+  // collaborateur precis a cree, pour verifier ou reprendre son travail.
+  // Autorise seulement pour le titulaire (n'importe qui) ou le responsable
+  // direct de ce collaborateur - jamais pour un tiers.
+  const membreParam = typeof req.query.membre === "string" ? req.query.membre : undefined;
+  if (membreParam) {
+    if (!peutVoirTouLeCabinet(auth!.role)) {
+      return res.status(403).json({ error: "Réservé aux avocats du cabinet" });
+    }
+    const membre = await prisma.user.findFirst({
+      where: { id: membreParam, cabinetId: auth!.cabinetId },
+    });
+    if (!membre) {
+      return res.status(404).json({ error: "Membre introuvable dans ce cabinet" });
+    }
+    if (auth!.role !== "titulaire" && membre.responsableId !== auth!.userId) {
+      return res.status(403).json({ error: "Tu ne supervises pas directement ce membre" });
+    }
+
+    const dossiers = await prisma.dossier.findMany({
+      where: { cabinetId: auth!.cabinetId, estRecherche: false, createdBy: membreParam },
+      orderBy: { updatedAt: "desc" },
+      include: { _count: { select: { actions: true } }, creePar: { select: { nom: true } } },
+    });
+    const tags = await computeStatutTags(dossiers.map((d) => d.id));
+    const dossiersAvecTag = dossiers.map((d) => ({
+      ...d,
+      statutTag: d.statut === "cloture" ? "cloture" : tags.get(d.id) || "a_jour",
+    }));
+    return res.json({ scope: "membre", vue: "dossiers", membre: { id: membre.id, nom: membre.nom }, dossiers: dossiersAvecTag });
+  }
+
   // Un collaborateur ne peut jamais demander la vue "cabinet" complète ;
   // seuls le titulaire (admin) et un avocat le peuvent.
   const requestedScope = req.query.scope === "cabinet" ? "cabinet" : "mine";

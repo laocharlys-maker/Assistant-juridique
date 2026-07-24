@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aurore — Rôle de la semaine</title>
+  <link rel="icon" type="image/png" href="/favicon-256.png" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="page">
+    <div class="page-hero">
+      <div class="eyebrow">Procédure</div>
+      <h1>Rôle de la semaine</h1>
+      <p>Saisis ici les audiences reçues du greffe/tribunal pour préparer à temps — le rôle est en général communiqué environ 10 jours avant la semaine concernée.</p>
+    </div>
+
+    <div id="error" class="error"></div>
+
+    <div class="tabs" id="scope-tabs" style="display:none;">
+      <button class="tab" data-scope="mine">Mes audiences</button>
+      <button class="tab" data-scope="cabinet">Tout le cabinet</button>
+    </div>
+
+    <div class="card">
+      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+        <button type="button" class="secondary btn-sm" id="prev-week-btn">← Semaine précédente</button>
+        <strong id="week-label">Semaine du …</strong>
+        <button type="button" class="secondary btn-sm" id="next-week-btn">Semaine suivante →</button>
+      </div>
+    </div>
+
+    <div id="week-content"><p class="muted">Chargement…</p></div>
+
+    <div style="margin: 4px 0;">
+      <button type="button" id="toggle-add-btn">+ Ajouter une audience</button>
+    </div>
+
+    <div class="collapse-panel" id="add-panel">
+      <div class="collapse-panel-inner">
+        <form id="add-form">
+          <label>Date et heure de l'audience</label>
+          <input name="dateAudience" type="datetime-local" required />
+          <label>Juridiction</label>
+          <input name="juridiction" required placeholder="ex: CRIET Instance" />
+          <label>Chambre (optionnel)</label>
+          <input name="chambre" placeholder="ex: Chambre correctionnelle" />
+          <label>Numéro de procédure (optionnel)</label>
+          <input name="procedureNumero" placeholder="ex: 15/2025" />
+          <label>Parties</label>
+          <input name="parties" required placeholder="ex: Koffi C/ Kodjo" />
+          <label>Qualité procédurale du client (optionnel)</label>
+          <select name="qualiteProcedurale">
+            <option value="">— Non précisé —</option>
+            <option value="Demandeur">Demandeur</option>
+            <option value="Défendeur">Défendeur</option>
+            <option value="Intervenant volontaire">Intervenant volontaire</option>
+            <option value="Intervenant forcé">Intervenant forcé</option>
+            <option value="Appelant">Appelant</option>
+            <option value="Intimé">Intimé</option>
+            <option value="Demandeur au pourvoi">Demandeur au pourvoi</option>
+            <option value="Défendeur au pourvoi">Défendeur au pourvoi</option>
+          </select>
+          <label>Objet de la procédure (optionnel)</label>
+          <input name="objetProcedure" />
+          <label>Dernier motif (optionnel)</label>
+          <input name="dernierMotif" placeholder="ex: DP" />
+          <label>Diligences (optionnel)</label>
+          <input name="diligences" placeholder="ex: PSV" />
+          <label>Dossier lié (optionnel)</label>
+          <input name="dossierNumero" list="dossiers-datalist-role" placeholder="Numéro de dossier" />
+          <datalist id="dossiers-datalist-role"></datalist>
+          <label style="display:flex; align-items:center; gap:8px; font-weight:400;">
+            <input type="checkbox" name="creerRappelCalendar" style="width:auto;" />
+            Créer un rappel dans Google Calendar
+          </label>
+          <div style="display:flex; gap:10px; margin-top:18px;">
+            <button type="submit">Ajouter au rôle</button>
+            <button type="button" class="ghost" id="cancel-add-btn">Annuler</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  <script src="/js/api.js"></script>
+  <script src="/js/layout.js"></script>
+  <script>
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str ?? "";
+      return div.innerHTML;
+    }
+
+    const JOURS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi"];
+    const STATUT_LABELS = { a_preparer: "À préparer", pret: "Prêt", traite: "Traité" };
+    const STATUT_BADGE = { a_preparer: "badge-echeance_proche", pret: "badge-envoyee", traite: "badge-a_jour" };
+
+    let currentMonday = mondayOf(new Date());
+    let dossiersParNumero = new Map();
+
+    function mondayOf(date) {
+      const d = new Date(date);
+      const jour = d.getDay();
+      const decalage = jour === 0 ? -6 : 1 - jour;
+      d.setDate(d.getDate() + decalage);
+      d.setHours(0, 0, 0, 0);
+      return d;
+    }
+
+    function formatJourCourt(date) {
+      return date.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+    }
+    function formatHeure(iso) {
+      return new Date(iso).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+    }
+
+    async function loadDossiersForDatalist() {
+      try {
+        const { dossiers } = await apiFetch("/api/dossiers");
+        const datalist = document.getElementById("dossiers-datalist-role");
+        datalist.innerHTML = dossiers
+          .map((d) => `<option value="${escapeHtml(d.numeroDossier)}">${escapeHtml(d.nomAffaire)}</option>`)
+          .join("");
+        dossiers.forEach((d) => dossiersParNumero.set(d.numeroDossier, d));
+      } catch {
+        // Non bloquant.
+      }
+    }
+
+    async function loadWeek(scope) {
+      const errorEl = document.getElementById("error");
+      hideError(errorEl);
+      const contentEl = document.getElementById("week-content");
+      contentEl.innerHTML = '<p class="muted">Chargement…</p>';
+      try {
+        const query = scope ? `?scope=${scope}` : "";
+        const debutStr = currentMonday.toISOString().slice(0, 10);
+        const sep = query ? "&" : "?";
+        const data = await apiFetch(`/api/role-audiences${query}${sep}debut=${debutStr}`);
+        document.querySelectorAll("#scope-tabs .tab").forEach((btn) => {
+          btn.classList.toggle("active", btn.dataset.scope === data.scope);
+        });
+
+        const vendredi = new Date(currentMonday);
+        vendredi.setDate(vendredi.getDate() + 4);
+        document.getElementById("week-label").textContent =
+          `Semaine du ${formatJourCourt(currentMonday)} au ${formatJourCourt(vendredi)}`;
+
+        const parJour = {};
+        JOURS.forEach((j) => (parJour[j] = []));
+        data.audiences.forEach((a) => {
+          const d = new Date(a.dateAudience);
+          const idx = (d.getDay() + 6) % 7; // 0 = lundi
+          if (idx >= 0 && idx < 5) parJour[JOURS[idx]].push(a);
+        });
+
+        contentEl.innerHTML = JOURS.map((jour, idx) => {
+          const jourDate = new Date(currentMonday);
+          jourDate.setDate(jourDate.getDate() + idx);
+          const audiences = parJour[jour];
+          return `
+          <div class="card">
+            <h2 style="margin-bottom:10px;">${jour} ${formatJourCourt(jourDate)}</h2>
+            ${
+              audiences.length === 0
+                ? '<p class="muted">Aucune audience.</p>'
+                : audiences
+                    .map(
+                      (a) => `
+              <div class="dossier-item">
+                <div>
+                  <strong>${formatHeure(a.dateAudience)} — ${escapeHtml(a.parties)}</strong>
+                  <div class="meta">
+                    ${escapeHtml(a.juridiction)}${a.chambre ? " · " + escapeHtml(a.chambre) : ""}${a.procedureNumero ? " · " + escapeHtml(a.procedureNumero) : ""}
+                    ${a.qualiteProcedurale ? " · " + escapeHtml(a.qualiteProcedurale) : ""}
+                    ${a.objetProcedure ? "<br />" + escapeHtml(a.objetProcedure) : ""}
+                    ${a.dossier ? `<br />Dossier lié : ${escapeHtml(a.dossier.numeroDossier)} — ${escapeHtml(a.dossier.nomAffaire)}` : ""}
+                    ${a.dernierMotif ? `<br />Dernier motif : ${escapeHtml(a.dernierMotif)}` : ""}
+                    ${a.diligences ? ` · Diligences : ${escapeHtml(a.diligences)}` : ""}
+                  </div>
+                </div>
+                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                  <span class="badge ${STATUT_BADGE[a.statut]}">${STATUT_LABELS[a.statut]}</span>
+                  <select data-statut-select="${a.id}" style="width:auto; margin:0;">
+                    <option value="a_preparer"${a.statut === "a_preparer" ? " selected" : ""}>À préparer</option>
+                    <option value="pret"${a.statut === "pret" ? " selected" : ""}>Prêt</option>
+                    <option value="traite"${a.statut === "traite" ? " selected" : ""}>Traité</option>
+                  </select>
+                  <button type="button" class="icon-action is-danger" data-tooltip="Supprimer" data-delete="${a.id}">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                  </button>
+                </div>
+              </div>`
+                    )
+                    .join("")
+            }
+          </div>`;
+        }).join("");
+
+        contentEl.querySelectorAll("[data-statut-select]").forEach((sel) => {
+          sel.addEventListener("change", async () => {
+            try {
+              await apiFetch(`/api/role-audiences/${sel.dataset.statutSelect}`, {
+                method: "PATCH",
+                body: { statut: sel.value },
+              });
+              loadWeek(scope);
+            } catch (err) {
+              showError(errorEl, err.message);
+            }
+          });
+        });
+        contentEl.querySelectorAll("[data-delete]").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            if (!confirm("Supprimer cette audience du rôle ?")) return;
+            try {
+              await apiFetch(`/api/role-audiences/${btn.dataset.delete}`, { method: "DELETE" });
+              loadWeek(scope);
+            } catch (err) {
+              showError(errorEl, err.message);
+            }
+          });
+        });
+      } catch (err) {
+        showError(errorEl, err.message);
+        contentEl.innerHTML = "";
+      }
+    }
+
+    let activeScope;
+
+    (async () => {
+      const me = await requireSession();
+      if (!me) return;
+      initLayout(me);
+
+      if (me.role !== "collaborateur") {
+        document.getElementById("scope-tabs").style.display = "flex";
+        document.querySelectorAll("#scope-tabs .tab").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            activeScope = btn.dataset.scope;
+            loadWeek(activeScope);
+          });
+        });
+      }
+
+      loadDossiersForDatalist();
+      loadWeek(activeScope);
+    })();
+
+    document.getElementById("prev-week-btn").addEventListener("click", () => {
+      currentMonday.setDate(currentMonday.getDate() - 7);
+      loadWeek(activeScope);
+    });
+    document.getElementById("next-week-btn").addEventListener("click", () => {
+      currentMonday.setDate(currentMonday.getDate() + 7);
+      loadWeek(activeScope);
+    });
+
+    const addPanel = document.getElementById("add-panel");
+    const toggleAddBtn = document.getElementById("toggle-add-btn");
+    toggleAddBtn.addEventListener("click", () => {
+      addPanel.classList.toggle("open");
+      toggleAddBtn.textContent = addPanel.classList.contains("open") ? "Réduire" : "+ Ajouter une audience";
+    });
+    document.getElementById("cancel-add-btn").addEventListener("click", () => {
+      addPanel.classList.remove("open");
+      toggleAddBtn.textContent = "+ Ajouter une audience";
+    });
+
+    document.getElementById("add-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const errorEl = document.getElementById("error");
+      hideError(errorEl);
+      const fd = new FormData(e.target);
+      const dossierNumero = fd.get("dossierNumero");
+      const dossier = dossierNumero ? dossiersParNumero.get(dossierNumero.trim()) : undefined;
+      try {
+        await apiFetch("/api/role-audiences", {
+          method: "POST",
+          body: {
+            dateAudience: new Date(fd.get("dateAudience")).toISOString(),
+            juridiction: fd.get("juridiction"),
+            chambre: fd.get("chambre") || undefined,
+            procedureNumero: fd.get("procedureNumero") || undefined,
+            parties: fd.get("parties"),
+            qualiteProcedurale: fd.get("qualiteProcedurale") || undefined,
+            objetProcedure: fd.get("objetProcedure") || undefined,
+            dernierMotif: fd.get("dernierMotif") || undefined,
+            diligences: fd.get("diligences") || undefined,
+            dossierId: dossier ? dossier.id : undefined,
+            creerRappelCalendar: fd.get("creerRappelCalendar") === "on",
+          },
+        });
+        e.target.reset();
+        addPanel.classList.remove("open");
+        toggleAddBtn.textContent = "+ Ajouter une audience";
+        loadWeek(activeScope);
+      } catch (err) {
+        showError(errorEl, err.message);
+      }
+    });
+  </script>
+</body>
+</html>

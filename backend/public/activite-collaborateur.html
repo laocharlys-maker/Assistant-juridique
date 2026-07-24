@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aurore — Activité d'un membre</title>
+  <link rel="icon" type="image/png" href="/favicon-256.png" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="page">
+    <div class="page-hero">
+      <div class="eyebrow">Équipe</div>
+      <h1 id="titre">Activité</h1>
+      <p>Dossiers et documents créés par cette personne — ouvre un dossier pour consulter ou intervenir directement.</p>
+    </div>
+
+    <div id="error" class="error"></div>
+
+    <div class="stat-grid" id="stat-grid">
+      <div class="stat-card">
+        <div class="stat-label">Dossiers créés</div>
+        <div class="stat-value" id="stat-total">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Échéance proche</div>
+        <div class="stat-value" id="stat-echeance">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Clôturés</div>
+        <div class="stat-value" id="stat-clotures">—</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Dossiers</h2>
+      <div id="dossiers-list"><p class="muted">Chargement…</p></div>
+    </div>
+  </div>
+  <script src="/js/api.js"></script>
+  <script src="/js/layout.js"></script>
+  <script>
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str ?? "";
+      return div.innerHTML;
+    }
+
+    const STATUT_TAG_LABELS = { a_jour: "À jour", echeance_proche: "Échéance proche", cloture: "Clôturé" };
+
+    (async () => {
+      const me = await requireSession();
+      if (!me) return;
+      initLayout(me);
+
+      const params = new URLSearchParams(window.location.search);
+      const membreId = params.get("id");
+      if (!membreId) {
+        document.querySelector(".page").innerHTML = '<p class="error visible">Membre non spécifié.</p>';
+        return;
+      }
+
+      const errorEl = document.getElementById("error");
+      const listEl = document.getElementById("dossiers-list");
+      try {
+        const data = await apiFetch(`/api/dossiers?membre=${membreId}`);
+        document.getElementById("titre").textContent = `Activité de ${data.membre.nom}`;
+
+        const dossiers = data.dossiers;
+        document.getElementById("stat-total").textContent = dossiers.length;
+        document.getElementById("stat-echeance").textContent = dossiers.filter((d) => d.statutTag === "echeance_proche").length;
+        document.getElementById("stat-clotures").textContent = dossiers.filter((d) => d.statutTag === "cloture").length;
+
+        if (dossiers.length === 0) {
+          listEl.innerHTML = '<p class="muted">Aucun dossier créé par cette personne pour l\'instant.</p>';
+          return;
+        }
+
+        listEl.innerHTML = dossiers
+          .map(
+            (d) => `
+          <div class="dossier-item">
+            <div>
+              <a href="/dossier.html?id=${d.id}"><strong>${escapeHtml(d.nomAffaire)}</strong></a>
+              <div class="meta">Dossier ${escapeHtml(d.numeroDossier)} · ${escapeHtml(d.nomClient)} · ${d._count.actions} document(s)</div>
+            </div>
+            <span class="badge badge-${d.statutTag}">${STATUT_TAG_LABELS[d.statutTag] || d.statutTag}</span>
+          </div>`
+          )
+          .join("");
+      } catch (err) {
+        showError(errorEl, err.message);
+        listEl.innerHTML = "";
+      }
+    })();
+  </script>
+</body>
+</html>

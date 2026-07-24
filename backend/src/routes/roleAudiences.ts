@@ -1,0 +1,154 @@
+import { Router } from "express";
+import { z } from "zod";
+import { prisma } from "../lib/prisma";
+import { requireAuth } from "../middleware/requireAuth";
+import { getAccessibleAvocatIds } from "../services/access";
+import { callN8nWebhook } from "../services/n8n";
+
+export const roleAudiencesRouter = Router();
+
+function peutVoirTouLeCabinet(role: string | undefined): boolean {
+  return role === "titulaire" || role === "avocat";
+}
+
+// Lundi de la semaine contenant la date donnee (ou aujourd'hui par defaut).
+function lundiDeLaSemaine(date: Date): Date {
+  const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  const jour = d.getUTCDay(); // 0 = dimanche, 1 = lundi, ...
+  const decalage = jour === 0 ? -6 : 1 - jour;
+  d.setUTCDate(d.getUTCDate() + decalage);
+  return d;
+}
+
+// Role de la semaine : audiences a venir, saisies manuellement par le
+// cabinet (le format recu du greffe/tribunal varie trop pour etre extrait
+// automatiquement de facon fiable). Vue centrale pour preparer les
+// audiences a temps, le role etant generalement communique ~10 jours avant
+// la semaine concernee.
+roleAudiencesRouter.get("/api/role-audiences", requireAuth, async (req, res) => {
+  const { auth } = req;
+
+  const requestedScope = req.query.scope === "cabinet" ? "cabinet" : "mine";
+  const scope = requestedScope === "cabinet" && peutVoirTouLeCabinet(auth!.role) ? "cabinet" : "mine";
+  const accessibleAvocatIds = scope === "mine" ? await getAccessibleAvocatIds(auth!) : null;
+
+  const debutParam = typeof req.query.debut === "string" ? new Date(req.query.debut) : new Date();
+  const debut = lundiDeLaSemaine(Number.isNaN(debutParam.getTime()) ? new Date() : debutParam);
+  const fin = new Date(debut);
+  fin.setUTCDate(fin.getUTCDate() + 7);
+
+  const audiences = await prisma.roleAudience.findMany({
+    where: {
+      cabinetId: auth!.cabinetId,
+      dateAudience: { gte: debut, lt: fin },
+      ...(accessibleAvocatIds ? { createdBy: { in: accessibleAvocatIds } } : {}),
+    },
+    include: {
+      dossier: { select: { numeroDossier: true, nomAffaire: true } },
+      creePar: { select: { nom: true } },
+    },
+    orderBy: { dateAudience: "asc" },
+  });
+
+  return res.json({ scope, debut: debut.toISOString(), fin: fin.toISOString(), audiences });
+});
+
+const createSchema = z.object({
+  dateAudience: z.string().min(1),
+  juridiction: z.string().min(1),
+  chambre: z.string().optional(),
+  procedureNumero: z.string().optional(),
+  parties: z.string().min(1),
+  qualiteProcedurale: z.string().optional(),
+  objetProcedure: z.string().optional(),
+  dernierMotif: z.string().optional(),
+  diligences: z.string().optional(),
+  dossierId: z.string().uuid().optional(),
+  creerRappelCalendar: z.boolean().optional().default(false),
+});
+
+roleAudiencesRouter.post("/api/role-audiences", requireAuth, async (req, res) => {
+  const parsed = createSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Formulaire invalide", details: parsed.error.issues });
+  }
+
+  const dateAudience = new Date(parsed.data.dateAudience);
+  if (Number.isNaN(dateAudience.getTime())) {
+    return res.status(400).json({ error: "Date d'audience invalide" });
+  }
+
+  let dossier = null;
+  if (parsed.data.dossierId) {
+    dossier = await prisma.dossier.findFirst({
+      where: { id: parsed.data.dossierId, cabinetId: req.auth!.cabinetId },
+    });
+    if (!dossier) {
+      return res.status(404).json({ error: "Dossier introuvable" });
+    }
+  }
+
+  if (parsed.data.creerRappelCalendar) {
+    await callN8nWebhook("creer-rappel-delai", {
+      titre: `Audience : ${parsed.data.parties}${dossier ? ` — ${dossier.nomAffaire}` : ""}`,
+      description: `${parsed.data.juridiction}${parsed.data.chambre ? ` — ${parsed.data.chambre}` : ""}${parsed.data.objetProcedure ? `\nObjet : ${parsed.data.objetProcedure}` : ""}`,
+      dateLimite: dateAudience.toISOString(),
+    });
+  }
+
+  const audience = await prisma.roleAudience.create({
+    data: {
+      cabinetId: req.auth!.cabinetId,
+      dossierId: dossier?.id,
+      dateAudience,
+      juridiction: parsed.data.juridiction,
+      chambre: parsed.data.chambre,
+      procedureNumero: parsed.data.procedureNumero,
+      parties: parsed.data.parties,
+      qualiteProcedurale: parsed.data.qualiteProcedurale,
+      objetProcedure: parsed.data.objetProcedure,
+      dernierMotif: parsed.data.dernierMotif,
+      diligences: parsed.data.diligences,
+      createdBy: req.auth!.userId,
+    },
+    include: {
+      dossier: { select: { numeroDossier: true, nomAffaire: true } },
+      creePar: { select: { nom: true } },
+    },
+  });
+
+  return res.status(201).json(audience);
+});
+
+const updateSchema = z.object({
+  statut: z.enum(["a_preparer", "pret", "traite"]).optional(),
+  dernierMotif: z.string().optional(),
+  diligences: z.string().optional(),
+});
+
+roleAudiencesRouter.patch("/api/role-audiences/:id", requireAuth, async (req, res) => {
+  const parsed = updateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Requête invalide" });
+  }
+
+  const existing = await prisma.roleAudience.findFirst({
+    where: { id: req.params.id, cabinetId: req.auth!.cabinetId },
+  });
+  if (!existing) {
+    return res.status(404).json({ error: "Audience introuvable" });
+  }
+
+  const updated = await prisma.roleAudience.update({
+    where: { id: existing.id },
+    data: parsed.data,
+  });
+  return res.json(updated);
+});
+
+roleAudiencesRouter.delete("/api/role-audiences/:id", requireAuth, async (req, res) => {
+  await prisma.roleAudience
+    .deleteMany({ where: { id: req.params.id, cabinetId: req.auth!.cabinetId } })
+    .catch(() => null);
+  return res.json({ ok: true });
+});
