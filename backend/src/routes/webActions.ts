@@ -34,6 +34,7 @@ import { searchWeb, formatWebSearchContext } from "../services/tavily";
 import { summarizeLongText } from "../services/resumePdf";
 import { translateText, extractTextFromDocument } from "../services/traduction";
 import { aiActionsLimiter } from "../middleware/rateLimit";
+import { env } from "../config/env";
 
 export const webActionsRouter = Router();
 
@@ -177,6 +178,19 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
       }
     }
   }
+
+  // En-tete du cabinet (logo/bandeau), insere automatiquement par n8n en
+  // haut du Google Doc a chaque generation - inutile de cocher quoi que ce
+  // soit, contrairement a l'insertion dans les exports Word/PDF telecharges
+  // qui reste, elle, optionnelle (case a cocher).
+  const cabinetPourEntete = await prisma.cabinet.findUnique({
+    where: { id: auth!.cabinetId },
+    select: { enteteUrl: true },
+  });
+  const enteteUrl =
+    cabinetPourEntete?.enteteUrl && env.PUBLIC_BASE_URL
+      ? `${env.PUBLIC_BASE_URL.replace(/\/$/, "")}${cabinetPourEntete.enteteUrl}`
+      : null;
 
   try {
     let dossierId: string;
@@ -750,6 +764,7 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
       ...action,
       dossierId,
       actionId: savedAction.id,
+      enteteUrl,
       ...extraWebhookFields,
     });
 

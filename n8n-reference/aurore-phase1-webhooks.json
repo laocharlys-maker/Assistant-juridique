@@ -115,6 +115,69 @@
     },
     {
       "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "has-entete-cr",
+              "leftValue": "={{ $('Webhook - Notes Audience').item.json.body.enteteUrl }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-entete-cr",
+      "name": "A un en-tête ? (CR)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -520,
+        -140
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://docs.googleapis.com/v1/documents/{{ $json.documentId }}:batchUpdate",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDocsOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ (() => { const uri = $('Webhook - Notes Audience').item.json.body.enteteUrl; return { requests: [ { insertInlineImage: { uri: uri, location: { index: 1 }, objectSize: { height: { magnitude: 70, unit: 'PT' }, width: { magnitude: 260, unit: 'PT' } } } }, { insertText: { text: '\\n', location: { index: 2 } } }, { updateParagraphStyle: { paragraphStyle: { alignment: 'CENTER' }, range: { startIndex: 1, endIndex: 3 }, fields: 'alignment' } } ] }; })() }}",
+        "options": {}
+      },
+      "id": "insert-entete-cr",
+      "name": "Inserer l'en-tête (CR)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -400,
+        -220
+      ],
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "googleDocsOAuth2Api": {
+          "id": "QXSjOT7rKVMaSx9k",
+          "name": "Google Docs account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
         "method": "POST",
         "url": "https://aurore.srv1300783.hstgr.cloud/api/actions/document-callback",
         "sendHeaders": true,
@@ -128,7 +191,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { \"actionId\": $('Webhook - Notes Audience').item.json.body.actionId, \"documentId\": $json.documentId, \"documentUrl\": \"https://docs.google.com/document/d/\" + $json.documentId + \"/edit\" } }}",
+        "jsonBody": "={{ { \"actionId\": $('Webhook - Notes Audience').item.json.body.actionId, \"documentId\": $('Update a document (CR)').item.json.documentId, \"documentUrl\": \"https://docs.google.com/document/d/\" + $('Update a document (CR)').item.json.documentId + \"/edit\" } }}",
         "options": {}
       },
       "id": "callback-notes",
@@ -358,6 +421,69 @@
     },
     {
       "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "has-entete-doc-juridique",
+              "leftValue": "={{ $('Webhook - Document Juridique').item.json.body.enteteUrl }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-entete-doc-juridique",
+      "name": "A un en-tête ? (Document Juridique)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -520,
+        340
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://docs.googleapis.com/v1/documents/{{ $json.documentId }}:batchUpdate",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDocsOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ (() => { const uri = $('Webhook - Document Juridique').item.json.body.enteteUrl; return { requests: [ { insertInlineImage: { uri: uri, location: { index: 1 }, objectSize: { height: { magnitude: 70, unit: 'PT' }, width: { magnitude: 260, unit: 'PT' } } } }, { insertText: { text: '\\n', location: { index: 2 } } }, { updateParagraphStyle: { paragraphStyle: { alignment: 'CENTER' }, range: { startIndex: 1, endIndex: 3 }, fields: 'alignment' } } ] }; })() }}",
+        "options": {}
+      },
+      "id": "insert-entete-doc-juridique",
+      "name": "Inserer l'en-tête (Document Juridique)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -400,
+        260
+      ],
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "googleDocsOAuth2Api": {
+          "id": "QXSjOT7rKVMaSx9k",
+          "name": "Google Docs account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
         "method": "POST",
         "url": "https://aurore.srv1300783.hstgr.cloud/api/actions/document-callback",
         "sendHeaders": true,
@@ -371,7 +497,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { \"actionId\": $('Webhook - Document Juridique').item.json.body.actionId, \"documentId\": $json.documentId, \"documentUrl\": \"https://docs.google.com/document/d/\" + $json.documentId + \"/edit\" } }}",
+        "jsonBody": "={{ { \"actionId\": $('Webhook - Document Juridique').item.json.body.actionId, \"documentId\": $('Update a document (Document Juridique)').item.json.documentId, \"documentUrl\": \"https://docs.google.com/document/d/\" + $('Update a document (Document Juridique)').item.json.documentId + \"/edit\" } }}",
         "options": {}
       },
       "id": "callback-document-juridique",
@@ -834,6 +960,35 @@
       "main": [
         [
           {
+            "node": "A un en-tête ? (CR)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "A un en-tête ? (CR)": {
+      "main": [
+        [
+          {
+            "node": "Inserer l'en-tête (CR)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Callback backend (CR)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inserer l'en-tête (CR)": {
+      "main": [
+        [
+          {
             "node": "Callback backend (CR)",
             "type": "main",
             "index": 0
@@ -875,6 +1030,35 @@
       ]
     },
     "Update a document (Document Juridique)": {
+      "main": [
+        [
+          {
+            "node": "A un en-tête ? (Document Juridique)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "A un en-tête ? (Document Juridique)": {
+      "main": [
+        [
+          {
+            "node": "Inserer l'en-tête (Document Juridique)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Callback backend (Document Juridique)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Inserer l'en-tête (Document Juridique)": {
       "main": [
         [
           {
