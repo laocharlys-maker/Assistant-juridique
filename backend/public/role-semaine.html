@@ -259,7 +259,10 @@
                   <strong>${escapeHtml(s.dossier.nomAffaire)}</strong>
                   <div class="meta">Dossier ${escapeHtml(s.dossier.numeroDossier)} · ${escapeHtml(s.dossier.nomClient)} · Prochaine audience : ${new Date(s.prochaineAudience).toLocaleString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}${s.piecesPrevoir ? `<br />Pièces à prévoir : ${escapeHtml(s.piecesPrevoir)}` : ""}</div>
                 </div>
-                <button type="button" class="secondary btn-sm" data-suggestion-add='${JSON.stringify({ dossierId: s.dossierId, dossierNumero: s.dossier.numeroDossier, parties: s.dossier.nomAffaire, prochaineAudience: s.prochaineAudience }).replace(/'/g, "&#39;")}'>Ajouter au rôle</button>
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                  <button type="button" class="secondary btn-sm" data-suggestion-add='${JSON.stringify({ dossierId: s.dossierId, dossierNumero: s.dossier.numeroDossier, parties: s.dossier.nomAffaire, prochaineAudience: s.prochaineAudience }).replace(/'/g, "&#39;")}'>Ajouter au rôle</button>
+                  <button type="button" class="ghost btn-sm" data-suggestion-ignorer="${s.actionId}">Ne pas ajouter au rôle</button>
+                </div>
               </div>`
               )
               .join("")}
@@ -277,6 +280,16 @@
             form.parties.value = s.parties;
             form.parties.focus();
             window.scrollTo({ top: addPanel.offsetTop - 20, behavior: "smooth" });
+          });
+        });
+        box.querySelectorAll("[data-suggestion-ignorer]").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            try {
+              await apiFetch(`/api/role-audiences/suggestions/${btn.dataset.suggestionIgnorer}/ignorer`, { method: "POST" });
+              loadSuggestions();
+            } catch (err) {
+              showError(document.getElementById("error"), err.message);
+            }
           });
         });
       } catch {
@@ -305,6 +318,14 @@
       loadDossiersForDatalist();
       loadWeek(activeScope);
       loadSuggestions();
+
+      // Empeche de choisir une date/heure passee directement dans le
+      // selecteur natif du navigateur (double garde-fou avec la verification
+      // au moment de l'envoi, pour les navigateurs qui l'ignorent).
+      const now = new Date();
+      now.setSeconds(0, 0);
+      const pad = (n) => String(n).padStart(2, "0");
+      document.querySelector('#add-form [name="dateAudience"]').min = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
     })();
 
     document.getElementById("prev-week-btn").addEventListener("click", () => {
@@ -337,6 +358,10 @@
       const dossierNumero = fd.get("dossierNumero");
       const dossier = dossierNumero ? dossiersParNumero.get(dossierNumero.trim()) : undefined;
       const dateAudienceLocale = new Date(fd.get("dateAudience"));
+      if (dateAudienceLocale.getTime() < Date.now()) {
+        showError(errorEl, "La date de l'audience ne peut pas être dans le passé. Vérifie la date saisie.");
+        return;
+      }
       try {
         await apiFetch("/api/role-audiences", {
           method: "POST",

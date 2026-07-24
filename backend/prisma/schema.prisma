@@ -336,6 +336,10 @@ model Action {
   dateAudience      DateTime?    @map("date_audience")
   prochaineAudience DateTime?    @map("prochaine_audience")
   piecesPrevoir     String?      @map("pieces_prevoir")
+  // Le cabinet a explicitement decide de ne pas reprendre cette prochaine
+  // audience dans le role de la semaine (evite qu'une suggestion ecartee
+  // ne revienne systematiquement).
+  ignorerSuggestionRole Boolean  @default(false) @map("ignorer_suggestion_role")
   // Statut de validation/envoi (remplace l'envoi automatique par mail).
   statut            StatutAction @default(brouillon)
   documentUrl       String?      @map("document_url")

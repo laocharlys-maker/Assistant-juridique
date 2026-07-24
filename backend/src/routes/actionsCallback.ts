@@ -61,6 +61,20 @@ actionsCallbackRouter.post("/api/actions/:id/envoyer", requireAuth, async (req, 
   if (!action) {
     return res.status(404).json({ error: "Action introuvable" });
   }
+
+  // Un collaborateur ne peut jamais envoyer un document directement a un
+  // client : uniquement a un membre du cabinet (son avocat responsable, un
+  // autre avocat, ou lui-meme), pour relecture/envoi par un avocat.
+  if (req.auth!.role === "collaborateur") {
+    const destinataireEstDuCabinet = await prisma.user.findFirst({
+      where: { email: parsed.data.email, cabinetId: req.auth!.cabinetId },
+    });
+    if (!destinataireEstDuCabinet) {
+      return res.status(403).json({
+        error: "Tu ne peux envoyer ce document qu'à un membre du cabinet, pas directement à un client.",
+      });
+    }
+  }
   if (!action.documentUrl || !action.documentId) {
     return res.status(409).json({ error: "Le document n'est pas encore prêt" });
   }
@@ -135,6 +149,12 @@ actionsCallbackRouter.post("/api/actions/:id/envoyer", requireAuth, async (req, 
 });
 
 actionsCallbackRouter.post("/api/actions/:id/valider", requireAuth, async (req, res) => {
+  // Seul un avocat (ou le titulaire) peut valider un document - jamais un
+  // collaborateur, meme sur ses propres documents.
+  if (req.auth!.role === "collaborateur") {
+    return res.status(403).json({ error: "Seul un avocat du cabinet peut valider un document." });
+  }
+
   const action = await prisma.action.findFirst({
     where: { id: req.params.id, dossier: { cabinetId: req.auth!.cabinetId } },
   });

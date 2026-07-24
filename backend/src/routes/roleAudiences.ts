@@ -73,6 +73,7 @@ roleAudiencesRouter.get("/api/role-audiences/suggestions", requireAuth, async (r
     where: {
       typeAction: "notes",
       prochaineAudience: { gte: debut, lt: fin },
+      ignorerSuggestionRole: false,
       dossier: {
         cabinetId: auth!.cabinetId,
         ...(accessibleAvocatIds ? { createdBy: { in: accessibleAvocatIds } } : {}),
@@ -100,6 +101,7 @@ roleAudiencesRouter.get("/api/role-audiences/suggestions", requireAuth, async (r
   const suggestions = [...parDossier.values()]
     .filter((a) => !dossierIdsDejaAjoutes.has(a.dossierId))
     .map((a) => ({
+      actionId: a.id,
       dossierId: a.dossierId,
       dossier: a.dossier,
       prochaineAudience: a.prochaineAudience,
@@ -107,6 +109,25 @@ roleAudiencesRouter.get("/api/role-audiences/suggestions", requireAuth, async (r
     }));
 
   return res.json({ suggestions });
+});
+
+// Ecarte une suggestion (le cabinet a juge qu'elle n'a pas lieu d'etre
+// reprise au role - deja traitee autrement, information obsolete...).
+// Persistant pour ne pas la faire revenir a chaque chargement de la page.
+roleAudiencesRouter.post("/api/role-audiences/suggestions/:actionId/ignorer", requireAuth, async (req, res) => {
+  const action = await prisma.action.findFirst({
+    where: { id: req.params.actionId, dossier: { cabinetId: req.auth!.cabinetId } },
+  });
+  if (!action) {
+    return res.status(404).json({ error: "Suggestion introuvable" });
+  }
+
+  await prisma.action.update({
+    where: { id: action.id },
+    data: { ignorerSuggestionRole: true },
+  });
+
+  return res.json({ ok: true });
 });
 
 const createSchema = z.object({
@@ -132,6 +153,11 @@ roleAudiencesRouter.post("/api/role-audiences", requireAuth, async (req, res) =>
   const dateAudience = new Date(parsed.data.dateAudience);
   if (Number.isNaN(dateAudience.getTime())) {
     return res.status(400).json({ error: "Date d'audience invalide" });
+  }
+  // Une audience ne peut jamais etre programmee dans le passe - erreur de
+  // saisie la plus frequente, a bloquer plutot qu'a laisser enregistrer.
+  if (dateAudience.getTime() < Date.now()) {
+    return res.status(400).json({ error: "La date de l'audience ne peut pas être dans le passé. Vérifie la date saisie." });
   }
 
   let dossier = null;

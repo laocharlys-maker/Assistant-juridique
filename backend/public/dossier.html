@@ -280,27 +280,34 @@
           </div>`
         : "";
 
+      const estCollaborateur = me && me.role === "collaborateur";
+
       let controls = "";
       if (a.statut === "en_attente_validation" && !currentDossierEstRecherche) {
-        controls = `
+        controls = estCollaborateur
+          ? `<p class="muted" style="margin-top:8px;">En attente de validation par un avocat du cabinet.</p>`
+          : `
           <div style="margin-top:10px;">
             <button type="button" class="secondary" data-valider="${a.id}">Marquer comme validé</button>
           </div>
           <p class="muted" style="margin-top:8px;">L'envoi au client sera possible une fois l'action validée.</p>`;
       } else if (a.statut === "valide" || (a.statut === "en_attente_validation" && currentDossierEstRecherche)) {
-        const rechercheEnvoiControls = currentDossierEstRecherche
-          ? `<div style="margin:0 0 8px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-               <button type="button" class="secondary" data-envoyer-moi="${a.id}" style="margin:0;">M'envoyer à moi-même</button>
-               ${
-                 clientsAvecEmail.length > 0
-                   ? `<select data-envoyer-client="${a.id}" style="width:auto;">
+        // Un collaborateur ne peut jamais envoyer un document directement a
+        // un client : il ne peut le transmettre qu'a un membre du cabinet
+        // (son avocat responsable ou un autre membre), pour relecture/envoi.
+        const clientSelect =
+          !estCollaborateur && clientsAvecEmail.length > 0
+            ? `<select data-envoyer-client="${a.id}" style="width:auto;">
                         <option value="">— ou choisir un client —</option>
                         ${clientsAvecEmail
                           .map((c) => `<option value="${escapeHtml(c.email)}">${escapeHtml(c.nom)}</option>`)
                           .join("")}
                       </select>`
-                   : ""
-               }
+            : "";
+        const rechercheEnvoiControls = currentDossierEstRecherche || estCollaborateur
+          ? `<div style="margin:0 0 8px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+               <button type="button" class="secondary" data-envoyer-moi="${a.id}" style="margin:0;">M'envoyer à moi-même</button>
+               ${clientSelect}
                ${
                  avocatsAnnuaire.length > 0
                    ? `<select data-envoyer-avocat="${a.id}" style="width:auto;">
@@ -326,10 +333,11 @@
         controls = `
           <form data-envoyer-form="${a.id}" style="margin-top:10px;">
             ${rechercheEnvoiControls}
+            ${estCollaborateur ? '<p class="muted" style="margin:0 0 6px;">Tu ne peux envoyer ce document qu\'à un membre du cabinet (pas directement à un client).</p>' : ""}
             <div style="display:flex; gap:8px; align-items:flex-end;">
               <div style="flex:1;">
                 <label style="margin:0 0 4px;">Envoyer à (email)</label>
-                <input type="email" name="email" id="email-${a.id}" placeholder="client@example.com" required />
+                <input type="email" name="email" id="email-${a.id}" placeholder="${estCollaborateur ? "choisis un destinataire ci-dessus" : "client@example.com"}" required ${estCollaborateur ? "readonly" : ""} />
               </div>
               <button type="submit">Envoyer</button>
             </div>
