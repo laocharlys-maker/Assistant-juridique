@@ -243,17 +243,24 @@ button.btn-sm { padding: 7px 14px; font-size: 0.82rem; margin-top: 0; }
 .dossier-item .meta { color: var(--muted); font-size: 0.85rem; }
 
 .tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
-.tabs button.tab {
+.tab {
+  display: inline-flex;
+  align-items: center;
   background: var(--panel);
   color: var(--muted);
   border: 1px solid var(--border);
+  border-radius: 999px;
   margin-top: 0;
   font-weight: 600;
+  font-size: 0.9rem;
   padding: 7px 16px;
   box-shadow: none;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.14s ease, color 0.14s ease, border-color 0.14s ease;
 }
-.tabs button.tab:hover { background: var(--accent-tint); color: var(--accent-hover); box-shadow: none; }
-.tabs button.tab.active { background: linear-gradient(180deg, var(--accent-300), var(--accent-hover)); color: #241705; border-color: transparent; }
+.tab:hover { background: var(--accent-tint); color: var(--accent-hover); box-shadow: none; }
+.tab.active { background: linear-gradient(180deg, var(--accent-300), var(--accent-hover)); color: #241705; border-color: transparent; }
 
 .spinner {
   display: inline-block;
