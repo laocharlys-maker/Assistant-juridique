@@ -62,9 +62,31 @@ export async function buildDocx(input: ExportInput): Promise<Buffer> {
       }
       return new Paragraph({
         children: [new TextRun(trimmed)],
+        alignment: AlignmentType.JUSTIFIED,
         spacing: { after: 200 },
       });
     });
+
+  // Bloc courrier (date/lieu + objet), toujours ajoute par la mise en page
+  // elle-meme - jamais par le texte redige (voir consigne dans les prompts
+  // qui interdit desormais a l'IA d'ecrire elle-meme une ligne "Fait a...").
+  const enteteCourrier = [
+    new Paragraph({
+      children: [new TextRun({ text: `Cotonou, le ${formatDate(input.date)}` })],
+      alignment: AlignmentType.RIGHT,
+      spacing: { after: 200 },
+    }),
+    new Paragraph({
+      children: [
+        new TextRun({
+          text: `Objet : ${input.typeLabel} — Dossier ${input.numeroDossier} — ${input.nomAffaire}`,
+          bold: true,
+        }),
+      ],
+      alignment: AlignmentType.LEFT,
+      spacing: { after: 300 },
+    }),
+  ];
 
   const enteteParagraph = input.entete
     ? [
@@ -146,6 +168,7 @@ export async function buildDocx(input: ExportInput): Promise<Buffer> {
         children: [
           ...enteteParagraph,
           ...titreParagraphs,
+          ...enteteCourrier,
           ...paragraphesContenu,
           ...signatureParagraph,
         ],
@@ -196,6 +219,19 @@ export async function buildPdf(input: ExportInput): Promise<Buffer> {
     } else {
       doc.moveDown(0.6);
     }
+
+    // Bloc courrier (date/lieu + objet), toujours ajoute par la mise en
+    // page elle-meme - jamais par le texte redige (voir consigne dans les
+    // prompts qui interdit desormais a l'IA d'ecrire elle-meme "Fait a...").
+    doc.font("Helvetica").fontSize(10).text(`Cotonou, le ${formatDate(input.date)}`, { align: "right" });
+    doc.moveDown(0.6);
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(10)
+      .text(`Objet : ${input.typeLabel} — Dossier ${input.numeroDossier} — ${input.nomAffaire}`, {
+        align: "left",
+      });
+    doc.moveDown(1);
 
     const paragraphes = input.contenu.split(/\n+/).filter((line) => line.trim().length > 0);
     for (const paragraphe of paragraphes) {
