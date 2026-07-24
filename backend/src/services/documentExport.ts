@@ -72,7 +72,7 @@ export async function buildDocx(input: ExportInput): Promise<Buffer> {
           children: [
             new ImageRun({
               data: input.entete.buffer,
-              transformation: { width: 300, height: 90 },
+              transformation: { width: 450, height: 121 },
               type: input.entete.type,
             }),
           ],
@@ -159,7 +159,7 @@ export async function buildPdf(input: ExportInput): Promise<Buffer> {
 
     if (input.entete) {
       const usableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-      const enteteWidth = 260;
+      const enteteWidth = 450;
       doc.image(input.entete.buffer, doc.page.margins.left + (usableWidth - enteteWidth) / 2, doc.y, {
         width: enteteWidth,
       });
