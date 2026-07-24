@@ -11,7 +11,7 @@
   <div class="page">
     <div class="page-hero">
       <div class="eyebrow">Cabinet</div>
-      <h1>Équipe</h1>
+      <h1 id="page-title">Équipe</h1>
       <p>Un collaborateur voit par défaut les dossiers de l'avocat qui a créé son compte. Tu peux, en plus, lui donner accès à tes propres dossiers même si ce n'est pas son responsable direct.</p>
     </div>
 
@@ -25,7 +25,7 @@
 
     <div class="card">
       <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
-        <h2 style="margin:0;">Membres du cabinet</h2>
+        <h2 style="margin:0;" id="list-title">Membres du cabinet</h2>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
           <button type="button" class="secondary btn-sm" id="toggle-avocat-btn" style="display:none;">+ Ajouter un avocat</button>
           <button type="button" class="secondary btn-sm" id="toggle-collab-btn">+ Ajouter un collaborateur</button>
@@ -79,6 +79,7 @@
     }
 
     let me = null;
+    const filtre = new URLSearchParams(window.location.search).get("filtre");
 
     function iconBtn({ icon, tooltip, dataset, isOn, isDanger }) {
       const svgInner = document.getElementById("icon-svgs").content.querySelector(`[data-icon="${icon}"]`).innerHTML;
@@ -91,7 +92,13 @@
     async function loadUsers() {
       const listEl = document.getElementById("users-list");
       try {
-        const users = await apiFetch("/api/users");
+        const usersBruts = await apiFetch("/api/users");
+        const users =
+          filtre === "avocat"
+            ? usersBruts.filter((u) => u.role === "titulaire" || u.role === "avocat")
+            : filtre === "collaborateur"
+              ? usersBruts.filter((u) => u.role === "collaborateur")
+              : usersBruts;
         listEl.innerHTML = users
           .map((u) => {
             if (u.role === "titulaire" || u.role === "avocat") {
@@ -289,8 +296,16 @@
           '<p class="error visible">Cette page est réservée aux avocats du cabinet.</p>';
         return;
       }
-      if (me.role === "titulaire") {
+      if (me.role === "titulaire" && filtre !== "collaborateur") {
         document.getElementById("toggle-avocat-btn").style.display = "inline-block";
+      }
+      if (filtre === "avocat") {
+        document.getElementById("page-title").textContent = "Avocats";
+        document.getElementById("list-title").textContent = "Avocats du cabinet";
+        document.getElementById("toggle-collab-btn").style.display = "none";
+      } else if (filtre === "collaborateur") {
+        document.getElementById("page-title").textContent = "Collaborateurs";
+        document.getElementById("list-title").textContent = "Collaborateurs du cabinet";
       }
       loadUsers();
     })();

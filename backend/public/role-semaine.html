@@ -17,13 +17,12 @@
 
     <div id="error" class="error"></div>
 
-    <div class="tabs" id="scope-tabs" style="display:none;">
-      <button class="tab" data-scope="mine">Mes audiences</button>
-      <button class="tab" data-scope="cabinet">Tout le cabinet</button>
-    </div>
-
-    <div style="margin: 4px 0;">
-      <button type="button" id="toggle-add-btn">+ Ajouter une audience</button>
+    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:16px;">
+      <div class="tabs" id="scope-tabs" style="display:none; margin-bottom:0;">
+        <button class="tab" data-scope="mine">Mes audiences</button>
+        <button class="tab" data-scope="cabinet">Tout le cabinet</button>
+      </div>
+      <button type="button" class="tab" id="toggle-add-btn">+ Ajouter une audience</button>
     </div>
 
     <div class="collapse-panel" id="add-panel">

@@ -15,13 +15,22 @@ const NAV_ICONS = {
 
 const NAV_ITEMS = [
   { href: "/tableau-de-bord.html", label: "Tableau de bord", roles: ["titulaire", "avocat"], group: "Travail", icon: "dashboard" },
-  { href: "/dashboard.html", label: "Documents générés", roles: ["titulaire", "avocat", "collaborateur"], group: "Travail", icon: "docs" },
+  { href: "/role-semaine.html", label: "Rôle de la semaine", roles: ["titulaire", "avocat", "collaborateur"], group: "Travail", icon: "calendar" },
   { href: "/nouvelle-action.html", label: "Nouvelle action", roles: ["titulaire", "avocat", "collaborateur"], group: "Travail", icon: "plus" },
+  { href: "/dashboard.html", label: "Documents générés", roles: ["titulaire", "avocat", "collaborateur"], group: "Travail", icon: "docs" },
   { href: "/clients.html", label: "Clients", roles: ["titulaire", "avocat", "collaborateur"], group: "Travail", icon: "clients" },
   { href: "/jurisprudence-base.html", label: "Jurisprudence", roles: ["titulaire", "avocat", "collaborateur"], group: "Travail", icon: "book" },
   { href: "/delais-calculateur.html", label: "Délais", roles: ["titulaire", "avocat", "collaborateur"], group: "Travail", icon: "clock" },
-  { href: "/role-semaine.html", label: "Rôle de la semaine", roles: ["titulaire", "avocat", "collaborateur"], group: "Travail", icon: "calendar" },
-  { href: "/collaborateurs.html", label: "Équipe", roles: ["titulaire", "avocat"], group: "Cabinet", icon: "team" },
+  {
+    label: "Équipe",
+    roles: ["titulaire", "avocat"],
+    group: "Cabinet",
+    icon: "team",
+    children: [
+      { href: "/collaborateurs.html?filtre=avocat", label: "Avocats" },
+      { href: "/collaborateurs.html?filtre=collaborateur", label: "Collaborateurs" },
+    ],
+  },
   { href: "/factures.html", label: "Créer facture", roles: ["titulaire", "avocat"], group: "Cabinet", icon: "invoice" },
   { href: "/veille-juridique.html", label: "Veille juridique", roles: ["titulaire", "avocat"], group: "Cabinet", icon: "radar" },
   { href: "/audit-logs.html", label: "Journal d'audit", roles: ["titulaire"], group: "Cabinet", icon: "audit" },
@@ -46,6 +55,7 @@ function initLayout(me) {
   if (!pageEl) return;
 
   const path = window.location.pathname;
+  const fullPath = path + window.location.search;
 
   const shell = document.createElement("div");
   shell.className = "app-shell";
@@ -57,12 +67,23 @@ function initLayout(me) {
   const items = NAV_ITEMS.filter((item) => item.roles.includes(me.role));
   let navHtml = "";
   let lastGroup = null;
-  items.forEach((item) => {
+  items.forEach((item, idx) => {
     if (item.group !== lastGroup) {
       navHtml += `<div class="nav-group-label">${item.group}</div>`;
       lastGroup = item.group;
     }
-    navHtml += `<a href="${item.href}"${path === item.href ? ' class="active"' : ""}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${NAV_ICONS[item.icon] || ""}</svg><span>${item.label}</span></a>`;
+    if (item.children) {
+      const childActive = item.children.some((c) => path === c.href.split("?")[0]);
+      navHtml += `<button type="button" class="nav-parent${childActive ? " active" : ""}" data-nav-parent="${idx}" aria-expanded="${childActive}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${NAV_ICONS[item.icon] || ""}</svg><span>${item.label}</span><svg class="nav-caret" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>`;
+      navHtml += `<div class="nav-children${childActive ? " open" : ""}" data-nav-children="${idx}">`;
+      item.children.forEach((c) => {
+        const isActive = c.href.includes("?") ? fullPath === c.href : path === c.href;
+        navHtml += `<a href="${c.href}"${isActive ? ' class="active"' : ""}>${c.label}</a>`;
+      });
+      navHtml += `</div>`;
+    } else {
+      navHtml += `<a href="${item.href}"${path === item.href ? ' class="active"' : ""}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${NAV_ICONS[item.icon] || ""}</svg><span>${item.label}</span></a>`;
+    }
   });
   sidebar.innerHTML = `
     <div class="sidebar-brand">
@@ -114,6 +135,15 @@ function initLayout(me) {
 
   document.getElementById("sidebar-toggle").addEventListener("click", () => {
     sidebar.classList.toggle("collapsed");
+  });
+
+  sidebar.querySelectorAll("[data-nav-parent]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const children = sidebar.querySelector(`[data-nav-children="${btn.dataset.navParent}"]`);
+      const willOpen = !children.classList.contains("open");
+      children.classList.toggle("open", willOpen);
+      btn.setAttribute("aria-expanded", String(willOpen));
+    });
   });
 
   document.getElementById("theme-toggle-btn").addEventListener("click", () => {
