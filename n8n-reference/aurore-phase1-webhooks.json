@@ -3,7 +3,7 @@
   "nodes": [
     {
       "parameters": {
-        "content": "## Aurore - Phase 1\n\nCe workflow reçoit les actions déjà validées depuis le backend (Node/Express) et se charge des effets de bord : Google Docs, Google Sheets, Calendar, Gmail.\n\n**Ce que ce workflow NE fait PAS (volontairement) :**\n- Pas de logique de décision / extraction IA (le backend s'en charge)\n- Pas d'envoi automatique de mail au client : chaque document généré est renvoyé au backend (callback), stocké et affiché dans l'appli pour validation. L'email au client n'est envoyé que sur action explicite de l'avocat depuis l'appli (webhook envoyer-email).\n- Pas encore de connexion WhatsApp entrante/sortante réelle — le webhook whatsapp-reply est un simple accusé de réception, à compléter dès que le numéro dédié est connecté.\n\n**Webhooks actifs, appelés par le backend :**\n- /webhook/notes-audience (compte-rendu d'audience : Docs + Calendar + Sheets + callback)\n- /webhook/document-juridique (plaidoirie, conclusions, assignation, mise en demeure, jurisprudence : Docs + callback)\n- /webhook/envoyer-email (déclenché uniquement après validation dans l'appli)\n- /webhook/whatsapp-reply (stub, Phase 1b)",
+        "content": "## Aurore - Phase 1\n\nCe workflow reçoit les actions déjà validées depuis le backend (Node/Express) et se charge des effets de bord : Google Docs, Google Sheets, Calendar, Gmail.\n\n**Ce que ce workflow NE fait PAS (volontairement) :**\n- Pas de logique de décision / extraction IA (le backend s'en charge)\n- Pas d'envoi automatique de mail au client : chaque document généré est renvoyé au backend (callback), stocké et affiché dans l'appli pour validation. L'email au client n'est envoyé que sur action explicite de l'avocat depuis l'appli (webhook envoyer-email).\n- Pas encore de connexion WhatsApp entrante/sortante réelle — le webhook whatsapp-reply est un simple accusé de réception, à compléter dès que le numéro dédié est connecté.\n\n**Webhooks actifs, appelés par le backend :**\n- /webhook/notes-audience (compte-rendu d'audience : Docs + Calendar + Sheets + callback)\n- /webhook/document-juridique (plaidoirie, conclusions, assignation, mise en demeure, jurisprudence : Docs + callback)\n- /webhook/envoyer-email (déclenché uniquement après validation dans l'appli)\n- /webhook/envoyer-email-client (mail libre avec pièce jointe optionnelle, depuis la fiche client)\n- /webhook/creer-rappel-delai (rappel Google Calendar générique)\n- /webhook/role-semaine-recap (récap automatique du rôle de la semaine, envoyé chaque vendredi par le backend)\n- /webhook/whatsapp-reply (stub, Phase 1b)",
         "height": 460,
         "width": 480
       },
@@ -758,6 +758,48 @@
           "name": "Google Calendar account"
         }
       }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "role-semaine-recap",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "webhook-role-semaine-recap",
+      "name": "Webhook - Role Semaine Recap",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1120,
+        1480
+      ],
+      "webhookId": "aurore-role-semaine-recap"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.body.destinataireEmail }}",
+        "subject": "=Rôle de la semaine du {{ $json.body.periode }}",
+        "emailType": "html",
+        "message": "={{ $json.body.contenuHtml }}",
+        "options": {}
+      },
+      "id": "gmail-role-semaine-recap",
+      "name": "Gmail - Rôle de la semaine",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        -880,
+        1480
+      ],
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "bhJH2gq7NAqpxE1w",
+          "name": "Gmail account"
+        }
+      }
     }
   ],
   "connections": {
@@ -950,6 +992,17 @@
         [
           {
             "node": "Create an event (rappel delai)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook - Role Semaine Recap": {
+      "main": [
+        [
+          {
+            "node": "Gmail - Rôle de la semaine",
             "type": "main",
             "index": 0
           }

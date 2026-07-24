@@ -53,6 +53,62 @@ roleAudiencesRouter.get("/api/role-audiences", requireAuth, async (req, res) => 
   return res.json({ scope, debut: debut.toISOString(), fin: fin.toISOString(), audiences });
 });
 
+// Suggestions : dossiers dont le dernier compte-rendu annonce une
+// "prochaine audience" tombant dans la semaine consultee, et qui n'ont pas
+// encore ete ajoutes au role. On ne pre-remplit que ce qu'on sait avec
+// certitude (dossier, date) - le reste (juridiction, parties, qualite,
+// objet, diligences) n'est pas capture de facon structuree dans le
+// compte-rendu et reste a completer manuellement.
+roleAudiencesRouter.get("/api/role-audiences/suggestions", requireAuth, async (req, res) => {
+  const { auth } = req;
+
+  const debutParam = typeof req.query.debut === "string" ? new Date(req.query.debut) : new Date();
+  const debut = lundiDeLaSemaine(Number.isNaN(debutParam.getTime()) ? new Date() : debutParam);
+  const fin = new Date(debut);
+  fin.setUTCDate(fin.getUTCDate() + 7);
+
+  const accessibleAvocatIds = peutVoirTouLeCabinet(auth!.role) ? null : await getAccessibleAvocatIds(auth!);
+
+  const actions = await prisma.action.findMany({
+    where: {
+      typeAction: "notes",
+      prochaineAudience: { gte: debut, lt: fin },
+      dossier: {
+        cabinetId: auth!.cabinetId,
+        ...(accessibleAvocatIds ? { createdBy: { in: accessibleAvocatIds } } : {}),
+      },
+    },
+    orderBy: { createdAt: "desc" },
+    include: { dossier: { select: { id: true, numeroDossier: true, nomAffaire: true, nomClient: true } } },
+  });
+
+  const parDossier = new Map<string, (typeof actions)[number]>();
+  for (const a of actions) {
+    if (!parDossier.has(a.dossierId)) parDossier.set(a.dossierId, a);
+  }
+
+  const dejaAjoutees = await prisma.roleAudience.findMany({
+    where: {
+      cabinetId: auth!.cabinetId,
+      dossierId: { in: [...parDossier.keys()] },
+      dateAudience: { gte: debut, lt: fin },
+    },
+    select: { dossierId: true },
+  });
+  const dossierIdsDejaAjoutes = new Set(dejaAjoutees.map((r) => r.dossierId).filter((id): id is string => !!id));
+
+  const suggestions = [...parDossier.values()]
+    .filter((a) => !dossierIdsDejaAjoutes.has(a.dossierId))
+    .map((a) => ({
+      dossierId: a.dossierId,
+      dossier: a.dossier,
+      prochaineAudience: a.prochaineAudience,
+      piecesPrevoir: a.piecesPrevoir,
+    }));
+
+  return res.json({ suggestions });
+});
+
 const createSchema = z.object({
   dateAudience: z.string().min(1),
   juridiction: z.string().min(1),

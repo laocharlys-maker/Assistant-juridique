@@ -22,16 +22,6 @@
       <button class="tab" data-scope="cabinet">Tout le cabinet</button>
     </div>
 
-    <div class="card">
-      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
-        <button type="button" class="secondary btn-sm" id="prev-week-btn">← Semaine précédente</button>
-        <strong id="week-label">Semaine du …</strong>
-        <button type="button" class="secondary btn-sm" id="next-week-btn">Semaine suivante →</button>
-      </div>
-    </div>
-
-    <div id="week-content"><p class="muted">Chargement…</p></div>
-
     <div style="margin: 4px 0;">
       <button type="button" id="toggle-add-btn">+ Ajouter une audience</button>
     </div>
@@ -81,6 +71,18 @@
         </form>
       </div>
     </div>
+
+    <div class="card">
+      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+        <button type="button" class="secondary btn-sm" id="prev-week-btn">← Semaine précédente</button>
+        <strong id="week-label">Semaine du …</strong>
+        <button type="button" class="secondary btn-sm" id="next-week-btn">Semaine suivante →</button>
+      </div>
+    </div>
+
+    <div id="suggestions-content"></div>
+
+    <div id="week-content"><p class="muted">Chargement…</p></div>
   </div>
   <script src="/js/api.js"></script>
   <script src="/js/layout.js"></script>
@@ -113,6 +115,16 @@
     function formatHeure(iso) {
       return new Date(iso).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
     }
+    // Date calendaire locale (YYYY-MM-DD) — a ne jamais remplacer par
+    // toISOString().slice(0,10), qui bascule sur le jour UTC et decale la
+    // semaine affichee des que le fuseau local n'est pas UTC (ex: Benin,
+    // UTC+1 : minuit local le lundi = 23h la veille en UTC).
+    function toLocalDateStr(d) {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${y}-${m}-${day}`;
+    }
 
     async function loadDossiersForDatalist() {
       try {
@@ -134,7 +146,7 @@
       contentEl.innerHTML = '<p class="muted">Chargement…</p>';
       try {
         const query = scope ? `?scope=${scope}` : "";
-        const debutStr = currentMonday.toISOString().slice(0, 10);
+        const debutStr = toLocalDateStr(currentMonday);
         const sep = query ? "&" : "?";
         const data = await apiFetch(`/api/role-audiences${query}${sep}debut=${debutStr}`);
         document.querySelectorAll("#scope-tabs .tab").forEach((btn) => {
@@ -227,6 +239,52 @@
       }
     }
 
+    async function loadSuggestions() {
+      const box = document.getElementById("suggestions-content");
+      try {
+        const debutStr = toLocalDateStr(currentMonday);
+        const { suggestions } = await apiFetch(`/api/role-audiences/suggestions?debut=${debutStr}`);
+        if (suggestions.length === 0) {
+          box.innerHTML = "";
+          return;
+        }
+        box.innerHTML = `
+          <div class="card">
+            <h2 style="margin-bottom:6px;">Suggestions</h2>
+            <p class="muted" style="margin-top:0;">Ces dossiers annoncent une prochaine audience cette semaine-là dans leur dernier compte-rendu — vérifie et complète avant d'ajouter au rôle.</p>
+            ${suggestions
+              .map(
+                (s) => `
+              <div class="dossier-item">
+                <div>
+                  <strong>${escapeHtml(s.dossier.nomAffaire)}</strong>
+                  <div class="meta">Dossier ${escapeHtml(s.dossier.numeroDossier)} · ${escapeHtml(s.dossier.nomClient)} · Prochaine audience : ${new Date(s.prochaineAudience).toLocaleString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}${s.piecesPrevoir ? `<br />Pièces à prévoir : ${escapeHtml(s.piecesPrevoir)}` : ""}</div>
+                </div>
+                <button type="button" class="secondary btn-sm" data-suggestion-add='${JSON.stringify({ dossierId: s.dossierId, dossierNumero: s.dossier.numeroDossier, parties: s.dossier.nomAffaire, prochaineAudience: s.prochaineAudience }).replace(/'/g, "&#39;")}'>Ajouter au rôle</button>
+              </div>`
+              )
+              .join("")}
+          </div>`;
+        box.querySelectorAll("[data-suggestion-add]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const s = JSON.parse(btn.dataset.suggestionAdd);
+            addPanel.classList.add("open");
+            toggleAddBtn.textContent = "Réduire";
+            const form = document.getElementById("add-form");
+            const d = new Date(s.prochaineAudience);
+            const pad = (n) => String(n).padStart(2, "0");
+            form.dateAudience.value = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+            form.dossierNumero.value = s.dossierNumero;
+            form.parties.value = s.parties;
+            form.parties.focus();
+            window.scrollTo({ top: addPanel.offsetTop - 20, behavior: "smooth" });
+          });
+        });
+      } catch {
+        box.innerHTML = "";
+      }
+    }
+
     let activeScope;
 
     (async () => {
@@ -240,21 +298,25 @@
           btn.addEventListener("click", () => {
             activeScope = btn.dataset.scope;
             loadWeek(activeScope);
+            loadSuggestions();
           });
         });
       }
 
       loadDossiersForDatalist();
       loadWeek(activeScope);
+      loadSuggestions();
     })();
 
     document.getElementById("prev-week-btn").addEventListener("click", () => {
       currentMonday.setDate(currentMonday.getDate() - 7);
       loadWeek(activeScope);
+      loadSuggestions();
     });
     document.getElementById("next-week-btn").addEventListener("click", () => {
       currentMonday.setDate(currentMonday.getDate() + 7);
       loadWeek(activeScope);
+      loadSuggestions();
     });
 
     const addPanel = document.getElementById("add-panel");
@@ -275,11 +337,12 @@
       const fd = new FormData(e.target);
       const dossierNumero = fd.get("dossierNumero");
       const dossier = dossierNumero ? dossiersParNumero.get(dossierNumero.trim()) : undefined;
+      const dateAudienceLocale = new Date(fd.get("dateAudience"));
       try {
         await apiFetch("/api/role-audiences", {
           method: "POST",
           body: {
-            dateAudience: new Date(fd.get("dateAudience")).toISOString(),
+            dateAudience: dateAudienceLocale.toISOString(),
             juridiction: fd.get("juridiction"),
             chambre: fd.get("chambre") || undefined,
             procedureNumero: fd.get("procedureNumero") || undefined,
@@ -295,7 +358,11 @@
         e.target.reset();
         addPanel.classList.remove("open");
         toggleAddBtn.textContent = "+ Ajouter une audience";
+        // Se positionne sur la semaine de l'audience qu'on vient de creer,
+        // pour que l'utilisateur voie tout de suite qu'elle est au bon jour.
+        currentMonday = mondayOf(dateAudienceLocale);
         loadWeek(activeScope);
+        loadSuggestions();
       } catch (err) {
         showError(errorEl, err.message);
       }

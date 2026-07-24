@@ -4,6 +4,7 @@ import { app } from "./app";
 import { getLlmProvider } from "./services/llm";
 import { runVeillePourTousLesCabinets } from "./services/veilleJuridique";
 import { runRetentionJobs } from "./services/retention";
+import { runRoleSemaineRecapPourTousLesCabinets } from "./services/roleSemaineRecap";
 
 app.listen(env.PORT, () => {
   console.log(`Aurore backend demarre sur le port ${env.PORT} (${env.NODE_ENV})`);
@@ -16,6 +17,20 @@ cron.schedule(
   () => {
     runVeillePourTousLesCabinets(getLlmProvider()).catch((error) => {
       console.error("Erreur lors de l'execution de la veille juridique hebdomadaire :", error);
+    });
+  },
+  { timezone: "Africa/Porto-Novo" }
+);
+
+// Recapitulatif du role de la semaine : chaque vendredi a 8h (heure du
+// Benin), envoi par mail des audiences deja saisies pour la semaine qui
+// commence 10 jours plus tard (le greffe communique le role dans ce delai) -
+// le cabinet a ainsi la semaine intermediaire pour se preparer.
+cron.schedule(
+  "0 8 * * 5",
+  () => {
+    runRoleSemaineRecapPourTousLesCabinets().catch((error) => {
+      console.error("Erreur lors de l'envoi du recapitulatif du role de la semaine :", error);
     });
   },
   { timezone: "Africa/Porto-Novo" }
