@@ -11,6 +11,9 @@ const querySchema = z.object({
   // Ne renvoie que les entrees des N derniers mois (permet de "classer" par
   // periode) - absent = pas de filtre de date.
   depuisMois: z.coerce.number().int().positive().max(60).optional(),
+  // Filtre par acteur : ne renvoie que les documents generes par ce membre
+  // du cabinet - absent = tous les acteurs.
+  genereParId: z.string().uuid().optional(),
   limit: z.coerce.number().int().positive().max(500).default(200),
 });
 
@@ -22,7 +25,7 @@ auditLogsRouter.get("/api/audit-logs", requireAuth, requireAdmin, async (req, re
   if (!parsed.success) {
     return res.status(400).json({ error: "Requête invalide" });
   }
-  const { statut, depuisMois, limit } = parsed.data;
+  const { statut, depuisMois, genereParId, limit } = parsed.data;
 
   const depuisDate = depuisMois
     ? new Date(new Date().setMonth(new Date().getMonth() - depuisMois))
@@ -32,7 +35,10 @@ auditLogsRouter.get("/api/audit-logs", requireAuth, requireAdmin, async (req, re
     where: {
       statut,
       timestamp: depuisDate ? { gte: depuisDate } : undefined,
-      action: { dossier: { cabinetId: req.auth!.cabinetId } },
+      action: {
+        dossier: { cabinetId: req.auth!.cabinetId },
+        ...(genereParId ? { createdBy: genereParId } : {}),
+      },
     },
     include: {
       action: {

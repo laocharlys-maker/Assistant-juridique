@@ -165,6 +165,9 @@
         document.querySelectorAll("#scope-tabs .tab").forEach((btn) => {
           btn.classList.toggle("active", btn.dataset.scope === stats.scope);
         });
+        if (stats.responsableNom) {
+          document.querySelector(".page-hero p").textContent = `Activité de Maître ${stats.responsableNom}.`;
+        }
         document.getElementById("stat-dossiers").textContent = stats.dossiersActifs;
         document.getElementById("stat-cr").textContent = stats.crCeMois;
         document.getElementById("stat-echeances").textContent = stats.echeances7Jours;
@@ -194,12 +197,6 @@
       if (!me) return;
       initLayout(me);
 
-      if (me.role === "collaborateur") {
-        document.querySelector(".page").innerHTML =
-          '<p class="error visible">Cette page est réservée aux avocats du cabinet.</p>';
-        return;
-      }
-
       document.getElementById("greeting").textContent = `Bonjour, ${me.nom}`;
       document.getElementById("date-eyebrow").textContent = new Date().toLocaleDateString("fr-FR", {
         weekday: "long",
@@ -208,10 +205,14 @@
         day: "numeric",
       });
 
-      document.getElementById("scope-tabs").style.display = "flex";
-      document.querySelectorAll("#scope-tabs .tab").forEach((btn) => {
-        btn.addEventListener("click", () => loadStats(btn.dataset.scope));
-      });
+      // Un collaborateur n'a pas de bascule de vue : il ne voit que le
+      // tableau de bord de son avocat responsable, sans autre option.
+      if (me.role !== "collaborateur") {
+        document.getElementById("scope-tabs").style.display = "flex";
+        document.querySelectorAll("#scope-tabs .tab").forEach((btn) => {
+          btn.addEventListener("click", () => loadStats(btn.dataset.scope));
+        });
+      }
 
       document.getElementById("trend-type-filter").addEventListener("change", (e) => {
         renderTrendChart(lastEvolution, e.target.value);

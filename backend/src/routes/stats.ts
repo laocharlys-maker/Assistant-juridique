@@ -1,24 +1,40 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
-import { requireAvocat } from "../middleware/roles";
 import { getAccessibleAvocatIds } from "../services/access";
 
 export const statsRouter = Router();
 
-statsRouter.get("/api/stats", requireAuth, requireAvocat, async (req, res) => {
+statsRouter.get("/api/stats", requireAuth, async (req, res) => {
   const cabinetId = req.auth!.cabinetId;
 
-  // Par defaut : l'admin (titulaire) voit tout le cabinet, un avocat ne
-  // voit que les siennes. Chacun peut basculer explicitement via
-  // ?scope=mine|cabinet.
-  const defaultScope = req.auth!.role === "titulaire" ? "cabinet" : "mine";
-  const requestedScope = req.query.scope === "mine" || req.query.scope === "cabinet"
-    ? req.query.scope
-    : defaultScope;
+  let requestedScope: string;
+  let accessibleAvocatIds: string[] | null;
+  let responsableNom: string | null = null;
 
-  const accessibleAvocatIds =
-    requestedScope === "cabinet" ? null : await getAccessibleAvocatIds(req.auth!);
+  // Un collaborateur n'a pas de tableau de bord a lui : il ne peut
+  // consulter que celui de l'avocat dont il depend directement, et rien
+  // d'autre (pas de bascule vers un autre avocat ni la vue cabinet).
+  if (req.auth!.role === "collaborateur") {
+    const moi = await prisma.user.findUnique({
+      where: { id: req.auth!.userId },
+      select: { responsable: { select: { id: true, nom: true } } },
+    });
+    if (!moi?.responsable) {
+      return res.status(403).json({ error: "Aucun avocat responsable ne t'est assigné." });
+    }
+    requestedScope = "mine";
+    accessibleAvocatIds = [moi.responsable.id];
+    responsableNom = moi.responsable.nom;
+  } else {
+    // Par defaut : l'admin (titulaire) voit tout le cabinet, un avocat ne
+    // voit que les siennes. Chacun peut basculer explicitement via
+    // ?scope=mine|cabinet.
+    const defaultScope = req.auth!.role === "titulaire" ? "cabinet" : "mine";
+    requestedScope =
+      req.query.scope === "mine" || req.query.scope === "cabinet" ? req.query.scope : defaultScope;
+    accessibleAvocatIds = requestedScope === "cabinet" ? null : await getAccessibleAvocatIds(req.auth!);
+  }
 
   const now = new Date();
   const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
@@ -109,5 +125,6 @@ statsRouter.get("/api/stats", requireAuth, requireAvocat, async (req, res) => {
     echeances7Jours,
     evolutionMensuelle,
     repartitionTypes,
+    responsableNom,
   });
 });

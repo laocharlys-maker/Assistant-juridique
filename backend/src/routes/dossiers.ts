@@ -168,6 +168,12 @@ dossiersRouter.patch("/api/dossiers/:id", requireAuth, async (req, res) => {
     return res.status(400).json({ error: "Statut invalide" });
   }
 
+  // Seul un avocat (ou le titulaire) peut cloturer/rouvrir un dossier -
+  // jamais un collaborateur, meme sur un dossier qu'il a lui-meme cree.
+  if (auth!.role === "collaborateur") {
+    return res.status(403).json({ error: "Seul un avocat du cabinet peut clôturer un dossier." });
+  }
+
   const accessibleAvocatIds = peutVoirTouLeCabinet(auth!.role)
     ? null
     : await getAccessibleAvocatIds(auth!);

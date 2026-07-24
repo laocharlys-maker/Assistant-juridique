@@ -38,6 +38,12 @@
             <option value="12">12 derniers mois</option>
           </select>
         </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <label style="margin:0; font-weight:400;">Généré par :</label>
+          <select id="filter-genere-par" style="width:auto;">
+            <option value="">Tous les membres</option>
+          </select>
+        </div>
       </div>
       <div id="logs-list"><p class="muted">Chargement…</p></div>
     </div>
@@ -75,11 +81,13 @@
       const listEl = document.getElementById("logs-list");
       const statut = document.getElementById("filter-statut").value;
       const periode = document.getElementById("filter-periode").value;
+      const generePar = document.getElementById("filter-genere-par").value;
       listEl.innerHTML = '<p class="muted">Chargement…</p>';
       try {
         const params = new URLSearchParams();
         if (statut) params.set("statut", statut);
         if (periode) params.set("depuisMois", periode);
+        if (generePar) params.set("genereParId", generePar);
         const qs = params.toString() ? `?${params.toString()}` : "";
         const logs = await apiFetch(`/api/audit-logs${qs}`);
         if (logs.length === 0) {
@@ -115,11 +123,20 @@
           '<p class="error visible">Cette page est réservée à l\'administrateur du cabinet.</p>';
         return;
       }
+      try {
+        const membres = await apiFetch("/api/users/annuaire");
+        document.getElementById("filter-genere-par").innerHTML =
+          '<option value="">Tous les membres</option>' +
+          membres.map((u) => `<option value="${u.id}">${escapeHtml(u.nom)}</option>`).join("");
+      } catch {
+        // Non bloquant : le filtre reste sur "Tous les membres".
+      }
       loadLogs();
     })();
 
     document.getElementById("filter-statut").addEventListener("change", loadLogs);
     document.getElementById("filter-periode").addEventListener("change", loadLogs);
+    document.getElementById("filter-genere-par").addEventListener("change", loadLogs);
 
     document.getElementById("purge-btn").addEventListener("click", async () => {
       const mois = document.getElementById("purge-periode").value;
