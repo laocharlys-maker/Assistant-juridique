@@ -1,5 +1,19 @@
 import { z } from "zod";
 
+// Qualites procedurales possibles pour une partie (client ou adverse) dans
+// des conclusions - alignees sur celles utilisees pour le role de la
+// semaine (memes intitules dans toute l'appli).
+const QUALITE_PROCEDURALE = [
+  "Demandeur",
+  "Défendeur",
+  "Intervenant volontaire",
+  "Intervenant forcé",
+  "Appelant",
+  "Intimé",
+  "Demandeur au pourvoi",
+  "Défendeur au pourvoi",
+] as const;
+
 export const notesFormSchema = z.object({
   type_action: z.literal("notes"),
   numero_dossier: z.string().min(1),
@@ -56,14 +70,14 @@ export const conclusionsFormSchema = z.object({
   // Adresse du cabinet : normalement deja renseignee dans Parametres, ce
   // champ n'est qu'un secours si elle n'y est pas encore.
   adresse_cabinet_manuel: z.string().optional(),
-  qualite_client: z.enum(["Demandeur", "Défendeur"]).optional(),
+  qualite_client: z.enum(QUALITE_PROCEDURALE).optional(),
   // Infos civiles du client (naissance, adresse) : normalement deja
   // presentes sur sa fiche, ce champ n'est qu'un secours si elles n'y sont
   // pas encore.
   informations_client: z.string().optional(),
   nom_partie_adverse: z.string().optional(),
   informations_partie_adverse: z.string().optional(),
-  qualite_partie_adverse: z.enum(["Demandeur", "Défendeur"]).optional(),
+  qualite_partie_adverse: z.enum(QUALITE_PROCEDURALE).optional(),
   // 2. Discussion juridique - jamais devinee par l'IA si absente.
   fondement_juridique: z.string().optional(),
   qualification_juridique: z.string().optional(),
