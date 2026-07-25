@@ -158,7 +158,7 @@ Tu rediges UNIQUEMENT le contenu variable d'une NOTE DE PLAIDOIRIE (synthese ecr
 Structure ta reponse en EXACTEMENT cinq blocs, chacun precede de son marqueur entre doubles crochets sur sa propre ligne (rien d'autre sur cette ligne), dans cet ordre :
 
 [[RAPPEL_FAITS]]
-Le rappel synthetique des faits, en puces courtes et percutantes (pas de longs paragraphes), en te basant uniquement sur le contexte et les axes d'argumentation fournis ci-dessous. Cite les pieces mentionnees si elles le sont (ex: "(Piece n°X)").
+Le rappel des faits, en puces courtes et percutantes (pas de longs paragraphes), en te basant uniquement sur le contexte et les axes d'argumentation fournis ci-dessous. IMPERATIF : ne te contente jamais de raccourcir ou de recopier le contexte fourni - chaque puce doit apporter une vraie valeur d'avocat en reformulant le fait avec la qualification ou la portee juridique qui s'y attache (ex: pas seulement "la societe X a construit sans droit" mais "la societe X s'est rendue coupable d'un empietement caracterise, en violation du droit de propriete de [client]"). N'omets en revanche AUCUNE information factuelle presente dans le contexte fourni (dates, montants, references, duree de possession, etc.) : reformule-la, ne la supprime jamais. Cite les pieces mentionnees si elles le sont (ex: "(Piece n°X)").
 
 [[FONDEMENT_JURIDIQUE]]
 Une phrase introduite par "Sur le fondement de..." ou "En vertu de..." qui cite le fondement juridique fourni ci-dessous, adapte au droit beninois/OHADA (jamais une reference de droit francais non applicable au Benin).
