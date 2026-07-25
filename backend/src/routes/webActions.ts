@@ -357,14 +357,37 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
         })
       );
 
-      const blocs = decouperBlocsMarques(redigeBrut, ["EXPOSE_DES_FAITS", "DISCUSSION_JURIDIQUE", "DISPOSITIF"]);
+      const blocs = decouperBlocsMarques(redigeBrut, [
+        "EXPOSE_DES_FAITS",
+        "FONDEMENT_JURIDIQUE",
+        "QUALIFICATION_JURIDIQUE",
+        "PREJUDICE_SUBI",
+        "REPARATION_DEMANDEE",
+        "FRAIS_PROCEDURE",
+        "MANQUEMENT_A_JUGER",
+        "CONDAMNATION_DEMANDEE",
+      ]);
       const exposeDesFaits = blocs.EXPOSE_DES_FAITS ?? "";
-      const discussionJuridique = blocs.DISCUSSION_JURIDIQUE ?? "";
-      const dispositif = blocs.DISPOSITIF ?? "";
+      const fondementJuridique = blocs.FONDEMENT_JURIDIQUE ?? "";
+      const qualificationJuridique = blocs.QUALIFICATION_JURIDIQUE ?? "";
+      const prejudiceSubi = blocs.PREJUDICE_SUBI ?? "";
+      const reparationDemandee = blocs.REPARATION_DEMANDEE ?? "";
+      const fraisProcedure = blocs.FRAIS_PROCEDURE ?? "";
+      const manquementAJuger = blocs.MANQUEMENT_A_JUGER ?? "";
+      const condamnationDemandee = blocs.CONDAMNATION_DEMANDEE ?? "";
       // Utilise pour le contenu enregistre en base et les exports Word/PDF
-      // locaux (qui n'ont pas de template a sections separees) : les trois
-      // blocs mis bout a bout forment un texte complet et coherent.
-      const redigé = [exposeDesFaits, discussionJuridique, dispositif].filter(Boolean).join("\n\n");
+      // locaux (qui n'ont pas de template a balises separees) : tous les
+      // blocs mis bout a bout, avec des titres de section, forment un texte
+      // complet et coherent.
+      const redigé = [
+        exposeDesFaits,
+        ["DISCUSSION JURIDIQUE", fondementJuridique, qualificationJuridique, prejudiceSubi, reparationDemandee, fraisProcedure]
+          .filter(Boolean)
+          .join("\n\n"),
+        ["PAR CES MOTIFS", manquementAJuger, condamnationDemandee].filter(Boolean).join("\n\n"),
+      ]
+        .filter(Boolean)
+        .join("\n\n");
 
       const dossierLookup = await findOrCreateDossier({
         cabinetId: auth!.cabinetId,
@@ -393,8 +416,13 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
 
       extraWebhookFields = {
         expose_des_faits: exposeDesFaits,
-        discussion_juridique: discussionJuridique,
-        dispositif,
+        fondement_juridique: fondementJuridique,
+        qualification_juridique: qualificationJuridique,
+        prejudice_subi: prejudiceSubi,
+        reparation_demandee: reparationDemandee,
+        montant_frais_procedure: fraisProcedure,
+        manquement_a_faire_juger: manquementAJuger,
+        condamnation_demandee: condamnationDemandee,
         qualite_client: form.qualite_client ?? null,
         nom_partie_adverse: form.nom_partie_adverse ?? null,
         qualite_partie_adverse: form.qualite_partie_adverse ?? null,

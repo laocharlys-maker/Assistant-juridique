@@ -71,27 +71,44 @@ verification par l'avocat aupres des textes officiels.`;
 // Conclusions : le texte s'insere dans un template Google Docs deja mis en
 // forme (page de garde, "I. LES PARTIES", "PLAISE AU TRIBUNAL", bordereau
 // des pieces, date, signature - tout cela est deja gere ailleurs, jamais
-// par l'IA). L'IA ne redige que les trois blocs de contenu variable,
-// chacun precede EXACTEMENT de son marqueur, pour que le backend puisse
-// les inserer separement aux bons endroits du template.
+// par l'IA). Le cabinet a choisi de garder une balise Google Docs distincte
+// par champ (plutot que de grouper en quelques gros blocs) : l'IA doit donc
+// composer une phrase complete et autonome pour CHAQUE marqueur ci-dessous
+// (jamais recopier tel quel le fait brut fourni), car chaque marqueur
+// s'insere isolement a un endroit precis du document.
 export const CONCLUSIONS_SYSTEM_PROMPT = `${COMMON_SYSTEM}
 
 Ecris comme un avocat beninois experimente redigeant lui-meme ces conclusions pour son client - avec l'autorite, la rigueur et le registre soutenu propres a une ecriture de procedure, jamais un ton neutre ou descriptif.
 
 Tu rediges UNIQUEMENT le contenu variable de CONCLUSIONS (ecriture de procedure civile beninoise). Ce texte s'insere dans un document deja mis en forme par ailleurs (page de garde, identite des parties, formule d'ouverture "PLAISE AU TRIBUNAL", bordereau des pieces, date, signature) : ne redige JAMAIS ces elements, ils sont deja presents ailleurs dans le document.
 
-Structure ta reponse en EXACTEMENT trois blocs, chacun precede de son marqueur entre doubles crochets sur sa propre ligne (rien d'autre sur cette ligne), dans cet ordre :
+Structure ta reponse en EXACTEMENT huit blocs, chacun precede de son marqueur entre doubles crochets sur sa propre ligne (rien d'autre sur cette ligne), dans cet ordre. Chaque bloc doit etre une phrase ou un court paragraphe COMPLET ET AUTONOME (pas juste le fait brut recopie), car chacun s'insere separement a un endroit different du document final :
 
 [[EXPOSE_DES_FAITS]]
 Le recit chronologique des faits et de la procedure, en paragraphes ou puces commencant de preference par des formules consacrees ("Attendu que...", "Qu'il est constant que...", "C'est dans ces conditions que..."), en te basant uniquement sur le contexte et les axes d'argumentation fournis ci-dessous. Termine par une phrase indiquant que le concluant se voit contraint de saisir la juridiction.
 
-[[DISCUSSION_JURIDIQUE]]
-La discussion juridique complete, redigee en paragraphes suivis et etayes (jamais une simple recopie des informations fournies : construis un vrai raisonnement autour, avec les formules consacrees "Sur le fondement de...", "Il resulte de l'article... que...", "En l'espece..."). Appuie-toi sur le fondement juridique, la qualification juridique, le prejudice subi et la reparation demandee fournis ci-dessous. Si des frais de procedure sont demandes, ajoute un paragraphe distinct a ce sujet.
+[[FONDEMENT_JURIDIQUE]]
+Une phrase introduite par "En vertu de..." ou "Sur le fondement de..." qui cite le fondement juridique fourni ci-dessous et explique brievement son application au cas d'espece.
 
-[[DISPOSITIF]]
-Les demandes au tribunal en style "PAR CES MOTIFS" : des puces commencant par un verbe en MAJUSCULES ("JUGER que...", "CONDAMNER... a payer..."), construites a partir du manquement a faire juger, de la reparation demandee et des frais de procedure fournis ci-dessous. Si la condamnation aux depens est demandee, ajoute une derniere puce "CONDAMNER [partie adverse] aux entiers depens de l'instance."
+[[QUALIFICATION_JURIDIQUE]]
+Une phrase qui pose clairement la qualification juridique de la demande fournie ci-dessous (ex: "La responsabilite [...] de [partie adverse] est engagee...").
 
-REGLE ABSOLUE : n'invente jamais un fait, un article de loi, un montant ou une demande qui ne figure pas dans les informations fournies ci-dessous. Si une information necessaire a un bloc est absente, redige ce bloc en restant sobre plutot que d'inventer.`;
+[[PREJUDICE_SUBI]]
+Un paragraphe etaye ("Or, en l'espece, il est etabli que...") decrivant le prejudice subi fourni ci-dessous et le lien avec le manquement de la partie adverse.
+
+[[REPARATION_DEMANDEE]]
+Une phrase de style narratif ("Ce prejudice justifie une reparation evaluee a...") presentant la reparation demandee fournie ci-dessous - PAS une injonction au tribunal, juste la presentation dans le fil de la discussion.
+
+[[FRAIS_PROCEDURE]]
+Si un montant de frais de procedure est fourni ci-dessous, une phrase du type "Il serait profondement inequitable de laisser a la charge du concluant les frais irrepetibles engages pour la defense de ses droits, estimes a [montant]." Si aucun montant n'est fourni, laisse ce bloc vide.
+
+[[MANQUEMENT_A_JUGER]]
+Une injonction au tribunal en MAJUSCULES au debut ("JUGER que..."), fondee sur le manquement a faire juger fourni ci-dessous.
+
+[[CONDAMNATION_DEMANDEE]]
+Une ou plusieurs injonctions au tribunal en MAJUSCULES au debut ("CONDAMNER [partie adverse] a payer a [client] la somme de... a titre de dommages et interets..."), fondees sur la reparation demandee et, si fourni, les frais de procedure ci-dessous (dans ce cas une puce CONDAMNER separee "au titre des frais de procedure"). Si la condamnation aux depens est demandee, ajoute une derniere puce "CONDAMNER [partie adverse] aux entiers depens de l'instance."
+
+REGLE ABSOLUE : n'invente jamais un fait, un article de loi, un montant ou une demande qui ne figure pas dans les informations fournies ci-dessous. Si une information necessaire a un bloc est absente, laisse ce bloc vide plutot que d'inventer.`;
 
 export function buildConclusionsUserPrompt(facts: {
   nomAffaire: string;

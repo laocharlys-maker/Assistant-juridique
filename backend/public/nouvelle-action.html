@@ -139,15 +139,13 @@
           <option value="Défendeur">Défendeur</option>
         </select>
 
-        <h3>Exposé des faits</h3>
+        <h3>Discussion juridique &amp; Exposé des faits</h3>
         <label>Contexte de l'affaire</label>
         <textarea name="contexte" required></textarea>
         <label>Axes d'argumentation / moyens de droit</label>
         <ul class="pieces-list" id="axes-list-conclusions"></ul>
         <button type="button" class="secondary" data-add-list="axes-list-conclusions">+ Ajouter un axe</button>
         <br />
-
-        <h3>2. Discussion juridique</h3>
         <label>Fondement juridique invoqué (optionnel)</label>
         <input name="fondement_juridique" placeholder="ex: Article 1231-1 du Code civil" />
         <label>Qualification juridique de la demande (optionnel)</label>
@@ -156,19 +154,18 @@
         <input name="prejudice_subi" />
         <label>Réparation demandée (optionnel)</label>
         <input name="reparation_demandee" />
+        <p class="muted" style="margin-top:-8px; font-size:0.85rem;">⚠️ Ce champ alimente aussi, sous une autre formulation, la demande de condamnation dans la section "Par ces motifs" ci-dessous.</p>
         <label>Montant réclamé au titre des frais de procédure, F CFA (optionnel)</label>
         <input name="montant_frais_procedure" type="number" min="1" step="1" />
 
-        <h3>III. Par ces motifs</h3>
+        <h3>Dispositif (Par ces motifs &amp; En conséquence)</h3>
         <label>Manquement à faire constater par le tribunal (optionnel)</label>
         <input name="manquement_a_faire_juger" />
         <label style="display:flex; align-items:center; gap:8px; font-weight:400;">
           <input type="checkbox" name="demander_depens" style="width:auto;" checked />
           Demander la condamnation de la partie adverse aux dépens de l'instance
         </label>
-
-        <h3>IV. Bordereau des pièces jointes</h3>
-        <label>Pièces versées aux débats (optionnel)</label>
+        <label>Pièces versées aux débats — bordereau (optionnel)</label>
         <ul class="pieces-list" id="pieces-list-conclusions"></ul>
         <button type="button" class="secondary" data-add-list="pieces-list-conclusions">+ Ajouter une pièce</button>
         <br />
