@@ -10,6 +10,7 @@ import {
   NOTES_SYSTEM_PROMPT,
   REDAC_SYSTEM_PROMPT,
   CONCLUSIONS_SYSTEM_PROMPT,
+  NOTE_PLAIDOIRIE_SYSTEM_PROMPT,
   ASSIGNATION_SYSTEM_PROMPT,
   MISE_EN_DEMEURE_SYSTEM_PROMPT,
   JURISPRUDENCE_SYSTEM_PROMPT,
@@ -21,6 +22,7 @@ import {
   buildNotesUserPrompt,
   buildRedacUserPrompt,
   buildConclusionsUserPrompt,
+  buildNotePlaidoirieUserPrompt,
   buildMiseEnDemeureUserPrompt,
   buildJurisprudenceUserPrompt,
   buildRechercheJuridiqueUserPrompt,
@@ -485,6 +487,110 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
         nom_juridiction: form.nom_juridiction ?? null,
         nom_chambre: null,
         date_audience: null,
+        decision: null,
+        prochaine_audience: null,
+        pieces_prevoir: null,
+        synthese: null,
+        argumentaire: redigé,
+      };
+    } else if (form.type_action === "note_plaidoirie") {
+      const redigeBrut = await llm.redact(
+        NOTE_PLAIDOIRIE_SYSTEM_PROMPT,
+        buildNotePlaidoirieUserPrompt({
+          nomAffaire: form.nom_affaire || "non précisée",
+          contexte: form.contexte,
+          axesArgumentation: form.axes_argumentation,
+          fondementJuridique: form.fondement_juridique,
+          qualificationJuridique: form.qualification_juridique,
+          prejudiceSubi: form.prejudice_subi,
+          demandes: form.demandes,
+          demanderDepens: form.demander_depens,
+        })
+      );
+
+      const blocs = decouperBlocsMarques(redigeBrut, [
+        "RAPPEL_FAITS",
+        "FONDEMENT_JURIDIQUE",
+        "QUALIFICATION_JURIDIQUE",
+        "PREJUDICE_SUBI",
+        "DEMANDES",
+      ]);
+      const rappelFaits = blocs.RAPPEL_FAITS ?? "";
+      const fondementJuridiqueNote = blocs.FONDEMENT_JURIDIQUE ?? "";
+      const qualificationJuridiqueNote = blocs.QUALIFICATION_JURIDIQUE ?? "";
+      const prejudiceSubiNote = blocs.PREJUDICE_SUBI ?? "";
+      const demandesNote = blocs.DEMANDES ?? "";
+      // Utilise pour le contenu enregistre en base et les exports Word/PDF
+      // locaux (qui n'ont pas de template a balises separees).
+      const redigé = [
+        rappelFaits,
+        ["DISCUSSION JURIDIQUE", fondementJuridiqueNote, qualificationJuridiqueNote, prejudiceSubiNote]
+          .filter(Boolean)
+          .join("\n\n"),
+        ["REPRISE DES DEMANDES", demandesNote].filter(Boolean).join("\n\n"),
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+
+      const dossierLookupNote = await findOrCreateDossier({
+        cabinetId: auth!.cabinetId,
+        userId: auth!.userId,
+        numeroDossier: form.numero_dossier,
+        nomAffaire: form.nom_affaire,
+        nomClient: form.nom_client,
+      });
+      if (!dossierLookupNote.ok) {
+        return res.status(404).json({ error: dossierLookupNote.error });
+      }
+      const dossierNote = dossierLookupNote.dossier;
+      dossierId = dossierNote.id;
+
+      const [cabinetPourAdresseNote, auteurNote, clientPourInfosNote] = await Promise.all([
+        prisma.cabinet.findUnique({ where: { id: auth!.cabinetId }, select: { adresse: true } }),
+        prisma.user.findUnique({ where: { id: auth!.userId }, select: { nom: true } }),
+        dossierNote.clientId
+          ? prisma.client.findUnique({
+              where: { id: dossierNote.clientId },
+              select: { dateNaissance: true, lieuNaissance: true, quartierResidence: true, rue: true, maison: true, autrePrecision: true },
+            })
+          : Promise.resolve(null),
+      ]);
+
+      const informationsClientNote = composerInformationsClient(clientPourInfosNote) || form.informations_client || null;
+      const adresseCabinetNote = cabinetPourAdresseNote?.adresse || form.adresse_cabinet_manuel || null;
+
+      extraWebhookFields = {
+        rappel_faits: rappelFaits,
+        fondement_juridique: fondementJuridiqueNote,
+        qualification_juridique: qualificationJuridiqueNote,
+        prejudice_subi: prejudiceSubiNote,
+        demandes: demandesNote,
+        numero_rg: form.numero_rg ?? null,
+        qualite_client: form.qualite_client ?? null,
+        profession_client: form.profession_client ?? null,
+        informations_client: informationsClientNote,
+        nom_partie_adverse: form.nom_partie_adverse ?? null,
+        qualite_partie_adverse: form.qualite_partie_adverse ?? null,
+        profession_partie_adverse: form.profession_partie_adverse ?? null,
+        informations_partie_adverse: form.informations_partie_adverse ?? null,
+        nom_avocat_partie_adverse: form.nom_avocat_partie_adverse ?? null,
+        adresse_cabinet: adresseCabinetNote,
+        nom_avocat: form.nom_avocat || auteurNote?.nom || null,
+        ville: form.ville ?? null,
+        destinataire:
+          composeDestinataire(form.destinataire, form.nom_juridiction, form.ville, form.nom_avocat_destinataire) ??
+          null,
+      };
+
+      action = {
+        type_action: "note_plaidoirie",
+        categorie_texte: "Note de plaidoirie",
+        numero_dossier: dossierNote.numeroDossier,
+        nom_affaire: dossierNote.nomAffaire,
+        nom_client: dossierNote.nomClient,
+        nom_juridiction: form.nom_juridiction ?? null,
+        nom_chambre: form.nom_chambre ?? null,
+        date_audience: form.date_audience ?? null,
         decision: null,
         prochaine_audience: null,
         pieces_prevoir: null,

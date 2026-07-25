@@ -142,6 +142,64 @@ export function buildConclusionsUserPrompt(facts: {
   return lignes.join("\n");
 }
 
+// Note de plaidoirie : document COURT remis au juge en fin d'audience pour
+// synthetiser ce qui a ete plaide oralement - pas une demonstration
+// complete comme la Plaidoirie ou les Conclusions. Meme principe de blocs
+// marques que les Conclusions (le cabinet garde une balise Google Docs par
+// champ), mais avec un dispositif en texte libre (pas de verbes figes : les
+// demandes varient trop selon le type de litige - paiement, expulsion,
+// constat de propriete...).
+export const NOTE_PLAIDOIRIE_SYSTEM_PROMPT = `${COMMON_SYSTEM}
+
+Ecris comme un avocat beninois experimente redigeant lui-meme cette note pour son client - avec l'autorite et la rigueur propres a une piece de procedure, jamais un ton neutre ou descriptif.
+
+Tu rediges UNIQUEMENT le contenu variable d'une NOTE DE PLAIDOIRIE (synthese ecrite courte remise au juge en fin d'audience, resumant ce qui a ete plaide oralement - PAS un argumentaire complet comme une plaidoirie ou des conclusions). Ce texte s'insere dans un document deja mis en forme par ailleurs (page de garde, identite des parties, formule d'ouverture "PLAISE AU TRIBUNAL", date, signature) : ne redige JAMAIS ces elements, ils sont deja presents ailleurs dans le document. Reste synthetique : une note de plaidoirie est un aide-memoire pour le juge, pas une nouvelle demonstration complete.
+
+Structure ta reponse en EXACTEMENT cinq blocs, chacun precede de son marqueur entre doubles crochets sur sa propre ligne (rien d'autre sur cette ligne), dans cet ordre :
+
+[[RAPPEL_FAITS]]
+Le rappel synthetique des faits, en puces courtes et percutantes (pas de longs paragraphes), en te basant uniquement sur le contexte et les axes d'argumentation fournis ci-dessous. Cite les pieces mentionnees si elles le sont (ex: "(Piece n°X)").
+
+[[FONDEMENT_JURIDIQUE]]
+Une phrase introduite par "Sur le fondement de..." ou "En vertu de..." qui cite le fondement juridique fourni ci-dessous, adapte au droit beninois/OHADA (jamais une reference de droit francais non applicable au Benin).
+
+[[QUALIFICATION_JURIDIQUE]]
+Une phrase qui pose clairement la qualification juridique de la demande fournie ci-dessous.
+
+[[PREJUDICE_SUBI]]
+Une phrase synthetique presentant le prejudice subi ou l'enjeu du litige fourni ci-dessous.
+
+[[DEMANDES]]
+La reprise des demandes au tribunal, une puce par demande fournie ci-dessous (section "Demandes"), CHACUNE sur sa PROPRE ligne. Formule chaque demande avec le verbe en MAJUSCULES le plus approprie a son contenu (CONSTATER, DIRE ET JUGER, ORDONNER, CONDAMNER, PRONONCER, etc. selon ce qui convient), sans jamais en ajouter, en omettre ou en denaturer le sens. Si la condamnation aux depens est demandee, ajoute une derniere puce "CONDAMNER [partie adverse] aux entiers depens de la procedure."
+
+REGLE ABSOLUE : n'invente jamais un fait, un article de loi, un montant ou une demande qui ne figure pas dans les informations fournies ci-dessous. Si une information necessaire a un bloc est absente, laisse ce bloc vide plutot que d'inventer.`;
+
+export function buildNotePlaidoirieUserPrompt(facts: {
+  nomAffaire: string;
+  contexte: string;
+  axesArgumentation: string[];
+  fondementJuridique?: string;
+  qualificationJuridique?: string;
+  prejudiceSubi?: string;
+  demandes?: string[];
+  demanderDepens?: boolean;
+}): string {
+  const lignes = [
+    `Affaire : ${facts.nomAffaire}`,
+    `Contexte : ${facts.contexte}`,
+    `Axes d'argumentation :\n${facts.axesArgumentation.map((a, i) => `${i + 1}. ${a}`).join("\n")}`,
+  ];
+  if (facts.fondementJuridique) lignes.push(`Fondement juridique invoque : ${facts.fondementJuridique}`);
+  if (facts.qualificationJuridique) lignes.push(`Qualification juridique : ${facts.qualificationJuridique}`);
+  if (facts.prejudiceSubi) lignes.push(`Prejudice subi / enjeu du litige : ${facts.prejudiceSubi}`);
+  if (facts.demandes && facts.demandes.length > 0) {
+    lignes.push(`Demandes :\n${facts.demandes.map((d, i) => `${i + 1}. ${d}`).join("\n")}`);
+  }
+  lignes.push(`Condamnation aux depens de l'instance demandee : ${facts.demanderDepens ? "oui" : "non"}`);
+  lignes.push(`Date du jour : ${dateActuelle()}`);
+  return lignes.join("\n");
+}
+
 export const ASSIGNATION_SYSTEM_PROMPT = `${COMMON_SYSTEM}
 
 Tu rediges UNIQUEMENT la partie redactionnelle (argumentaire) d'une ASSIGNATION beninoise. Ce texte vient s'inserer dans un acte d'huissier deja mis en forme par ailleurs : ne redige JAMAIS les mentions fixes de l'acte (formule d'ouverture "L'AN DEUX MILLE...", bloc d'identification du commissaire de justice/huissier, avertissement legal au defendeur sur le delai de constitution d'avocat, zones de signature) - elles sont deja presentes ailleurs dans le document, ton texte se limite aux sections ci-dessous.

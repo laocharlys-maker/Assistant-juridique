@@ -15,6 +15,7 @@
       <button class="tab active" data-type="notes">Compte-rendu d'audience</button>
       <button class="tab" data-type="redac">Plaidoirie</button>
       <button class="tab" data-type="conclusions">Conclusions</button>
+      <button class="tab" data-type="note_plaidoirie">Note de plaidoirie</button>
       <button class="tab" data-type="assignation">Assignation</button>
       <button class="tab" data-type="mise_en_demeure">Mise en demeure</button>
       <button class="tab" data-type="plainte">Plainte</button>
@@ -213,6 +214,107 @@
         <br />
 
         <button type="submit">Générer les conclusions</button>
+      </form>
+
+      <form id="note_plaidoirie-form" class="action-form" style="display:none;">
+        <label>Numéro de dossier concerné (optionnel)</label>
+        <input name="numero_dossier" list="dossiers-datalist" placeholder="Laisse vide si non applicable" />
+        <label>Nom de l'affaire (optionnel)</label>
+        <input name="nom_affaire" placeholder="Laisse vide si non applicable" />
+        <label>Nom du client (si nouveau dossier)</label>
+        <input name="nom_client" placeholder="Laisse vide si le dossier existe déjà" />
+        <label>Destinataire (optionnel)</label>
+        <select name="destinataire" id="note_plaidoirie-destinataire">
+          <option value="">— Non précisé —</option>
+          <option value="M. le Président">M. le Président</option>
+          <option value="Mme la Présidente">Mme la Présidente</option>
+          <option value="M. le Procureur de la République près">M. le Procureur de la République près</option>
+          <option value="M. le Juge">M. le Juge</option>
+          <option value="Mme la Juge">Mme la Juge</option>
+        </select>
+        <label>Juridiction (optionnel)</label>
+        <select name="nom_juridiction" id="note_plaidoirie-juridiction"></select>
+        <label>Ville (optionnel)</label>
+        <select name="ville" id="note_plaidoirie-ville"></select>
+
+        <h3>En-tête</h3>
+        <label>Numéro de RG (optionnel)</label>
+        <input name="numero_rg" placeholder="ex: RG N°145/2026" />
+        <label>Chambre (optionnel)</label>
+        <input name="nom_chambre" placeholder="ex: 2ème Chambre civile" />
+        <label>Date de l'audience (optionnel)</label>
+        <input name="date_audience" type="date" />
+
+        <h3>I. Les parties</h3>
+        <label>Avocat en charge du dossier</label>
+        <input name="nom_avocat" id="note_plaidoirie-nom-avocat" />
+        <label>Adresse du cabinet (optionnel)</label>
+        <input name="adresse_cabinet_manuel" placeholder="Reprise automatiquement depuis Paramètres si déjà renseignée — sinon, précise-la ici" />
+        <label>Qualité du client (optionnel)</label>
+        <select name="qualite_client">
+          <option value="">— Non précisé —</option>
+          <option value="Demandeur">Demandeur</option>
+          <option value="Défendeur">Défendeur</option>
+          <option value="Intervenant volontaire">Intervenant volontaire</option>
+          <option value="Intervenant forcé">Intervenant forcé</option>
+          <option value="Appelant">Appelant</option>
+          <option value="Intimé">Intimé</option>
+          <option value="Demandeur au pourvoi">Demandeur au pourvoi</option>
+          <option value="Défendeur au pourvoi">Défendeur au pourvoi</option>
+        </select>
+        <label>Profession du client (optionnel)</label>
+        <input name="profession_client" placeholder="ex: Commerçant" />
+        <label>Informations sur le client (optionnel)</label>
+        <input name="informations_client" placeholder="Reprises automatiquement depuis sa fiche si déjà renseignées — sinon, précise ici (né(e) le..., demeurant à...)" />
+
+        <label>Nom de la partie adverse (optionnel)</label>
+        <input name="nom_partie_adverse" />
+        <label>Qualité de la partie adverse (optionnel)</label>
+        <select name="qualite_partie_adverse">
+          <option value="">— Non précisé —</option>
+          <option value="Demandeur">Demandeur</option>
+          <option value="Défendeur">Défendeur</option>
+          <option value="Intervenant volontaire">Intervenant volontaire</option>
+          <option value="Intervenant forcé">Intervenant forcé</option>
+          <option value="Appelant">Appelant</option>
+          <option value="Intimé">Intimé</option>
+          <option value="Demandeur au pourvoi">Demandeur au pourvoi</option>
+          <option value="Défendeur au pourvoi">Défendeur au pourvoi</option>
+        </select>
+        <label>Profession de la partie adverse (optionnel)</label>
+        <input name="profession_partie_adverse" placeholder="ex: Entrepreneur" />
+        <label>Informations sur la partie adverse (optionnel)</label>
+        <input name="informations_partie_adverse" placeholder="ex: adresse, RCCM, autres précisions utiles" />
+        <label>Nom de l'avocat de la partie adverse (optionnel)</label>
+        <input name="nom_avocat_partie_adverse" placeholder="ex: Maître AGOSSOU" />
+
+        <h3>2. Rappel des faits</h3>
+        <label>Contexte de l'affaire</label>
+        <textarea name="contexte" required></textarea>
+        <label>Axes d'argumentation / faits marquants</label>
+        <ul class="pieces-list" id="axes-list-note_plaidoirie"></ul>
+        <button type="button" class="secondary" data-add-list="axes-list-note_plaidoirie">+ Ajouter un axe</button>
+        <br />
+
+        <h3>3. Discussion juridique</h3>
+        <label>Fondement juridique invoqué (optionnel)</label>
+        <input name="fondement_juridique" placeholder="ex: Code foncier et domanial du Bénin" />
+        <label>Qualification juridique de la demande (optionnel)</label>
+        <input name="qualification_juridique" placeholder="ex: Trouble manifeste à la propriété" />
+        <label>Préjudice subi / enjeu du litige (optionnel)</label>
+        <input name="prejudice_subi" />
+
+        <h3>4. Dispositif (reprise des demandes)</h3>
+        <label>Demandes précises au tribunal</label>
+        <ul class="pieces-list" id="demandes-list-note_plaidoirie"></ul>
+        <button type="button" class="secondary" data-add-list="demandes-list-note_plaidoirie">+ Ajouter une demande</button>
+        <br />
+        <label style="display:flex; align-items:center; gap:8px; font-weight:400;">
+          <input type="checkbox" name="demander_depens" style="width:auto;" checked />
+          Demander la condamnation de la partie adverse aux dépens de l'instance
+        </label>
+
+        <button type="submit">Générer la note de plaidoirie</button>
       </form>
 
       <form id="assignation-form" class="action-form" style="display:none;">
@@ -503,6 +605,8 @@
       populateSelect(document.getElementById("redac-ville"), VILLES_BENIN);
       populateSelect(document.getElementById("conclusions-juridiction"), JURIDICTIONS_BENIN);
       populateSelect(document.getElementById("conclusions-ville"), VILLES_BENIN);
+      populateSelect(document.getElementById("note_plaidoirie-juridiction"), JURIDICTIONS_BENIN);
+      populateSelect(document.getElementById("note_plaidoirie-ville"), VILLES_BENIN);
       [
         ["redac-destinataire", "redac-nom-avocat-field"],
         ["conclusions-destinataire", "conclusions-nom-avocat-field"],
@@ -514,7 +618,7 @@
           field.style.display = select.value === "Maître" ? "block" : "none";
         });
       });
-      ["assignation-nom-avocat", "plainte-nom-avocat", "conclusions-nom-avocat"].forEach((id) => {
+      ["assignation-nom-avocat", "plainte-nom-avocat", "conclusions-nom-avocat", "note_plaidoirie-nom-avocat"].forEach((id) => {
         const input = document.getElementById(id);
         if (input) input.value = me.nom;
       });
@@ -563,6 +667,7 @@
       notes: document.getElementById("notes-form"),
       redac: document.getElementById("redac-form"),
       conclusions: document.getElementById("conclusions-form"),
+      note_plaidoirie: document.getElementById("note_plaidoirie-form"),
       assignation: document.getElementById("assignation-form"),
       mise_en_demeure: document.getElementById("mise_en_demeure-form"),
       plainte: document.getElementById("plainte-form"),
@@ -599,6 +704,8 @@
     addListItem("axes-list-redac", "ex: Prescription de l'action");
     addListItem("axes-list-conclusions", "ex: Nullité de la procédure");
     addListItem("pieces-list-conclusions", "ex: Contrat signé le...");
+    addListItem("axes-list-note_plaidoirie", "ex: Titre foncier définitif et inattaquable");
+    addListItem("demandes-list-note_plaidoirie", "ex: Ordonner l'expulsion sous astreinte");
     addListItem("axes-list-assignation", "ex: Manquement contractuel");
     addListItem("demandes-list-assignation", "ex: Condamner au paiement de 500 000 FCFA");
     addListItem("pieces-list-assignation", "ex: Copie du contrat");
@@ -748,6 +855,39 @@
         demander_depens: fd.get("demander_depens") === "on",
         pieces: listValues("pieces-list-conclusions"),
       }, forms.conclusions.querySelector('button[type="submit"]'));
+    });
+
+    forms.note_plaidoirie.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const fd = new FormData(forms.note_plaidoirie);
+      submitForm("note_plaidoirie", {
+        numero_dossier: fd.get("numero_dossier") || undefined,
+        nom_affaire: fd.get("nom_affaire") || undefined,
+        nom_client: fd.get("nom_client") || undefined,
+        destinataire: fd.get("destinataire") || undefined,
+        nom_juridiction: fd.get("nom_juridiction") || undefined,
+        ville: fd.get("ville") || undefined,
+        numero_rg: fd.get("numero_rg") || undefined,
+        nom_chambre: fd.get("nom_chambre") || undefined,
+        date_audience: fd.get("date_audience") || undefined,
+        nom_avocat: fd.get("nom_avocat") || undefined,
+        adresse_cabinet_manuel: fd.get("adresse_cabinet_manuel") || undefined,
+        contexte: fd.get("contexte"),
+        axes_argumentation: listValues("axes-list-note_plaidoirie"),
+        qualite_client: fd.get("qualite_client") || undefined,
+        profession_client: fd.get("profession_client") || undefined,
+        informations_client: fd.get("informations_client") || undefined,
+        nom_partie_adverse: fd.get("nom_partie_adverse") || undefined,
+        qualite_partie_adverse: fd.get("qualite_partie_adverse") || undefined,
+        profession_partie_adverse: fd.get("profession_partie_adverse") || undefined,
+        informations_partie_adverse: fd.get("informations_partie_adverse") || undefined,
+        nom_avocat_partie_adverse: fd.get("nom_avocat_partie_adverse") || undefined,
+        fondement_juridique: fd.get("fondement_juridique") || undefined,
+        qualification_juridique: fd.get("qualification_juridique") || undefined,
+        prejudice_subi: fd.get("prejudice_subi") || undefined,
+        demandes: listValues("demandes-list-note_plaidoirie"),
+        demander_depens: fd.get("demander_depens") === "on",
+      }, forms.note_plaidoirie.querySelector('button[type="submit"]'));
     });
 
     forms.assignation.addEventListener("submit", (e) => {

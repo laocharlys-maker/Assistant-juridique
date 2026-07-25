@@ -91,6 +91,39 @@ export const conclusionsFormSchema = z.object({
   pieces: z.array(z.string().min(1)).optional(),
 });
 
+export const notePlaidoirieFormSchema = z.object({
+  type_action: z.literal("note_plaidoirie"),
+  ...texteJuridiqueFields,
+  numero_dossier: z.string().optional(),
+  nom_affaire: z.string().optional(),
+  ...destinataireDocumentFields,
+  // En-tete specifique (RG, chambre, date d'audience) - pas dans les Conclusions.
+  numero_rg: z.string().optional(),
+  nom_chambre: z.string().optional(),
+  date_audience: z.string().optional(),
+  // I. Les parties (memes principes que pour les Conclusions).
+  nom_avocat: z.string().optional(),
+  adresse_cabinet_manuel: z.string().optional(),
+  qualite_client: z.enum(QUALITE_PROCEDURALE).optional(),
+  profession_client: z.string().optional(),
+  informations_client: z.string().optional(),
+  nom_partie_adverse: z.string().optional(),
+  qualite_partie_adverse: z.enum(QUALITE_PROCEDURALE).optional(),
+  profession_partie_adverse: z.string().optional(),
+  informations_partie_adverse: z.string().optional(),
+  // Nom de l'avocat adverse pour le bloc "CONTRE" - distinct de
+  // nom_avocat_destinataire (qui sert a adresser le courrier).
+  nom_avocat_partie_adverse: z.string().optional(),
+  // 2. Discussion juridique - jamais devinee par l'IA si absente.
+  fondement_juridique: z.string().optional(),
+  qualification_juridique: z.string().optional(),
+  prejudice_subi: z.string().optional(),
+  // 3. Dispositif : demandes en texte libre (pas de verbes figes, un litige
+  // de propriete et un litige de paiement n'ont pas les memes demandes).
+  demandes: z.array(z.string().min(1)).optional(),
+  demander_depens: z.boolean().optional(),
+});
+
 export const assignationFormSchema = z.object({
   type_action: z.literal("assignation"),
   ...texteJuridiqueFields,
@@ -232,6 +265,7 @@ export const webActionFormSchema = z.discriminatedUnion("type_action", [
   notesFormSchema,
   redacFormSchema,
   conclusionsFormSchema,
+  notePlaidoirieFormSchema,
   assignationFormSchema,
   miseEnDemeureFormSchema,
   jurisprudenceFormSchema,

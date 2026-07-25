@@ -14,6 +14,7 @@ export const TYPE_ACTION_VALUES = [
   "contrat",
   "notification_date",
   "requete",
+  "note_plaidoirie",
 ] as const;
 
 export const actionOutputSchema = z.object({

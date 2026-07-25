@@ -28,6 +28,7 @@ const TYPE_LABELS: Record<string, string> = {
   contrat: "Contrat",
   notification_date: "Notification de date",
   requete: "Requête",
+  note_plaidoirie: "Note de plaidoirie",
 };
 
 const COMBINING_DIACRITICS = new RegExp("[\\u0300-\\u036f]", "g");
