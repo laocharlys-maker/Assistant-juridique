@@ -51,6 +51,21 @@ export const conclusionsFormSchema = z.object({
   numero_dossier: z.string().optional(),
   nom_affaire: z.string().optional(),
   ...destinataireDocumentFields,
+  // I. Les parties.
+  qualite_client: z.enum(["Demandeur", "Défendeur"]).optional(),
+  nom_partie_adverse: z.string().optional(),
+  qualite_partie_adverse: z.enum(["Demandeur", "Défendeur"]).optional(),
+  // 2. Discussion juridique - jamais devinee par l'IA si absente.
+  fondement_juridique: z.string().optional(),
+  qualification_juridique: z.string().optional(),
+  prejudice_subi: z.string().optional(),
+  reparation_demandee: z.string().optional(),
+  montant_frais_procedure: z.coerce.number().positive().optional(),
+  // III. Par ces motifs.
+  manquement_a_faire_juger: z.string().optional(),
+  demander_depens: z.boolean().optional(),
+  // IV. Bordereau des pieces jointes.
+  pieces: z.array(z.string().min(1)).optional(),
 });
 
 export const assignationFormSchema = z.object({

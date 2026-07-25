@@ -20,6 +20,7 @@ import {
   REQUETE_SYSTEM_PROMPT,
   buildNotesUserPrompt,
   buildRedacUserPrompt,
+  buildConclusionsUserPrompt,
   buildMiseEnDemeureUserPrompt,
   buildJurisprudenceUserPrompt,
   buildRechercheJuridiqueUserPrompt,
@@ -38,14 +39,29 @@ import { env } from "../config/env";
 
 export const webActionsRouter = Router();
 
-// redac / conclusions / assignation partagent la meme forme de donnees
-// (dossier existant + contexte + axes d'argumentation), seuls le prompt et
-// le libelle changent.
+// redac / assignation partagent la meme forme de donnees (dossier existant
+// + contexte + axes d'argumentation), seuls le prompt et le libelle
+// changent. Les conclusions ont leur propre traitement (voir plus bas) :
+// texte structure en blocs distincts pour s'inserer dans un template
+// Google Docs a plusieurs sections.
 const TEXTE_JURIDIQUE_CONFIG = {
   redac: { systemPrompt: REDAC_SYSTEM_PROMPT, categorieTexte: "Plaidoirie" },
-  conclusions: { systemPrompt: CONCLUSIONS_SYSTEM_PROMPT, categorieTexte: "Conclusions" },
   assignation: { systemPrompt: ASSIGNATION_SYSTEM_PROMPT, categorieTexte: "Assignation" },
 } as const;
+
+// Decoupe un texte rediage par l'IA en blocs, chacun precede d'un marqueur
+// "[[NOM_DU_BLOC]]" sur sa propre ligne (voir CONCLUSIONS_SYSTEM_PROMPT).
+// Utilise pour repartir le texte genere entre plusieurs balises d'un
+// template Google Docs plutot que de tout mettre dans une seule.
+function decouperBlocsMarques(texte: string, marqueurs: string[]): Record<string, string> {
+  const resultat: Record<string, string> = {};
+  const regex = new RegExp(`\\[\\[(${marqueurs.join("|")})\\]\\]`, "g");
+  const parts = texte.split(regex);
+  for (let i = 1; i < parts.length; i += 2) {
+    resultat[parts[i]] = (parts[i + 1] ?? "").trim();
+  }
+  return resultat;
+}
 
 type DossierLookupResult =
   | { ok: true; dossier: Awaited<ReturnType<typeof prisma.dossier.findFirstOrThrow>> }
@@ -252,15 +268,11 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
         synthese: redigé,
         argumentaire: null,
       };
-    } else if (
-      form.type_action === "redac" ||
-      form.type_action === "conclusions" ||
-      form.type_action === "assignation"
-    ) {
+    } else if (form.type_action === "redac" || form.type_action === "assignation") {
       const config = TEXTE_JURIDIQUE_CONFIG[form.type_action];
       const destinataire = form.type_action === "assignation" ? form.destinataire : undefined;
       const adresseA =
-        form.type_action === "redac" || form.type_action === "conclusions"
+        form.type_action === "redac"
           ? composeDestinataire(
               form.destinataire,
               form.nom_juridiction,
@@ -296,15 +308,12 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
       const dossier = dossierLookup.dossier;
       dossierId = dossier.id;
 
-      // Le nom affiche cote "destinataire" du document depend du type : le
-      // client lui-meme pour des conclusions ; la plaidoirie reste sur le
-      // template generique (pas de destinataire affiche). Pour une
-      // assignation, nom_client reste le VRAI client (voir extraWebhookFields
-      // plus bas pour le defendeur et la juridiction, distincts du client).
-      const nomClientAffiche =
-        form.type_action === "conclusions" || form.type_action === "assignation"
-          ? dossier.nomClient
-          : null;
+      // Le nom affiche cote "destinataire" du document depend du type : la
+      // plaidoirie reste sur le template generique (pas de destinataire
+      // affiche). Pour une assignation, nom_client reste le VRAI client
+      // (voir extraWebhookFields plus bas pour le defendeur et la
+      // juridiction, distincts du client).
+      const nomClientAffiche = form.type_action === "assignation" ? dossier.nomClient : null;
 
       if (form.type_action === "assignation") {
         extraWebhookFields = {
@@ -323,6 +332,84 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
         nom_affaire: dossier.nomAffaire,
         nom_client: nomClientAffiche,
         nom_juridiction: null,
+        nom_chambre: null,
+        date_audience: null,
+        decision: null,
+        prochaine_audience: null,
+        pieces_prevoir: null,
+        synthese: null,
+        argumentaire: redigé,
+      };
+    } else if (form.type_action === "conclusions") {
+      const redigeBrut = await llm.redact(
+        CONCLUSIONS_SYSTEM_PROMPT,
+        buildConclusionsUserPrompt({
+          nomAffaire: form.nom_affaire || "non précisée",
+          contexte: form.contexte,
+          axesArgumentation: form.axes_argumentation,
+          fondementJuridique: form.fondement_juridique,
+          qualificationJuridique: form.qualification_juridique,
+          prejudiceSubi: form.prejudice_subi,
+          reparationDemandee: form.reparation_demandee,
+          montantFraisProcedure: form.montant_frais_procedure,
+          manquementAFaireJuger: form.manquement_a_faire_juger,
+          demanderDepens: form.demander_depens,
+        })
+      );
+
+      const blocs = decouperBlocsMarques(redigeBrut, ["EXPOSE_DES_FAITS", "DISCUSSION_JURIDIQUE", "DISPOSITIF"]);
+      const exposeDesFaits = blocs.EXPOSE_DES_FAITS ?? "";
+      const discussionJuridique = blocs.DISCUSSION_JURIDIQUE ?? "";
+      const dispositif = blocs.DISPOSITIF ?? "";
+      // Utilise pour le contenu enregistre en base et les exports Word/PDF
+      // locaux (qui n'ont pas de template a sections separees) : les trois
+      // blocs mis bout a bout forment un texte complet et coherent.
+      const redigé = [exposeDesFaits, discussionJuridique, dispositif].filter(Boolean).join("\n\n");
+
+      const dossierLookup = await findOrCreateDossier({
+        cabinetId: auth!.cabinetId,
+        userId: auth!.userId,
+        numeroDossier: form.numero_dossier,
+        nomAffaire: form.nom_affaire,
+        nomClient: form.nom_client,
+      });
+      if (!dossierLookup.ok) {
+        return res.status(404).json({ error: dossierLookup.error });
+      }
+      const dossier = dossierLookup.dossier;
+      dossierId = dossier.id;
+
+      const [cabinetPourAdresse, auteur] = await Promise.all([
+        prisma.cabinet.findUnique({ where: { id: auth!.cabinetId }, select: { adresse: true } }),
+        prisma.user.findUnique({ where: { id: auth!.userId }, select: { nom: true } }),
+      ]);
+
+      // Bordereau des pieces jointes : une liste numerotee, construite ici
+      // (jamais par l'IA) pour etre fidele a 100% a ce que l'avocat a saisi.
+      const bordereauPieces =
+        form.pieces && form.pieces.length > 0
+          ? form.pieces.map((p, i) => `${i + 1}. ${p}`).join("\n")
+          : "Aucune pièce communiquée à ce stade.";
+
+      extraWebhookFields = {
+        expose_des_faits: exposeDesFaits,
+        discussion_juridique: discussionJuridique,
+        dispositif,
+        qualite_client: form.qualite_client ?? null,
+        nom_partie_adverse: form.nom_partie_adverse ?? null,
+        qualite_partie_adverse: form.qualite_partie_adverse ?? null,
+        adresse_cabinet: cabinetPourAdresse?.adresse ?? null,
+        nom_avocat: auteur?.nom ?? null,
+        piece_a_prevoir: bordereauPieces,
+      };
+
+      action = {
+        type_action: "conclusions",
+        categorie_texte: "Conclusions",
+        numero_dossier: dossier.numeroDossier,
+        nom_affaire: dossier.nomAffaire,
+        nom_client: dossier.nomClient,
+        nom_juridiction: form.nom_juridiction ?? null,
         nom_chambre: null,
         date_audience: null,
         decision: null,

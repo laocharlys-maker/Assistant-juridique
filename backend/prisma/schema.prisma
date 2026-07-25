@@ -69,6 +69,10 @@ enum StatutRoleAudience {
 model Cabinet {
   id        String   @id @default(uuid())
   nom       String
+  // Adresse postale du cabinet - utilisee notamment dans l'entete de
+  // certains documents generes (ex: conclusions), saisie une fois pour
+  // toutes plutot que redemandee a chaque document.
+  adresse   String?
   // Image d'en-tete (logo/bandeau) inseree en haut des documents, a la
   // demande (case a cocher), jamais automatiquement.
   enteteUrl String?  @map("entete_url")

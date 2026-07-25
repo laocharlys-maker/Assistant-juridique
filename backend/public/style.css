@@ -139,6 +139,16 @@ header.topbar nav a:hover { color: var(--accent); }
 
 h1 { font-family: var(--font-display); font-weight: 600; font-size: 1.65rem; margin-top: 0; color: var(--text-strong); }
 h2 { font-family: var(--font-display); font-weight: 600; font-size: 1.2rem; color: var(--text-strong); }
+.action-form h3 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--text-strong);
+  margin: 24px 0 4px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.action-form h3:first-of-type { margin-top: 18px; }
 
 label {
   display: block;

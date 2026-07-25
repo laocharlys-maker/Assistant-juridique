@@ -68,14 +68,62 @@ resultat pertinent n'a ete trouve, plutot que d'inventer ou de deviner une
 reponse. Rappelle a la fin que cette recherche web ne remplace pas une
 verification par l'avocat aupres des textes officiels.`;
 
+// Conclusions : le texte s'insere dans un template Google Docs deja mis en
+// forme (page de garde, "I. LES PARTIES", "PLAISE AU TRIBUNAL", bordereau
+// des pieces, date, signature - tout cela est deja gere ailleurs, jamais
+// par l'IA). L'IA ne redige que les trois blocs de contenu variable,
+// chacun precede EXACTEMENT de son marqueur, pour que le backend puisse
+// les inserer separement aux bons endroits du template.
 export const CONCLUSIONS_SYSTEM_PROMPT = `${COMMON_SYSTEM}
 
-Redige des CONCLUSIONS (ecriture de procedure) structurees ainsi :
-- Rappel de la procedure et des parties
-- Discussion (faits puis moyens de droit, en t'appuyant sur les axes d'argumentation fournis)
-- "PAR CES MOTIFS" : liste numerotee des demandes precises au tribunal
+Ecris comme un avocat beninois experimente redigeant lui-meme ces conclusions pour son client - avec l'autorite, la rigueur et le registre soutenu propres a une ecriture de procedure, jamais un ton neutre ou descriptif.
 
-Si un destinataire ("Document adresse a") est precise ci-dessous, commence le texte par une formule d'adresse formelle a ce destinataire avant le rappel de la procedure. Sinon, ne mentionne aucun destinataire.`;
+Tu rediges UNIQUEMENT le contenu variable de CONCLUSIONS (ecriture de procedure civile beninoise). Ce texte s'insere dans un document deja mis en forme par ailleurs (page de garde, identite des parties, formule d'ouverture "PLAISE AU TRIBUNAL", bordereau des pieces, date, signature) : ne redige JAMAIS ces elements, ils sont deja presents ailleurs dans le document.
+
+Structure ta reponse en EXACTEMENT trois blocs, chacun precede de son marqueur entre doubles crochets sur sa propre ligne (rien d'autre sur cette ligne), dans cet ordre :
+
+[[EXPOSE_DES_FAITS]]
+Le recit chronologique des faits et de la procedure, en paragraphes ou puces commencant de preference par des formules consacrees ("Attendu que...", "Qu'il est constant que...", "C'est dans ces conditions que..."), en te basant uniquement sur le contexte et les axes d'argumentation fournis ci-dessous. Termine par une phrase indiquant que le concluant se voit contraint de saisir la juridiction.
+
+[[DISCUSSION_JURIDIQUE]]
+La discussion juridique complete, redigee en paragraphes suivis et etayes (jamais une simple recopie des informations fournies : construis un vrai raisonnement autour, avec les formules consacrees "Sur le fondement de...", "Il resulte de l'article... que...", "En l'espece..."). Appuie-toi sur le fondement juridique, la qualification juridique, le prejudice subi et la reparation demandee fournis ci-dessous. Si des frais de procedure sont demandes, ajoute un paragraphe distinct a ce sujet.
+
+[[DISPOSITIF]]
+Les demandes au tribunal en style "PAR CES MOTIFS" : des puces commencant par un verbe en MAJUSCULES ("JUGER que...", "CONDAMNER... a payer..."), construites a partir du manquement a faire juger, de la reparation demandee et des frais de procedure fournis ci-dessous. Si la condamnation aux depens est demandee, ajoute une derniere puce "CONDAMNER [partie adverse] aux entiers depens de l'instance."
+
+REGLE ABSOLUE : n'invente jamais un fait, un article de loi, un montant ou une demande qui ne figure pas dans les informations fournies ci-dessous. Si une information necessaire a un bloc est absente, redige ce bloc en restant sobre plutot que d'inventer.`;
+
+export function buildConclusionsUserPrompt(facts: {
+  nomAffaire: string;
+  contexte: string;
+  axesArgumentation: string[];
+  fondementJuridique?: string;
+  qualificationJuridique?: string;
+  prejudiceSubi?: string;
+  reparationDemandee?: string;
+  montantFraisProcedure?: number;
+  manquementAFaireJuger?: string;
+  demanderDepens?: boolean;
+}): string {
+  const lignes = [
+    `Affaire : ${facts.nomAffaire}`,
+    `Contexte : ${facts.contexte}`,
+    `Axes d'argumentation :\n${facts.axesArgumentation.map((a, i) => `${i + 1}. ${a}`).join("\n")}`,
+  ];
+  if (facts.fondementJuridique) lignes.push(`Fondement juridique invoque : ${facts.fondementJuridique}`);
+  if (facts.qualificationJuridique) lignes.push(`Qualification juridique : ${facts.qualificationJuridique}`);
+  if (facts.prejudiceSubi) lignes.push(`Prejudice subi : ${facts.prejudiceSubi}`);
+  if (facts.reparationDemandee) lignes.push(`Reparation demandee : ${facts.reparationDemandee}`);
+  if (facts.montantFraisProcedure) {
+    lignes.push(`Frais de procedure reclames : ${facts.montantFraisProcedure.toLocaleString("fr-FR")} F CFA`);
+  }
+  if (facts.manquementAFaireJuger) {
+    lignes.push(`Manquement a faire juger par le tribunal : ${facts.manquementAFaireJuger}`);
+  }
+  lignes.push(`Condamnation aux depens de l'instance demandee : ${facts.demanderDepens ? "oui" : "non"}`);
+  lignes.push(`Date du jour : ${dateActuelle()}`);
+  return lignes.join("\n");
+}
 
 export const ASSIGNATION_SYSTEM_PROMPT = `${COMMON_SYSTEM}
 
