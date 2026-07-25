@@ -470,6 +470,9 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
         // sur celui du compte qui genere le document.
         nom_avocat: form.nom_avocat || auteur?.nom || null,
         ville: form.ville ?? null,
+        destinataire:
+          composeDestinataire(form.destinataire, form.nom_juridiction, form.ville, form.nom_avocat_destinataire) ??
+          null,
         piece_a_prevoir: bordereauPieces,
       };
 

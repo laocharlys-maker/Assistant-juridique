@@ -106,7 +106,7 @@ Si un montant de frais de procedure est fourni ci-dessous, une phrase du type "I
 Une injonction au tribunal en MAJUSCULES au debut ("JUGER que..."), fondee sur le manquement a faire juger fourni ci-dessous.
 
 [[CONDAMNATION_DEMANDEE]]
-Une ou plusieurs injonctions au tribunal en MAJUSCULES au debut ("CONDAMNER [partie adverse] a payer a [client] la somme de... a titre de dommages et interets..."), fondees sur la reparation demandee et, si fourni, les frais de procedure ci-dessous (dans ce cas une puce CONDAMNER separee "au titre des frais de procedure"). Si la condamnation aux depens est demandee, ajoute une derniere puce "CONDAMNER [partie adverse] aux entiers depens de l'instance."
+Une ou plusieurs injonctions au tribunal en MAJUSCULES au debut ("CONDAMNER [partie adverse] a payer a [client] la somme de... a titre de dommages et interets..."), fondees sur la reparation demandee et, si fourni, les frais de procedure ci-dessous (dans ce cas une puce CONDAMNER separee "au titre des frais de procedure"). Si la condamnation aux depens est demandee, ajoute une derniere puce "CONDAMNER [partie adverse] aux entiers depens de l'instance." IMPERATIF DE MISE EN FORME : chaque puce CONDAMNER (dommages-interets, frais de procedure, depens) doit commencer sur sa PROPRE ligne, separee des autres par un saut de ligne - ne les ecris jamais a la suite dans la meme phrase ou le meme paragraphe.
 
 REGLE ABSOLUE : n'invente jamais un fait, un article de loi, un montant ou une demande qui ne figure pas dans les informations fournies ci-dessous. Si une information necessaire a un bloc est absente, laisse ce bloc vide plutot que d'inventer.`;
 
