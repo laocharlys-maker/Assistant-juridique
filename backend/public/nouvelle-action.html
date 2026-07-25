@@ -267,8 +267,29 @@
         <label>Informations sur le client (optionnel)</label>
         <input name="informations_client" placeholder="Reprises automatiquement depuis sa fiche si déjà renseignées — sinon, précise ici (né(e) le..., demeurant à...)" />
 
-        <label>Nom de la partie adverse (optionnel)</label>
-        <input name="nom_partie_adverse" />
+        <label>Partie adverse — type (optionnel)</label>
+        <select name="type_partie_adverse" id="note_plaidoirie-type-partie-adverse">
+          <option value="">— Non précisé —</option>
+          <option value="physique">Personne physique</option>
+          <option value="morale">Personne morale</option>
+        </select>
+
+        <div id="note_plaidoirie-partie-adverse-physique" style="display:none;">
+          <label>Civilité</label>
+          <select name="civilite_partie_adverse">
+            <option value="">— Non précisé —</option>
+            <option value="M.">M.</option>
+            <option value="Mme">Mme</option>
+            <option value="Mlle">Mlle</option>
+          </select>
+          <label>Nom et prénom de la partie adverse</label>
+          <input name="nom_partie_adverse_physique" />
+        </div>
+        <div id="note_plaidoirie-partie-adverse-morale" style="display:none;">
+          <label>Nom de l'entreprise (partie adverse)</label>
+          <input name="nom_partie_adverse_morale" />
+        </div>
+
         <label>Qualité de la partie adverse (optionnel)</label>
         <select name="qualite_partie_adverse">
           <option value="">— Non précisé —</option>
@@ -298,11 +319,11 @@
 
         <h3>3. Discussion juridique</h3>
         <label>Fondement juridique invoqué (optionnel)</label>
-        <input name="fondement_juridique" placeholder="ex: Code foncier et domanial du Bénin" />
+        <textarea name="fondement_juridique" placeholder="ex: Code foncier et domanial du Bénin"></textarea>
         <label>Qualification juridique de la demande (optionnel)</label>
-        <input name="qualification_juridique" placeholder="ex: Trouble manifeste à la propriété" />
+        <textarea name="qualification_juridique" placeholder="ex: Trouble manifeste à la propriété"></textarea>
         <label>Préjudice subi / enjeu du litige (optionnel)</label>
-        <input name="prejudice_subi" />
+        <textarea name="prejudice_subi"></textarea>
 
         <h3>4. Dispositif (reprise des demandes)</h3>
         <label>Demandes précises au tribunal</label>
@@ -631,6 +652,15 @@
           partieAdverseMorale.style.display = typePartieAdverseSelect.value === "morale" ? "block" : "none";
         });
       }
+      const typePartieAdverseSelectNote = document.getElementById("note_plaidoirie-type-partie-adverse");
+      const partieAdversePhysiqueNote = document.getElementById("note_plaidoirie-partie-adverse-physique");
+      const partieAdverseMoraleNote = document.getElementById("note_plaidoirie-partie-adverse-morale");
+      if (typePartieAdverseSelectNote) {
+        typePartieAdverseSelectNote.addEventListener("change", () => {
+          partieAdversePhysiqueNote.style.display = typePartieAdverseSelectNote.value === "physique" ? "block" : "none";
+          partieAdverseMoraleNote.style.display = typePartieAdverseSelectNote.value === "morale" ? "block" : "none";
+        });
+      }
       await loadDossiersForAutofill();
     })();
 
@@ -860,6 +890,13 @@
     forms.note_plaidoirie.addEventListener("submit", (e) => {
       e.preventDefault();
       const fd = new FormData(forms.note_plaidoirie);
+      const typePartieAdverseNote = fd.get("type_partie_adverse");
+      const nomPartieAdverseNote =
+        typePartieAdverseNote === "morale"
+          ? fd.get("nom_partie_adverse_morale") || undefined
+          : [fd.get("civilite_partie_adverse"), fd.get("nom_partie_adverse_physique")]
+              .filter(Boolean)
+              .join(" ") || undefined;
       submitForm("note_plaidoirie", {
         numero_dossier: fd.get("numero_dossier") || undefined,
         nom_affaire: fd.get("nom_affaire") || undefined,
@@ -877,7 +914,7 @@
         qualite_client: fd.get("qualite_client") || undefined,
         profession_client: fd.get("profession_client") || undefined,
         informations_client: fd.get("informations_client") || undefined,
-        nom_partie_adverse: fd.get("nom_partie_adverse") || undefined,
+        nom_partie_adverse: nomPartieAdverseNote,
         qualite_partie_adverse: fd.get("qualite_partie_adverse") || undefined,
         profession_partie_adverse: fd.get("profession_partie_adverse") || undefined,
         informations_partie_adverse: fd.get("informations_partie_adverse") || undefined,
