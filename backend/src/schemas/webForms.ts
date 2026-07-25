@@ -53,7 +53,14 @@ export const conclusionsFormSchema = z.object({
   ...destinataireDocumentFields,
   // I. Les parties.
   nom_avocat: z.string().optional(),
+  // Adresse du cabinet : normalement deja renseignee dans Parametres, ce
+  // champ n'est qu'un secours si elle n'y est pas encore.
+  adresse_cabinet_manuel: z.string().optional(),
   qualite_client: z.enum(["Demandeur", "Défendeur"]).optional(),
+  // Infos civiles du client (naissance, adresse) : normalement deja
+  // presentes sur sa fiche, ce champ n'est qu'un secours si elles n'y sont
+  // pas encore.
+  informations_client: z.string().optional(),
   nom_partie_adverse: z.string().optional(),
   informations_partie_adverse: z.string().optional(),
   qualite_partie_adverse: z.enum(["Demandeur", "Défendeur"]).optional(),

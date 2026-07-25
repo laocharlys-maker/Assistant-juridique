@@ -126,12 +126,16 @@
         <h3>I. Les parties</h3>
         <label>Avocat en charge du dossier</label>
         <input name="nom_avocat" id="conclusions-nom-avocat" />
+        <label>Adresse du cabinet (optionnel)</label>
+        <input name="adresse_cabinet_manuel" placeholder="Reprise automatiquement depuis Paramètres si déjà renseignée — sinon, précise-la ici" />
         <label>Qualité du client (optionnel)</label>
         <select name="qualite_client">
           <option value="">— Non précisé —</option>
           <option value="Demandeur">Demandeur</option>
           <option value="Défendeur">Défendeur</option>
         </select>
+        <label>Informations sur le client (optionnel)</label>
+        <input name="informations_client" placeholder="Reprises automatiquement depuis sa fiche si déjà renseignées — sinon, précise ici (né(e) le..., demeurant à...)" />
 
         <label>Partie adverse — type (optionnel)</label>
         <select name="type_partie_adverse" id="conclusions-type-partie-adverse">
@@ -715,9 +719,11 @@
         ville: fd.get("ville") || undefined,
         nom_avocat_destinataire: fd.get("nom_avocat_destinataire") || undefined,
         nom_avocat: fd.get("nom_avocat") || undefined,
+        adresse_cabinet_manuel: fd.get("adresse_cabinet_manuel") || undefined,
         contexte: fd.get("contexte"),
         axes_argumentation: listValues("axes-list-conclusions"),
         qualite_client: fd.get("qualite_client") || undefined,
+        informations_client: fd.get("informations_client") || undefined,
         nom_partie_adverse: nomPartieAdverse,
         informations_partie_adverse: fd.get("informations_partie_adverse") || undefined,
         qualite_partie_adverse: fd.get("qualite_partie_adverse") || undefined,

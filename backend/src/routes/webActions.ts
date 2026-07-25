@@ -49,6 +49,32 @@ const TEXTE_JURIDIQUE_CONFIG = {
   assignation: { systemPrompt: ASSIGNATION_SYSTEM_PROMPT, categorieTexte: "Assignation" },
 } as const;
 
+// Compose une description civile du client ("ne(e) le ... a ..., demeurant
+// a ...") a partir de sa fiche en base, pour la section "I. LES PARTIES"
+// des conclusions - n'utilise QUE ce qui est deja renseigne sur la fiche,
+// jamais invente. Renvoie null si rien d'exploitable n'est disponible (dans
+// ce cas le formulaire propose un champ de secours, voir plus bas).
+function composerInformationsClient(client: {
+  dateNaissance: Date | null;
+  lieuNaissance: string | null;
+  quartierResidence: string | null;
+  rue: string | null;
+  maison: string | null;
+  autrePrecision: string | null;
+} | null): string | null {
+  if (!client) return null;
+  const parts: string[] = [];
+  if (client.dateNaissance) {
+    const dateStr = client.dateNaissance.toLocaleDateString("fr-FR", { year: "numeric", month: "long", day: "numeric" });
+    parts.push(client.lieuNaissance ? `né(e) le ${dateStr} à ${client.lieuNaissance}` : `né(e) le ${dateStr}`);
+  } else if (client.lieuNaissance) {
+    parts.push(`né(e) à ${client.lieuNaissance}`);
+  }
+  const adresse = [client.quartierResidence, client.rue, client.maison, client.autrePrecision].filter(Boolean);
+  if (adresse.length > 0) parts.push(`demeurant à ${adresse.join(", ")}`);
+  return parts.length > 0 ? parts.join(", ") : null;
+}
+
 // Decoupe un texte rediage par l'IA en blocs, chacun precede d'un marqueur
 // "[[NOM_DU_BLOC]]" sur sa propre ligne (voir CONCLUSIONS_SYSTEM_PROMPT).
 // Utilise pour repartir le texte genere entre plusieurs balises d'un
@@ -402,10 +428,21 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
       const dossier = dossierLookup.dossier;
       dossierId = dossier.id;
 
-      const [cabinetPourAdresse, auteur] = await Promise.all([
+      const [cabinetPourAdresse, auteur, clientPourInfos] = await Promise.all([
         prisma.cabinet.findUnique({ where: { id: auth!.cabinetId }, select: { adresse: true } }),
         prisma.user.findUnique({ where: { id: auth!.userId }, select: { nom: true } }),
+        dossier.clientId
+          ? prisma.client.findUnique({
+              where: { id: dossier.clientId },
+              select: { dateNaissance: true, lieuNaissance: true, quartierResidence: true, rue: true, maison: true, autrePrecision: true },
+            })
+          : Promise.resolve(null),
       ]);
+
+      // Base d'abord (fiche client / paramètres du cabinet), champ de secours
+      // du formulaire seulement si l'info n'y est pas disponible.
+      const informationsClient = composerInformationsClient(clientPourInfos) || form.informations_client || null;
+      const adresseCabinet = cabinetPourAdresse?.adresse || form.adresse_cabinet_manuel || null;
 
       // Bordereau des pieces jointes : une liste numerotee, construite ici
       // (jamais par l'IA) pour etre fidele a 100% a ce que l'avocat a saisi.
@@ -424,13 +461,15 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
         manquement_a_faire_juger: manquementAJuger,
         condamnation_demandee: condamnationDemandee,
         qualite_client: form.qualite_client ?? null,
+        informations_client: informationsClient,
         nom_partie_adverse: form.nom_partie_adverse ?? null,
         informations_partie_adverse: form.informations_partie_adverse ?? null,
         qualite_partie_adverse: form.qualite_partie_adverse ?? null,
-        adresse_cabinet: cabinetPourAdresse?.adresse ?? null,
+        adresse_cabinet: adresseCabinet,
         // L'avocat peut corriger/preciser le nom affiche ; sinon on retombe
         // sur celui du compte qui genere le document.
         nom_avocat: form.nom_avocat || auteur?.nom || null,
+        ville: form.ville ?? null,
         piece_a_prevoir: bordereauPieces,
       };
 
