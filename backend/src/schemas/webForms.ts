@@ -52,8 +52,10 @@ export const conclusionsFormSchema = z.object({
   nom_affaire: z.string().optional(),
   ...destinataireDocumentFields,
   // I. Les parties.
+  nom_avocat: z.string().optional(),
   qualite_client: z.enum(["Demandeur", "Défendeur"]).optional(),
   nom_partie_adverse: z.string().optional(),
+  informations_partie_adverse: z.string().optional(),
   qualite_partie_adverse: z.enum(["Demandeur", "Défendeur"]).optional(),
   // 2. Discussion juridique - jamais devinee par l'IA si absente.
   fondement_juridique: z.string().optional(),

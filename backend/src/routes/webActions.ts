@@ -425,9 +425,12 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
         condamnation_demandee: condamnationDemandee,
         qualite_client: form.qualite_client ?? null,
         nom_partie_adverse: form.nom_partie_adverse ?? null,
+        informations_partie_adverse: form.informations_partie_adverse ?? null,
         qualite_partie_adverse: form.qualite_partie_adverse ?? null,
         adresse_cabinet: cabinetPourAdresse?.adresse ?? null,
-        nom_avocat: auteur?.nom ?? null,
+        // L'avocat peut corriger/preciser le nom affiche ; sinon on retombe
+        // sur celui du compte qui genere le document.
+        nom_avocat: form.nom_avocat || auteur?.nom || null,
         piece_a_prevoir: bordereauPieces,
       };
 

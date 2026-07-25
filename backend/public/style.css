@@ -141,14 +141,24 @@ h1 { font-family: var(--font-display); font-weight: 600; font-size: 1.65rem; mar
 h2 { font-family: var(--font-display); font-weight: 600; font-size: 1.2rem; color: var(--text-strong); }
 .action-form h3 {
   font-family: var(--font-display);
-  font-weight: 600;
-  font-size: 0.95rem;
+  font-weight: 700;
+  font-size: 1.15rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
   color: var(--text-strong);
-  margin: 24px 0 4px;
-  padding-top: 12px;
+  margin: 28px 0 6px;
+  padding-top: 14px;
   border-top: 1px solid var(--border);
 }
 .action-form h3:first-of-type { margin-top: 18px; }
+.form-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 4px 0 14px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
 
 label {
   display: block;

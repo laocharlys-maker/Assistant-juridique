@@ -124,14 +124,40 @@
         <select name="ville" id="conclusions-ville"></select>
 
         <h3>I. Les parties</h3>
+        <label>Avocat en charge du dossier</label>
+        <input name="nom_avocat" id="conclusions-nom-avocat" />
         <label>Qualité du client (optionnel)</label>
         <select name="qualite_client">
           <option value="">— Non précisé —</option>
           <option value="Demandeur">Demandeur</option>
           <option value="Défendeur">Défendeur</option>
         </select>
-        <label>Nom de la partie adverse (optionnel)</label>
-        <input name="nom_partie_adverse" />
+
+        <label>Partie adverse — type (optionnel)</label>
+        <select name="type_partie_adverse" id="conclusions-type-partie-adverse">
+          <option value="">— Non précisé —</option>
+          <option value="physique">Personne physique</option>
+          <option value="morale">Personne morale</option>
+        </select>
+
+        <div id="conclusions-partie-adverse-physique" style="display:none;">
+          <label>Civilité</label>
+          <select name="civilite_partie_adverse">
+            <option value="">— Non précisé —</option>
+            <option value="M.">M.</option>
+            <option value="Mme">Mme</option>
+            <option value="Mlle">Mlle</option>
+          </select>
+          <label>Nom et prénom de la partie adverse</label>
+          <input name="nom_partie_adverse_physique" />
+        </div>
+        <div id="conclusions-partie-adverse-morale" style="display:none;">
+          <label>Nom de l'entreprise (partie adverse)</label>
+          <input name="nom_partie_adverse_morale" />
+        </div>
+
+        <label>Informations sur la partie adverse (optionnel)</label>
+        <input name="informations_partie_adverse" placeholder="ex: adresse, RCCM, autres précisions utiles" />
         <label>Qualité de la partie adverse (optionnel)</label>
         <select name="qualite_partie_adverse">
           <option value="">— Non précisé —</option>
@@ -154,7 +180,7 @@
         <input name="prejudice_subi" />
         <label>Réparation demandée (optionnel)</label>
         <input name="reparation_demandee" />
-        <p class="muted" style="margin-top:-8px; font-size:0.85rem;">⚠️ Ce champ alimente aussi, sous une autre formulation, la demande de condamnation dans la section "Par ces motifs" ci-dessous.</p>
+        <p class="form-note">⚠️ Ce champ alimente aussi, sous une autre formulation, la demande de condamnation dans la section "Dispositif" ci-dessous.</p>
         <label>Montant réclamé au titre des frais de procédure, F CFA (optionnel)</label>
         <input name="montant_frais_procedure" type="number" min="1" step="1" />
 
@@ -472,10 +498,19 @@
           field.style.display = select.value === "Maître" ? "block" : "none";
         });
       });
-      ["assignation-nom-avocat", "plainte-nom-avocat"].forEach((id) => {
+      ["assignation-nom-avocat", "plainte-nom-avocat", "conclusions-nom-avocat"].forEach((id) => {
         const input = document.getElementById(id);
         if (input) input.value = me.nom;
       });
+      const typePartieAdverseSelect = document.getElementById("conclusions-type-partie-adverse");
+      const partieAdversePhysique = document.getElementById("conclusions-partie-adverse-physique");
+      const partieAdverseMorale = document.getElementById("conclusions-partie-adverse-morale");
+      if (typePartieAdverseSelect) {
+        typePartieAdverseSelect.addEventListener("change", () => {
+          partieAdversePhysique.style.display = typePartieAdverseSelect.value === "physique" ? "block" : "none";
+          partieAdverseMorale.style.display = typePartieAdverseSelect.value === "morale" ? "block" : "none";
+        });
+      }
       await loadDossiersForAutofill();
     })();
 
@@ -664,6 +699,13 @@
     forms.conclusions.addEventListener("submit", (e) => {
       e.preventDefault();
       const fd = new FormData(forms.conclusions);
+      const typePartieAdverse = fd.get("type_partie_adverse");
+      const nomPartieAdverse =
+        typePartieAdverse === "morale"
+          ? fd.get("nom_partie_adverse_morale") || undefined
+          : [fd.get("civilite_partie_adverse"), fd.get("nom_partie_adverse_physique")]
+              .filter(Boolean)
+              .join(" ") || undefined;
       submitForm("conclusions", {
         numero_dossier: fd.get("numero_dossier") || undefined,
         nom_affaire: fd.get("nom_affaire") || undefined,
@@ -672,10 +714,12 @@
         nom_juridiction: fd.get("nom_juridiction") || undefined,
         ville: fd.get("ville") || undefined,
         nom_avocat_destinataire: fd.get("nom_avocat_destinataire") || undefined,
+        nom_avocat: fd.get("nom_avocat") || undefined,
         contexte: fd.get("contexte"),
         axes_argumentation: listValues("axes-list-conclusions"),
         qualite_client: fd.get("qualite_client") || undefined,
-        nom_partie_adverse: fd.get("nom_partie_adverse") || undefined,
+        nom_partie_adverse: nomPartieAdverse,
+        informations_partie_adverse: fd.get("informations_partie_adverse") || undefined,
         qualite_partie_adverse: fd.get("qualite_partie_adverse") || undefined,
         fondement_juridique: fd.get("fondement_juridique") || undefined,
         qualification_juridique: fd.get("qualification_juridique") || undefined,
