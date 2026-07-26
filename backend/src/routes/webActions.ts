@@ -115,6 +115,13 @@ function composerAdresseClient(client: {
   return adresse.length > 0 ? adresse.join(", ") : null;
 }
 
+// Assemble civilite + nom en un seul bloc ("M. KODJO Marcelline"), pour
+// eviter de laisser au template deux balises a juxtaposer manuellement
+// (risque d'espace en trop si la civilite est vide, ex: personne morale).
+function assemblerCivilite(civilite: string | null, nom: string): string {
+  return civilite ? `${civilite} ${nom}` : nom;
+}
+
 // Decoupe un texte rediage par l'IA en blocs, chacun precede d'un marqueur
 // "[[NOM_DU_BLOC]]" sur sa propre ligne (voir CONCLUSIONS_SYSTEM_PROMPT).
 // Utilise pour repartir le texte genere entre plusieurs balises d'un
@@ -493,6 +500,7 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
         ville: form.ville,
         profession_client: form.profession_client ?? null,
         civilite_client: civiliteClientAssignation,
+        civilite_nom_client: assemblerCivilite(civiliteClientAssignation, dossierAssignation.nomClient),
         informations_client: informationsClientAssignation,
         adresse_client: adresseClientAssignation,
         adresse_cabinet: adresseCabinetAssignation,
@@ -717,6 +725,7 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
         qualite_client: form.qualite_client ?? null,
         profession_client: form.profession_client ?? null,
         civilite_client: civiliteClientNote,
+        civilite_nom_client: assemblerCivilite(civiliteClientNote, dossierNote.nomClient),
         informations_client: informationsClientNote,
         nom_partie_adverse: form.nom_partie_adverse ?? null,
         qualite_partie_adverse: form.qualite_partie_adverse ?? null,
@@ -819,6 +828,7 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
         mode_notification: modeNotificationMED,
         destinataire: form.destinataire,
         civilite_destinataire: form.civilite_destinataire ?? null,
+        civilite_nom_destinataire: assemblerCivilite(form.civilite_destinataire ?? null, form.destinataire),
         civilite_appel_destinataire: civiliteAppelDestinataireMED,
         objet_mise_en_demeure: objetMED,
         // Toujours envoye en texte : l'API Google Docs (replace_all_text)
