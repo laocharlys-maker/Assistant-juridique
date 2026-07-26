@@ -373,7 +373,7 @@
         <input name="adresse_client_manuel" placeholder="Reprise automatiquement depuis sa fiche si déjà renseignée — sinon, précise-la ici" />
 
         <h3>2. Objet et faits</h3>
-        <label>Objet de la demande (optionnel)</label>
+        <label>Objet de la demande (optionnel)<span class="field-hint" title="Résumé synthétique inséré dans la phrase d'ouverture de l'acte ('...pour le voir condamner au ...'). Attention : c'est différent de la liste des demandes précises au tribunal saisie plus bas (section « En conséquence »), qui doit être détaillée séparément.">?</span></label>
         <input name="demande_client" placeholder="ex: remboursement d'une somme d'argent indûment retenue" />
         <label>Contexte de l'affaire</label>
         <textarea name="contexte" required></textarea>
@@ -391,7 +391,7 @@
         <textarea name="prejudice_subi"></textarea>
 
         <h3>4. Par ces motifs / En conséquence</h3>
-        <label>Demandes précises au tribunal ("En conséquence")</label>
+        <label>Demandes précises au tribunal ("En conséquence")<span class="field-hint" title="Liste détaillée et littérale des chefs de demande (ex: 'Condamner le défendeur à payer la somme de...'), reproduite telle quelle dans l'acte - différente de l'« Objet de la demande » ci-dessus, qui n'est qu'un résumé en une phrase.">?</span></label>
         <ul class="pieces-list" id="demandes-list-assignation"></ul>
         <button type="button" class="secondary" data-add-list="demandes-list-assignation">+ Ajouter une demande</button>
         <br />

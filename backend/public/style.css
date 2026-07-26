@@ -168,6 +168,24 @@ label {
   color: var(--text);
 }
 
+.field-hint {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: var(--muted);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  font-style: normal;
+  line-height: 1;
+  cursor: help;
+  vertical-align: middle;
+}
+
 input, textarea, select {
   width: 100%;
   padding: 9px 10px;
