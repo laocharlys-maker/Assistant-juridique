@@ -452,7 +452,7 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
       dossierId = dossierAssignation.id;
 
       const [cabinetPourAdresseAssignation, clientPourInfosAssignation] = await Promise.all([
-        prisma.cabinet.findUnique({ where: { id: auth!.cabinetId }, select: { adresse: true } }),
+        prisma.cabinet.findUnique({ where: { id: auth!.cabinetId }, select: { nom: true, adresse: true } }),
         dossierAssignation.clientId
           ? prisma.client.findUnique({
               where: { id: dossierAssignation.clientId },
@@ -493,6 +493,7 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
         informations_client: informationsClientAssignation,
         adresse_client: adresseClientAssignation,
         adresse_cabinet: adresseCabinetAssignation,
+        nom_cabinet: cabinetPourAdresseAssignation?.nom || null,
       };
 
       action = {
@@ -573,7 +574,7 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
       dossierId = dossier.id;
 
       const [cabinetPourAdresse, auteur, clientPourInfos] = await Promise.all([
-        prisma.cabinet.findUnique({ where: { id: auth!.cabinetId }, select: { adresse: true } }),
+        prisma.cabinet.findUnique({ where: { id: auth!.cabinetId }, select: { nom: true, adresse: true } }),
         prisma.user.findUnique({ where: { id: auth!.userId }, select: { nom: true } }),
         dossier.clientId
           ? prisma.client.findUnique({
@@ -610,6 +611,7 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
         informations_partie_adverse: form.informations_partie_adverse ?? null,
         qualite_partie_adverse: form.qualite_partie_adverse ?? null,
         adresse_cabinet: adresseCabinet,
+        nom_cabinet: cabinetPourAdresse?.nom || null,
         // L'avocat peut corriger/preciser le nom affiche ; sinon on retombe
         // sur celui du compte qui genere le document.
         nom_avocat: form.nom_avocat || auteur?.nom || null,
@@ -688,7 +690,7 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
       dossierId = dossierNote.id;
 
       const [cabinetPourAdresseNote, auteurNote, clientPourInfosNote] = await Promise.all([
-        prisma.cabinet.findUnique({ where: { id: auth!.cabinetId }, select: { adresse: true } }),
+        prisma.cabinet.findUnique({ where: { id: auth!.cabinetId }, select: { nom: true, adresse: true } }),
         prisma.user.findUnique({ where: { id: auth!.userId }, select: { nom: true } }),
         dossierNote.clientId
           ? prisma.client.findUnique({
@@ -717,6 +719,7 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
         informations_partie_adverse: form.informations_partie_adverse ?? null,
         nom_avocat_partie_adverse: form.nom_avocat_partie_adverse ?? null,
         adresse_cabinet: adresseCabinetNote,
+        nom_cabinet: cabinetPourAdresseNote?.nom || null,
         nom_avocat: form.nom_avocat || auteurNote?.nom || null,
         ville: form.ville ?? null,
         destinataire:
@@ -767,7 +770,7 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
       dossierId = dossierMED.id;
 
       const [cabinetPourAdresseMED, clientPourAdresseMED] = await Promise.all([
-        prisma.cabinet.findUnique({ where: { id: auth!.cabinetId }, select: { adresse: true } }),
+        prisma.cabinet.findUnique({ where: { id: auth!.cabinetId }, select: { nom: true, adresse: true } }),
         dossierMED.clientId
           ? prisma.client.findUnique({
               where: { id: dossierMED.clientId },
@@ -800,10 +803,12 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
         expose_des_faits: exposeDesFaitsMED,
         mode_notification: modeNotificationMED,
         destinataire: form.destinataire,
-        objet: objetMED,
+        objet_mise_en_demeure: objetMED,
+        delai_jours: form.delai_jours,
         consequences: consequencesMED,
         nom_avocat: form.nom_avocat ?? null,
         adresse_cabinet: adresseCabinetMED,
+        nom_cabinet: cabinetPourAdresseMED?.nom || null,
         adresse_client: adresseClientMED,
         profession_destinataire: form.profession_destinataire ?? null,
         informations_destinataire: form.informations_destinataire ?? null,
