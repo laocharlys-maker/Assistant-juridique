@@ -508,10 +508,67 @@
         <input name="numero_dossier" list="dossiers-datalist" placeholder="Laisse vide si non applicable" />
         <label>Nom de l'affaire (optionnel)</label>
         <input name="nom_affaire" placeholder="Laisse vide si non applicable" />
+        <label>Rédigée par<span class="field-hint" title="Détermine quel modèle de document est utilisé : le cabinet représente le client (en-tête cabinet, « en qualité de conseil de... »), ou le plaignant rédige et signe personnellement (en-tête à ses propres coordonnées, l'avocat n'assiste qu'à la rédaction).">?</span></label>
+        <select name="mode_redaction" required>
+          <option value="avocat">L'avocat, pour son client (représentation)</option>
+          <option value="plaignant">Le plaignant lui-même (assistance rédactionnelle seulement)</option>
+        </select>
+
+        <h3>Le plaignant</h3>
+        <label>Type de client (optionnel)</label>
+        <select name="type_client" id="plainte-type-client">
+          <option value="physique">Personne physique</option>
+          <option value="morale">Personne morale</option>
+        </select>
+        <div id="plainte-civilite-client-wrap">
+          <label>Civilité du client (optionnel)</label>
+          <select name="civilite_client_manuel">
+            <option value="">— Non précisé —</option>
+            <option value="M.">M.</option>
+            <option value="Mme">Mme</option>
+            <option value="Mlle">Mlle</option>
+          </select>
+        </div>
         <label>Nom du client / plaignant (si nouveau dossier)</label>
         <input name="nom_client" placeholder="Laisse vide si le dossier existe déjà" />
+        <div id="plainte-profession-client-wrap">
+          <label>Profession du client (optionnel)</label>
+          <input name="profession_client" placeholder="ex: Commerçant" />
+        </div>
+        <label>Informations sur le client (optionnel)</label>
+        <input name="informations_client" placeholder="Reprises automatiquement depuis sa fiche si déjà renseignées — sinon, précise ici (né(e) le..., n° pièce d'identité, situation matrimoniale...)" />
+        <label>Adresse du client (optionnel)</label>
+        <input name="adresse_client_manuel" placeholder="Reprise automatiquement depuis sa fiche si déjà renseignée — sinon, précise-la ici" />
+        <label>Téléphone du client (optionnel)<span class="field-hint" title="Utilisé seulement en en-tête si la plainte est rédigée par le plaignant lui-même - sans effet si l'avocat représente le client.">?</span></label>
+        <input name="telephone_client_manuel" placeholder="Repris automatiquement depuis sa fiche si déjà renseigné — sinon, précise-le ici" />
+        <label>Email du client (optionnel)</label>
+        <input name="email_client_manuel" placeholder="Repris automatiquement depuis sa fiche si déjà renseigné — sinon, précise-le ici" />
+
+        <h3>Le mis en cause</h3>
+        <label>Type de mis en cause (optionnel)</label>
+        <select name="type_defendeur" id="plainte-type-defendeur">
+          <option value="physique">Personne physique</option>
+          <option value="morale">Personne morale</option>
+        </select>
+        <div id="plainte-civilite-defendeur-wrap">
+          <label>Civilité du mis en cause (optionnel)</label>
+          <select name="civilite_defendeur">
+            <option value="">— Non précisé —</option>
+            <option value="M.">M.</option>
+            <option value="Mme">Mme</option>
+            <option value="Mlle">Mlle</option>
+          </select>
+        </div>
         <label>Nom du défendeur / mis en cause</label>
         <input name="nom_defendeur" required />
+        <div id="plainte-profession-defendeur-wrap">
+          <label>Profession du mis en cause (optionnel)</label>
+          <input name="profession_defendeur" placeholder="ex: Commerçant" />
+        </div>
+        <label>Adresse du mis en cause (optionnel)</label>
+        <input name="adresse_defendeur" placeholder="ex: Quartier Fidjrossè, Cotonou" />
+
+        <h3>Destinataire</h3>
         <label>Destinataire (optionnel)</label>
         <select name="destinataire">
           <option value="">— Non précisé —</option>
@@ -519,16 +576,34 @@
           <option value="Mme la Présidente">Mme la Présidente</option>
           <option value="M. le Procureur de la République près">M. le Procureur de la République près</option>
         </select>
-        <label>Avocat en charge</label>
-        <input name="nom_avocat" id="plainte-nom-avocat" required />
         <label>Juridiction (optionnel)</label>
         <select name="nom_juridiction" id="plainte-juridiction"></select>
         <label>Chambre (optionnel)</label>
         <input name="nom_chambre" placeholder="ex: Chambre correctionnelle" />
         <label>Ville (optionnel)</label>
         <select name="ville" id="plainte-ville"></select>
-        <label>Motifs de la plainte</label>
-        <textarea name="motifs" required></textarea>
+
+        <h3>Qualification et faits</h3>
+        <label>Qualification pénale retenue (optionnel)<span class="field-hint" title="Ex: Escroquerie et abus de confiance. Jamais devinée par l'IA - saisis-la toi-même.">?</span></label>
+        <input name="qualification_infraction" placeholder="ex: Escroquerie et abus de confiance" />
+        <label>Date ou période des faits (optionnel)</label>
+        <input name="date_faits" placeholder="ex: courant janvier 2026" />
+        <label>Nature de la relation / de l'accord (optionnel)</label>
+        <input name="description_accord" placeholder="ex: l'achat d'une parcelle de terrain" />
+        <label>Montant en jeu (optionnel)<span class="field-hint" title="Le montant pertinent pour ce dossier : somme escroquée, détournée, ou tout autre montant en jeu.">?</span></label>
+        <input name="montant_engage" placeholder="ex: 2 000 000 FCFA" />
+        <label>Contexte de l'affaire</label>
+        <textarea name="contexte" required></textarea>
+        <label>Fondement juridique invoqué (optionnel)</label>
+        <textarea name="fondement_juridique" placeholder="ex: dispositions du Code pénal béninois réprimant l'escroquerie et l'abus de confiance"></textarea>
+
+        <h3>Avocat</h3>
+        <label>Avocat en charge (optionnel)</label>
+        <input name="nom_avocat" id="plainte-nom-avocat" />
+        <label>Adresse du cabinet (optionnel)</label>
+        <input name="adresse_cabinet_manuel" placeholder="Reprise automatiquement depuis Paramètres si déjà renseignée — sinon, précise-la ici" />
+
+        <h3>Par ces motifs</h3>
         <label>Demande(s) du plaignant / client</label>
         <ul class="pieces-list" id="demandes-list-plainte"></ul>
         <button type="button" class="secondary" data-add-list="demandes-list-plainte">+ Ajouter une demande</button>
@@ -785,6 +860,10 @@
       wireProfessionToggle("assignation-type-client", "assignation-profession-client-wrap");
       wireProfessionToggle("mise_en_demeure-type-destinataire", "mise_en_demeure-civilite-destinataire-wrap");
       wireProfessionToggle("mise_en_demeure-type-destinataire", "mise_en_demeure-profession-destinataire-wrap");
+      wireProfessionToggle("plainte-type-client", "plainte-civilite-client-wrap");
+      wireProfessionToggle("plainte-type-client", "plainte-profession-client-wrap");
+      wireProfessionToggle("plainte-type-defendeur", "plainte-civilite-defendeur-wrap");
+      wireProfessionToggle("plainte-type-defendeur", "plainte-profession-defendeur-wrap");
 
       const typePartieAdverseSelect = document.getElementById("conclusions-type-partie-adverse");
       const partieAdversePhysique = document.getElementById("conclusions-partie-adverse-physique");
@@ -1185,14 +1264,30 @@
       submitForm("plainte", {
         numero_dossier: fd.get("numero_dossier") || undefined,
         nom_affaire: fd.get("nom_affaire") || undefined,
+        mode_redaction: fd.get("mode_redaction"),
         nom_client: fd.get("nom_client") || undefined,
+        civilite_client_manuel: fd.get("civilite_client_manuel") || undefined,
+        profession_client: fd.get("profession_client") || undefined,
+        informations_client: fd.get("informations_client") || undefined,
+        adresse_client_manuel: fd.get("adresse_client_manuel") || undefined,
+        telephone_client_manuel: fd.get("telephone_client_manuel") || undefined,
+        email_client_manuel: fd.get("email_client_manuel") || undefined,
         nom_defendeur: fd.get("nom_defendeur"),
+        civilite_defendeur: fd.get("civilite_defendeur") || undefined,
+        profession_defendeur: fd.get("profession_defendeur") || undefined,
+        adresse_defendeur: fd.get("adresse_defendeur") || undefined,
         destinataire: fd.get("destinataire") || undefined,
-        nom_avocat: fd.get("nom_avocat"),
+        nom_avocat: fd.get("nom_avocat") || undefined,
+        adresse_cabinet_manuel: fd.get("adresse_cabinet_manuel") || undefined,
         nom_juridiction: fd.get("nom_juridiction") || undefined,
         nom_chambre: fd.get("nom_chambre") || undefined,
         ville: fd.get("ville") || undefined,
-        motifs: fd.get("motifs"),
+        qualification_infraction: fd.get("qualification_infraction") || undefined,
+        date_faits: fd.get("date_faits") || undefined,
+        description_accord: fd.get("description_accord") || undefined,
+        montant_engage: fd.get("montant_engage") || undefined,
+        contexte: fd.get("contexte"),
+        fondement_juridique: fd.get("fondement_juridique") || undefined,
         demandes: listValues("demandes-list-plainte"),
         preuves: listValues("preuves-list-plainte"),
       }, forms.plainte.querySelector('button[type="submit"]'));

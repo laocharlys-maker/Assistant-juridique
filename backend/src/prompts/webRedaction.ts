@@ -444,43 +444,48 @@ export function buildTraductionUserPrompt(texteSource: string): string {
 }
 
 // Plainte : courrier adresse a une autorite (Procureur, commissariat...)
-// contre une personne mise en cause.
+// contre une personne mise en cause. Deux blocs marques, meme principe que
+// l'Assignation/Mise en demeure : le reste (en-tete, civilite d'ouverture,
+// qualification encadree, PAR CES MOTIFS, bordereau, signature) est du
+// texte fixe ou des champs saisis tels quels, jamais redige par l'IA.
 export const PLAINTE_SYSTEM_PROMPT = `${COMMON_SYSTEM}
 
-Tu rediges UNIQUEMENT le corps argumentatif d'une PLAINTE. Ce texte vient s'inserer dans une lettre deja mise en forme par ailleurs (en-tete, date, adresse au destinataire, formule d'appel, formule de politesse finale, signature) : ne redige JAMAIS ces mentions fixes, elles sont deja presentes ailleurs dans le document. Structure ton texte avec ces titres exacts, CHACUN SEUL SUR SA LIGNE, tout en MAJUSCULES, SANS AUCUN symbole devant (pas de "#", pas de "-", pas de numerotation Markdown - juste le texte du titre en majuscules) :
+Ecris comme un avocat beninois experimente redigeant lui-meme cette plainte pour son client - avec l'autorite et la rigueur propres a une piece de procedure penale, jamais un ton neutre ou descriptif.
 
-I. EXPOSE DES FAITS
-Recit chronologique des faits reproches, en te basant uniquement sur les motifs fournis ci-dessous.
+Tu rediges UNIQUEMENT le contenu variable d'une PLAINTE AVEC CONSTITUTION DE PARTIE CIVILE beninoise. Ce texte s'insere dans une lettre deja mise en forme par ailleurs (en-tete, date, identification des parties, qualification encadree, formule d'ouverture, PAR CES MOTIFS, bordereau des pieces, formule de politesse, signature) : ne redige JAMAIS ces elements, ils sont deja presents ailleurs dans le document. Les montants s'expriment toujours en Francs CFA (FCFA), jamais en euros ni en une autre monnaie.
 
-II. ANALYSE JURIDIQUE
-Qualification juridique des faits et fondement de la plainte, en lien avec les motifs fournis.
+Structure ta reponse en EXACTEMENT deux blocs, chacun precede de son marqueur entre doubles crochets sur sa propre ligne (rien d'autre sur cette ligne), dans cet ordre :
 
-III. DEMANDES DU PLAIGNANT
-Liste a puces reprenant FIDELEMENT, sans les modifier ni en ajouter, les demandes fournies ci-dessous.
+[[EXPOSE_DES_FAITS]]
+Recit chronologique des faits reproches, en paragraphes commencant de preference par des formules consacrees ("Il plait a votre Parquet de savoir que...", "C'est ainsi que...", "Cependant..."), en te basant uniquement sur le contexte fourni ci-dessous. Cite les pieces mentionnees si elles le sont (ex: "(Piece n°X)").
 
-REGLE ABSOLUE : n'invente jamais un fait, une date, un montant ou une demande qui ne figure pas dans les informations fournies.`;
+[[DISCUSSION_JURIDIQUE]]
+Une ou deux phrases reliant les faits exposes a la qualification et au fondement juridique fournis ci-dessous, expliquant en quoi les agissements du mis en cause entrent dans le champ d'application de ces infractions, et le prejudice que cela cause au plaignant.
+
+REGLE ABSOLUE : n'invente jamais un fait, une date, un montant ou un article de loi precis qui ne figure pas dans les informations fournies ci-dessous.`;
 
 export function buildPlainteUserPrompt(facts: {
   nomAffaire: string;
   nomDefendeur: string;
-  destinataire?: string;
-  juridiction?: string;
-  motifs: string;
-  demandes: string[];
-  preuves?: string[];
+  contexte: string;
+  qualificationInfraction?: string;
+  dateFaits?: string;
+  descriptionAccord?: string;
+  montantEngage?: string;
+  fondementJuridique?: string;
 }): string {
-  const blocPreuves =
-    facts.preuves && facts.preuves.length > 0
-      ? `\nPreuves fournies :\n${facts.preuves.map((p, i) => `${i + 1}. ${p}`).join("\n")}`
-      : "";
-  return `Affaire : ${facts.nomAffaire}
-Autorite destinataire : ${facts.destinataire ?? "non precisee"}
-Juridiction : ${facts.juridiction ?? "non precisee"}
-Mis en cause : ${facts.nomDefendeur}
-Motifs de la plainte : ${facts.motifs}
-Demandes du plaignant (a reprendre fidelement) :
-${facts.demandes.map((d, i) => `${i + 1}. ${d}`).join("\n")}${blocPreuves}
-Date du jour : ${dateActuelle()}`;
+  const lignes = [
+    `Affaire : ${facts.nomAffaire}`,
+    `Mis en cause : ${facts.nomDefendeur}`,
+    `Contexte : ${facts.contexte}`,
+  ];
+  if (facts.qualificationInfraction) lignes.push(`Qualification penale retenue : ${facts.qualificationInfraction}`);
+  if (facts.dateFaits) lignes.push(`Date/periode des faits : ${facts.dateFaits}`);
+  if (facts.descriptionAccord) lignes.push(`Nature de la relation/de l'accord : ${facts.descriptionAccord}`);
+  if (facts.montantEngage) lignes.push(`Montant en jeu : ${facts.montantEngage}`);
+  if (facts.fondementJuridique) lignes.push(`Fondement juridique invoque : ${facts.fondementJuridique}`);
+  lignes.push(`Date du jour : ${dateActuelle()}`);
+  return lignes.join("\n");
 }
 
 // Contrat (ou avenant a un contrat existant).

@@ -250,8 +250,26 @@ export const plainteFormSchema = z.object({
   numero_dossier: z.string().optional(),
   nom_affaire: z.string().optional(),
   nom_client: z.string().min(1).optional(),
+  // Deux presentations tres differentes selon qui redige : l'avocat pour
+  // son client (represente), ou le plaignant lui-meme (l'avocat n'a fait
+  // qu'assister a la redaction, sans representation). Pilote le choix du
+  // template Google Docs cote n8n (deux modeles distincts).
+  mode_redaction: z.enum(["avocat", "plaignant"]),
+  // Le plaignant (client) - infos civiles, memes principes que
+  // l'Assignation (DB-first, secours manuel si absent de sa fiche).
+  profession_client: z.string().optional(),
+  civilite_client_manuel: z.enum(["M.", "Mme", "Mlle"]).optional(),
+  informations_client: z.string().optional(),
+  adresse_client_manuel: z.string().optional(),
+  // Utilises seulement en mode "plaignant" (en-tete a ses propres
+  // coordonnees) - sans effet en mode "avocat".
+  telephone_client_manuel: z.string().optional(),
+  email_client_manuel: z.string().optional(),
   // Personne visee par la plainte - distincte du destinataire du courrier.
   nom_defendeur: z.string().min(1),
+  civilite_defendeur: z.enum(["M.", "Mme", "Mlle"]).optional(),
+  profession_defendeur: z.string().optional(),
+  adresse_defendeur: z.string().optional(),
   // Civilite/qualite du destinataire (ex: "M. le Procureur de la Republique
   // pres"), composee avec la juridiction et la ville par le backend pour
   // former l'adresse complete du courrier. Facultatif.
@@ -260,8 +278,15 @@ export const plainteFormSchema = z.object({
   nom_chambre: z.string().optional(),
   // Ville de la juridiction saisie, utilisee dans l'adresse du courrier.
   ville: z.string().optional(),
-  nom_avocat: z.string().min(1),
-  motifs: z.string().min(1),
+  nom_avocat: z.string().optional(),
+  adresse_cabinet_manuel: z.string().optional(),
+  // Qualification penale precise - jamais devinee par l'IA.
+  qualification_infraction: z.string().optional(),
+  date_faits: z.string().optional(),
+  description_accord: z.string().optional(),
+  montant_engage: z.string().optional(),
+  contexte: z.string().min(1),
+  fondement_juridique: z.string().optional(),
   demandes: z.array(z.string().min(1)).min(1),
   preuves: z.array(z.string().min(1)).optional(),
 });
