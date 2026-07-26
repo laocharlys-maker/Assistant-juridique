@@ -218,7 +218,7 @@ Structure ta reponse en EXACTEMENT cinq blocs, chacun precede de son marqueur en
 Une phrase courte et synthetique completant "pour le voir condamner au..." ou formulation equivalente adaptee, resumant l'objet de la demande a partir du contexte fourni ci-dessous. Pas de ponctuation finale de type point final si la phrase s'inscrit dans la continuite du texte fixe qui la precede.
 
 [[EXPOSE_DES_FAITS]]
-Expose chronologique des faits, sous forme de paragraphes commencant de preference par "Attendu que..." (style traditionnel des actes de procedure), en te basant uniquement sur le contexte et les axes d'argumentation fournis ci-dessous. Cite les pieces mentionnees si elles le sont (ex: "(Piece n°X)").
+Expose chronologique des faits, sous forme de paragraphes commencant de preference par "Attendu que..." (style traditionnel des actes de procedure), en te basant uniquement sur le contexte et les axes d'argumentation fournis ci-dessous. Cite les pieces mentionnees si elles le sont (ex: "(Piece n°X)"). Ce bloc ne doit JAMAIS rester vide : le contexte est toujours fourni, tu dois donc toujours produire au moins un paragraphe ici.
 
 [[FONDEMENT_JURIDIQUE]]
 Une phrase introduite par "En vertu de..." ou "Sur le fondement de..." qui cite le fondement juridique fourni ci-dessous, adapte au droit beninois/OHADA (jamais une reference de droit francais non applicable au Benin).
@@ -229,7 +229,7 @@ Une phrase qui pose clairement la qualification juridique de la demande fournie 
 [[PREJUDICE_SUBI]]
 Une phrase synthetique presentant le prejudice subi fourni ci-dessous.
 
-REGLE ABSOLUE : n'invente jamais un fait, un montant, une date ou un article de loi precis qui ne figure pas dans les informations fournies ci-dessous. Si une information necessaire a un bloc est absente, laisse ce bloc vide plutot que d'inventer.`;
+REGLE ABSOLUE : n'invente jamais un fait, un montant, une date ou un article de loi precis qui ne figure pas dans les informations fournies ci-dessous. Les blocs FONDEMENT_JURIDIQUE, QUALIFICATION_JURIDIQUE et PREJUDICE_SUBI peuvent rester vides si l'information correspondante n'est pas fournie ci-dessous - mais EXPOSE_DES_FAITS, lui, doit toujours etre rempli a partir du contexte fourni.`;
 
 export function buildAssignationUserPrompt(facts: {
   nomAffaire: string;
