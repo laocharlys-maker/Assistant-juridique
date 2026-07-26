@@ -169,9 +169,36 @@ export const miseEnDemeureFormSchema = z.object({
   numero_dossier: z.string().min(1),
   nom_affaire: z.string().min(1),
   nom_client: z.string().min(1).optional(),
+  // Mode de notification de l'acte - jamais devine.
+  mode_notification: z.enum(["huissier", "lrar"]).optional(),
+  nom_avocat: z.string().optional(),
+  adresse_cabinet_manuel: z.string().optional(),
+  telephone_cabinet_manuel: z.string().optional(),
+  email_cabinet_manuel: z.string().optional(),
+  // Adresse du client - normalement deja sur sa fiche, ce champ n'est
+  // qu'un secours si elle n'y est pas encore (meme principe que
+  // l'Assignation).
+  adresse_client_manuel: z.string().optional(),
+  // Destinataire de la mise en demeure (personne physique visee) - distinct
+  // du client, jamais devine.
   destinataire: z.string().min(1),
+  fonction_destinataire: z.string().optional(),
+  nom_entreprise_destinataire: z.string().optional(),
+  quartier_destinataire: z.string().optional(),
+  // Ligne d'objet libre (ex: "D'ACHEVER LES TRAVAUX SOUS HUIT (08) JOURS") -
+  // sinon composee automatiquement a partir du delai.
+  objet: z.string().optional(),
   contexte: z.string().min(1),
+  // Faits precis, jamais devines par l'IA si absents.
+  date_obligation: z.string().optional(),
+  description_obligation: z.string().optional(),
+  date_echeance_prevue: z.string().optional(),
+  montant_engage: z.string().optional(),
   delai_jours: z.coerce.number().int().positive(),
+  // Consequences juridiques encourues en cas d'inexecution - jamais
+  // devinees par l'IA, toujours saisies par l'avocat (meme principe que les
+  // demandes de l'Assignation).
+  consequences: z.array(z.string().min(1)).min(1),
 });
 
 export const jurisprudenceFormSchema = z.object({

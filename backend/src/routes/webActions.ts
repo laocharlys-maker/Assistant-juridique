@@ -740,34 +740,86 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
         argumentaire: redigé,
       };
     } else if (form.type_action === "mise_en_demeure") {
-      const redigé = await llm.redact(
+      const exposeDesFaitsMED = await llm.redact(
         MISE_EN_DEMEURE_SYSTEM_PROMPT,
         buildMiseEnDemeureUserPrompt({
           nomAffaire: form.nom_affaire,
           destinataire: form.destinataire,
           contexte: form.contexte,
-          delaiJours: form.delai_jours,
+          dateObligation: form.date_obligation,
+          descriptionObligation: form.description_obligation,
+          dateEcheancePrevue: form.date_echeance_prevue,
+          montantEngage: form.montant_engage,
         })
       );
 
-      const dossierLookup = await findOrCreateDossier({
+      const dossierLookupMED = await findOrCreateDossier({
         cabinetId: auth!.cabinetId,
         userId: auth!.userId,
         numeroDossier: form.numero_dossier,
         nomAffaire: form.nom_affaire,
         nomClient: form.nom_client,
       });
-      if (!dossierLookup.ok) {
-        return res.status(404).json({ error: dossierLookup.error });
+      if (!dossierLookupMED.ok) {
+        return res.status(404).json({ error: dossierLookupMED.error });
       }
-      dossierId = dossierLookup.dossier.id;
+      const dossierMED = dossierLookupMED.dossier;
+      dossierId = dossierMED.id;
+
+      const [cabinetPourAdresseMED, clientPourAdresseMED] = await Promise.all([
+        prisma.cabinet.findUnique({ where: { id: auth!.cabinetId }, select: { adresse: true, telephone: true, email: true } }),
+        dossierMED.clientId
+          ? prisma.client.findUnique({
+              where: { id: dossierMED.clientId },
+              select: { quartierResidence: true, rue: true, maison: true, autrePrecision: true },
+            })
+          : Promise.resolve(null),
+      ]);
+
+      const adresseClientMED = composerAdresseClient(clientPourAdresseMED) || form.adresse_client_manuel || null;
+      const adresseCabinetMED = cabinetPourAdresseMED?.adresse || form.adresse_cabinet_manuel || null;
+      const telephoneCabinetMED = cabinetPourAdresseMED?.telephone || form.telephone_cabinet_manuel || null;
+      const emailCabinetMED = cabinetPourAdresseMED?.email || form.email_cabinet_manuel || null;
+
+      const modeNotificationMED =
+        form.mode_notification === "lrar"
+          ? "LETTRE RECOMMANDÉE AVEC ACCUSÉ DE RÉCEPTION"
+          : "PAR EXPLOIT DE COMMISSAIRE DE JUSTICE (HUISSIER)";
+
+      const objetMED = form.objet || `D'EXÉCUTER SES OBLIGATIONS CONTRACTUELLES SOUS ${form.delai_jours} JOURS`;
+
+      const consequencesMED = form.consequences.map((c, i) => `${i + 1}. ${c}`).join("\n");
+
+      // Utilise pour le contenu enregistre en base et les exports Word/PDF
+      // locaux (qui n'ont pas de template a balises separees).
+      const redigéMED = [
+        exposeDesFaitsMED,
+        `En conséquence, la présente vaut MISE EN DEMEURE, formelle et comminatoire, d'avoir à exécuter l'intégralité de vos obligations dans un délai strict de ${form.delai_jours} jours à compter de la notification du présent acte.`,
+        `À défaut d'exécution intégrale de vos obligations dans ce délai, ${dossierMED.nomClient} se verra dans l'obligation de saisir la juridiction compétente afin de solliciter :\n${consequencesMED}`,
+      ].join("\n\n");
+
+      extraWebhookFields = {
+        expose_des_faits: exposeDesFaitsMED,
+        mode_notification: modeNotificationMED,
+        destinataire: form.destinataire,
+        objet: objetMED,
+        consequences: consequencesMED,
+        nom_avocat: form.nom_avocat ?? null,
+        adresse_cabinet: adresseCabinetMED,
+        telephone_cabinet: telephoneCabinetMED,
+        email_cabinet: emailCabinetMED,
+        adresse_client: adresseClientMED,
+        fonction_destinataire: form.fonction_destinataire ?? null,
+        nom_entreprise_destinataire: form.nom_entreprise_destinataire ?? null,
+        quartier_destinataire: form.quartier_destinataire ?? null,
+      };
 
       action = {
         type_action: "mise_en_demeure",
         categorie_texte: "Mise en demeure",
-        numero_dossier: form.numero_dossier,
-        nom_affaire: form.nom_affaire,
-        nom_client: form.destinataire,
+        numero_dossier: dossierMED.numeroDossier,
+        nom_affaire: dossierMED.nomAffaire,
+        nom_client: dossierMED.nomClient,
         nom_juridiction: null,
         nom_chambre: null,
         date_audience: null,
@@ -775,7 +827,7 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
         prochaine_audience: null,
         pieces_prevoir: null,
         synthese: null,
-        argumentaire: redigé,
+        argumentaire: redigéMED,
       };
     } else if (form.type_action === "jurisprudence") {
       // Recherche a plusieurs niveaux : Benin, zone OHADA, Afrique, France,

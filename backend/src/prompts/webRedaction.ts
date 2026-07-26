@@ -255,15 +255,24 @@ export function buildAssignationUserPrompt(facts: {
   return lignes.join("\n");
 }
 
+// Mise en demeure : contrairement aux Conclusions/Assignation, ce document
+// n'a qu'un seul passage redige par l'IA (l'expose des faits) - tout le
+// reste (en-tete, formule d'ouverture, mise en demeure formelle, liste des
+// consequences, formule de politesse) est du texte fixe ou des champs
+// saisis tels quels par l'avocat, deja geres ailleurs dans le document.
 export const MISE_EN_DEMEURE_SYSTEM_PROMPT = `${COMMON_SYSTEM}
 
-Redige une MISE EN DEMEURE (lettre formelle) structuree ainsi :
-- Rappel des faits et de l'obligation non respectee
-- Mise en demeure explicite d'executer l'obligation dans le delai indique
-- Consequences juridiques encourues en cas d'inexecution dans le delai
-- Formule de politesse ferme mais correcte
+Ecris comme un avocat beninois experimente redigeant lui-meme cette mise en demeure pour son client - avec l'autorite et la fermete propres a une lettre de mise en demeure, jamais un ton neutre ou descriptif.
 
-Adresse la lettre au destinataire indique.`;
+Tu rediges UNIQUEMENT l'expose des faits d'une MISE EN DEMEURE (lettre formelle beninoise). Ce texte s'insere dans une lettre deja mise en forme par ailleurs (en-tete du cabinet, civilite d'ouverture identifiant le client, mise en demeure formelle avec le delai, liste des consequences juridiques, formule de politesse, signature) : ne redige JAMAIS ces elements, ils sont deja presents ailleurs dans le document. Les montants s'expriment toujours en Francs CFA (FCFA), jamais en euros ni en une autre monnaie.
+
+Redige 2 a 4 paragraphes courts, en te basant uniquement sur les informations fournies ci-dessous (jamais d'invention) :
+1. Le rappel de l'engagement/obligation (nature, date, ce qui etait convenu), en utilisant les dates et montants precis fournis s'ils le sont.
+2. Le rappel de ce que le destinataire s'etait engage a faire et dans quel delai, et ce que le client a lui-meme respecte de son cote (paiement, avance...) si mentionne.
+3. Le constat du manquement a ce jour, en te basant sur le contexte fourni (relances restees sans effet, retard, inexecution...).
+4. Une phrase concluant que cette defaillance cause un prejudice au client et constitue une violation de ses obligations.
+
+REGLE ABSOLUE : n'invente jamais un fait, un montant, une date ou un article de loi precis qui ne figure pas dans les informations fournies ci-dessous.`;
 
 export function buildNotesUserPrompt(facts: {
   numeroDossier: string;
@@ -338,13 +347,22 @@ export function buildMiseEnDemeureUserPrompt(facts: {
   nomAffaire: string;
   destinataire: string;
   contexte: string;
-  delaiJours: number;
+  dateObligation?: string;
+  descriptionObligation?: string;
+  dateEcheancePrevue?: string;
+  montantEngage?: string;
 }): string {
-  return `Affaire : ${facts.nomAffaire}
-Destinataire : ${facts.destinataire}
-Contexte / obligation non respectee : ${facts.contexte}
-Delai accorde : ${facts.delaiJours} jours
-Date du jour : ${dateActuelle()}`;
+  const lignes = [
+    `Affaire : ${facts.nomAffaire}`,
+    `Destinataire : ${facts.destinataire}`,
+    `Contexte / obligation non respectee : ${facts.contexte}`,
+  ];
+  if (facts.dateObligation) lignes.push(`Date de l'engagement/du contrat : ${facts.dateObligation}`);
+  if (facts.descriptionObligation) lignes.push(`Ce qui etait du : ${facts.descriptionObligation}`);
+  if (facts.dateEcheancePrevue) lignes.push(`Echeance convenue non respectee : ${facts.dateEcheancePrevue}`);
+  if (facts.montantEngage) lignes.push(`Somme deja versee/engagee par le client : ${facts.montantEngage}`);
+  lignes.push(`Date du jour : ${dateActuelle()}`);
+  return lignes.join("\n");
 }
 
 // Resume d'un extrait de document long (etape "map" du decoupage) : un

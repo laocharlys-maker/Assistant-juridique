@@ -21,12 +21,16 @@
       <div class="settings-card">
         <div class="icon-badge"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l8-4 8 4v14"/><path d="M9 9h1"/><path d="M9 13h1"/><path d="M14 9h1"/><path d="M14 13h1"/></svg></div>
         <h3>Identité du cabinet</h3>
-        <p class="desc">Nom et adresse utilisés dans l'appli et sur les documents générés.</p>
+        <p class="desc">Nom, adresse, téléphone et email utilisés dans l'appli et sur les documents générés.</p>
         <form id="cabinet-form">
           <label>Nom du cabinet</label>
           <input name="nom" required />
           <label>Adresse du cabinet</label>
           <input name="adresse" placeholder="ex: Cotonou, quartier..., rue..." />
+          <label>Téléphone du cabinet</label>
+          <input name="telephone" placeholder="ex: +229 XX XX XX XX" />
+          <label>Email du cabinet</label>
+          <input name="email" type="email" placeholder="ex: contact@cabinet.bj" />
           <button type="submit" class="btn-sm">Enregistrer</button>
           <span id="cabinet-saved" class="muted" style="display:none; margin-left:10px;">Enregistré ✓</span>
         </form>
@@ -148,6 +152,8 @@
         const cabinet = await apiFetch("/api/cabinet");
         document.querySelector('#cabinet-form input[name="nom"]').value = cabinet.nom;
         document.querySelector('#cabinet-form input[name="adresse"]').value = cabinet.adresse || "";
+        document.querySelector('#cabinet-form input[name="telephone"]').value = cabinet.telephone || "";
+        document.querySelector('#cabinet-form input[name="email"]').value = cabinet.email || "";
         renderEntete(cabinet.enteteUrl);
         document.querySelector('#retention-form input[name="archivageDelaiMois"]').value = cabinet.archivageDelaiMois;
         document.querySelector('#limite-documents-form input[name="limiteDocumentsCollaborateurParMois"]').value =
@@ -168,7 +174,12 @@
       try {
         await apiFetch("/api/cabinet", {
           method: "PATCH",
-          body: { nom: fd.get("nom"), adresse: fd.get("adresse") || undefined },
+          body: {
+            nom: fd.get("nom"),
+            adresse: fd.get("adresse") || undefined,
+            telephone: fd.get("telephone") || undefined,
+            email: fd.get("email") || undefined,
+          },
         });
         savedEl.style.display = "inline";
         setTimeout(() => { savedEl.style.display = "none"; }, 3000);

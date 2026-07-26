@@ -74,6 +74,11 @@ model Cabinet {
   // certains documents generes (ex: conclusions), saisie une fois pour
   // toutes plutot que redemandee a chaque document.
   adresse   String?
+  // Telephone/email du cabinet - utilises notamment dans l'entete de la
+  // Mise en demeure, saisis une fois pour toutes plutot que redemandes a
+  // chaque document.
+  telephone String?
+  email     String?
   // Image d'en-tete (logo/bandeau) inseree en haut des documents, a la
   // demande (case a cocher), jamais automatiquement.
   enteteUrl String?  @map("entete_url")

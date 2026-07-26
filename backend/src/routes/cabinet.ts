@@ -15,6 +15,8 @@ cabinetRouter.get("/api/cabinet", requireAuth, async (req, res) => {
       id: true,
       nom: true,
       adresse: true,
+      telephone: true,
+      email: true,
       enteteUrl: true,
       veilleSujets: true,
       veilleActive: true,
@@ -31,6 +33,8 @@ cabinetRouter.get("/api/cabinet", requireAuth, async (req, res) => {
 const updateCabinetSchema = z.object({
   nom: z.string().min(1),
   adresse: z.string().optional(),
+  telephone: z.string().optional(),
+  email: z.string().email().optional().or(z.literal("")),
 });
 
 cabinetRouter.patch("/api/cabinet", requireAuth, requireAdmin, async (req, res) => {
@@ -41,9 +45,14 @@ cabinetRouter.patch("/api/cabinet", requireAuth, requireAdmin, async (req, res) 
 
   const cabinet = await prisma.cabinet.update({
     where: { id: req.auth!.cabinetId },
-    data: { nom: parsed.data.nom, adresse: parsed.data.adresse || null },
+    data: {
+      nom: parsed.data.nom,
+      adresse: parsed.data.adresse || null,
+      telephone: parsed.data.telephone || null,
+      email: parsed.data.email || null,
+    },
   });
-  return res.json({ id: cabinet.id, nom: cabinet.nom, adresse: cabinet.adresse });
+  return res.json({ id: cabinet.id, nom: cabinet.nom, adresse: cabinet.adresse, telephone: cabinet.telephone, email: cabinet.email });
 });
 
 const updateVeilleSchema = z.object({
