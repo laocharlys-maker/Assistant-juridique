@@ -432,8 +432,8 @@
         <input name="fonction_destinataire" placeholder="ex: Directeur de la société" />
         <label>Entreprise du destinataire (optionnel)</label>
         <input name="nom_entreprise_destinataire" placeholder="ex: SARL Bâti Plus" />
-        <label>Quartier / adresse du destinataire (optionnel)</label>
-        <input name="quartier_destinataire" placeholder="ex: Fidjrossè, Cotonou" />
+        <label>Adresse du destinataire (optionnel)<span class="field-hint" title="Indique l'adresse complète du destinataire (quartier, ville, pays si à l'étranger...), telle qu'elle doit apparaître sur l'acte.">?</span></label>
+        <input name="adresse_destinataire" placeholder="ex: Quartier Fidjrossè, Cotonou (République du Bénin)" />
 
         <h3>Objet et faits</h3>
         <label>Ligne d'objet (optionnel)<span class="field-hint" title="Vient compléter 'MISE EN DEMEURE ...' dans l'objet du courrier. Si laissé vide, une formule générique est utilisée à partir du délai accordé.">?</span></label>
@@ -1097,7 +1097,7 @@
         destinataire: fd.get("destinataire"),
         fonction_destinataire: fd.get("fonction_destinataire") || undefined,
         nom_entreprise_destinataire: fd.get("nom_entreprise_destinataire") || undefined,
-        quartier_destinataire: fd.get("quartier_destinataire") || undefined,
+        adresse_destinataire: fd.get("adresse_destinataire") || undefined,
         objet: fd.get("objet") || undefined,
         contexte: fd.get("contexte"),
         date_obligation: fd.get("date_obligation") || undefined,

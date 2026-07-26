@@ -811,7 +811,7 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
         adresse_client: adresseClientMED,
         fonction_destinataire: form.fonction_destinataire ?? null,
         nom_entreprise_destinataire: form.nom_entreprise_destinataire ?? null,
-        quartier_destinataire: form.quartier_destinataire ?? null,
+        adresse_destinataire: form.adresse_destinataire ?? null,
       };
 
       action = {

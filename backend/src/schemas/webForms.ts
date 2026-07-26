@@ -184,7 +184,7 @@ export const miseEnDemeureFormSchema = z.object({
   destinataire: z.string().min(1),
   fonction_destinataire: z.string().optional(),
   nom_entreprise_destinataire: z.string().optional(),
-  quartier_destinataire: z.string().optional(),
+  adresse_destinataire: z.string().optional(),
   // Ligne d'objet libre (ex: "D'ACHEVER LES TRAVAUX SOUS HUIT (08) JOURS") -
   // sinon composee automatiquement a partir du delai.
   objet: z.string().optional(),
