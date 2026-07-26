@@ -1,5 +1,6 @@
 import PDFDocument from "pdfkit";
 import { EnteteInput } from "./documentExport";
+import { formatDateLongue } from "../utils/dateFormat";
 
 export interface FactureInput {
   cabinetNom: string;
@@ -16,9 +17,7 @@ export interface FactureInput {
   entete?: EnteteInput;
 }
 
-function formatDate(date: Date): string {
-  return date.toLocaleDateString("fr-FR", { year: "numeric", month: "long", day: "numeric" });
-}
+const formatDate = formatDateLongue;
 
 function formatMontant(montant: number): string {
   return `${montant.toLocaleString("fr-FR")} F CFA`;

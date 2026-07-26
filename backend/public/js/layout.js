@@ -1,3 +1,11 @@
+// Format de date unique utilise partout dans l'app pour l'affichage d'une
+// date complete (ex: "dimanche 20 juillet 2026") - jamais le format court
+// jour/mois/annee. Accepte une Date ou une chaine ISO.
+function formatDateLongue(date) {
+  const d = date instanceof Date ? date : new Date(date);
+  return d.toLocaleDateString("fr-FR", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+}
+
 const NAV_ICONS = {
   dashboard: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/>',
   docs: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6"/><path d="M9 17h6"/>',

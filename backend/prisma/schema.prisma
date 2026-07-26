@@ -380,6 +380,11 @@ model Action {
   // Conclusions pour l'instant) - permet de pre-remplir un autre document
   // du meme dossier (ex: Note de plaidoirie) sans tout ressaisir.
   champsFormulaire  Json?        @map("champs_formulaire")
+  // Nom "humain" du document genere (ex: "Assignation_KODJO Marcelline
+  // contre AGBODJAN Serge") - distingue chaque document du meme type par
+  // les noms des parties, utilise pour le titre du Google Doc (n8n) et pour
+  // le nom de fichier des exports Word/PDF locaux.
+  nomDocument       String?      @map("nom_document")
   createdBy         String       @map("created_by")
   createdAt         DateTime     @default(now()) @map("created_at")
 

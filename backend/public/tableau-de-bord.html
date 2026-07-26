@@ -199,12 +199,7 @@
       initLayout(me);
 
       document.getElementById("greeting").textContent = `Bonjour, ${me.nom}`;
-      document.getElementById("date-eyebrow").textContent = new Date().toLocaleDateString("fr-FR", {
-        weekday: "long",
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      });
+      document.getElementById("date-eyebrow").textContent = formatDateLongue(new Date());
 
       // Un collaborateur n'a pas de bascule de vue : il ne voit que le
       // tableau de bord de son avocat responsable, sans autre option.

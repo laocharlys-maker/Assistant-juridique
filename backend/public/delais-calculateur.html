@@ -63,7 +63,7 @@
     }
 
     function formatDate(iso) {
-      return new Date(iso).toLocaleDateString("fr-FR", { year: "numeric", month: "long", day: "numeric" });
+      return formatDateLongue(iso);
     }
 
     const errorEl = document.getElementById("error");

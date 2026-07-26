@@ -1,3 +1,5 @@
+import { formatDateLongue } from "../utils/dateFormat";
+
 function escapeHtml(str: string): string {
   return str
     .replace(/&/g, "&amp;")
@@ -20,7 +22,7 @@ interface AudienceFacts {
 }
 
 function formatJourHeure(date: Date): string {
-  const jour = date.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", timeZone: "Africa/Porto-Novo" });
+  const jour = formatDateLongue(date, "Africa/Porto-Novo");
   const heure = date.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", timeZone: "Africa/Porto-Novo" });
   return `${jour} — ${heure}`;
 }

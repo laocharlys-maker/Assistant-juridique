@@ -1,5 +1,6 @@
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, ImageRun } from "docx";
 import PDFDocument from "pdfkit";
+import { formatDateLongue } from "../utils/dateFormat";
 
 export type SignatureAlignment = "START" | "CENTER" | "END";
 
@@ -26,9 +27,7 @@ export interface ExportInput {
   entete?: EnteteInput;
 }
 
-function formatDate(date: Date): string {
-  return date.toLocaleDateString("fr-FR", { year: "numeric", month: "long", day: "numeric" });
-}
+const formatDate = formatDateLongue;
 
 // Certains prompts de redaction (assignation, plainte...) structurent le
 // texte avec des titres de section en MAJUSCULES sur leur propre ligne

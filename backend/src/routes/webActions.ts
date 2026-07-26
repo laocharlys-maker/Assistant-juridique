@@ -39,6 +39,9 @@ import { summarizeLongText } from "../services/resumePdf";
 import { translateText, extractTextFromDocument } from "../services/traduction";
 import { aiActionsLimiter } from "../middleware/rateLimit";
 import { env } from "../config/env";
+import { formatDateLongue } from "../utils/dateFormat";
+import { computeNomDocument } from "../utils/documentNaming";
+import { WebActionForm } from "../schemas/webForms";
 
 export const webActionsRouter = Router();
 
@@ -67,7 +70,7 @@ function composerInformationsClient(client: {
   if (!client) return null;
   const parts: string[] = [];
   if (client.dateNaissance) {
-    const dateStr = client.dateNaissance.toLocaleDateString("fr-FR", { year: "numeric", month: "long", day: "numeric" });
+    const dateStr = formatDateLongue(client.dateNaissance);
     parts.push(client.lieuNaissance ? `né(e) le ${dateStr} à ${client.lieuNaissance}` : `né(e) le ${dateStr}`);
   } else if (client.lieuNaissance) {
     parts.push(`né(e) à ${client.lieuNaissance}`);
@@ -89,7 +92,7 @@ function composerInformationsClientAssignation(client: {
   if (!client) return null;
   const parts: string[] = [];
   if (client.dateNaissance) {
-    const dateStr = client.dateNaissance.toLocaleDateString("fr-FR", { year: "numeric", month: "long", day: "numeric" });
+    const dateStr = formatDateLongue(client.dateNaissance);
     parts.push(client.lieuNaissance ? `né(e) le ${dateStr} à ${client.lieuNaissance}` : `né(e) le ${dateStr}`);
   } else if (client.lieuNaissance) {
     parts.push(`né(e) à ${client.lieuNaissance}`);
@@ -124,6 +127,25 @@ function decouperBlocsMarques(texte: string, marqueurs: string[]): Record<string
     resultat[parts[i]] = (parts[i + 1] ?? "").trim();
   }
   return resultat;
+}
+
+// Extrait le nom de la partie adverse a partir du formulaire, quand ce type
+// de document en a une (utilise pour distinguer le nom du document genere -
+// voir computeNomDocument) - renvoie null pour les types sans partie
+// adverse nommee (ex: requete, ou un simple destinataire de civilite).
+function nomAdversePourForm(form: WebActionForm): string | null {
+  switch (form.type_action) {
+    case "assignation":
+    case "mise_en_demeure":
+      return form.destinataire || null;
+    case "plainte":
+      return form.nom_defendeur || null;
+    case "conclusions":
+    case "note_plaidoirie":
+      return form.nom_partie_adverse || null;
+    default:
+      return null;
+  }
 }
 
 type DossierLookupResult =
@@ -1131,6 +1153,13 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
       };
     }
 
+    const nomDocument = computeNomDocument({
+      typeAction: action.type_action,
+      nomClient: action.nom_client,
+      nomAdverse: nomAdversePourForm(form),
+      numeroDossier: action.numero_dossier,
+    });
+
     const savedAction = await prisma.action.create({
       data: {
         dossierId,
@@ -1143,6 +1172,7 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
         // Conserve les champs saisis pour permettre de pre-remplir une Note
         // de plaidoirie plus tard depuis ces memes Conclusions.
         champsFormulaire: form.type_action === "conclusions" ? (form as object) : undefined,
+        nomDocument,
         createdBy: auth!.userId,
       },
     });
@@ -1154,6 +1184,7 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
       dossierId,
       actionId: savedAction.id,
       enteteUrl,
+      nom_document: nomDocument,
       ...extraWebhookFields,
     });
 

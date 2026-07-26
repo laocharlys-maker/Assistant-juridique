@@ -10,37 +10,9 @@ import {
   SignatureInput,
   EnteteInput,
 } from "../services/documentExport";
+import { TYPE_LABELS, slugify } from "../utils/documentNaming";
 
 export const documentExportRouter = Router();
-
-const TYPE_LABELS: Record<string, string> = {
-  notes: "Compte-rendu d'audience",
-  redac: "Plaidoirie",
-  conclusions: "Conclusions",
-  assignation: "Assignation",
-  mise_en_demeure: "Mise en demeure",
-  jurisprudence: "Recherche de jurisprudence",
-  recherche_juridique: "Recherche juridique",
-  resume_pdf: "Résumé de jurisprudence",
-  veille_juridique: "Veille juridique",
-  traduction: "Traduction",
-  plainte: "Plainte",
-  contrat: "Contrat",
-  notification_date: "Notification de date",
-  requete: "Requête",
-  note_plaidoirie: "Note de plaidoirie",
-};
-
-const COMBINING_DIACRITICS = new RegExp("[\\u0300-\\u036f]", "g");
-
-function slugify(text: string): string {
-  return text
-    .normalize("NFD")
-    .replace(COMBINING_DIACRITICS, "")
-    .replace(/[^a-zA-Z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .toLowerCase();
-}
 
 async function loadExportInput(actionId: string, cabinetId: string) {
   const action = await prisma.action.findFirst({
@@ -154,7 +126,7 @@ documentExportRouter.get("/api/actions/:id/word", requireAuth, async (req, res) 
   const entete = await resolveEntete(req.auth!.cabinetId, req.query.avecEntete === "1");
 
   const buffer = await buildDocx({ ...loaded.input, signature: signatureResolution.signature, entete });
-  const filename = `${slugify(loaded.input.typeLabel)}-${slugify(loaded.input.numeroDossier)}.docx`;
+  const filename = `${slugify(loaded.action.nomDocument || `${loaded.input.typeLabel}-${loaded.input.numeroDossier}`)}.docx`;
   res.setHeader(
     "Content-Type",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -177,7 +149,7 @@ documentExportRouter.get("/api/actions/:id/pdf", requireAuth, async (req, res) =
   const entete = await resolveEntete(req.auth!.cabinetId, req.query.avecEntete === "1");
 
   const buffer = await buildPdf({ ...loaded.input, signature: signatureResolution.signature, entete });
-  const filename = `${slugify(loaded.input.typeLabel)}-${slugify(loaded.input.numeroDossier)}.pdf`;
+  const filename = `${slugify(loaded.action.nomDocument || `${loaded.input.typeLabel}-${loaded.input.numeroDossier}`)}.pdf`;
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
   return res.send(buffer);

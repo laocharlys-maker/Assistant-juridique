@@ -30,6 +30,6 @@ describe("splitSujets", () => {
 describe("periodeLabel", () => {
   it("couvre les 7 jours precedant la date donnee", () => {
     const now = new Date("2026-07-22T10:00:00Z");
-    expect(periodeLabel(now)).toBe("15/07/2026 au 22/07/2026");
+    expect(periodeLabel(now)).toBe("mercredi 15 juillet 2026 au mercredi 22 juillet 2026");
   });
 });
