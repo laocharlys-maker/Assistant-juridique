@@ -270,6 +270,13 @@
           <option value="morale">Personne morale</option>
         </select>
         <div id="note_plaidoirie-profession-client-wrap">
+          <label>Civilité du client (optionnel)</label>
+          <select name="civilite_client_manuel">
+            <option value="">— Non précisé —</option>
+            <option value="M.">M.</option>
+            <option value="Mme">Mme</option>
+            <option value="Mlle">Mlle</option>
+          </select>
           <label>Profession du client (optionnel)</label>
           <input name="profession_client" placeholder="ex: Commerçant" />
         </div>
@@ -380,6 +387,13 @@
           <option value="morale">Personne morale</option>
         </select>
         <div id="assignation-profession-client-wrap">
+          <label>Civilité du client (optionnel)</label>
+          <select name="civilite_client_manuel">
+            <option value="">— Non précisé —</option>
+            <option value="M.">M.</option>
+            <option value="Mme">Mme</option>
+            <option value="Mlle">Mlle</option>
+          </select>
           <label>Profession du client (optionnel)</label>
           <input name="profession_client" placeholder="ex: Commerçant" />
         </div>
@@ -446,6 +460,13 @@
           <option value="morale">Personne morale</option>
         </select>
         <div id="mise_en_demeure-profession-destinataire-wrap">
+          <label>Civilité du destinataire (optionnel)</label>
+          <select name="civilite_destinataire">
+            <option value="">— Non précisé —</option>
+            <option value="M.">M.</option>
+            <option value="Mme">Mme</option>
+            <option value="Mlle">Mlle</option>
+          </select>
           <label>Profession du destinataire (optionnel)</label>
           <input name="profession_destinataire" placeholder="ex: Directeur de la société SARL Bâti Plus" />
         </div>
@@ -745,8 +766,9 @@
           const estMorale = select.value === "morale";
           wrap.style.display = estMorale ? "none" : "block";
           if (estMorale) {
-            const input = wrap.querySelector("input");
-            if (input) input.value = "";
+            wrap.querySelectorAll("input, select").forEach((el) => {
+              el.value = "";
+            });
           }
         });
       }
@@ -1077,6 +1099,7 @@
         axes_argumentation: listValues("axes-list-note_plaidoirie"),
         qualite_client: fd.get("qualite_client") || undefined,
         profession_client: fd.get("profession_client") || undefined,
+        civilite_client_manuel: fd.get("civilite_client_manuel") || undefined,
         informations_client: fd.get("informations_client") || undefined,
         nom_partie_adverse: nomPartieAdverseNote,
         qualite_partie_adverse: fd.get("qualite_partie_adverse") || undefined,
@@ -1107,6 +1130,7 @@
         nom_chambre: fd.get("nom_chambre") || undefined,
         date_audience: fd.get("date_audience") || undefined,
         profession_client: fd.get("profession_client") || undefined,
+        civilite_client_manuel: fd.get("civilite_client_manuel") || undefined,
         informations_client: fd.get("informations_client") || undefined,
         adresse_client_manuel: fd.get("adresse_client_manuel") || undefined,
         demande_client: fd.get("demande_client") || undefined,
@@ -1132,6 +1156,7 @@
         adresse_cabinet_manuel: fd.get("adresse_cabinet_manuel") || undefined,
         adresse_client_manuel: fd.get("adresse_client_manuel") || undefined,
         destinataire: fd.get("destinataire"),
+        civilite_destinataire: fd.get("civilite_destinataire") || undefined,
         profession_destinataire: fd.get("profession_destinataire") || undefined,
         informations_destinataire: fd.get("informations_destinataire") || undefined,
         objet: fd.get("objet") || undefined,

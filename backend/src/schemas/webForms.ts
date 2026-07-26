@@ -106,6 +106,9 @@ export const notePlaidoirieFormSchema = z.object({
   adresse_cabinet_manuel: z.string().optional(),
   qualite_client: z.enum(QUALITE_PROCEDURALE).optional(),
   profession_client: z.string().optional(),
+  // Civilite du client (personne physique uniquement) - normalement deja
+  // sur sa fiche, ce champ n'est qu'un secours si elle n'y est pas encore.
+  civilite_client_manuel: z.enum(["M.", "Mme", "Mlle"]).optional(),
   informations_client: z.string().optional(),
   nom_partie_adverse: z.string().optional(),
   qualite_partie_adverse: z.enum(QUALITE_PROCEDURALE).optional(),
@@ -151,6 +154,9 @@ export const assignationFormSchema = z.object({
   // ci-dessous) - normalement deja sur sa fiche, ce champ n'est qu'un secours.
   informations_client: z.string().optional(),
   adresse_client_manuel: z.string().optional(),
+  // Civilite du client (personne physique uniquement) - normalement deja
+  // sur sa fiche, ce champ n'est qu'un secours si elle n'y est pas encore.
+  civilite_client_manuel: z.enum(["M.", "Mme", "Mlle"]).optional(),
   // Objet synthetique de la demande ("...pour le voir condamner au ...").
   demande_client: z.string().optional(),
   // Discussion juridique - jamais devinee par l'IA si absente.
@@ -180,6 +186,8 @@ export const miseEnDemeureFormSchema = z.object({
   // Destinataire de la mise en demeure (personne physique visee) - distinct
   // du client, jamais devine.
   destinataire: z.string().min(1),
+  // Civilite du destinataire (personne physique uniquement).
+  civilite_destinataire: z.enum(["M.", "Mme", "Mlle"]).optional(),
   profession_destinataire: z.string().optional(),
   // Regroupe tout le reste (entreprise, adresse...) en texte libre - meme
   // principe que informations_client/informations_partie_adverse ailleurs

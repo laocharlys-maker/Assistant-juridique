@@ -36,6 +36,13 @@
         <label>Téléphone</label>
         <input name="telephone" />
         <div id="create-physique-fields">
+          <label>Civilité</label>
+          <select name="civilite">
+            <option value="">— Non précisé —</option>
+            <option value="M.">M.</option>
+            <option value="Mme">Mme</option>
+            <option value="Mlle">Mlle</option>
+          </select>
           <label>Date de naissance</label>
           <input name="dateNaissance" type="date" />
           <label>Lieu de naissance</label>
@@ -129,6 +136,13 @@
           <label>Téléphone</label>
           <input name="telephone" id="edit-telephone" />
           <div id="edit-physique-fields">
+            <label>Civilité</label>
+            <select name="civilite" id="edit-civilite">
+              <option value="">— Non précisé —</option>
+              <option value="M.">M.</option>
+              <option value="Mme">Mme</option>
+              <option value="Mlle">Mlle</option>
+            </select>
             <label>Date de naissance</label>
             <input name="dateNaissance" id="edit-dateNaissance" type="date" />
             <label>Lieu de naissance</label>
@@ -275,6 +289,7 @@
 
     const DETAIL_FIELDS = [
       ["typePersonne", "Type", (v) => TYPE_PERSONNE_LABELS[v] || v],
+      ["civilite", "Civilité"],
       ["email", "Email"],
       ["telephone", "Téléphone"],
       ["dateNaissance", "Date de naissance", formatDate],
@@ -322,6 +337,7 @@
       document.getElementById("edit-nom").value = c.nom || "";
       document.getElementById("edit-email").value = c.email || "";
       document.getElementById("edit-telephone").value = c.telephone || "";
+      document.getElementById("edit-civilite").value = c.civilite || "";
       document.getElementById("edit-dateNaissance").value = c.dateNaissance ? c.dateNaissance.slice(0, 10) : "";
       document.getElementById("edit-lieuNaissance").value = c.lieuNaissance || "";
       document.getElementById("edit-numeroPieceIdentite").value = c.numeroPieceIdentite || "";

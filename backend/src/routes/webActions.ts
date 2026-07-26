@@ -457,6 +457,7 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
           ? prisma.client.findUnique({
               where: { id: dossierAssignation.clientId },
               select: {
+                civilite: true,
                 dateNaissance: true,
                 lieuNaissance: true,
                 numeroPieceIdentite: true,
@@ -470,6 +471,7 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
           : Promise.resolve(null),
       ]);
 
+      const civiliteClientAssignation = clientPourInfosAssignation?.civilite || form.civilite_client_manuel || null;
       const informationsClientAssignation =
         composerInformationsClientAssignation(clientPourInfosAssignation) || form.informations_client || null;
       const adresseClientAssignation =
@@ -490,6 +492,7 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
         nom_chambre: form.nom_chambre ?? null,
         ville: form.ville,
         profession_client: form.profession_client ?? null,
+        civilite_client: civiliteClientAssignation,
         informations_client: informationsClientAssignation,
         adresse_client: adresseClientAssignation,
         adresse_cabinet: adresseCabinetAssignation,
@@ -695,13 +698,14 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
         dossierNote.clientId
           ? prisma.client.findUnique({
               where: { id: dossierNote.clientId },
-              select: { dateNaissance: true, lieuNaissance: true, quartierResidence: true, rue: true, maison: true, autrePrecision: true },
+              select: { civilite: true, dateNaissance: true, lieuNaissance: true, quartierResidence: true, rue: true, maison: true, autrePrecision: true },
             })
           : Promise.resolve(null),
       ]);
 
       const informationsClientNote = composerInformationsClient(clientPourInfosNote) || form.informations_client || null;
       const adresseCabinetNote = cabinetPourAdresseNote?.adresse || form.adresse_cabinet_manuel || null;
+      const civiliteClientNote = clientPourInfosNote?.civilite || form.civilite_client_manuel || null;
 
       extraWebhookFields = {
         rappel_faits: rappelFaits,
@@ -712,6 +716,7 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
         numero_rg: form.numero_rg ?? null,
         qualite_client: form.qualite_client ?? null,
         profession_client: form.profession_client ?? null,
+        civilite_client: civiliteClientNote,
         informations_client: informationsClientNote,
         nom_partie_adverse: form.nom_partie_adverse ?? null,
         qualite_partie_adverse: form.qualite_partie_adverse ?? null,
@@ -803,6 +808,7 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
         expose_des_faits: exposeDesFaitsMED,
         mode_notification: modeNotificationMED,
         destinataire: form.destinataire,
+        civilite_destinataire: form.civilite_destinataire ?? null,
         objet_mise_en_demeure: objetMED,
         delai_jours: form.delai_jours,
         consequences: consequencesMED,
