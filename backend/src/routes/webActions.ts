@@ -821,7 +821,9 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
         civilite_destinataire: form.civilite_destinataire ?? null,
         civilite_appel_destinataire: civiliteAppelDestinataireMED,
         objet_mise_en_demeure: objetMED,
-        delai_jours: form.delai_jours,
+        // Toujours envoye en texte : l'API Google Docs (replace_all_text)
+        // rejette un nombre brut pour une balise de remplacement de texte.
+        delai_jours: String(form.delai_jours),
         consequences: consequencesMED,
         nom_avocat: form.nom_avocat ?? null,
         adresse_cabinet: adresseCabinetMED,
