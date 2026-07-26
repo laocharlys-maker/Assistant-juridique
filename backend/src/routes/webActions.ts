@@ -767,7 +767,7 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
       dossierId = dossierMED.id;
 
       const [cabinetPourAdresseMED, clientPourAdresseMED] = await Promise.all([
-        prisma.cabinet.findUnique({ where: { id: auth!.cabinetId }, select: { adresse: true, telephone: true, email: true } }),
+        prisma.cabinet.findUnique({ where: { id: auth!.cabinetId }, select: { adresse: true } }),
         dossierMED.clientId
           ? prisma.client.findUnique({
               where: { id: dossierMED.clientId },
@@ -778,8 +778,6 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
 
       const adresseClientMED = composerAdresseClient(clientPourAdresseMED) || form.adresse_client_manuel || null;
       const adresseCabinetMED = cabinetPourAdresseMED?.adresse || form.adresse_cabinet_manuel || null;
-      const telephoneCabinetMED = cabinetPourAdresseMED?.telephone || form.telephone_cabinet_manuel || null;
-      const emailCabinetMED = cabinetPourAdresseMED?.email || form.email_cabinet_manuel || null;
 
       const modeNotificationMED =
         form.mode_notification === "lrar"
@@ -806,12 +804,9 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
         consequences: consequencesMED,
         nom_avocat: form.nom_avocat ?? null,
         adresse_cabinet: adresseCabinetMED,
-        telephone_cabinet: telephoneCabinetMED,
-        email_cabinet: emailCabinetMED,
         adresse_client: adresseClientMED,
-        fonction_destinataire: form.fonction_destinataire ?? null,
-        nom_entreprise_destinataire: form.nom_entreprise_destinataire ?? null,
-        adresse_destinataire: form.adresse_destinataire ?? null,
+        profession_destinataire: form.profession_destinataire ?? null,
+        informations_destinataire: form.informations_destinataire ?? null,
       };
 
       action = {

@@ -418,22 +418,16 @@
         <input name="nom_avocat" />
         <label>Adresse du cabinet (optionnel)</label>
         <input name="adresse_cabinet_manuel" placeholder="Reprise automatiquement depuis Paramètres si déjà renseignée — sinon, précise-la ici" />
-        <label>Téléphone du cabinet (optionnel)</label>
-        <input name="telephone_cabinet_manuel" placeholder="Repris automatiquement depuis Paramètres si déjà renseigné — sinon, précise-le ici" />
-        <label>Email du cabinet (optionnel)</label>
-        <input name="email_cabinet_manuel" placeholder="Repris automatiquement depuis Paramètres si déjà renseigné — sinon, précise-le ici" />
         <label>Adresse du client (optionnel)</label>
         <input name="adresse_client_manuel" placeholder="Reprise automatiquement depuis sa fiche si déjà renseignée — sinon, précise-la ici" />
 
         <h3>Destinataire</h3>
         <label>Nom du destinataire</label>
         <input name="destinataire" required placeholder="Nom de la personne mise en demeure" />
-        <label>Fonction du destinataire (optionnel)</label>
-        <input name="fonction_destinataire" placeholder="ex: Directeur de la société" />
-        <label>Entreprise du destinataire (optionnel)</label>
-        <input name="nom_entreprise_destinataire" placeholder="ex: SARL Bâti Plus" />
-        <label>Adresse du destinataire (optionnel)<span class="field-hint" title="Indique l'adresse complète du destinataire (quartier, ville, pays si à l'étranger...), telle qu'elle doit apparaître sur l'acte.">?</span></label>
-        <input name="adresse_destinataire" placeholder="ex: Quartier Fidjrossè, Cotonou (République du Bénin)" />
+        <label>Profession du destinataire (optionnel)</label>
+        <input name="profession_destinataire" placeholder="ex: Directeur de la société SARL Bâti Plus" />
+        <label>Autres informations sur le destinataire (optionnel)<span class="field-hint" title="Tout ce qui n'a pas sa place ailleurs (entreprise, adresse complète, quartier...), en texte libre - inséré tel quel dans l'acte.">?</span></label>
+        <input name="informations_destinataire" placeholder="ex: Quartier Fidjrossè, Cotonou (République du Bénin)" />
 
         <h3>Objet et faits</h3>
         <label>Ligne d'objet (optionnel)<span class="field-hint" title="Vient compléter 'MISE EN DEMEURE ...' dans l'objet du courrier. Si laissé vide, une formule générique est utilisée à partir du délai accordé.">?</span></label>
@@ -1091,13 +1085,10 @@
         mode_notification: fd.get("mode_notification") || undefined,
         nom_avocat: fd.get("nom_avocat") || undefined,
         adresse_cabinet_manuel: fd.get("adresse_cabinet_manuel") || undefined,
-        telephone_cabinet_manuel: fd.get("telephone_cabinet_manuel") || undefined,
-        email_cabinet_manuel: fd.get("email_cabinet_manuel") || undefined,
         adresse_client_manuel: fd.get("adresse_client_manuel") || undefined,
         destinataire: fd.get("destinataire"),
-        fonction_destinataire: fd.get("fonction_destinataire") || undefined,
-        nom_entreprise_destinataire: fd.get("nom_entreprise_destinataire") || undefined,
-        adresse_destinataire: fd.get("adresse_destinataire") || undefined,
+        profession_destinataire: fd.get("profession_destinataire") || undefined,
+        informations_destinataire: fd.get("informations_destinataire") || undefined,
         objet: fd.get("objet") || undefined,
         contexte: fd.get("contexte"),
         date_obligation: fd.get("date_obligation") || undefined,

@@ -173,8 +173,6 @@ export const miseEnDemeureFormSchema = z.object({
   mode_notification: z.enum(["huissier", "lrar"]).optional(),
   nom_avocat: z.string().optional(),
   adresse_cabinet_manuel: z.string().optional(),
-  telephone_cabinet_manuel: z.string().optional(),
-  email_cabinet_manuel: z.string().optional(),
   // Adresse du client - normalement deja sur sa fiche, ce champ n'est
   // qu'un secours si elle n'y est pas encore (meme principe que
   // l'Assignation).
@@ -182,9 +180,11 @@ export const miseEnDemeureFormSchema = z.object({
   // Destinataire de la mise en demeure (personne physique visee) - distinct
   // du client, jamais devine.
   destinataire: z.string().min(1),
-  fonction_destinataire: z.string().optional(),
-  nom_entreprise_destinataire: z.string().optional(),
-  adresse_destinataire: z.string().optional(),
+  profession_destinataire: z.string().optional(),
+  // Regroupe tout le reste (entreprise, adresse...) en texte libre - meme
+  // principe que informations_client/informations_partie_adverse ailleurs
+  // dans l'appli, pour eviter la multiplication de champs distincts.
+  informations_destinataire: z.string().optional(),
   // Ligne d'objet libre (ex: "D'ACHEVER LES TRAVAUX SOUS HUIT (08) JOURS") -
   // sinon composee automatiquement a partir du delai.
   objet: z.string().optional(),
