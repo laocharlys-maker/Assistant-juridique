@@ -258,6 +258,16 @@
       envoye: "Envoyé au client",
     };
 
+    // Au-dela de ce delai sans callback n8n (document Google Docs jamais
+    // pret), on considere que la generation a probablement echoue plutot
+    // que de laisser "Génération en cours…" indefiniment - le
+    // telechargement Word/PDF local reste de toute facon disponible
+    // independamment de n8n (voir contenuGenere, deja enregistre a la
+    // creation de l'action).
+    const GENERATION_TIMEOUT_MS = 3 * 60 * 1000;
+    const GENERATION_TIMEOUT_MESSAGE =
+      "La génération semble avoir échoué. Patientez et relancez dans 2 minutes. Si l'erreur persiste, contactez le support.";
+
     const STATUT_TAG_LABELS = {
       a_jour: "à jour",
       echeance_proche: "échéance proche",
@@ -265,7 +275,9 @@
     };
 
     function renderAction(a) {
-      const statutLabel = STATUT_LABELS[a.statut] || a.statut;
+      const generationEnEchec =
+        a.statut === "brouillon" && !a.documentUrl && Date.now() - new Date(a.createdAt).getTime() > GENERATION_TIMEOUT_MS;
+      const statutLabel = generationEnEchec ? "Échec probable de la génération" : STATUT_LABELS[a.statut] || a.statut;
       const docLink = a.documentUrl
         ? `<a href="${escapeHtml(a.documentUrl)}" target="_blank" rel="noopener">Ouvrir / modifier le document</a>`
         : "";
@@ -398,6 +410,7 @@
             <div><strong>Réalisé par ${escapeHtml(a.creePar.nom)}</strong> — ${new Date(a.createdAt).toLocaleString("fr-FR")}</div>
           </button>
           <div class="accordion-body">
+            ${generationEnEchec ? `<p class="error visible" style="margin:6px 0;">${escapeHtml(GENERATION_TIMEOUT_MESSAGE)}</p>` : ""}
             ${docLink ? `<div style="margin:6px 0;">${docLink}</div>` : ""}
             ${downloadLinks}
             <pre>${escapeHtml(a.contenuGenere || "")}</pre>
