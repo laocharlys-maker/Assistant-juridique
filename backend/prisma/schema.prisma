@@ -192,6 +192,11 @@ model Client {
   notes     String?
   createdAt DateTime @default(now()) @map("created_at")
 
+  // Personne physique ou morale (entreprise) - determine quels champs de la
+  // fiche s'appliquent (une entreprise n'a pas de date de naissance, de
+  // profession, etc.). "physique" par defaut pour les fiches existantes.
+  typePersonne String @default("physique") @map("type_personne")
+
   // Fiche d'identite detaillee - tous facultatifs, saisis au fil de l'eau
   // selon ce que le cabinet sait deja du client.
   dateNaissance          DateTime? @map("date_naissance")

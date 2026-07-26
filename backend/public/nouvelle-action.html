@@ -264,8 +264,15 @@
           <option value="Demandeur au pourvoi">Demandeur au pourvoi</option>
           <option value="Défendeur au pourvoi">Défendeur au pourvoi</option>
         </select>
-        <label>Profession du client (optionnel)</label>
-        <input name="profession_client" placeholder="ex: Commerçant" />
+        <label>Type de client (optionnel)</label>
+        <select name="type_client" id="note_plaidoirie-type-client">
+          <option value="physique">Personne physique</option>
+          <option value="morale">Personne morale</option>
+        </select>
+        <div id="note_plaidoirie-profession-client-wrap">
+          <label>Profession du client (optionnel)</label>
+          <input name="profession_client" placeholder="ex: Commerçant" />
+        </div>
         <label>Informations sur le client (optionnel)</label>
         <input name="informations_client" placeholder="Reprises automatiquement depuis sa fiche si déjà renseignées — sinon, précise ici (né(e) le..., demeurant à...)" />
 
@@ -304,8 +311,10 @@
           <option value="Demandeur au pourvoi">Demandeur au pourvoi</option>
           <option value="Défendeur au pourvoi">Défendeur au pourvoi</option>
         </select>
-        <label>Profession de la partie adverse (optionnel)</label>
-        <input name="profession_partie_adverse" placeholder="ex: Entrepreneur" />
+        <div id="note_plaidoirie-profession-partie-adverse-wrap">
+          <label>Profession de la partie adverse (optionnel)</label>
+          <input name="profession_partie_adverse" placeholder="ex: Entrepreneur" />
+        </div>
         <label>Informations sur la partie adverse (optionnel)</label>
         <input name="informations_partie_adverse" placeholder="ex: adresse, RCCM, autres précisions utiles" />
         <label>Nom de l'avocat de la partie adverse (optionnel)</label>
@@ -365,8 +374,15 @@
         <input name="date_audience" type="date" />
 
         <h3>I. Les parties</h3>
-        <label>Profession du client (optionnel)</label>
-        <input name="profession_client" placeholder="ex: Commerçant" />
+        <label>Type de client (optionnel)</label>
+        <select name="type_client" id="assignation-type-client">
+          <option value="physique">Personne physique</option>
+          <option value="morale">Personne morale</option>
+        </select>
+        <div id="assignation-profession-client-wrap">
+          <label>Profession du client (optionnel)</label>
+          <input name="profession_client" placeholder="ex: Commerçant" />
+        </div>
         <label>Informations sur le client (optionnel)</label>
         <input name="informations_client" placeholder="Reprises automatiquement depuis sa fiche si déjà renseignées — sinon, précise ici (né(e) le..., n° pièce d'identité, situation matrimoniale...)" />
         <label>Adresse du client (optionnel)</label>
@@ -424,8 +440,15 @@
         <h3>Destinataire</h3>
         <label>Nom du destinataire</label>
         <input name="destinataire" required placeholder="Nom de la personne mise en demeure" />
-        <label>Profession du destinataire (optionnel)</label>
-        <input name="profession_destinataire" placeholder="ex: Directeur de la société SARL Bâti Plus" />
+        <label>Type de destinataire (optionnel)</label>
+        <select name="type_destinataire" id="mise_en_demeure-type-destinataire">
+          <option value="physique">Personne physique</option>
+          <option value="morale">Personne morale</option>
+        </select>
+        <div id="mise_en_demeure-profession-destinataire-wrap">
+          <label>Profession du destinataire (optionnel)</label>
+          <input name="profession_destinataire" placeholder="ex: Directeur de la société SARL Bâti Plus" />
+        </div>
         <label>Autres informations sur le destinataire (optionnel)<span class="field-hint" title="Tout ce qui n'a pas sa place ailleurs (entreprise, adresse complète, quartier...), en texte libre - inséré tel quel dans l'acte.">?</span></label>
         <input name="informations_destinataire" placeholder="ex: Quartier Fidjrossè, Cotonou (République du Bénin)" />
 
@@ -710,6 +733,28 @@
         const input = document.getElementById(id);
         if (input) input.value = me.nom;
       });
+      // Masque le champ "profession" d'une partie (client, partie adverse,
+      // destinataire...) quand elle est designee comme personne morale - une
+      // entreprise n'a pas de profession - et vide sa valeur pour ne pas
+      // envoyer une info devenue non pertinente.
+      function wireProfessionToggle(selectId, wrapId) {
+        const select = document.getElementById(selectId);
+        const wrap = document.getElementById(wrapId);
+        if (!select || !wrap) return;
+        select.addEventListener("change", () => {
+          const estMorale = select.value === "morale";
+          wrap.style.display = estMorale ? "none" : "block";
+          if (estMorale) {
+            const input = wrap.querySelector("input");
+            if (input) input.value = "";
+          }
+        });
+      }
+      wireProfessionToggle("note_plaidoirie-type-client", "note_plaidoirie-profession-client-wrap");
+      wireProfessionToggle("note_plaidoirie-type-partie-adverse", "note_plaidoirie-profession-partie-adverse-wrap");
+      wireProfessionToggle("assignation-type-client", "assignation-profession-client-wrap");
+      wireProfessionToggle("mise_en_demeure-type-destinataire", "mise_en_demeure-profession-destinataire-wrap");
+
       const typePartieAdverseSelect = document.getElementById("conclusions-type-partie-adverse");
       const partieAdversePhysique = document.getElementById("conclusions-partie-adverse-physique");
       const partieAdverseMorale = document.getElementById("conclusions-partie-adverse-morale");

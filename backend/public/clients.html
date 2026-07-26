@@ -24,19 +24,44 @@
     <div class="card" id="create-card" style="display:none;">
       <h2>Ajouter un client</h2>
       <form id="create-form">
-        <label>Nom et prénom</label>
+        <label>Type</label>
+        <select name="typePersonne" id="create-typePersonne">
+          <option value="physique">Personne physique</option>
+          <option value="morale">Personne morale (entreprise)</option>
+        </select>
+        <label id="create-nom-label">Nom et prénom</label>
         <input name="nom" required />
         <label>Email</label>
         <input name="email" type="email" />
         <label>Téléphone</label>
         <input name="telephone" />
-        <label>Date de naissance</label>
-        <input name="dateNaissance" type="date" />
-        <label>Lieu de naissance</label>
-        <input name="lieuNaissance" />
-        <label>N° de pièce d'identité (CNI, passeport...)</label>
-        <input name="numeroPieceIdentite" />
-        <label>Quartier de résidence</label>
+        <div id="create-physique-fields">
+          <label>Date de naissance</label>
+          <input name="dateNaissance" type="date" />
+          <label>Lieu de naissance</label>
+          <input name="lieuNaissance" />
+          <label>N° de pièce d'identité (CNI, passeport...)</label>
+          <input name="numeroPieceIdentite" />
+          <label>Situation matrimoniale</label>
+          <select name="situationMatrimoniale">
+            <option value="">— Non précisé —</option>
+            <option value="Célibataire">Célibataire</option>
+            <option value="Marié(e)">Marié(e)</option>
+            <option value="Divorcé(e)">Divorcé(e)</option>
+            <option value="Veuf(ve)">Veuf(ve)</option>
+          </select>
+          <label>Fonction</label>
+          <select name="fonction">
+            <option value="">— Non précisé —</option>
+            <option value="Indépendant">Indépendant</option>
+            <option value="Employé">Employé</option>
+          </select>
+          <label>Entreprise</label>
+          <input name="entreprise" />
+          <label>Adresse de l'entreprise</label>
+          <input name="adresseEntreprise" />
+        </div>
+        <label id="create-quartier-label">Quartier de résidence</label>
         <input name="quartierResidence" />
         <label>Rue</label>
         <input name="rue" />
@@ -44,25 +69,7 @@
         <input name="autrePrecision" />
         <label>Maison</label>
         <input name="maison" />
-        <label>Situation matrimoniale</label>
-        <select name="situationMatrimoniale">
-          <option value="">— Non précisé —</option>
-          <option value="Célibataire">Célibataire</option>
-          <option value="Marié(e)">Marié(e)</option>
-          <option value="Divorcé(e)">Divorcé(e)</option>
-          <option value="Veuf(ve)">Veuf(ve)</option>
-        </select>
-        <label>Fonction</label>
-        <select name="fonction">
-          <option value="">— Non précisé —</option>
-          <option value="Indépendant">Indépendant</option>
-          <option value="Employé">Employé</option>
-        </select>
-        <label>Entreprise</label>
-        <input name="entreprise" />
-        <label>Adresse de l'entreprise</label>
-        <input name="adresseEntreprise" />
-        <label>Notes</label>
+        <label id="create-notes-label">Notes</label>
         <textarea name="notes"></textarea>
         <button type="submit">Ajouter</button>
       </form>
@@ -110,19 +117,44 @@
         <div id="detail-edit-error" class="error"></div>
         <form id="detail-edit-form">
           <input type="hidden" id="edit-client-id" />
-          <label>Nom et prénom</label>
+          <label>Type</label>
+          <select name="typePersonne" id="edit-typePersonne">
+            <option value="physique">Personne physique</option>
+            <option value="morale">Personne morale (entreprise)</option>
+          </select>
+          <label id="edit-nom-label">Nom et prénom</label>
           <input name="nom" id="edit-nom" required />
           <label>Email</label>
           <input name="email" id="edit-email" type="email" />
           <label>Téléphone</label>
           <input name="telephone" id="edit-telephone" />
-          <label>Date de naissance</label>
-          <input name="dateNaissance" id="edit-dateNaissance" type="date" />
-          <label>Lieu de naissance</label>
-          <input name="lieuNaissance" id="edit-lieuNaissance" />
-          <label>N° de pièce d'identité (CNI, passeport...)</label>
-          <input name="numeroPieceIdentite" id="edit-numeroPieceIdentite" />
-          <label>Quartier de résidence</label>
+          <div id="edit-physique-fields">
+            <label>Date de naissance</label>
+            <input name="dateNaissance" id="edit-dateNaissance" type="date" />
+            <label>Lieu de naissance</label>
+            <input name="lieuNaissance" id="edit-lieuNaissance" />
+            <label>N° de pièce d'identité (CNI, passeport...)</label>
+            <input name="numeroPieceIdentite" id="edit-numeroPieceIdentite" />
+            <label>Situation matrimoniale</label>
+            <select name="situationMatrimoniale" id="edit-situationMatrimoniale">
+              <option value="">— Non précisé —</option>
+              <option value="Célibataire">Célibataire</option>
+              <option value="Marié(e)">Marié(e)</option>
+              <option value="Divorcé(e)">Divorcé(e)</option>
+              <option value="Veuf(ve)">Veuf(ve)</option>
+            </select>
+            <label>Fonction</label>
+            <select name="fonction" id="edit-fonction">
+              <option value="">— Non précisé —</option>
+              <option value="Indépendant">Indépendant</option>
+              <option value="Employé">Employé</option>
+            </select>
+            <label>Entreprise</label>
+            <input name="entreprise" id="edit-entreprise" />
+            <label>Adresse de l'entreprise</label>
+            <input name="adresseEntreprise" id="edit-adresseEntreprise" />
+          </div>
+          <label id="edit-quartier-label">Quartier de résidence</label>
           <input name="quartierResidence" id="edit-quartierResidence" />
           <label>Rue</label>
           <input name="rue" id="edit-rue" />
@@ -130,25 +162,7 @@
           <input name="autrePrecision" id="edit-autrePrecision" />
           <label>Maison</label>
           <input name="maison" id="edit-maison" />
-          <label>Situation matrimoniale</label>
-          <select name="situationMatrimoniale" id="edit-situationMatrimoniale">
-            <option value="">— Non précisé —</option>
-            <option value="Célibataire">Célibataire</option>
-            <option value="Marié(e)">Marié(e)</option>
-            <option value="Divorcé(e)">Divorcé(e)</option>
-            <option value="Veuf(ve)">Veuf(ve)</option>
-          </select>
-          <label>Fonction</label>
-          <select name="fonction" id="edit-fonction">
-            <option value="">— Non précisé —</option>
-            <option value="Indépendant">Indépendant</option>
-            <option value="Employé">Employé</option>
-          </select>
-          <label>Entreprise</label>
-          <input name="entreprise" id="edit-entreprise" />
-          <label>Adresse de l'entreprise</label>
-          <input name="adresseEntreprise" id="edit-adresseEntreprise" />
-          <label>Notes</label>
+          <label id="edit-notes-label">Notes</label>
           <textarea name="notes" id="edit-notes"></textarea>
           <div style="display:flex; gap:10px; margin-top:18px;">
             <button type="submit">Enregistrer</button>
@@ -240,7 +254,27 @@
       document.getElementById("email-modal").hidden = true;
     }
 
+    // Bascule l'affichage des champs propres a une personne physique
+    // (naissance, piece d'identite, situation matrimoniale, fonction,
+    // entreprise employeuse) selon le type choisi - une entreprise n'a pas
+    // ces attributs, seulement une adresse de siege social et des
+    // informations complementaires (RCCM, forme juridique...) en notes.
+    function applyTypePersonneLabels(prefix, type) {
+      const estMorale = type === "morale";
+      const physiqueFields = document.getElementById(`${prefix}-physique-fields`);
+      if (physiqueFields) physiqueFields.style.display = estMorale ? "none" : "block";
+      const nomLabel = document.getElementById(`${prefix}-nom-label`);
+      if (nomLabel) nomLabel.textContent = estMorale ? "Nom de la société / raison sociale" : "Nom et prénom";
+      const quartierLabel = document.getElementById(`${prefix}-quartier-label`);
+      if (quartierLabel) quartierLabel.textContent = estMorale ? "Quartier du siège social" : "Quartier de résidence";
+      const notesLabel = document.getElementById(`${prefix}-notes-label`);
+      if (notesLabel) notesLabel.textContent = estMorale ? "Informations complémentaires (RCCM, forme juridique...)" : "Notes";
+    }
+
+    const TYPE_PERSONNE_LABELS = { physique: "Personne physique", morale: "Personne morale (entreprise)" };
+
     const DETAIL_FIELDS = [
+      ["typePersonne", "Type", (v) => TYPE_PERSONNE_LABELS[v] || v],
       ["email", "Email"],
       ["telephone", "Téléphone"],
       ["dateNaissance", "Date de naissance", formatDate],
@@ -283,6 +317,8 @@
       const c = clientsCache.find((x) => x.id === clientId);
       if (!c) return;
       document.getElementById("edit-client-id").value = c.id;
+      document.getElementById("edit-typePersonne").value = c.typePersonne || "physique";
+      applyTypePersonneLabels("edit", c.typePersonne || "physique");
       document.getElementById("edit-nom").value = c.nom || "";
       document.getElementById("edit-email").value = c.email || "";
       document.getElementById("edit-telephone").value = c.telephone || "";
@@ -302,6 +338,13 @@
       document.getElementById("detail-view").style.display = "none";
       document.getElementById("detail-edit").style.display = "block";
     }
+
+    document.getElementById("create-typePersonne").addEventListener("change", (e) => {
+      applyTypePersonneLabels("create", e.target.value);
+    });
+    document.getElementById("edit-typePersonne").addEventListener("change", (e) => {
+      applyTypePersonneLabels("edit", e.target.value);
+    });
 
     (async () => {
       const me = await requireSession();
