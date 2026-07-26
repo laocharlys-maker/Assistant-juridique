@@ -1020,6 +1020,9 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
         dateAudience: action.date_audience ? new Date(action.date_audience) : null,
         prochaineAudience: action.prochaine_audience ? new Date(action.prochaine_audience) : null,
         piecesPrevoir: action.pieces_prevoir,
+        // Conserve les champs saisis pour permettre de pre-remplir une Note
+        // de plaidoirie plus tard depuis ces memes Conclusions.
+        champsFormulaire: form.type_action === "conclusions" ? (form as object) : undefined,
         createdBy: auth!.userId,
       },
     });

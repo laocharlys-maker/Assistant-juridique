@@ -218,7 +218,9 @@
 
       <form id="note_plaidoirie-form" class="action-form" style="display:none;">
         <label>Numéro de dossier concerné (optionnel)</label>
-        <input name="numero_dossier" list="dossiers-datalist" placeholder="Laisse vide si non applicable" />
+        <input name="numero_dossier" list="dossiers-datalist" placeholder="Laisse vide si non applicable" id="note_plaidoirie-numero-dossier" />
+        <button type="button" class="secondary" id="note_plaidoirie-prefill-btn">Pré-remplir depuis les Conclusions du dossier</button>
+        <p class="muted" id="note_plaidoirie-prefill-msg" style="display:none;"></p>
         <label>Nom de l'affaire (optionnel)</label>
         <input name="nom_affaire" placeholder="Laisse vide si non applicable" />
         <label>Nom du client (si nouveau dossier)</label>
@@ -885,6 +887,58 @@
         demander_depens: fd.get("demander_depens") === "on",
         pieces: listValues("pieces-list-conclusions"),
       }, forms.conclusions.querySelector('button[type="submit"]'));
+    });
+
+    document.getElementById("note_plaidoirie-prefill-btn").addEventListener("click", async () => {
+      const msgEl = document.getElementById("note_plaidoirie-prefill-msg");
+      msgEl.style.display = "block";
+      const numeroDossier = document.getElementById("note_plaidoirie-numero-dossier").value.trim();
+      const dossier = dossiersParNumero.get(numeroDossier);
+      if (!dossier) {
+        msgEl.textContent = "Renseigne d'abord un numéro de dossier existant ci-dessus.";
+        return;
+      }
+      try {
+        const { champs } = await apiFetch(`/api/dossiers/${dossier.id}/derniere-conclusion`);
+        const form = forms.note_plaidoirie;
+        const setValue = (name, value) => {
+          if (!value) return;
+          const field = form.querySelector(`[name="${name}"]`);
+          if (field) field.value = value;
+        };
+        setValue("nom_avocat", champs.nom_avocat);
+        setValue("adresse_cabinet_manuel", champs.adresse_cabinet_manuel);
+        setValue("qualite_client", champs.qualite_client);
+        setValue("informations_client", champs.informations_client);
+        setValue("qualite_partie_adverse", champs.qualite_partie_adverse);
+        setValue("informations_partie_adverse", champs.informations_partie_adverse);
+        setValue("fondement_juridique", champs.fondement_juridique);
+        setValue("qualification_juridique", champs.qualification_juridique);
+        setValue("prejudice_subi", champs.prejudice_subi);
+        setValue("contexte", champs.contexte);
+        // La partie adverse des Conclusions n'est stockee qu'en une seule
+        // chaine deja composee (civilite + nom, ou nom d'entreprise) : on la
+        // reinjecte dans le champ "personne morale" pour ne rien reformater
+        // et rester fidele a la saisie d'origine.
+        if (champs.nom_partie_adverse) {
+          const typeSelect = document.getElementById("note_plaidoirie-type-partie-adverse");
+          typeSelect.value = "morale";
+          typeSelect.dispatchEvent(new Event("change"));
+          setValue("nom_partie_adverse_morale", champs.nom_partie_adverse);
+        }
+        if (Array.isArray(champs.axes_argumentation) && champs.axes_argumentation.length > 0) {
+          const list = document.getElementById("axes-list-note_plaidoirie");
+          list.innerHTML = "";
+          champs.axes_argumentation.forEach((axe) => {
+            addListItem("axes-list-note_plaidoirie", "ex: Titre foncier définitif et inattaquable");
+            const rows = list.querySelectorAll("input");
+            rows[rows.length - 1].value = axe;
+          });
+        }
+        msgEl.textContent = "Champs pré-remplis depuis les dernières Conclusions de ce dossier. Vérifie et complète avant de générer.";
+      } catch (err) {
+        msgEl.textContent = err.message;
+      }
     });
 
     forms.note_plaidoirie.addEventListener("submit", (e) => {

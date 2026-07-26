@@ -68,6 +68,22 @@
           <span id="limite-documents-saved" class="muted" style="display:none; margin-left:10px;">Enregistré ✓</span>
         </form>
       </div>
+
+      <div class="settings-card">
+        <div class="icon-badge"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+        <h3>Annuaire des huissiers</h3>
+        <p class="desc">Huissiers/commissaires de justice du cabinet, proposés lors de l'envoi d'une Assignation ou d'une Mise en demeure.</p>
+        <div id="huissiers-list"></div>
+        <form id="huissier-form" style="margin-top:10px;">
+          <label>Nom</label>
+          <input name="nom" required placeholder="ex: Maître AGBODJOGBE" />
+          <label>Email</label>
+          <input name="email" type="email" required />
+          <label>Téléphone (optionnel)</label>
+          <input name="telephone" />
+          <button type="submit" class="btn-sm">Ajouter</button>
+        </form>
+      </div>
     </div>
   </div>
   <script src="/js/api.js"></script>
@@ -84,6 +100,37 @@
       el.innerHTML = enteteUrl
         ? `<p>En-tête actuel :</p><img src="${escapeHtml(enteteUrl)}" alt="En-tête" style="max-width:100%; border:1px solid var(--border); border-radius:8px; padding:8px;" />`
         : `<p class="muted">Aucun en-tête enregistré pour l'instant.</p>`;
+    }
+
+    async function loadHuissiers() {
+      const el = document.getElementById("huissiers-list");
+      try {
+        const huissiers = await apiFetch("/api/huissiers");
+        el.innerHTML = huissiers.length === 0
+          ? '<p class="muted">Aucun huissier enregistré pour l\'instant.</p>'
+          : huissiers
+              .map(
+                (h) => `
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:6px 0; border-bottom:1px solid var(--border);">
+              <span>${escapeHtml(h.nom)} — ${escapeHtml(h.email)}${h.telephone ? " — " + escapeHtml(h.telephone) : ""}</span>
+              <button type="button" class="secondary btn-sm" data-remove-huissier="${h.id}">Retirer</button>
+            </div>`
+              )
+              .join("");
+        el.querySelectorAll("[data-remove-huissier]").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            try {
+              await apiFetch(`/api/huissiers/${btn.dataset.removeHuissier}`, { method: "DELETE" });
+              loadHuissiers();
+            } catch (err) {
+              showError(document.getElementById("error"), err.message);
+            }
+          });
+        });
+      } catch (err) {
+        el.innerHTML = "";
+        showError(document.getElementById("error"), err.message);
+      }
     }
 
     (async () => {
@@ -105,6 +152,7 @@
         document.querySelector('#retention-form input[name="archivageDelaiMois"]').value = cabinet.archivageDelaiMois;
         document.querySelector('#limite-documents-form input[name="limiteDocumentsCollaborateurParMois"]').value =
           cabinet.limiteDocumentsCollaborateurParMois ?? "";
+        await loadHuissiers();
       } catch (err) {
         showError(document.getElementById("error"), err.message);
       }
@@ -190,6 +238,22 @@
         });
         savedEl.style.display = "inline";
         setTimeout(() => { savedEl.style.display = "none"; }, 3000);
+      } catch (err) {
+        showError(errorEl, err.message);
+      }
+    });
+
+    document.getElementById("huissier-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      hideError(errorEl);
+      const fd = new FormData(e.target);
+      try {
+        await apiFetch("/api/huissiers", {
+          method: "POST",
+          body: { nom: fd.get("nom"), email: fd.get("email"), telephone: fd.get("telephone") || undefined },
+        });
+        e.target.reset();
+        await loadHuissiers();
       } catch (err) {
         showError(errorEl, err.message);
       }

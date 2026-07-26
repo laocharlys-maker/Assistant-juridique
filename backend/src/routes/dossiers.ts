@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
 import { getAccessibleAvocatIds } from "../services/access";
@@ -157,6 +158,30 @@ dossiersRouter.get("/api/dossiers/:id", requireAuth, async (req, res) => {
   const statutTag = dossier.statut === "cloture" ? "cloture" : tags.get(dossier.id) || "a_jour";
 
   return res.json({ ...dossier, statutTag });
+});
+
+// Sert au bouton "Pre-remplir depuis les Conclusions" de la Note de
+// plaidoirie : recupere les champs saisis lors des dernieres Conclusions
+// de ce dossier, s'il y en a.
+dossiersRouter.get("/api/dossiers/:id/derniere-conclusion", requireAuth, async (req, res) => {
+  const { auth } = req;
+
+  const dossier = await prisma.dossier.findFirst({
+    where: { id: req.params.id, cabinetId: auth!.cabinetId },
+  });
+  if (!dossier) {
+    return res.status(404).json({ error: "Dossier introuvable" });
+  }
+
+  const action = await prisma.action.findFirst({
+    where: { dossierId: dossier.id, typeAction: "conclusions", champsFormulaire: { not: Prisma.JsonNull } },
+    orderBy: { createdAt: "desc" },
+  });
+  if (!action || !action.champsFormulaire) {
+    return res.status(404).json({ error: "Aucune conclusion trouvée pour ce dossier" });
+  }
+
+  return res.json({ champs: action.champsFormulaire });
 });
 
 const updateStatutSchema = z.object({

@@ -44,7 +44,32 @@
     let clientsAvecEmail = [];
     let avocatsAnnuaire = [];
     let collaborateursAnnuaire = [];
+    let collegues = [];
+    let huissiersAnnuaire = [];
     let currentDossierEstRecherche = false;
+
+    // Configuration des boutons d'envoi par type de document : chaque type
+    // n'expose que les destinataires qui ont du sens pour lui (ex: une Note
+    // de plaidoirie n'est jamais envoyee par email, un huissier ne concerne
+    // qu'Assignation/Mise en demeure). Les types absents de cette liste
+    // (compte-rendu, plainte, contrat, notification...) gardent le
+    // comportement par defaut (client + collegue).
+    const ENVOI_CONFIG = {
+      redac: { moi: true },
+      conclusions: { collegue: true },
+      assignation: { huissier: true, collegue: true },
+      mise_en_demeure: { huissier: true, collegue: true },
+      requete: { moi: true, collegue: true },
+      resume_pdf: { moi: true, collegue: true },
+      jurisprudence: { moi: true, collegue: true },
+      recherche_juridique: { moi: true, collegue: true },
+      traduction: { moi: true, collegue: true, client: true },
+    };
+    const DEFAULT_ENVOI_CONFIG = { client: true, collegue: true };
+    function envoiConfigFor(typeAction) {
+      if (typeAction === "note_plaidoirie") return null;
+      return ENVOI_CONFIG[typeAction] || DEFAULT_ENVOI_CONFIG;
+    }
 
     (async () => {
       me = await requireSession();
@@ -70,9 +95,17 @@
         const autres = annuaire.filter((u) => u.id !== me.id);
         avocatsAnnuaire = autres.filter((u) => u.role === "titulaire" || u.role === "avocat");
         collaborateursAnnuaire = autres.filter((u) => u.role === "collaborateur");
+        collegues = avocatsAnnuaire.concat(collaborateursAnnuaire);
       } catch {
         avocatsAnnuaire = [];
         collaborateursAnnuaire = [];
+        collegues = [];
+      }
+
+      try {
+        huissiersAnnuaire = await apiFetch("/api/huissiers");
+      } catch {
+        huissiersAnnuaire = [];
       }
 
       const id = new URLSearchParams(window.location.search).get("id");
@@ -202,8 +235,8 @@
 
           [
             `[data-envoyer-client="${a.id}"]`,
-            `[data-envoyer-avocat="${a.id}"]`,
-            `[data-envoyer-collaborateur="${a.id}"]`,
+            `[data-envoyer-collegue="${a.id}"]`,
+            `[data-envoyer-huissier="${a.id}"]`,
           ].forEach((selector) => {
             const select = actionsEl.querySelector(selector);
             if (!select || !emailInput) return;
@@ -290,63 +323,63 @@
         : "";
 
       const estCollaborateur = me && me.role === "collaborateur";
+      const envoiConfig = envoiConfigFor(a.typeAction);
 
       let controls = "";
       if (a.statut === "en_attente_validation" && !currentDossierEstRecherche) {
+        const hintEnvoi = envoiConfig
+          ? `<p class="muted" style="margin-top:8px;">L'envoi sera possible une fois l'action validée.</p>`
+          : "";
         controls = estCollaborateur
           ? `<p class="muted" style="margin-top:8px;">En attente de validation par un avocat du cabinet.</p>`
           : `
           <div style="margin-top:10px;">
             <button type="button" class="secondary" data-valider="${a.id}">Marquer comme validé</button>
           </div>
-          <p class="muted" style="margin-top:8px;">L'envoi au client sera possible une fois l'action validée.</p>`;
-      } else if (a.statut === "valide" || (a.statut === "en_attente_validation" && currentDossierEstRecherche)) {
+          ${hintEnvoi}`;
+      } else if (envoiConfig && (a.statut === "valide" || (a.statut === "en_attente_validation" && currentDossierEstRecherche))) {
         // Un collaborateur ne peut jamais envoyer un document directement a
         // un client : il ne peut le transmettre qu'a un membre du cabinet
         // (son avocat responsable ou un autre membre), pour relecture/envoi.
-        const clientSelect =
-          !estCollaborateur && clientsAvecEmail.length > 0
-            ? `<select data-envoyer-client="${a.id}" style="width:auto;">
-                        <option value="">— ou choisir un client —</option>
-                        ${clientsAvecEmail
-                          .map((c) => `<option value="${escapeHtml(c.email)}">${escapeHtml(c.nom)}</option>`)
-                          .join("")}
-                      </select>`
-            : "";
-        const rechercheEnvoiControls = currentDossierEstRecherche || estCollaborateur
-          ? `<div style="margin:0 0 8px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-               <button type="button" class="secondary" data-envoyer-moi="${a.id}" style="margin:0;">M'envoyer à moi-même</button>
-               ${clientSelect}
-               ${
-                 avocatsAnnuaire.length > 0
-                   ? `<select data-envoyer-avocat="${a.id}" style="width:auto;">
-                        <option value="">— ou choisir un membre du cabinet —</option>
-                        ${avocatsAnnuaire
-                          .map((u) => `<option value="${escapeHtml(u.email)}">${escapeHtml(u.nom)}</option>`)
-                          .join("")}
-                      </select>`
-                   : ""
-               }
-               ${
-                 collaborateursAnnuaire.length > 0
-                   ? `<select data-envoyer-collaborateur="${a.id}" style="width:auto;">
-                        <option value="">— ou choisir un collaborateur —</option>
-                        ${collaborateursAnnuaire
-                          .map((u) => `<option value="${escapeHtml(u.email)}">${escapeHtml(u.nom)}</option>`)
-                          .join("")}
-                      </select>`
-                   : ""
-               }
-             </div>`
-          : "";
+        const boutonsEnvoi = [];
+        if (envoiConfig.moi) {
+          boutonsEnvoi.push(
+            `<button type="button" class="secondary" data-envoyer-moi="${a.id}" style="margin:0;">M'envoyer par mail</button>`
+          );
+        }
+        if (envoiConfig.client && !estCollaborateur && clientsAvecEmail.length > 0) {
+          boutonsEnvoi.push(
+            `<select data-envoyer-client="${a.id}" style="width:auto;">
+               <option value="">— Envoyer à un client —</option>
+               ${clientsAvecEmail.map((c) => `<option value="${escapeHtml(c.email)}">${escapeHtml(c.nom)}</option>`).join("")}
+             </select>`
+          );
+        }
+        if (envoiConfig.collegue && collegues.length > 0) {
+          boutonsEnvoi.push(
+            `<select data-envoyer-collegue="${a.id}" style="width:auto;">
+               <option value="">— Envoyer à un collègue —</option>
+               ${collegues.map((u) => `<option value="${escapeHtml(u.email)}">${escapeHtml(u.nom)}</option>`).join("")}
+             </select>`
+          );
+        }
+        if (envoiConfig.huissier && huissiersAnnuaire.length > 0) {
+          boutonsEnvoi.push(
+            `<select data-envoyer-huissier="${a.id}" style="width:auto;">
+               <option value="">— Envoyer à l'huissier —</option>
+               ${huissiersAnnuaire.map((h) => `<option value="${escapeHtml(h.email)}">${escapeHtml(h.nom)}</option>`).join("")}
+             </select>`
+          );
+        }
+
         controls = `
           <form data-envoyer-form="${a.id}" style="margin-top:10px;">
-            ${rechercheEnvoiControls}
+            ${boutonsEnvoi.length > 0 ? `<div style="margin:0 0 8px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">${boutonsEnvoi.join("")}</div>` : ""}
             ${estCollaborateur ? '<p class="muted" style="margin:0 0 6px;">Tu ne peux envoyer ce document qu\'à un membre du cabinet (pas directement à un client).</p>' : ""}
             <div style="display:flex; gap:8px; align-items:flex-end;">
               <div style="flex:1;">
                 <label style="margin:0 0 4px;">Envoyer à (email)</label>
-                <input type="email" name="email" id="email-${a.id}" placeholder="${estCollaborateur ? "choisis un destinataire ci-dessus" : "client@example.com"}" required ${estCollaborateur ? "readonly" : ""} />
+                <input type="email" name="email" id="email-${a.id}" placeholder="${estCollaborateur ? "choisis un destinataire ci-dessus" : "adresse@example.com"}" required ${estCollaborateur ? "readonly" : ""} />
               </div>
               <button type="submit">Envoyer</button>
             </div>
@@ -354,6 +387,8 @@
           </form>`;
       } else if (a.statut === "envoye") {
         controls = `<p class="muted" style="margin-top:8px;">Envoyé à ${escapeHtml(a.destinataireEmail || "")} le ${a.envoyeAt ? new Date(a.envoyeAt).toLocaleString("fr-FR") : ""}</p>`;
+      } else if (!envoiConfig && a.statut === "valide") {
+        controls = `<p class="muted" style="margin-top:8px;">Document prêt — ce type de document ne nécessite pas d'envoi par email.</p>`;
       }
 
       return `

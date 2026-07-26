@@ -99,8 +99,25 @@ model Cabinet {
   delaiTypes    DelaiType[]
   factures      Facture[]
   roleAudiences RoleAudience[]
+  huissiers     Huissier[]
 
   @@map("cabinets")
+}
+
+// Annuaire des huissiers/commissaires de justice du cabinet, pour proposer
+// un choix rapide lors de l'envoi d'une Assignation ou Mise en demeure
+// (plutot que ressaisir l'adresse a chaque fois).
+model Huissier {
+  id        String   @id @default(uuid())
+  cabinetId String   @map("cabinet_id")
+  nom       String
+  email     String
+  telephone String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  cabinet Cabinet @relation(fields: [cabinetId], references: [id])
+
+  @@map("huissiers")
 }
 
 model User {
@@ -355,6 +372,10 @@ model Action {
   documentId        String?      @map("document_id")
   destinataireEmail String?      @map("destinataire_email")
   envoyeAt          DateTime?    @map("envoye_at")
+  // Copie brute des champs saisis dans le formulaire (uniquement pour les
+  // Conclusions pour l'instant) - permet de pre-remplir un autre document
+  // du meme dossier (ex: Note de plaidoirie) sans tout ressaisir.
+  champsFormulaire  Json?        @map("champs_formulaire")
   createdBy         String       @map("created_by")
   createdAt         DateTime     @default(now()) @map("created_at")
 
