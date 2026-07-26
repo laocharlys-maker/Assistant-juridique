@@ -131,14 +131,33 @@ export const assignationFormSchema = z.object({
   destinataire: z.string().min(1),
   // Avocat en charge du dossier - affiche sur l'acte, jamais devine.
   nom_avocat: z.string().min(1),
+  adresse_cabinet_manuel: z.string().optional(),
   // Huissier/commissaire de justice charge de la delivrance de l'acte.
   nom_huissier: z.string().min(1),
-  // Juridiction saisie (ex: Tribunal Judiciaire de Cotonou) - jamais devinee.
+  // Juridiction saisie (ex: Tribunal de Premiere Instance) - jamais devinee.
   nom_juridiction: z.string().min(1),
-  // Chambre au sein de la juridiction (ex: chambre administrative) - pas
-  // toujours connue au moment de la redaction.
+  // Chambre au sein de la juridiction (ex: chambre civile) - pas toujours
+  // connue au moment de la redaction.
   nom_chambre: z.string().optional(),
-  // Demandes precises au tribunal ("PAR CES MOTIFS") - jamais devinees par
+  // Ville de la juridiction saisie, combinee a nom_juridiction sur l'acte.
+  ville: z.string().min(1),
+  // Date d'audience - pas toujours connue au moment de la redaction (fixee
+  // par le greffe), donc facultative.
+  date_audience: z.string().optional(),
+  // I. Les parties - memes principes que Conclusions/Note de plaidoirie :
+  // jamais devine par l'IA si absent.
+  profession_client: z.string().optional(),
+  // Naissance du client uniquement (pas l'adresse, voir adresse_client_manuel
+  // ci-dessous) - normalement deja sur sa fiche, ce champ n'est qu'un secours.
+  informations_client: z.string().optional(),
+  adresse_client_manuel: z.string().optional(),
+  // Objet synthetique de la demande ("...pour le voir condamner au ...").
+  demande_client: z.string().optional(),
+  // Discussion juridique - jamais devinee par l'IA si absente.
+  fondement_juridique: z.string().optional(),
+  qualification_juridique: z.string().optional(),
+  prejudice_subi: z.string().optional(),
+  // Demandes precises au tribunal ("En consequence") - jamais devinees par
   // l'IA, toujours saisies par l'avocat.
   demandes: z.array(z.string().min(1)).min(1),
   // Pieces versees aux debats (bordereau) - optionnel, peut etre complete plus tard.

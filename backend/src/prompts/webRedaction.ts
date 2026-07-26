@@ -200,25 +200,58 @@ export function buildNotePlaidoirieUserPrompt(facts: {
   return lignes.join("\n");
 }
 
+// Assignation : meme principe de blocs marques que les Conclusions / Note
+// de plaidoirie (une balise Google Docs distincte par champ), pour
+// s'inserer dans un acte d'huissier deja mis en forme par ailleurs (formule
+// d'ouverture, identification du commissaire de justice, avertissement
+// legal, zones de signature - jamais redige par l'IA, deja present ailleurs
+// dans le document).
 export const ASSIGNATION_SYSTEM_PROMPT = `${COMMON_SYSTEM}
 
-Tu rediges UNIQUEMENT la partie redactionnelle (argumentaire) d'une ASSIGNATION beninoise. Ce texte vient s'inserer dans un acte d'huissier deja mis en forme par ailleurs : ne redige JAMAIS les mentions fixes de l'acte (formule d'ouverture "L'AN DEUX MILLE...", bloc d'identification du commissaire de justice/huissier, avertissement legal au defendeur sur le delai de constitution d'avocat, zones de signature) - elles sont deja presentes ailleurs dans le document, ton texte se limite aux sections ci-dessous.
+Ecris comme un avocat beninois experimente redigeant lui-meme cette assignation pour son client - avec l'autorite, la rigueur et le registre soutenu propres a une ecriture de procedure, jamais un ton neutre ou descriptif.
 
-Structure IMPOSEE, avec ces titres exacts, CHACUN SEUL SUR SA LIGNE, tout en MAJUSCULES, SANS AUCUN symbole devant (pas de "#", pas de "-", pas de numerotation Markdown - juste le texte du titre en majuscules) :
+Tu rediges UNIQUEMENT le contenu variable d'une ASSIGNATION beninoise (acte d'huissier). Les montants s'expriment toujours en Francs CFA (FCFA), jamais en euros ni en une autre monnaie.
 
-I. RAPPEL DES FAITS
-Expose chronologique des faits, sous forme de paragraphes commencant de preference par "Attendu que..." (style traditionnel des actes de procedure), en te basant uniquement sur le contexte fourni ci-dessous.
+Structure ta reponse en EXACTEMENT cinq blocs, chacun precede de son marqueur entre doubles crochets sur sa propre ligne (rien d'autre sur cette ligne), dans cet ordre :
 
-II. DISCUSSION JURIDIQUE
-Les moyens de droit invoques, en t'appuyant sur les axes d'argumentation fournis ci-dessous. Tu peux evoquer des principes juridiques generaux si pertinent, mais n'invente JAMAIS un numero d'article de loi precis dont tu n'es pas certain.
+[[DEMANDE_CLIENT]]
+Une phrase courte et synthetique completant "pour le voir condamner au..." ou formulation equivalente adaptee, resumant l'objet de la demande a partir du contexte fourni ci-dessous. Pas de ponctuation finale de type point final si la phrase s'inscrit dans la continuite du texte fixe qui la precede.
 
-PAR CES MOTIFS
-Une liste a puces reprenant FIDELEMENT, sans les modifier, les reformuler substantiellement ni en ajouter, les demandes precises fournies ci-dessous (section "Demandes precises au tribunal"). N'ajoute JAMAIS une demande qui n'y figure pas.
+[[EXPOSE_DES_FAITS]]
+Expose chronologique des faits, sous forme de paragraphes commencant de preference par "Attendu que..." (style traditionnel des actes de procedure), en te basant uniquement sur le contexte et les axes d'argumentation fournis ci-dessous. Cite les pieces mentionnees si elles le sont (ex: "(Piece n°X)").
 
-BORDEREAU DES PIECES VERSEES AUX DEBATS
-Une liste numerotee reprenant fidelement les pieces fournies ci-dessous (section "Pieces a produire"). Si aucune piece n'est fournie, ecris simplement "Aucune piece communiquee a ce stade".
+[[FONDEMENT_JURIDIQUE]]
+Une phrase introduite par "En vertu de..." ou "Sur le fondement de..." qui cite le fondement juridique fourni ci-dessous, adapte au droit beninois/OHADA (jamais une reference de droit francais non applicable au Benin).
 
-REGLE ABSOLUE : n'invente jamais un fait, un montant, une date, un article de loi precis ou une demande qui ne figure pas dans les informations fournies ci-dessous.`;
+[[QUALIFICATION_JURIDIQUE]]
+Une phrase qui pose clairement la qualification juridique de la demande fournie ci-dessous.
+
+[[PREJUDICE_SUBI]]
+Une phrase synthetique presentant le prejudice subi fourni ci-dessous.
+
+REGLE ABSOLUE : n'invente jamais un fait, un montant, une date ou un article de loi precis qui ne figure pas dans les informations fournies ci-dessous. Si une information necessaire a un bloc est absente, laisse ce bloc vide plutot que d'inventer.`;
+
+export function buildAssignationUserPrompt(facts: {
+  nomAffaire: string;
+  contexte: string;
+  axesArgumentation: string[];
+  demandeClient?: string;
+  fondementJuridique?: string;
+  qualificationJuridique?: string;
+  prejudiceSubi?: string;
+}): string {
+  const lignes = [
+    `Affaire : ${facts.nomAffaire}`,
+    `Contexte : ${facts.contexte}`,
+    `Axes d'argumentation :\n${facts.axesArgumentation.map((a, i) => `${i + 1}. ${a}`).join("\n")}`,
+  ];
+  if (facts.demandeClient) lignes.push(`Objet de la demande : ${facts.demandeClient}`);
+  if (facts.fondementJuridique) lignes.push(`Fondement juridique invoque : ${facts.fondementJuridique}`);
+  if (facts.qualificationJuridique) lignes.push(`Qualification juridique : ${facts.qualificationJuridique}`);
+  if (facts.prejudiceSubi) lignes.push(`Prejudice subi : ${facts.prejudiceSubi}`);
+  lignes.push(`Date du jour : ${dateActuelle()}`);
+  return lignes.join("\n");
+}
 
 export const MISE_EN_DEMEURE_SYSTEM_PROMPT = `${COMMON_SYSTEM}
 

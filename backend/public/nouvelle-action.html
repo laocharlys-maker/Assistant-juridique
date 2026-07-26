@@ -351,19 +351,47 @@
         <input name="nom_client" placeholder="Laisse vide si le dossier existe déjà" />
         <label>Avocat en charge</label>
         <input name="nom_avocat" id="assignation-nom-avocat" required />
+        <label>Adresse du cabinet (optionnel)</label>
+        <input name="adresse_cabinet_manuel" placeholder="Reprise automatiquement depuis Paramètres si déjà renseignée — sinon, précise-la ici" />
         <label>Huissier / Commissaire de justice</label>
-        <input name="nom_huissier" required placeholder="Nom de l'huissier chargé de la délivrance" />
+        <input name="nom_huissier" required placeholder="Nom du commissaire de justice chargé de la délivrance" />
         <label>Juridiction</label>
-        <input name="nom_juridiction" required placeholder="ex: Tribunal Judiciaire de Cotonou" />
+        <select name="nom_juridiction" id="assignation-juridiction" required></select>
+        <label>Ville</label>
+        <select name="ville" id="assignation-ville" required></select>
         <label>Chambre (optionnel)</label>
-        <input name="nom_chambre" placeholder="ex: Chambre administrative" />
+        <input name="nom_chambre" placeholder="ex: Chambre civile" />
+        <label>Date de l'audience (optionnel)</label>
+        <input name="date_audience" type="date" />
+
+        <h3>I. Les parties</h3>
+        <label>Profession du client (optionnel)</label>
+        <input name="profession_client" placeholder="ex: Commerçant" />
+        <label>Informations sur le client (optionnel)</label>
+        <input name="informations_client" placeholder="Reprises automatiquement depuis sa fiche si déjà renseignées — sinon, précise ici (né(e) le..., n° pièce d'identité, situation matrimoniale...)" />
+        <label>Adresse du client (optionnel)</label>
+        <input name="adresse_client_manuel" placeholder="Reprise automatiquement depuis sa fiche si déjà renseignée — sinon, précise-la ici" />
+
+        <h3>2. Objet et faits</h3>
+        <label>Objet de la demande (optionnel)</label>
+        <input name="demande_client" placeholder="ex: remboursement d'une somme d'argent indûment retenue" />
         <label>Contexte de l'affaire</label>
         <textarea name="contexte" required></textarea>
         <label>Axes d'argumentation / moyens de droit</label>
         <ul class="pieces-list" id="axes-list-assignation"></ul>
         <button type="button" class="secondary" data-add-list="axes-list-assignation">+ Ajouter un axe</button>
         <br />
-        <label>Demandes précises au tribunal ("Par ces motifs")</label>
+
+        <h3>3. Discussion juridique</h3>
+        <label>Fondement juridique invoqué (optionnel)</label>
+        <textarea name="fondement_juridique" placeholder="ex: Code civil applicable au Bénin, article 1103"></textarea>
+        <label>Qualification juridique de la demande (optionnel)</label>
+        <textarea name="qualification_juridique"></textarea>
+        <label>Préjudice subi (optionnel)</label>
+        <textarea name="prejudice_subi"></textarea>
+
+        <h3>4. Par ces motifs / En conséquence</h3>
+        <label>Demandes précises au tribunal ("En conséquence")</label>
         <ul class="pieces-list" id="demandes-list-assignation"></ul>
         <button type="button" class="secondary" data-add-list="demandes-list-assignation">+ Ajouter une demande</button>
         <br />
@@ -630,6 +658,8 @@
       populateSelect(document.getElementById("conclusions-ville"), VILLES_BENIN);
       populateSelect(document.getElementById("note_plaidoirie-juridiction"), JURIDICTIONS_BENIN);
       populateSelect(document.getElementById("note_plaidoirie-ville"), VILLES_BENIN);
+      populateSelect(document.getElementById("assignation-juridiction"), JURIDICTIONS_BENIN);
+      populateSelect(document.getElementById("assignation-ville"), VILLES_BENIN);
       [
         ["redac-destinataire", "redac-nom-avocat-field"],
         ["conclusions-destinataire", "conclusions-nom-avocat-field"],
@@ -990,11 +1020,21 @@
         destinataire: fd.get("destinataire"),
         nom_client: fd.get("nom_client") || undefined,
         nom_avocat: fd.get("nom_avocat"),
+        adresse_cabinet_manuel: fd.get("adresse_cabinet_manuel") || undefined,
         nom_huissier: fd.get("nom_huissier"),
         nom_juridiction: fd.get("nom_juridiction"),
+        ville: fd.get("ville"),
         nom_chambre: fd.get("nom_chambre") || undefined,
+        date_audience: fd.get("date_audience") || undefined,
+        profession_client: fd.get("profession_client") || undefined,
+        informations_client: fd.get("informations_client") || undefined,
+        adresse_client_manuel: fd.get("adresse_client_manuel") || undefined,
+        demande_client: fd.get("demande_client") || undefined,
         contexte: fd.get("contexte"),
         axes_argumentation: listValues("axes-list-assignation"),
+        fondement_juridique: fd.get("fondement_juridique") || undefined,
+        qualification_juridique: fd.get("qualification_juridique") || undefined,
+        prejudice_subi: fd.get("prejudice_subi") || undefined,
         demandes: listValues("demandes-list-assignation"),
         pieces: listValues("pieces-list-assignation"),
       }, forms.assignation.querySelector('button[type="submit"]'));

@@ -23,6 +23,7 @@ import {
   buildRedacUserPrompt,
   buildConclusionsUserPrompt,
   buildNotePlaidoirieUserPrompt,
+  buildAssignationUserPrompt,
   buildMiseEnDemeureUserPrompt,
   buildJurisprudenceUserPrompt,
   buildRechercheJuridiqueUserPrompt,
@@ -41,14 +42,13 @@ import { env } from "../config/env";
 
 export const webActionsRouter = Router();
 
-// redac / assignation partagent la meme forme de donnees (dossier existant
-// + contexte + axes d'argumentation), seuls le prompt et le libelle
-// changent. Les conclusions ont leur propre traitement (voir plus bas) :
-// texte structure en blocs distincts pour s'inserer dans un template
-// Google Docs a plusieurs sections.
+// La plaidoirie (redac) reste sur ce traitement simple (dossier existant +
+// contexte + axes d'argumentation -> un seul bloc "argumentaire"). Les
+// Conclusions, la Note de plaidoirie et l'Assignation ont chacune leur
+// propre traitement (voir plus bas) : texte structure en blocs distincts
+// pour s'inserer dans un template Google Docs a plusieurs sections.
 const TEXTE_JURIDIQUE_CONFIG = {
   redac: { systemPrompt: REDAC_SYSTEM_PROMPT, categorieTexte: "Plaidoirie" },
-  assignation: { systemPrompt: ASSIGNATION_SYSTEM_PROMPT, categorieTexte: "Assignation" },
 } as const;
 
 // Compose une description civile du client ("ne(e) le ... a ..., demeurant
@@ -75,6 +75,41 @@ function composerInformationsClient(client: {
   const adresse = [client.quartierResidence, client.rue, client.maison, client.autrePrecision].filter(Boolean);
   if (adresse.length > 0) parts.push(`demeurant à ${adresse.join(", ")}`);
   return parts.length > 0 ? parts.join(", ") : null;
+}
+
+// Variante pour l'Assignation : naissance + piece d'identite + situation
+// matrimoniale (sans l'adresse, qui a sa propre balise separee sur cet
+// acte - voir composerAdresseClient ci-dessous).
+function composerInformationsClientAssignation(client: {
+  dateNaissance: Date | null;
+  lieuNaissance: string | null;
+  numeroPieceIdentite: string | null;
+  situationMatrimoniale: string | null;
+} | null): string | null {
+  if (!client) return null;
+  const parts: string[] = [];
+  if (client.dateNaissance) {
+    const dateStr = client.dateNaissance.toLocaleDateString("fr-FR", { year: "numeric", month: "long", day: "numeric" });
+    parts.push(client.lieuNaissance ? `né(e) le ${dateStr} à ${client.lieuNaissance}` : `né(e) le ${dateStr}`);
+  } else if (client.lieuNaissance) {
+    parts.push(`né(e) à ${client.lieuNaissance}`);
+  }
+  if (client.numeroPieceIdentite) parts.push(`titulaire de la pièce d'identité n°${client.numeroPieceIdentite}`);
+  if (client.situationMatrimoniale) parts.push(client.situationMatrimoniale);
+  return parts.length > 0 ? parts.join(", ") : null;
+}
+
+// Adresse seule (sans prefixe "demeurant a", deja present en dur sur le
+// template de l'Assignation juste avant la balise).
+function composerAdresseClient(client: {
+  quartierResidence: string | null;
+  rue: string | null;
+  maison: string | null;
+  autrePrecision: string | null;
+} | null): string | null {
+  if (!client) return null;
+  const adresse = [client.quartierResidence, client.rue, client.maison, client.autrePrecision].filter(Boolean);
+  return adresse.length > 0 ? adresse.join(", ") : null;
 }
 
 // Decoupe un texte rediage par l'IA en blocs, chacun precede d'un marqueur
@@ -296,30 +331,21 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
         synthese: redigé,
         argumentaire: null,
       };
-    } else if (form.type_action === "redac" || form.type_action === "assignation") {
-      const config = TEXTE_JURIDIQUE_CONFIG[form.type_action];
-      const destinataire = form.type_action === "assignation" ? form.destinataire : undefined;
-      const adresseA =
-        form.type_action === "redac"
-          ? composeDestinataire(
-              form.destinataire,
-              form.nom_juridiction,
-              form.ville,
-              form.nom_avocat_destinataire
-            )
-          : undefined;
-      const demandes = form.type_action === "assignation" ? form.demandes : undefined;
-      const pieces = form.type_action === "assignation" ? form.pieces : undefined;
+    } else if (form.type_action === "redac") {
+      const config = TEXTE_JURIDIQUE_CONFIG.redac;
+      const adresseA = composeDestinataire(
+        form.destinataire,
+        form.nom_juridiction,
+        form.ville,
+        form.nom_avocat_destinataire
+      );
       const redigé = await llm.redact(
         config.systemPrompt,
         buildRedacUserPrompt({
           nomAffaire: form.nom_affaire || "non précisée",
           contexte: form.contexte,
           axesArgumentation: form.axes_argumentation,
-          destinataire,
           adresseA,
-          demandes,
-          pieces,
         })
       );
 
@@ -336,32 +362,126 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
       const dossier = dossierLookup.dossier;
       dossierId = dossier.id;
 
-      // Le nom affiche cote "destinataire" du document depend du type : la
-      // plaidoirie reste sur le template generique (pas de destinataire
-      // affiche). Pour une assignation, nom_client reste le VRAI client
-      // (voir extraWebhookFields plus bas pour le defendeur et la
-      // juridiction, distincts du client).
-      const nomClientAffiche = form.type_action === "assignation" ? dossier.nomClient : null;
-
-      if (form.type_action === "assignation") {
-        extraWebhookFields = {
-          nom_defendeur: form.destinataire,
-          nom_avocat: form.nom_avocat,
-          nom_huissier: form.nom_huissier,
-          nom_juridiction: form.nom_juridiction,
-          nom_chambre: form.nom_chambre ?? null,
-        };
-      }
-
       action = {
-        type_action: form.type_action,
+        type_action: "redac",
         categorie_texte: config.categorieTexte,
         numero_dossier: dossier.numeroDossier,
         nom_affaire: dossier.nomAffaire,
-        nom_client: nomClientAffiche,
+        nom_client: null,
         nom_juridiction: null,
         nom_chambre: null,
         date_audience: null,
+        decision: null,
+        prochaine_audience: null,
+        pieces_prevoir: null,
+        synthese: null,
+        argumentaire: redigé,
+      };
+    } else if (form.type_action === "assignation") {
+      const redigeBrut = await llm.redact(
+        ASSIGNATION_SYSTEM_PROMPT,
+        buildAssignationUserPrompt({
+          nomAffaire: form.nom_affaire || "non précisée",
+          contexte: form.contexte,
+          axesArgumentation: form.axes_argumentation,
+          demandeClient: form.demande_client,
+          fondementJuridique: form.fondement_juridique,
+          qualificationJuridique: form.qualification_juridique,
+          prejudiceSubi: form.prejudice_subi,
+        })
+      );
+
+      const blocs = decouperBlocsMarques(redigeBrut, [
+        "DEMANDE_CLIENT",
+        "EXPOSE_DES_FAITS",
+        "FONDEMENT_JURIDIQUE",
+        "QUALIFICATION_JURIDIQUE",
+        "PREJUDICE_SUBI",
+      ]);
+      const demandeClient = blocs.DEMANDE_CLIENT ?? "";
+      const exposeDesFaitsAssignation = blocs.EXPOSE_DES_FAITS ?? "";
+      const fondementJuridiqueAssignation = blocs.FONDEMENT_JURIDIQUE ?? "";
+      const qualificationJuridiqueAssignation = blocs.QUALIFICATION_JURIDIQUE ?? "";
+      const prejudiceSubiAssignation = blocs.PREJUDICE_SUBI ?? "";
+      // Utilise pour le contenu enregistre en base et les exports Word/PDF
+      // locaux (qui n'ont pas de template a balises separees).
+      const redigé = [
+        ["I. OBJET DE LA DEMANDE", demandeClient].filter(Boolean).join("\n\n"),
+        ["II. EXPOSÉ DES FAITS", exposeDesFaitsAssignation].filter(Boolean).join("\n\n"),
+        ["III. DISCUSSION JURIDIQUE", fondementJuridiqueAssignation, qualificationJuridiqueAssignation, prejudiceSubiAssignation]
+          .filter(Boolean)
+          .join("\n\n"),
+        ["EN CONSÉQUENCE", form.demandes.map((d) => `- ${d}`).join("\n")].join("\n\n"),
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+
+      const dossierLookupAssignation = await findOrCreateDossier({
+        cabinetId: auth!.cabinetId,
+        userId: auth!.userId,
+        numeroDossier: form.numero_dossier,
+        nomAffaire: form.nom_affaire,
+        nomClient: form.nom_client,
+      });
+      if (!dossierLookupAssignation.ok) {
+        return res.status(404).json({ error: dossierLookupAssignation.error });
+      }
+      const dossierAssignation = dossierLookupAssignation.dossier;
+      dossierId = dossierAssignation.id;
+
+      const [cabinetPourAdresseAssignation, clientPourInfosAssignation] = await Promise.all([
+        prisma.cabinet.findUnique({ where: { id: auth!.cabinetId }, select: { adresse: true } }),
+        dossierAssignation.clientId
+          ? prisma.client.findUnique({
+              where: { id: dossierAssignation.clientId },
+              select: {
+                dateNaissance: true,
+                lieuNaissance: true,
+                numeroPieceIdentite: true,
+                situationMatrimoniale: true,
+                quartierResidence: true,
+                rue: true,
+                maison: true,
+                autrePrecision: true,
+              },
+            })
+          : Promise.resolve(null),
+      ]);
+
+      const informationsClientAssignation =
+        composerInformationsClientAssignation(clientPourInfosAssignation) || form.informations_client || null;
+      const adresseClientAssignation =
+        composerAdresseClient(clientPourInfosAssignation) || form.adresse_client_manuel || null;
+      const adresseCabinetAssignation = cabinetPourAdresseAssignation?.adresse || form.adresse_cabinet_manuel || null;
+
+      extraWebhookFields = {
+        demande_client: demandeClient,
+        expose_des_faits: exposeDesFaitsAssignation,
+        fondement_juridique: fondementJuridiqueAssignation,
+        qualification_juridique: qualificationJuridiqueAssignation,
+        prejudice_subi: prejudiceSubiAssignation,
+        demandes: form.demandes.map((d) => `- ${d}`).join("\n"),
+        nom_defendeur: form.destinataire,
+        nom_avocat: form.nom_avocat,
+        nom_huissier: form.nom_huissier,
+        nom_juridiction: form.nom_juridiction,
+        nom_chambre: form.nom_chambre ?? null,
+        ville: form.ville,
+        profession_client: form.profession_client ?? null,
+        informations_client: informationsClientAssignation,
+        adresse_client: adresseClientAssignation,
+        adresse_cabinet: adresseCabinetAssignation,
+      };
+
+      action = {
+        type_action: "assignation",
+        categorie_texte: "Assignation",
+        numero_dossier: dossierAssignation.numeroDossier,
+        nom_affaire: dossierAssignation.nomAffaire,
+        nom_client: dossierAssignation.nomClient,
+        nom_juridiction: form.nom_juridiction,
+        nom_chambre: form.nom_chambre ?? null,
+        date_audience: form.date_audience ?? null,
         decision: null,
         prochaine_audience: null,
         pieces_prevoir: null,

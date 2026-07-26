@@ -34,6 +34,8 @@
         <input name="dateNaissance" type="date" />
         <label>Lieu de naissance</label>
         <input name="lieuNaissance" />
+        <label>N° de pièce d'identité (CNI, passeport...)</label>
+        <input name="numeroPieceIdentite" />
         <label>Quartier de résidence</label>
         <input name="quartierResidence" />
         <label>Rue</label>
@@ -118,6 +120,8 @@
           <input name="dateNaissance" id="edit-dateNaissance" type="date" />
           <label>Lieu de naissance</label>
           <input name="lieuNaissance" id="edit-lieuNaissance" />
+          <label>N° de pièce d'identité (CNI, passeport...)</label>
+          <input name="numeroPieceIdentite" id="edit-numeroPieceIdentite" />
           <label>Quartier de résidence</label>
           <input name="quartierResidence" id="edit-quartierResidence" />
           <label>Rue</label>
@@ -241,6 +245,7 @@
       ["telephone", "Téléphone"],
       ["dateNaissance", "Date de naissance", formatDate],
       ["lieuNaissance", "Lieu de naissance"],
+      ["numeroPieceIdentite", "N° de pièce d'identité"],
       ["quartierResidence", "Quartier de résidence"],
       ["rue", "Rue"],
       ["autrePrecision", "Autre précision"],
@@ -283,6 +288,7 @@
       document.getElementById("edit-telephone").value = c.telephone || "";
       document.getElementById("edit-dateNaissance").value = c.dateNaissance ? c.dateNaissance.slice(0, 10) : "";
       document.getElementById("edit-lieuNaissance").value = c.lieuNaissance || "";
+      document.getElementById("edit-numeroPieceIdentite").value = c.numeroPieceIdentite || "";
       document.getElementById("edit-quartierResidence").value = c.quartierResidence || "";
       document.getElementById("edit-rue").value = c.rue || "";
       document.getElementById("edit-autrePrecision").value = c.autrePrecision || "";

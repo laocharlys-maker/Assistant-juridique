@@ -196,6 +196,10 @@ model Client {
   // selon ce que le cabinet sait deja du client.
   dateNaissance          DateTime? @map("date_naissance")
   lieuNaissance          String?   @map("lieu_naissance")
+  // Numero de piece d'identite (CNI, passeport...) - utilise notamment dans
+  // les actes d'huissier (assignation) qui doivent identifier precisement
+  // le demandeur.
+  numeroPieceIdentite    String?   @map("numero_piece_identite")
   quartierResidence      String?   @map("quartier_residence")
   rue                    String?
   autrePrecision         String?   @map("autre_precision")
