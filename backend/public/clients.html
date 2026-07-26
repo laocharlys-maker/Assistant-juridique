@@ -29,13 +29,7 @@
           <option value="physique">Personne physique</option>
           <option value="morale">Personne morale (entreprise)</option>
         </select>
-        <label id="create-nom-label">Nom et prénom</label>
-        <input name="nom" required />
-        <label>Email</label>
-        <input name="email" type="email" />
-        <label>Téléphone</label>
-        <input name="telephone" />
-        <div id="create-physique-fields">
+        <div id="create-civilite-wrap">
           <label>Civilité</label>
           <select name="civilite">
             <option value="">— Non précisé —</option>
@@ -43,6 +37,14 @@
             <option value="Mme">Mme</option>
             <option value="Mlle">Mlle</option>
           </select>
+        </div>
+        <label id="create-nom-label">Nom et prénom</label>
+        <input name="nom" required />
+        <label>Email</label>
+        <input name="email" type="email" />
+        <label>Téléphone</label>
+        <input name="telephone" />
+        <div id="create-physique-fields">
           <label>Date de naissance</label>
           <input name="dateNaissance" type="date" />
           <label>Lieu de naissance</label>
@@ -129,13 +131,7 @@
             <option value="physique">Personne physique</option>
             <option value="morale">Personne morale (entreprise)</option>
           </select>
-          <label id="edit-nom-label">Nom et prénom</label>
-          <input name="nom" id="edit-nom" required />
-          <label>Email</label>
-          <input name="email" id="edit-email" type="email" />
-          <label>Téléphone</label>
-          <input name="telephone" id="edit-telephone" />
-          <div id="edit-physique-fields">
+          <div id="edit-civilite-wrap">
             <label>Civilité</label>
             <select name="civilite" id="edit-civilite">
               <option value="">— Non précisé —</option>
@@ -143,6 +139,14 @@
               <option value="Mme">Mme</option>
               <option value="Mlle">Mlle</option>
             </select>
+          </div>
+          <label id="edit-nom-label">Nom et prénom</label>
+          <input name="nom" id="edit-nom" required />
+          <label>Email</label>
+          <input name="email" id="edit-email" type="email" />
+          <label>Téléphone</label>
+          <input name="telephone" id="edit-telephone" />
+          <div id="edit-physique-fields">
             <label>Date de naissance</label>
             <input name="dateNaissance" id="edit-dateNaissance" type="date" />
             <label>Lieu de naissance</label>
@@ -277,6 +281,14 @@
       const estMorale = type === "morale";
       const physiqueFields = document.getElementById(`${prefix}-physique-fields`);
       if (physiqueFields) physiqueFields.style.display = estMorale ? "none" : "block";
+      const civiliteWrap = document.getElementById(`${prefix}-civilite-wrap`);
+      if (civiliteWrap) {
+        civiliteWrap.style.display = estMorale ? "none" : "block";
+        if (estMorale) {
+          const select = civiliteWrap.querySelector("select");
+          if (select) select.value = "";
+        }
+      }
       const nomLabel = document.getElementById(`${prefix}-nom-label`);
       if (nomLabel) nomLabel.textContent = estMorale ? "Nom de la société / raison sociale" : "Nom et prénom";
       const quartierLabel = document.getElementById(`${prefix}-quartier-label`);

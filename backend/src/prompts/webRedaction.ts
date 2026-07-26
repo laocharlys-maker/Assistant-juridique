@@ -268,7 +268,7 @@ Tu rediges UNIQUEMENT l'expose des faits d'une MISE EN DEMEURE (lettre formelle 
 
 Redige 2 a 4 paragraphes courts, en te basant uniquement sur les informations fournies ci-dessous (jamais d'invention) :
 1. Le rappel de l'engagement/obligation (nature, date, ce qui etait convenu), en utilisant les dates et montants precis fournis s'ils le sont.
-2. Le rappel de ce que le destinataire s'etait engage a faire et dans quel delai, et ce que le client a lui-meme respecte de son cote (paiement, avance...) si mentionne.
+2. Le rappel de ce que le destinataire s'etait engage a faire et dans quel delai, et le montant en jeu fourni (avance versee, prix convenu, somme due...) si mentionne, en l'integrant naturellement selon sa nature.
 3. Le constat du manquement a ce jour, en te basant sur le contexte fourni (relances restees sans effet, retard, inexecution...).
 4. Une phrase concluant que cette defaillance cause un prejudice au client et constitue une violation de ses obligations.
 
@@ -360,7 +360,7 @@ export function buildMiseEnDemeureUserPrompt(facts: {
   if (facts.dateObligation) lignes.push(`Date de l'engagement/du contrat : ${facts.dateObligation}`);
   if (facts.descriptionObligation) lignes.push(`Ce qui etait du : ${facts.descriptionObligation}`);
   if (facts.dateEcheancePrevue) lignes.push(`Echeance convenue non respectee : ${facts.dateEcheancePrevue}`);
-  if (facts.montantEngage) lignes.push(`Somme deja versee/engagee par le client : ${facts.montantEngage}`);
+  if (facts.montantEngage) lignes.push(`Montant en jeu (avance versee, prix convenu, somme due...) : ${facts.montantEngage}`);
   lignes.push(`Date du jour : ${dateActuelle()}`);
   return lignes.join("\n");
 }

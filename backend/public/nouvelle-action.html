@@ -223,6 +223,20 @@
         <p class="muted" id="note_plaidoirie-prefill-msg" style="display:none;"></p>
         <label>Nom de l'affaire (optionnel)</label>
         <input name="nom_affaire" placeholder="Laisse vide si non applicable" />
+        <label>Type de client (optionnel)</label>
+        <select name="type_client" id="note_plaidoirie-type-client">
+          <option value="physique">Personne physique</option>
+          <option value="morale">Personne morale</option>
+        </select>
+        <div id="note_plaidoirie-civilite-client-wrap">
+          <label>Civilité du client (optionnel)</label>
+          <select name="civilite_client_manuel">
+            <option value="">— Non précisé —</option>
+            <option value="M.">M.</option>
+            <option value="Mme">Mme</option>
+            <option value="Mlle">Mlle</option>
+          </select>
+        </div>
         <label>Nom du client (si nouveau dossier)</label>
         <input name="nom_client" placeholder="Laisse vide si le dossier existe déjà" />
         <label>Destinataire (optionnel)</label>
@@ -264,19 +278,7 @@
           <option value="Demandeur au pourvoi">Demandeur au pourvoi</option>
           <option value="Défendeur au pourvoi">Défendeur au pourvoi</option>
         </select>
-        <label>Type de client (optionnel)</label>
-        <select name="type_client" id="note_plaidoirie-type-client">
-          <option value="physique">Personne physique</option>
-          <option value="morale">Personne morale</option>
-        </select>
         <div id="note_plaidoirie-profession-client-wrap">
-          <label>Civilité du client (optionnel)</label>
-          <select name="civilite_client_manuel">
-            <option value="">— Non précisé —</option>
-            <option value="M.">M.</option>
-            <option value="Mme">Mme</option>
-            <option value="Mlle">Mlle</option>
-          </select>
           <label>Profession du client (optionnel)</label>
           <input name="profession_client" placeholder="ex: Commerçant" />
         </div>
@@ -363,6 +365,20 @@
         <input name="nom_affaire" required />
         <label>Défendeur (partie assignée)</label>
         <input name="destinataire" required placeholder="Nom / raison sociale du défendeur" />
+        <label>Type de client (optionnel)</label>
+        <select name="type_client" id="assignation-type-client">
+          <option value="physique">Personne physique</option>
+          <option value="morale">Personne morale</option>
+        </select>
+        <div id="assignation-civilite-client-wrap">
+          <label>Civilité du client (optionnel)</label>
+          <select name="civilite_client_manuel">
+            <option value="">— Non précisé —</option>
+            <option value="M.">M.</option>
+            <option value="Mme">Mme</option>
+            <option value="Mlle">Mlle</option>
+          </select>
+        </div>
         <label>Nom du client (si nouveau dossier)</label>
         <input name="nom_client" placeholder="Laisse vide si le dossier existe déjà" />
         <label>Avocat en charge</label>
@@ -381,19 +397,7 @@
         <input name="date_audience" type="date" />
 
         <h3>I. Les parties</h3>
-        <label>Type de client (optionnel)</label>
-        <select name="type_client" id="assignation-type-client">
-          <option value="physique">Personne physique</option>
-          <option value="morale">Personne morale</option>
-        </select>
         <div id="assignation-profession-client-wrap">
-          <label>Civilité du client (optionnel)</label>
-          <select name="civilite_client_manuel">
-            <option value="">— Non précisé —</option>
-            <option value="M.">M.</option>
-            <option value="Mme">Mme</option>
-            <option value="Mlle">Mlle</option>
-          </select>
           <label>Profession du client (optionnel)</label>
           <input name="profession_client" placeholder="ex: Commerçant" />
         </div>
@@ -452,14 +456,12 @@
         <input name="adresse_client_manuel" placeholder="Reprise automatiquement depuis sa fiche si déjà renseignée — sinon, précise-la ici" />
 
         <h3>Destinataire</h3>
-        <label>Nom du destinataire</label>
-        <input name="destinataire" required placeholder="Nom de la personne mise en demeure" />
         <label>Type de destinataire (optionnel)</label>
         <select name="type_destinataire" id="mise_en_demeure-type-destinataire">
           <option value="physique">Personne physique</option>
           <option value="morale">Personne morale</option>
         </select>
-        <div id="mise_en_demeure-profession-destinataire-wrap">
+        <div id="mise_en_demeure-civilite-destinataire-wrap">
           <label>Civilité du destinataire (optionnel)</label>
           <select name="civilite_destinataire">
             <option value="">— Non précisé —</option>
@@ -467,6 +469,10 @@
             <option value="Mme">Mme</option>
             <option value="Mlle">Mlle</option>
           </select>
+        </div>
+        <label>Nom du destinataire</label>
+        <input name="destinataire" required placeholder="Nom de la personne mise en demeure" />
+        <div id="mise_en_demeure-profession-destinataire-wrap">
           <label>Profession du destinataire (optionnel)</label>
           <input name="profession_destinataire" placeholder="ex: Directeur de la société SARL Bâti Plus" />
         </div>
@@ -484,8 +490,8 @@
         <input name="description_obligation" placeholder="ex: la construction d'une clôture" />
         <label>Échéance convenue non respectée (optionnel)</label>
         <input name="date_echeance_prevue" placeholder="ex: 15 mars 2026" />
-        <label>Somme déjà versée/engagée par le client (optionnel)</label>
-        <input name="montant_engage" placeholder="ex: 500 000 FCFA" />
+        <label>Montant en jeu (optionnel)<span class="field-hint" title="Le montant pertinent pour ce dossier, quelle que soit sa nature : avance versée par le client, prix convenu, somme due et impayée, etc.">?</span></label>
+        <input name="montant_engage" placeholder="ex: avance de 500 000 FCFA versée par le client ou solde impayé de 500 000 FCFA" />
 
         <h3>Mise en demeure et conséquences</h3>
         <label>Délai accordé (en jours)</label>
@@ -772,9 +778,12 @@
           }
         });
       }
+      wireProfessionToggle("note_plaidoirie-type-client", "note_plaidoirie-civilite-client-wrap");
       wireProfessionToggle("note_plaidoirie-type-client", "note_plaidoirie-profession-client-wrap");
       wireProfessionToggle("note_plaidoirie-type-partie-adverse", "note_plaidoirie-profession-partie-adverse-wrap");
+      wireProfessionToggle("assignation-type-client", "assignation-civilite-client-wrap");
       wireProfessionToggle("assignation-type-client", "assignation-profession-client-wrap");
+      wireProfessionToggle("mise_en_demeure-type-destinataire", "mise_en_demeure-civilite-destinataire-wrap");
       wireProfessionToggle("mise_en_demeure-type-destinataire", "mise_en_demeure-profession-destinataire-wrap");
 
       const typePartieAdverseSelect = document.getElementById("conclusions-type-partie-adverse");
