@@ -21,8 +21,10 @@
 
     <div class="tabs" id="scope-tabs" style="display:none;">
       <button class="tab active" data-scope="mine">Mes dossiers</button>
-      <button class="tab" data-scope="cabinet">Vue cabinet</button>
+      <button class="tab" data-scope="cabinet">Dossiers du cabinet</button>
     </div>
+
+    <input type="search" id="dossiers-search" placeholder="Rechercher par numéro ou nom d'affaire…" style="margin-bottom:14px;" />
 
     <div class="card">
       <div id="dossiers-list"><p class="muted">Chargement…</p></div>
@@ -34,6 +36,7 @@
     let currentScope = "mine";
     let currentVue = "dossiers";
     let currentUserRole = null;
+    let currentDossiers = [];
 
     const STATUT_TAG_LABELS = {
       a_jour: "à jour",
@@ -62,36 +65,58 @@
         document.getElementById("scope-tabs").style.display =
           peutVoirCabinet && estVueDossier ? "flex" : "none";
 
-        if (dossiers.length === 0) {
-          const emptyLabels = {
-            dossiers: "Aucun dossier pour l'instant.",
-            recherches: "Aucune recherche pour l'instant.",
-            traductions: "Aucun document traduit pour l'instant.",
-            archives: "Aucun dossier archivé pour l'instant.",
-          };
-          listEl.innerHTML = `<p class="muted">${emptyLabels[appliedVue]}</p>`;
-          return;
-        }
-
-        listEl.innerHTML = dossiers
-          .map((d) => {
-            const titre = estVueDossier ? `${d.numeroDossier} — ${d.nomAffaire}` : d.nomAffaire;
-            const meta = estVueDossier
-              ? `${escapeHtml(d.nomClient)} · ${d._count.actions} action(s) · créé par ${escapeHtml(d.creePar.nom)}`
-              : `${d._count.actions} action(s) · créé par ${escapeHtml(d.creePar.nom)}`;
-            return `
-          <div class="dossier-item">
-            <div>
-              <span class="badge badge-${d.statutTag}">${STATUT_TAG_LABELS[d.statutTag] || d.statutTag}</span>
-              <div><a href="/dossier.html?id=${d.id}">${escapeHtml(titre)}</a></div>
-              <div class="meta">${meta}</div>
-            </div>
-          </div>`;
-          })
-          .join("");
+        currentDossiers = dossiers;
+        document.getElementById("dossiers-search").value = "";
+        renderDossiersList(dossiers, estVueDossier);
       } catch (err) {
         listEl.innerHTML = `<p class="error visible">${escapeHtml(err.message)}</p>`;
       }
+    }
+
+    function renderDossiersList(dossiers, estVueDossier) {
+      const listEl = document.getElementById("dossiers-list");
+      if (dossiers.length === 0) {
+        const emptyLabels = {
+          dossiers: "Aucun dossier pour l'instant.",
+          recherches: "Aucune recherche pour l'instant.",
+          traductions: "Aucun document traduit pour l'instant.",
+          archives: "Aucun dossier archivé pour l'instant.",
+        };
+        listEl.innerHTML = `<p class="muted">${emptyLabels[currentVue] || "Aucun résultat."}</p>`;
+        return;
+      }
+
+      listEl.innerHTML = dossiers
+        .map((d) => {
+          const titre = estVueDossier ? `${d.numeroDossier} — ${d.nomAffaire}` : d.nomAffaire;
+          const meta = estVueDossier
+            ? `${escapeHtml(d.nomClient)} · ${d._count.actions} action(s) · créé par ${escapeHtml(d.creePar.nom)}`
+            : `${d._count.actions} action(s) · créé par ${escapeHtml(d.creePar.nom)}`;
+          return `
+        <div class="dossier-item">
+          <div>
+            <span class="badge badge-${d.statutTag}">${STATUT_TAG_LABELS[d.statutTag] || d.statutTag}</span>
+            <div><a href="/dossier.html?id=${d.id}">${escapeHtml(titre)}</a></div>
+            <div class="meta">${meta}</div>
+          </div>
+        </div>`;
+        })
+        .join("");
+    }
+
+    function applyDossiersSearch() {
+      const estVueDossier = currentVue === "dossiers" || currentVue === "archives";
+      const terme = document.getElementById("dossiers-search").value.trim().toLowerCase();
+      if (!terme) {
+        renderDossiersList(currentDossiers, estVueDossier);
+        return;
+      }
+      const filtres = currentDossiers.filter((d) => {
+        const numero = (d.numeroDossier || "").toLowerCase();
+        const nom = (d.nomAffaire || "").toLowerCase();
+        return numero.includes(terme) || nom.includes(terme);
+      });
+      renderDossiersList(filtres, estVueDossier);
     }
 
     function escapeHtml(str) {
@@ -128,6 +153,8 @@
           loadDossiers();
         });
       });
+
+      document.getElementById("dossiers-search").addEventListener("input", applyDossiersSearch);
 
       loadDossiers();
     })();
