@@ -794,6 +794,16 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
 
       const objetMED = form.objet || `D'EXÉCUTER SES OBLIGATIONS CONTRACTUELLES SOUS ${form.delai_jours} JOURS`;
 
+      // Formule d'appel ("Monsieur," / "Madame," / "Mademoiselle,") deduite
+      // de la civilite du destinataire - jamais figee dans le template, pour
+      // ne jamais afficher "Monsieur" devant une societe. Repli generique
+      // "Madame, Monsieur," si la civilite n'est pas precisee (personne
+      // morale, ou personne physique dont la civilite n'a pas ete choisie).
+      const CIVILITE_LONGUE: Record<string, string> = { "M.": "Monsieur", Mme: "Madame", Mlle: "Mademoiselle" };
+      const civiliteAppelDestinataireMED = form.civilite_destinataire
+        ? `${CIVILITE_LONGUE[form.civilite_destinataire]},`
+        : "Madame, Monsieur,";
+
       const consequencesMED = form.consequences.map((c, i) => `${i + 1}. ${c}`).join("\n");
 
       // Utilise pour le contenu enregistre en base et les exports Word/PDF
@@ -809,6 +819,7 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
         mode_notification: modeNotificationMED,
         destinataire: form.destinataire,
         civilite_destinataire: form.civilite_destinataire ?? null,
+        civilite_appel_destinataire: civiliteAppelDestinataireMED,
         objet_mise_en_demeure: objetMED,
         delai_jours: form.delai_jours,
         consequences: consequencesMED,
