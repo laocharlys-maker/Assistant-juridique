@@ -184,6 +184,30 @@ dossiersRouter.get("/api/dossiers/:id/derniere-conclusion", requireAuth, async (
   return res.json({ champs: action.champsFormulaire });
 });
 
+// Sert au bouton "Pre-remplir depuis la derniere Requete" du Projet
+// d'ordonnance : recupere les champs saisis lors de la derniere Requete de
+// ce dossier, s'il y en a (memes noms de champs, voir projetOrdonnanceFormSchema).
+dossiersRouter.get("/api/dossiers/:id/derniere-requete", requireAuth, async (req, res) => {
+  const { auth } = req;
+
+  const dossier = await prisma.dossier.findFirst({
+    where: { id: req.params.id, cabinetId: auth!.cabinetId },
+  });
+  if (!dossier) {
+    return res.status(404).json({ error: "Dossier introuvable" });
+  }
+
+  const action = await prisma.action.findFirst({
+    where: { dossierId: dossier.id, typeAction: "requete", champsFormulaire: { not: Prisma.JsonNull } },
+    orderBy: { createdAt: "desc" },
+  });
+  if (!action || !action.champsFormulaire) {
+    return res.status(404).json({ error: "Aucune requête trouvée pour ce dossier" });
+  }
+
+  return res.json({ champs: action.champsFormulaire });
+});
+
 const updateStatutSchema = z.object({
   statut: z.enum(["actif", "cloture"]),
 });

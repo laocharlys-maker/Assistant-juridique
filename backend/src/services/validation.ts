@@ -19,6 +19,7 @@ const REQUIRED_FIELDS_BY_TYPE: Record<ActionOutput["type_action"], (keyof Action
   contrat: ["nom_affaire"],
   notification_date: ["nom_affaire"],
   requete: ["nom_affaire"],
+  projet_ordonnance: ["nom_affaire"],
   note_plaidoirie: ["nom_affaire"],
 };
 

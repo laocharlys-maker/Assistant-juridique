@@ -678,3 +678,42 @@ export function buildRequeteUserPrompt(facts: {
   lignes.push(`Date du jour : ${dateActuelle()}`);
   return lignes.join("\n");
 }
+
+// Projet d'ordonnance : ebauche redigee par l'avocat pour etre jointe a une
+// Requete et soumise au juge (President de juridiction, Procureur...), a
+// partir des memes faits que la Requete d'origine mais du point de vue du
+// juge qui statue - jamais celui de l'avocat qui plaide. Un seul bloc marque
+// (les motifs sont courts dans une ordonnance) : le dispositif (ce qui est
+// enjoint) est toujours saisi tel quel par l'avocat, jamais redige par l'IA.
+export const PROJET_ORDONNANCE_SYSTEM_PROMPT = `${COMMON_SYSTEM}
+
+Ecris comme un juge beninois redigeant les motifs d'une ordonnance - ton neutre, impersonnel et factuel ("Attendu que..."), a la premiere personne du pluriel ("Nous"), jamais le ton d'un avocat qui plaide une cause. Tu ne prends pas parti : tu constates les faits et les pieces produites au soutien de la requete dont tu es saisi.
+
+Tu rediges UNIQUEMENT les motifs (le corps des "Attendu que...") d'un PROJET D'ORDONNANCE beninois. Ce texte s'insere dans un acte deja mis en forme par ailleurs (en-tete, visas "Vu la requete...", identification des parties, dispositif "PAR CES MOTIFS, ORDONNONS...", delai d'opposition, signature) : ne redige JAMAIS ces elements. Les montants s'expriment toujours en Francs CFA (FCFA).
+
+Structure ta reponse en EXACTEMENT un bloc, precede de son marqueur entre doubles crochets sur sa propre ligne (rien d'autre sur cette ligne) :
+
+[[MOTIFS]]
+2 a 4 paragraphes commencant par "Attendu que...", exposant succinctement : les faits et pieces produits par le requerant au soutien de sa demande, puis le constat que la demande remplit les conditions legales/reglementaires posees par le fondement juridique fourni (cite-le tel quel s'il est precis - n'invente jamais un texte si aucun n'est fourni). Reste bref : une ordonnance ne developpe pas une argumentation, elle constate.
+
+REGLE ABSOLUE : n'invente jamais un fait, une date, un montant ou un article de loi precis qui ne figure pas dans les informations fournies ci-dessous.`;
+
+export function buildProjetOrdonnanceUserPrompt(facts: {
+  nomAffaire?: string;
+  destinataire?: string;
+  objet: string;
+  contexte: string;
+  fondementJuridique?: string;
+  montantEngage?: string;
+}): string {
+  const lignes = [
+    `Affaire : ${facts.nomAffaire || "non précisée"}`,
+    `Juridiction saisie : ${facts.destinataire || "non précisée"}`,
+    `Objet de la requete a l'origine de cette ordonnance : ${facts.objet}`,
+    `Faits et pieces produits au soutien de la requete : ${facts.contexte}`,
+  ];
+  if (facts.fondementJuridique) lignes.push(`Fondement juridique invoque : ${facts.fondementJuridique}`);
+  if (facts.montantEngage) lignes.push(`Montant en jeu : ${facts.montantEngage}`);
+  lignes.push(`Date du jour : ${dateActuelle()}`);
+  return lignes.join("\n");
+}

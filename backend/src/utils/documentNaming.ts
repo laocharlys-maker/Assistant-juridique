@@ -16,6 +16,7 @@ export const TYPE_LABELS: Record<string, string> = {
   contrat: "Contrat",
   notification_date: "Notification",
   requete: "Requête",
+  projet_ordonnance: "Projet d'ordonnance",
   note_plaidoirie: "Note de plaidoirie",
 };
 

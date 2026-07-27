@@ -20,6 +20,7 @@ import {
   CLAUSE_FORCE_MAJEURE,
   NOTIFICATION_DATE_SYSTEM_PROMPT,
   REQUETE_SYSTEM_PROMPT,
+  PROJET_ORDONNANCE_SYSTEM_PROMPT,
   buildNotesUserPrompt,
   buildRedacUserPrompt,
   buildConclusionsUserPrompt,
@@ -32,6 +33,7 @@ import {
   buildContratUserPrompt,
   buildNotificationDateUserPrompt,
   buildRequeteUserPrompt,
+  buildProjetOrdonnanceUserPrompt,
 } from "../prompts/webRedaction";
 import { ActionOutput } from "../schemas/action";
 import { searchJurisprudence, formatJurisprudenceContext } from "../services/rag";
@@ -159,6 +161,7 @@ function nomAdversePourForm(form: WebActionForm): string | null {
       return form.destinataire || null;
     case "plainte":
     case "requete":
+    case "projet_ordonnance":
       return form.nom_defendeur || null;
     case "conclusions":
     case "note_plaidoirie":
@@ -191,29 +194,59 @@ async function findOrCreateDossier(facts: {
   nomClient?: string;
 }): Promise<DossierLookupResult> {
   const numeroDossierFourni = !!facts.numeroDossier?.trim();
-  const numeroDossier = facts.numeroDossier?.trim() || "SANS-NUMERO";
 
-  const existing = await prisma.dossier.findFirst({
-    where: { cabinetId: facts.cabinetId, numeroDossier },
-  });
-  if (existing) return { ok: true, dossier: existing };
+  if (numeroDossierFourni) {
+    const numeroDossier = facts.numeroDossier!.trim();
+    const existing = await prisma.dossier.findFirst({
+      where: { cabinetId: facts.cabinetId, numeroDossier },
+    });
+    if (existing) return { ok: true, dossier: existing };
 
-  // Si aucun numero n'a ete fourni, on cree le dossier partage "SANS-NUMERO"
-  // avec des valeurs par defaut plutot que d'exiger le nom du client.
-  const nomClient = facts.nomClient || (numeroDossierFourni ? undefined : "Non précisé");
-  if (!nomClient) {
-    return {
-      ok: false,
-      error:
-        "Dossier introuvable pour ce numéro. Pour créer un nouveau dossier, renseigne aussi le nom du client.",
-    };
+    if (!facts.nomClient) {
+      return {
+        ok: false,
+        error:
+          "Dossier introuvable pour ce numéro. Pour créer un nouveau dossier, renseigne aussi le nom du client.",
+      };
+    }
+    const dossier = await prisma.dossier.create({
+      data: {
+        cabinetId: facts.cabinetId,
+        numeroDossier,
+        nomAffaire: facts.nomAffaire?.trim() || "Document sans dossier",
+        nomClient: facts.nomClient,
+        createdBy: facts.userId,
+      },
+    });
+    return { ok: true, dossier };
   }
 
+  // Aucun numero fourni : on ne regroupe plus systematiquement dans un seul
+  // dossier "SANS-NUMERO" partage par tout le cabinet (ce qui melangeait des
+  // affaires differentes des qu'un premier dossier sans numero existait deja) -
+  // on cherche un dossier "sans numero" non archive portant le meme nom
+  // d'affaire et de client, et on n'en cree un nouveau que si aucun ne
+  // correspond.
+  const nomClient = facts.nomClient || "Non précisé";
+  const nomAffaire = facts.nomAffaire?.trim() || "Document sans dossier";
+
+  const existingSansNumero = await prisma.dossier.findFirst({
+    where: {
+      cabinetId: facts.cabinetId,
+      numeroDossier: { startsWith: "SANS-NUMERO" },
+      nomClient,
+      nomAffaire,
+      archivedAt: null,
+    },
+  });
+  if (existingSansNumero) return { ok: true, dossier: existingSansNumero };
+
+  const numeroDossier = `SANS-NUMERO-${Date.now().toString(36).toUpperCase()}`;
   const dossier = await prisma.dossier.create({
     data: {
       cabinetId: facts.cabinetId,
       numeroDossier,
-      nomAffaire: facts.nomAffaire?.trim() || "Document sans dossier",
+      nomAffaire,
       nomClient,
       createdBy: facts.userId,
     },
@@ -1345,7 +1378,7 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
         synthese: null,
         argumentaire: redigé,
       };
-    } else {
+    } else if (form.type_action === "requete") {
       const destinataireComposeRequete = composeDestinataire(form.destinataire, form.nom_juridiction, form.ville);
       const redigeBrutRequete = await llm.redact(
         REQUETE_SYSTEM_PROMPT,
@@ -1432,6 +1465,8 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
         adresse_defendeur: form.adresse_defendeur ?? null,
         civilite_appel_destinataire: civiliteAppelRequete,
         destinataire: destinataireComposeRequete ?? null,
+        nom_juridiction: form.nom_juridiction ?? null,
+        ville: form.ville ?? null,
       };
 
       action = {
@@ -1448,6 +1483,103 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
         pieces_prevoir: null,
         synthese: null,
         argumentaire: redigéRequete,
+      };
+    } else {
+      const destinataireComposeOrdonnance = composeDestinataire(form.destinataire, form.nom_juridiction, form.ville);
+      const redigeBrutOrdonnance = await llm.redact(
+        PROJET_ORDONNANCE_SYSTEM_PROMPT,
+        buildProjetOrdonnanceUserPrompt({
+          nomAffaire: form.nom_affaire,
+          destinataire: destinataireComposeOrdonnance,
+          objet: form.objet,
+          contexte: form.contexte,
+          fondementJuridique: form.fondement_juridique,
+          montantEngage: form.montant_engage,
+        })
+      );
+
+      const blocsOrdonnance = decouperBlocsMarques(redigeBrutOrdonnance, ["MOTIFS"]);
+      const motifsOrdonnance = blocsOrdonnance.MOTIFS ?? "";
+
+      const dossierLookupOrdonnance = await findOrCreateDossier({
+        cabinetId: auth!.cabinetId,
+        userId: auth!.userId,
+        numeroDossier: form.numero_dossier,
+        nomAffaire: form.nom_affaire,
+        nomClient: form.nom_client,
+      });
+      if (!dossierLookupOrdonnance.ok) {
+        return res.status(404).json({ error: dossierLookupOrdonnance.error });
+      }
+      const dossierOrdonnance = dossierLookupOrdonnance.dossier;
+      dossierId = dossierOrdonnance.id;
+
+      const [cabinetPourAdresseOrdonnance, clientPourInfosOrdonnance] = await Promise.all([
+        prisma.cabinet.findUnique({ where: { id: auth!.cabinetId }, select: { nom: true, adresse: true } }),
+        dossierOrdonnance.clientId
+          ? prisma.client.findUnique({ where: { id: dossierOrdonnance.clientId }, select: { civilite: true } })
+          : Promise.resolve(null),
+      ]);
+
+      const civiliteClientOrdonnance = clientPourInfosOrdonnance?.civilite || form.civilite_client_manuel || null;
+      const delaiOppositionOrdonnance = form.delai_opposition_jours ?? 15;
+
+      const demandesOrdonnance = form.demandes.map((d) => `- ${d}`).join("\n");
+      const bordereauPiecesOrdonnance =
+        form.pieces && form.pieces.length > 0
+          ? form.pieces.map((p, i) => `${i + 1}. ${p}`).join("\n")
+          : "Aucune pièce communiquée à ce stade.";
+
+      // Utilise pour le contenu enregistre en base et les exports Word/PDF
+      // locaux (qui n'ont pas de template a balises separees).
+      const redigéOrdonnance = [
+        ["MOTIFS", motifsOrdonnance].filter(Boolean).join("\n\n"),
+        ["PAR CES MOTIFS", demandesOrdonnance].filter(Boolean).join("\n\n"),
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+
+      extraWebhookFields = {
+        objet: form.objet,
+        motifs: motifsOrdonnance,
+        demandes: demandesOrdonnance,
+        piece_a_prevoir: bordereauPiecesOrdonnance,
+        montant_engage: form.montant_engage ?? null,
+        delai_opposition_jours: String(delaiOppositionOrdonnance),
+        nom_avocat: form.nom_avocat ?? null,
+        adresse_cabinet: cabinetPourAdresseOrdonnance?.adresse || form.adresse_cabinet_manuel || null,
+        nom_cabinet: cabinetPourAdresseOrdonnance?.nom || null,
+        civilite_client: civiliteClientOrdonnance,
+        civilite_nom_client: assemblerCivilite(civiliteClientOrdonnance, dossierOrdonnance.nomClient),
+        informations_client: form.informations_client ?? null,
+        representant_legal: form.representant_legal ?? null,
+        qualite_representant: form.qualite_representant ?? null,
+        nom_defendeur: form.nom_defendeur ?? null,
+        civilite_defendeur: form.civilite_defendeur ?? null,
+        civilite_nom_defendeur: form.nom_defendeur
+          ? assemblerCivilite(form.civilite_defendeur ?? null, form.nom_defendeur)
+          : null,
+        profession_defendeur: form.profession_defendeur ?? null,
+        adresse_defendeur: form.adresse_defendeur ?? null,
+        destinataire: destinataireComposeOrdonnance ?? null,
+        nom_juridiction: form.nom_juridiction ?? null,
+        ville: form.ville ?? null,
+      };
+
+      action = {
+        type_action: "projet_ordonnance",
+        categorie_texte: "Projet d'ordonnance",
+        numero_dossier: dossierOrdonnance.numeroDossier,
+        nom_affaire: dossierOrdonnance.nomAffaire,
+        nom_client: dossierOrdonnance.nomClient,
+        nom_juridiction: null,
+        nom_chambre: null,
+        date_audience: null,
+        decision: null,
+        prochaine_audience: null,
+        pieces_prevoir: null,
+        synthese: null,
+        argumentaire: redigéOrdonnance,
       };
     }
 
@@ -1469,7 +1601,8 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
         piecesPrevoir: action.pieces_prevoir,
         // Conserve les champs saisis pour permettre de pre-remplir une Note
         // de plaidoirie plus tard depuis ces memes Conclusions.
-        champsFormulaire: form.type_action === "conclusions" ? (form as object) : undefined,
+        champsFormulaire:
+          form.type_action === "conclusions" || form.type_action === "requete" ? (form as object) : undefined,
         nomDocument,
         createdBy: auth!.userId,
       },

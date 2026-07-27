@@ -411,6 +411,46 @@ export const requeteFormSchema = z.object({
   pieces: z.array(z.string().min(1)).optional(),
 });
 
+// Reprend exactement les memes noms de champs que la Requete (voir
+// requeteFormSchema) : un projet d'ordonnance se redige a partir des memes
+// donnees (requerant, requis, juridiction, faits, montant...) - ca permet de
+// pre-remplir ce formulaire directement depuis les champs enregistres d'une
+// Requete existante (bouton "Pre-remplir depuis la derniere Requete").
+export const projetOrdonnanceFormSchema = z.object({
+  type_action: z.literal("projet_ordonnance"),
+  numero_dossier: z.string().optional(),
+  nom_affaire: z.string().optional(),
+  nom_avocat: z.string().optional(),
+  adresse_cabinet_manuel: z.string().optional(),
+  // Le requerant (client, creancier).
+  nom_client: z.string().min(1).optional(),
+  civilite_client_manuel: z.enum(["M.", "Mme", "Mlle"]).optional(),
+  informations_client: z.string().optional(),
+  representant_legal: z.string().optional(),
+  qualite_representant: z.string().optional(),
+  // Le requis (partie adverse, debiteur) - optionnel.
+  nom_defendeur: z.string().optional(),
+  civilite_defendeur: z.enum(["M.", "Mme", "Mlle"]).optional(),
+  profession_defendeur: z.string().optional(),
+  adresse_defendeur: z.string().optional(),
+  // Juridiction/juge qui rend l'ordonnance (le meme que le destinataire de
+  // la Requete d'origine).
+  destinataire: z.string().optional(),
+  nom_juridiction: z.string().optional(),
+  ville: z.string().optional(),
+  objet: z.string().min(1),
+  contexte: z.string().min(1),
+  fondement_juridique: z.string().optional(),
+  montant_engage: z.string().optional(),
+  // Delai d'opposition laisse au debiteur (jours) - 15 jours par defaut en
+  // droit OHADA/beninois, mais jamais impose : toujours modifiable.
+  delai_opposition_jours: z.coerce.number().int().positive().optional(),
+  // Ce que l'ordonnance doit enjoindre - jamais devine par l'IA, toujours
+  // saisi par l'avocat (meme principe que "demandes" dans la Requete).
+  demandes: z.array(z.string().min(1)).min(1),
+  pieces: z.array(z.string().min(1)).optional(),
+});
+
 export const webActionFormSchema = z.discriminatedUnion("type_action", [
   notesFormSchema,
   redacFormSchema,
@@ -426,6 +466,7 @@ export const webActionFormSchema = z.discriminatedUnion("type_action", [
   contratFormSchema,
   notificationDateFormSchema,
   requeteFormSchema,
+  projetOrdonnanceFormSchema,
 ]);
 
 export type WebActionForm = z.infer<typeof webActionFormSchema>;
