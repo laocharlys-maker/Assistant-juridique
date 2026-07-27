@@ -24,11 +24,6 @@
       <button class="tab" data-scope="cabinet">Dossiers du cabinet</button>
     </div>
 
-    <div class="tabs" id="display-mode-tabs">
-      <button class="tab active" data-mode="dossier">Par dossier</button>
-      <button class="tab" data-mode="type">Par type de document</button>
-    </div>
-
     <input type="search" id="dossiers-search" placeholder="Rechercher par numéro ou nom d'affaire…" style="margin-bottom:14px;" />
 
     <div class="card">
@@ -40,16 +35,8 @@
   <script>
     let currentScope = "mine";
     let currentVue = "dossiers";
-    let currentDisplayMode = "dossier";
     let currentUserRole = null;
-    let currentDossiers = [];
     let currentDocuments = [];
-
-    const STATUT_TAG_LABELS = {
-      a_jour: "à jour",
-      echeance_proche: "échéance proche",
-      cloture: "clôturé",
-    };
 
     // Libelle affiche pour chaque type de document dans la "Vue par type" -
     // memes intitules que le reste de l'appli (nouvelle-action.html,
@@ -84,85 +71,42 @@
         currentUserRole === "titulaire" || currentUserRole === "avocat" || currentUserRole === "collaborateur";
 
       try {
-        if (currentDisplayMode === "type") {
-          const { documents, scope: appliedScope, vue: appliedVue } = await apiFetch(
-            `/api/documents?scope=${currentScope}&vue=${currentVue}`
-          );
-          currentScope = appliedScope;
-          currentVue = appliedVue;
-          applyTabsActiveState(appliedScope, appliedVue);
-          document.getElementById("scope-tabs").style.display =
-            peutVoirCabinet && estVueDossierPourScope(appliedVue) ? "flex" : "none";
-          currentDocuments = documents;
-          document.getElementById("dossiers-search").value = "";
-          renderDocumentsByType(documents);
-        } else {
-          const { dossiers, scope: appliedScope, vue: appliedVue } = await apiFetch(
-            `/api/dossiers?scope=${currentScope}&vue=${currentVue}`
-          );
-          currentScope = appliedScope;
-          currentVue = appliedVue;
-          applyTabsActiveState(appliedScope, appliedVue);
-          const estVueDossier = estVueDossierPourScope(appliedVue);
-          document.getElementById("scope-tabs").style.display =
-            peutVoirCabinet && estVueDossier ? "flex" : "none";
-          currentDossiers = dossiers;
-          document.getElementById("dossiers-search").value = "";
-          renderDossiersList(dossiers, estVueDossier);
-        }
+        const { documents, scope: appliedScope, vue: appliedVue } = await apiFetch(
+          `/api/documents?scope=${currentScope}&vue=${currentVue}`
+        );
+        currentScope = appliedScope;
+        currentVue = appliedVue;
+        document.querySelectorAll("#scope-tabs .tab").forEach((btn) => {
+          btn.classList.toggle("active", btn.dataset.scope === appliedScope);
+        });
+        document.querySelectorAll("#vue-tabs .tab").forEach((btn) => {
+          btn.classList.toggle("active", btn.dataset.vue === appliedVue);
+        });
+        document.getElementById("scope-tabs").style.display =
+          peutVoirCabinet && estVueDossierPourScope(appliedVue) ? "flex" : "none";
+        currentDocuments = documents;
+        document.getElementById("dossiers-search").value = "";
+        renderDocumentsByType(documents);
       } catch (err) {
         listEl.innerHTML = `<p class="error visible">${escapeHtml(err.message)}</p>`;
       }
     }
 
-    function applyTabsActiveState(appliedScope, appliedVue) {
-      document.querySelectorAll("#scope-tabs .tab").forEach((btn) => {
-        btn.classList.toggle("active", btn.dataset.scope === appliedScope);
-      });
-      document.querySelectorAll("#vue-tabs .tab").forEach((btn) => {
-        btn.classList.toggle("active", btn.dataset.vue === appliedVue);
-      });
-    }
-
-    function renderDossiersList(dossiers, estVueDossier) {
-      const listEl = document.getElementById("dossiers-list");
-      if (dossiers.length === 0) {
-        const emptyLabels = {
-          dossiers: "Aucun dossier pour l'instant.",
-          recherches: "Aucune recherche pour l'instant.",
-          traductions: "Aucun document traduit pour l'instant.",
-          archives: "Aucun dossier archivé pour l'instant.",
-        };
-        listEl.innerHTML = `<p class="muted">${emptyLabels[currentVue] || "Aucun résultat."}</p>`;
-        return;
-      }
-
-      listEl.innerHTML = dossiers
-        .map((d) => {
-          const titre = estVueDossier ? `${d.numeroDossier} — ${d.nomAffaire}` : d.nomAffaire;
-          const meta = estVueDossier
-            ? `${escapeHtml(d.nomClient)} · ${d._count.actions} action(s) · créé par ${escapeHtml(d.creePar.nom)}`
-            : `${d._count.actions} action(s) · créé par ${escapeHtml(d.creePar.nom)}`;
-          return `
-        <div class="dossier-item">
-          <div>
-            <span class="badge badge-${d.statutTag}">${STATUT_TAG_LABELS[d.statutTag] || d.statutTag}</span>
-            <div><a href="/dossier.html?id=${d.id}">${escapeHtml(titre)}</a></div>
-            <div class="meta">${meta}</div>
-          </div>
-        </div>`;
-        })
-        .join("");
-    }
-
     // Regroupe les documents par type (Assignations ensemble, Comptes-rendus
     // ensemble...), chaque groupe deja trie du plus recent au plus ancien
-    // (l'API renvoie les documents tries par date de creation decroissante -
-    // Array.filter/reduce preservent cet ordre a l'interieur de chaque groupe).
+    // (l'API renvoie les documents tries par date de creation decroissante).
+    // Un accordeon replie par defaut par type : le plus simple a lire quand
+    // il y a beaucoup de documents, on ne voit le detail qu'en cliquant.
     function renderDocumentsByType(documents) {
       const listEl = document.getElementById("dossiers-list");
       if (documents.length === 0) {
-        listEl.innerHTML = '<p class="muted">Aucun document pour l\'instant.</p>';
+        const emptyLabels = {
+          dossiers: "Aucun document pour l'instant.",
+          recherches: "Aucune recherche pour l'instant.",
+          traductions: "Aucun document traduit pour l'instant.",
+          archives: "Aucun document archivé pour l'instant.",
+        };
+        listEl.innerHTML = `<p class="muted">${emptyLabels[currentVue] || "Aucun résultat."}</p>`;
         return;
       }
 
@@ -196,39 +140,35 @@
             })
             .join("");
           return `
-        <h3 style="margin:20px 0 8px;">${escapeHtml(TYPE_LABELS[type] || type)} <span class="muted">(${docs.length})</span></h3>
-        ${lignes}`;
+        <div class="accordion-item">
+          <button type="button" class="accordion-header" data-accordion-toggle>
+            <div><strong>${escapeHtml(TYPE_LABELS[type] || type)}</strong> <span class="muted">(${docs.length})</span></div>
+          </button>
+          <div class="accordion-body">${lignes}</div>
+        </div>`;
         })
         .join("");
+
+      listEl.querySelectorAll("[data-accordion-toggle]").forEach((header) => {
+        header.addEventListener("click", () => {
+          header.closest(".accordion-item").classList.toggle("open");
+        });
+      });
     }
 
     function applyDossiersSearch() {
       const terme = document.getElementById("dossiers-search").value.trim().toLowerCase();
-      if (currentDisplayMode === "type") {
-        if (!terme) {
-          renderDocumentsByType(currentDocuments);
-          return;
-        }
-        const filtres = currentDocuments.filter((doc) => {
-          const numero = (doc.dossier.numeroDossier || "").toLowerCase();
-          const nom = (doc.dossier.nomAffaire || "").toLowerCase();
-          const titre = (doc.nomDocument || "").toLowerCase();
-          return numero.includes(terme) || nom.includes(terme) || titre.includes(terme);
-        });
-        renderDocumentsByType(filtres);
-        return;
-      }
-      const estVueDossier = estVueDossierPourScope(currentVue);
       if (!terme) {
-        renderDossiersList(currentDossiers, estVueDossier);
+        renderDocumentsByType(currentDocuments);
         return;
       }
-      const filtres = currentDossiers.filter((d) => {
-        const numero = (d.numeroDossier || "").toLowerCase();
-        const nom = (d.nomAffaire || "").toLowerCase();
-        return numero.includes(terme) || nom.includes(terme);
+      const filtres = currentDocuments.filter((doc) => {
+        const numero = (doc.dossier.numeroDossier || "").toLowerCase();
+        const nom = (doc.dossier.nomAffaire || "").toLowerCase();
+        const titre = (doc.nomDocument || "").toLowerCase();
+        return numero.includes(terme) || nom.includes(terme) || titre.includes(terme);
       });
-      renderDossiersList(filtres, estVueDossier);
+      renderDocumentsByType(filtres);
     }
 
     function escapeHtml(str) {
@@ -262,15 +202,6 @@
       document.querySelectorAll("#vue-tabs .tab").forEach((btn) => {
         btn.addEventListener("click", () => {
           currentVue = btn.dataset.vue;
-          loadListe();
-        });
-      });
-
-      document.querySelectorAll("#display-mode-tabs .tab").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          currentDisplayMode = btn.dataset.mode;
-          document.querySelectorAll("#display-mode-tabs .tab").forEach((b) => b.classList.remove("active"));
-          btn.classList.add("active");
           loadListe();
         });
       });
