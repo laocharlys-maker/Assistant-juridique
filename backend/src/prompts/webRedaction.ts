@@ -494,25 +494,40 @@ export const CONTRAT_SYSTEM_PROMPT = `${COMMON_SYSTEM}
 Si le contexte precise qu'il s'agit d'un AVENANT a un contrat existant, redige un AVENANT court : rappel du contrat initial (reference fournie), objet precis de la modification, puis "Les autres clauses du contrat initial demeurent inchangees."
 
 Sinon, redige un CONTRAT structure en articles numerotes, en n'incluant QUE les articles pour lesquels une information a ete fournie ci-dessous (ne cree jamais un article vide ou avec un contenu invente) :
-- Preambule (parties, qualites)
+- Preambule : identifie les parties avec leur qualite (personne physique/morale et informations fournies). Si un contexte/motif est fourni, redige-le sous forme de paragraphes "Attendu que..." avant la formule d'accord ; sinon contente-toi d'une formule d'introduction neutre sans inventer d'historique.
 - Article 1 - Objet du contrat
 - Article 2 - Obligations des parties
-- Article 3 - Duree
+- Article 3 - Duree (et conditions de renouvellement/reconduction si fournies)
 - Article 4 - Contrepartie financiere (uniquement si un montant est fourni) : adapte le vocabulaire au type de contrat fourni ci-dessous (ex: "Loyer" pour un bail, "Salaire" pour un contrat de travail, "Prix de vente" pour une vente, "Remuneration" pour une prestation de services) plutot que d'utiliser systematiquement le mot "Remuneration"
 - Article 5 - Modalites de paiement (uniquement si fournies, ex: echeancier, mode de paiement)
 - Article 6 - Conditions de resiliation (uniquement si fournies)
 - Article 7 - Juridiction competente et droit applicable (uniquement si fourni)
 - Articles suivants - Clauses particulieres fournies, une par article
 
+Ne redige JAMAIS de clause de force majeure : elle est ajoutee separement, en texte fixe, si l'avocat l'a demandee.
+
 REGLE ABSOLUE : n'invente jamais une clause, un montant, une duree ou une obligation qui ne figure pas dans les informations fournies ci-dessous.`;
+
+// Clause de force majeure standard (droit beninois/OHADA) - texte fixe,
+// jamais redige par l'IA, ajoute par le code si l'avocat coche la case
+// correspondante (voir webActions.ts).
+export const CLAUSE_FORCE_MAJEURE = `FORCE MAJEURE
+
+Aucune des parties ne pourra être tenue responsable envers l'autre de tout manquement à ses obligations contractuelles résultant d'un cas de force majeure, tel que défini par la loi et la jurisprudence en vigueur en République du Bénin (notamment catastrophe naturelle, guerre, émeute, incendie, grève générale, décision d'une autorité publique, ou tout autre événement imprévisible, irrésistible et extérieur aux parties). La partie invoquant la force majeure devra en informer l'autre partie par écrit dans un délai de sept (07) jours à compter de sa survenance, et justifier de sa réalité. Si l'événement de force majeure perdure au-delà de trente (30) jours, chacune des parties pourra résilier le présent contrat de plein droit, sans indemnité, par notification écrite à l'autre partie.`;
 
 export function buildContratUserPrompt(facts: {
   typeContrat: string;
+  contexte?: string;
   partie1: string;
+  typePartie1?: string;
+  informationsPartie1?: string;
   partie2: string;
+  typePartie2?: string;
+  informationsPartie2?: string;
   objet: string;
   obligations: string;
   duree?: string;
+  conditionsRenouvellement?: string;
   remuneration?: string;
   modalitesPaiement?: string;
   dateEffet?: string;
@@ -531,12 +546,16 @@ Date du jour : ${dateActuelle()}`;
   }
   const lignes = [
     `Type de contrat : ${facts.typeContrat}`,
-    `Partie 1 : ${facts.partie1}`,
-    `Partie 2 : ${facts.partie2}`,
+    `Partie 1 : ${facts.partie1} (${facts.typePartie1 === "morale" ? "personne morale" : "personne physique"})`,
+    `Partie 2 : ${facts.partie2} (${facts.typePartie2 === "morale" ? "personne morale" : "personne physique"})`,
     `Objet : ${facts.objet}`,
     `Obligations des parties : ${facts.obligations}`,
   ];
+  if (facts.contexte) lignes.push(`Contexte / motifs de l'accord : ${facts.contexte}`);
+  if (facts.informationsPartie1) lignes.push(`Informations sur la partie 1 (etat civil ou RCCM/IFU) : ${facts.informationsPartie1}`);
+  if (facts.informationsPartie2) lignes.push(`Informations sur la partie 2 (etat civil ou RCCM/IFU) : ${facts.informationsPartie2}`);
   if (facts.duree) lignes.push(`Duree : ${facts.duree}`);
+  if (facts.conditionsRenouvellement) lignes.push(`Conditions de renouvellement/reconduction : ${facts.conditionsRenouvellement}`);
   if (facts.remuneration) lignes.push(`Contrepartie financiere (montant) : ${facts.remuneration}`);
   if (facts.modalitesPaiement) lignes.push(`Modalites de paiement : ${facts.modalitesPaiement}`);
   if (facts.dateEffet) lignes.push(`Date d'effet : ${facts.dateEffet}`);

@@ -17,6 +17,7 @@ import {
   RECHERCHE_JURIDIQUE_SYSTEM_PROMPT,
   PLAINTE_SYSTEM_PROMPT,
   CONTRAT_SYSTEM_PROMPT,
+  CLAUSE_FORCE_MAJEURE,
   NOTIFICATION_DATE_SYSTEM_PROMPT,
   REQUETE_SYSTEM_PROMPT,
   buildNotesUserPrompt,
@@ -1175,15 +1176,21 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
         argumentaire: redigéPlainte,
       };
     } else if (form.type_action === "contrat") {
-      const redigé = await llm.redact(
+      const redigeBrutContrat = await llm.redact(
         CONTRAT_SYSTEM_PROMPT,
         buildContratUserPrompt({
           typeContrat: form.type_contrat ?? "non précisé",
+          contexte: form.contexte,
           partie1: form.partie_1 ?? "non précisé",
+          typePartie1: form.type_partie_1,
+          informationsPartie1: form.informations_partie_1,
           partie2: form.partie_2 ?? "non précisé",
+          typePartie2: form.type_partie_2,
+          informationsPartie2: form.informations_partie_2,
           objet: form.objet ?? "non précisé",
           obligations: form.obligations ?? "non précisé",
           duree: form.duree,
+          conditionsRenouvellement: form.conditions_renouvellement,
           remuneration: form.remuneration,
           modalitesPaiement: form.modalites_paiement,
           dateEffet: form.date_effet,
@@ -1195,6 +1202,11 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
           objetAvenant: form.objet_avenant,
         })
       );
+
+      const redigé =
+        form.clause_force_majeure && !form.est_avenant
+          ? [redigeBrutContrat, CLAUSE_FORCE_MAJEURE].join("\n\n")
+          : redigeBrutContrat;
 
       const dossierLookup = await findOrCreateDossier({
         cabinetId: auth!.cabinetId,
@@ -1216,7 +1228,9 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
       extraWebhookFields = {
         type_contrat: form.type_contrat ?? null,
         partie_1: form.partie_1 ?? null,
+        informations_partie_1: form.informations_partie_1 ?? null,
         partie_2: form.partie_2 ?? null,
+        informations_partie_2: form.informations_partie_2 ?? null,
         nom_cabinet: cabinetPourAdresseContrat?.nom || null,
         adresse_cabinet: cabinetPourAdresseContrat?.adresse || form.adresse_cabinet_manuel || null,
       };

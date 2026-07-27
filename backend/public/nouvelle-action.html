@@ -645,16 +645,44 @@
           </div>
           <label>Adresse du cabinet (optionnel)</label>
           <input name="adresse_cabinet_manuel" placeholder="Reprise automatiquement depuis Paramètres si déjà renseignée — sinon, précise-la ici" />
-          <label>Partie 1</label>
+          <label>Contexte / motifs de l'accord (optionnel)<span class="field-hint" title="Pour nourrir le préambule du contrat (historique, contexte, intentions des parties). Si laissé vide, le préambule reste neutre.">?</span></label>
+          <textarea name="contexte" placeholder="ex: les parties collaborent déjà depuis 2024 sur..."></textarea>
+
+          <h3>Partie 1</h3>
+          <label>Type</label>
+          <select name="type_partie_1" id="contrat-type-partie-1">
+            <option value="physique">Personne physique</option>
+            <option value="morale">Personne morale</option>
+          </select>
+          <label>Nom / raison sociale</label>
           <input name="partie_1" />
-          <label>Partie 2</label>
+          <div id="contrat-informations-partie-1-wrap">
+            <label id="contrat-informations-partie-1-label">État civil (optionnel)</label>
+            <input name="informations_partie_1" placeholder="ex: né(e) le..., demeurant à..." />
+          </div>
+
+          <h3>Partie 2</h3>
+          <label>Type</label>
+          <select name="type_partie_2" id="contrat-type-partie-2">
+            <option value="physique">Personne physique</option>
+            <option value="morale">Personne morale</option>
+          </select>
+          <label>Nom / raison sociale</label>
           <input name="partie_2" />
+          <div id="contrat-informations-partie-2-wrap">
+            <label id="contrat-informations-partie-2-label">État civil (optionnel)</label>
+            <input name="informations_partie_2" placeholder="ex: né(e) le..., demeurant à..." />
+          </div>
+
+          <h3>Objet et conditions</h3>
           <label>Objet du contrat</label>
           <textarea name="objet"></textarea>
           <label>Obligations des parties</label>
           <textarea name="obligations"></textarea>
           <label>Durée</label>
           <input name="duree" placeholder="ex: 12 mois renouvelables" />
+          <label>Conditions de renouvellement (optionnel)</label>
+          <input name="conditions_renouvellement" placeholder="ex: reconduction tacite par périodes d'un an sauf préavis de 30 jours" />
           <label>Montant (optionnel)<span class="field-hint" title="Le montant pertinent quel que soit le type de contrat : loyer, salaire, prix de vente, rémunération de prestation, etc.">?</span></label>
           <input name="remuneration" placeholder="ex: 150 000 FCFA/mois" />
           <label>Modalités de paiement (optionnel)</label>
@@ -665,7 +693,11 @@
           <textarea name="conditions_resiliation"></textarea>
           <label>Juridiction compétente / droit applicable (optionnel)</label>
           <input name="juridiction_competente" placeholder="ex: Tribunal de Commerce de Cotonou" />
-          <label>Clauses particulières (optionnel)<span class="field-hint" title="Toute clause additionnelle propre à ce contrat : confidentialité, non-concurrence, garanties, force majeure, propriété intellectuelle, etc. Une clause par ligne.">?</span></label>
+          <label style="display:flex; align-items:center; gap:8px; font-weight:400;">
+            <input type="checkbox" name="clause_force_majeure" style="width:auto;" />
+            Inclure une clause de force majeure standard
+          </label>
+          <label>Clauses particulières (optionnel)<span class="field-hint" title="Toute clause additionnelle propre à ce contrat : confidentialité, non-concurrence, garanties, propriété intellectuelle, etc. Une clause par ligne.">?</span></label>
           <ul class="pieces-list" id="clauses-list-contrat"></ul>
           <button type="button" class="secondary" data-add-list="clauses-list-contrat">+ Ajouter une clause</button>
         </div>
@@ -895,6 +927,20 @@
           contratTypeAutreWrap.style.display = contratTypeSelect.value === "autre" ? "block" : "none";
         });
       }
+
+      // Le libelle du champ "informations" d'une partie du contrat depend
+      // de son type : etat civil pour une personne physique, RCCM/IFU pour
+      // une personne morale.
+      function wireContratPartieLabel(typeSelectId, labelId) {
+        const select = document.getElementById(typeSelectId);
+        const label = document.getElementById(labelId);
+        if (!select || !label) return;
+        select.addEventListener("change", () => {
+          label.textContent = select.value === "morale" ? "RCCM / IFU (optionnel)" : "État civil (optionnel)";
+        });
+      }
+      wireContratPartieLabel("contrat-type-partie-1", "contrat-informations-partie-1-label");
+      wireContratPartieLabel("contrat-type-partie-2", "contrat-informations-partie-2-label");
 
       const typePartieAdverseSelect = document.getElementById("conclusions-type-partie-adverse");
       const partieAdversePhysique = document.getElementById("conclusions-partie-adverse-physique");
@@ -1337,16 +1383,23 @@
         est_avenant: estAvenant,
         type_contrat: typeContrat,
         adresse_cabinet_manuel: fd.get("adresse_cabinet_manuel") || undefined,
+        contexte: fd.get("contexte") || undefined,
         partie_1: fd.get("partie_1") || undefined,
+        type_partie_1: fd.get("type_partie_1") || undefined,
+        informations_partie_1: fd.get("informations_partie_1") || undefined,
         partie_2: fd.get("partie_2") || undefined,
+        type_partie_2: fd.get("type_partie_2") || undefined,
+        informations_partie_2: fd.get("informations_partie_2") || undefined,
         objet: fd.get("objet") || undefined,
         obligations: fd.get("obligations") || undefined,
         duree: fd.get("duree") || undefined,
+        conditions_renouvellement: fd.get("conditions_renouvellement") || undefined,
         remuneration: fd.get("remuneration") || undefined,
         modalites_paiement: fd.get("modalites_paiement") || undefined,
         date_effet: fd.get("date_effet") || undefined,
         conditions_resiliation: fd.get("conditions_resiliation") || undefined,
         juridiction_competente: fd.get("juridiction_competente") || undefined,
+        clause_force_majeure: fd.get("clause_force_majeure") === "on",
         clauses_particulieres: listValues("clauses-list-contrat"),
         reference_contrat_initial: fd.get("reference_contrat_initial") || undefined,
         objet_avenant: fd.get("objet_avenant") || undefined,

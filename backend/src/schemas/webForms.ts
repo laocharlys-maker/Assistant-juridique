@@ -300,11 +300,19 @@ export const contratFormSchema = z.object({
   // Champs d'un contrat "normal" - non requis si avenant.
   type_contrat: z.string().optional(),
   adresse_cabinet_manuel: z.string().optional(),
+  // Contexte/motifs de l'accord - nourrit le preambule ("Attendu que...").
+  contexte: z.string().optional(),
   partie_1: z.string().optional(),
+  // Personne physique (etat civil) ou morale (RCCM/IFU) - jamais devine.
+  type_partie_1: z.enum(["physique", "morale"]).optional(),
+  informations_partie_1: z.string().optional(),
   partie_2: z.string().optional(),
+  type_partie_2: z.enum(["physique", "morale"]).optional(),
+  informations_partie_2: z.string().optional(),
   objet: z.string().optional(),
   obligations: z.string().optional(),
   duree: z.string().optional(),
+  conditions_renouvellement: z.string().optional(),
   // Montant en jeu, quelle que soit sa nature (loyer, salaire, prix de
   // vente, remuneration de prestation...) - jamais un champ au nom fige
   // qui n'aurait pas de sens pour tous les types de contrat.
@@ -313,6 +321,9 @@ export const contratFormSchema = z.object({
   date_effet: z.string().optional(),
   conditions_resiliation: z.string().optional(),
   juridiction_competente: z.string().optional(),
+  // Clause standard (texte fixe, jamais redige par l'IA) inseree telle
+  // quelle si cochee.
+  clause_force_majeure: z.boolean().optional(),
   clauses_particulieres: z.array(z.string().min(1)).optional(),
   // Champs specifiques a un avenant.
   reference_contrat_initial: z.string().optional(),
