@@ -490,10 +490,28 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
       });
       dossierId = dossier.id;
 
+      const blocsNotes = decouperBlocsMarques(redigé, ["RAPPEL_PROCEDURE", "DEROULEMENT_DEBATS", "DECISION"]);
+      const rappelProcedureRedige = blocsNotes.RAPPEL_PROCEDURE ?? "";
+      const deroulementDebatsRedige = blocsNotes.DEROULEMENT_DEBATS ?? "";
+      const decisionRedigee = blocsNotes.DECISION ?? "";
+
       const cabinetPourAdresseNotes = await prisma.cabinet.findUnique({
         where: { id: auth!.cabinetId },
         select: { nom: true, adresse: true },
       });
+
+      // Utilise pour le contenu enregistre en base et les exports Word/PDF
+      // locaux (qui n'ont pas de template a balises separees) - la
+      // "Strategie et suite a donner" n'est jamais reformulee par l'IA,
+      // reprise telle quelle du formulaire (voir note plus haut).
+      const syntheseComplete = [
+        rappelProcedureRedige ? ["I. RAPPEL DE LA PROCÉDURE", rappelProcedureRedige].join("\n\n") : "",
+        ["II. DÉROULEMENT DES DÉBATS ET PLAIDOIRIES", deroulementDebatsRedige].join("\n\n"),
+        ["III. DÉCISION DU TRIBUNAL", decisionRedigee].join("\n\n"),
+        form.strategie_suite ? ["IV. STRATÉGIE ET SUITE À DONNER", form.strategie_suite].join("\n\n") : "",
+      ]
+        .filter(Boolean)
+        .join("\n\n");
 
       extraWebhookFields = {
         numero_rg: form.numero_rg ?? null,
@@ -505,6 +523,9 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
         nom_cabinet: cabinetPourAdresseNotes?.nom || null,
         adresse_cabinet: cabinetPourAdresseNotes?.adresse || form.adresse_cabinet_manuel || null,
         ville: form.ville ?? null,
+        rappel_procedure: rappelProcedureRedige,
+        deroulement_debats: deroulementDebatsRedige,
+        strategie_suite: form.strategie_suite ?? null,
       };
 
       action = {
@@ -516,10 +537,10 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
         nom_juridiction: form.nom_juridiction ?? null,
         nom_chambre: form.nom_chambre ?? null,
         date_audience: new Date().toISOString().slice(0, 10),
-        decision: form.decision,
+        decision: decisionRedigee,
         prochaine_audience: form.prochaine_audience ?? null,
         pieces_prevoir: form.pieces_prevoir?.join(", ") ?? null,
-        synthese: redigé,
+        synthese: syntheseComplete,
         argumentaire: null,
       };
     } else if (form.type_action === "redac") {

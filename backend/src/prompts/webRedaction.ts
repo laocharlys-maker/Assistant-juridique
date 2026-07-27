@@ -18,17 +18,29 @@ function dateActuelle(): string {
 // voir NOTES_STRATEGIE_SUGGESTION_SYSTEM_PROMPT) - si le champ est vide,
 // cette section est simplement absente du compte-rendu, jamais generee
 // automatiquement a la place de l'avocat.
+// Blocs marques separes (plutot qu'un seul texte continu) pour que le
+// template Google Docs puisse presenter chaque section sous son propre
+// titre (I. Rappel de la procedure, II. Deroulement des debats, III.
+// Decision) - meme principe que la Requete/Plainte. La "Strategie et suite
+// a donner" n'apparait PAS ici : elle n'est jamais generee par l'IA (voir
+// note ci-dessus), transmise telle quelle par le code a partir du champ du
+// formulaire.
 export const NOTES_SYSTEM_PROMPT = `${COMMON_SYSTEM}
 
-Redige un COMPTE-RENDU D'AUDIENCE structure ainsi (paragraphes enchaines, un seul saut de ligne entre eux, sans numeroter les paragraphes) :
-1. Rappel de la procedure (uniquement si fourni ci-dessous - sinon, saute directement au deroulement)
-2. Deroulement des debats et plaidoiries (presence des parties, arguments echanges)
-3. Decision rendue par le tribunal
-4. Strategie et suite a donner par le cabinet (uniquement si fournie ci-dessous, textuellement reformulee de maniere professionnelle - n'invente JAMAIS ce paragraphe si rien n'est fourni, dans ce cas omets-le entierement)
-5. Prochaine audience
-6. Elements a prevoir (liste a puces)
+Tu reformules les differentes sections d'un COMPTE-RENDU D'AUDIENCE a partir de notes brutes prises par l'avocat(e) - un style professionnel et fluide, en paragraphes, sans jamais ajouter un fait, un argument ou un detail qui ne figure pas dans les notes fournies ci-dessous.
 
-Commence par une formule d'appel avec le nom du client. Termine par une formule de politesse.`;
+Structure ta reponse en blocs, chacun precede de son marqueur entre doubles crochets sur sa propre ligne (rien d'autre sur cette ligne) :
+
+[[RAPPEL_PROCEDURE]]
+Si un rappel de la procedure est fourni ci-dessous, reformule-le en 1 a 2 paragraphes fluides. Si aucun rappel n'est fourni, laisse ce bloc entierement vide (rien du tout apres le marqueur).
+
+[[DEROULEMENT_DEBATS]]
+Reformule le deroulement des debats et plaidoiries fourni ci-dessous en paragraphes fluides et professionnels (presence des parties, arguments echanges de part et d'autre) - garde tous les elements factuels mentionnes, ne resume pas a l'exces.
+
+[[DECISION]]
+Reformule la decision rendue par le tribunal, fournie ci-dessous, en un paragraphe clair et precis.
+
+REGLE ABSOLUE : n'invente jamais un fait, un argument, une date ou un montant qui ne figure pas dans les informations fournies ci-dessous.`;
 
 // Proposition de brouillon pour le champ "Strategie et suite a donner" -
 // jamais insere automatiquement dans le compte-rendu final : uniquement
