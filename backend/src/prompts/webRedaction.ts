@@ -36,19 +36,38 @@ Si un destinataire ("Document adresse a") est precise ci-dessous, commence le te
 
 export const JURISPRUDENCE_SYSTEM_PROMPT = `${COMMON_SYSTEM}
 
-Redige une FICHE DE JURISPRUDENCE structuree ainsi :
-- Resume du contexte juridique
-- Textes de loi applicables (a partir de tes connaissances generales du droit)
-- Decisions de justice pertinentes, organisees par origine geographique quand plusieurs sont disponibles (Benin, zone OHADA, Afrique, France, reste de la francophonie, reste du monde, base du cabinet) - ne cree une sous-section que pour les origines effectivement representees dans les sources fournies ci-dessous
-- Tendances jurisprudentielles observees a partir de ces sources
-- Strategie recommandee
+Redige une FICHE DE JURISPRUDENCE approfondie et exhaustive, visant environ 3000 mots (2000 mots minimum, davantage si les sources fournies le justifient) - pas une simple synthese courte. C'est une vraie recherche destinee a etre utilisee telle quelle par un avocat, pas un resume superficiel.
+
+Structure ta reponse en Markdown, avec ces sections (utilise des titres "##" et sous-titres "###") :
+
+## 1. Resume du contexte juridique
+Un panorama detaille de la question, son enjeu pratique, les notions juridiques en cause.
+
+## 2. Textes de loi applicables
+Les textes pertinents (a partir de tes connaissances generales du droit beninois/OHADA), avec leur portee et leurs conditions d'application expliquees en detail - pas juste une liste d'articles.
+
+## 3. Decisions de justice pertinentes
+Organisees en sous-sections "###" par origine geographique, UNIQUEMENT pour les origines effectivement representees dans les sources fournies ci-dessous (Benin, zone OHADA, Afrique, France, reste de la francophonie, reste du monde, base du cabinet). Pour chaque decision : reference exacte, faits resumes, solution retenue, portee/motivation. Developpe chaque decision en un paragraphe complet, n'ecris pas juste une phrase.
+
+## 4. Tableau comparatif des solutions retenues
+Un tableau au format Markdown (colonnes : Origine | Reference | Solution retenue | Portee/Limite) synthetisant les decisions citees en section 3, pour permettre une comparaison visuelle rapide entre juridictions/origines. N'inclus dans ce tableau que des decisions deja citees en section 3 (jamais une decision qui n'y figure pas).
+
+## 5. Tendances jurisprudentielles
+Une analyse etayee des convergences/divergences observees entre les origines, avec explication des raisons possibles de ces divergences si plusieurs origines sont representees.
+
+## 6. Strategie recommandee
+Des recommandations concretes et actionnables pour l'avocat, en lien direct avec les tendances degagees.
+
+Utilise aussi, la ou c'est pertinent, des sous-listes a puces pour detailler des criteres ou conditions cumulatives, et un second tableau Markdown si une comparaison supplementaire (ex: conditions de mise en oeuvre, delais applicables selon les origines) apporte de la clarte.
 
 REGLE ABSOLUE SUR LES DECISIONS DE JUSTICE : tu ne dois citer QUE les decisions
 presentes dans les sections "SOURCES" fournies ci-dessous, avec leur reference
 exacte et leur origine. Ne cite JAMAIS une decision, un numero d'arret ou une
 date qui ne provient pas de ces sources, meme si tu penses la connaitre par
-ailleurs. Si les sources sont vides ou insuffisantes, ecris-le explicitement
-plutot que d'inventer ou de deviner une reference.`;
+ailleurs. Si les sources sont vides ou insuffisantes pour une section donnee,
+ecris-le explicitement plutot que d'inventer ou de deviner une reference - dans
+ce cas, developpe davantage les autres sections (textes de loi, strategie) pour
+rester utile malgre le manque de jurisprudence disponible.`;
 
 export const RECHERCHE_JURIDIQUE_SYSTEM_PROMPT = `${COMMON_SYSTEM}
 

@@ -48,6 +48,10 @@ export class GeminiProvider implements LlmProvider {
     const model = this.client.getGenerativeModel({
       model: "gemini-2.0-flash-001",
       systemInstruction: systemPrompt,
+      // Explicite plutot que de compter sur le defaut du modele : certaines
+      // redactions (recherche de jurisprudence approfondie) visent
+      // desormais jusqu'a 3000 mots avec tableaux comparatifs.
+      generationConfig: { maxOutputTokens: 8192 },
     });
 
     const result = await withTransientRetry(() => model.generateContent(userPrompt));

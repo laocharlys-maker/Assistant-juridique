@@ -55,7 +55,11 @@ export class AnthropicProvider implements LlmProvider {
   async redact(systemPrompt: string, userPrompt: string): Promise<string> {
     const message = await this.client.messages.create({
       model: "claude-sonnet-5",
-      max_tokens: 4096,
+      // 8192 plutot que 4096 : certaines redactions (recherche de
+      // jurisprudence approfondie) visent desormais jusqu'a 3000 mots, ce
+      // qui approche voire depasse 4096 tokens de sortie une fois les
+      // tableaux comparatifs inclus.
+      max_tokens: 8192,
       system: systemPrompt,
       messages: [{ role: "user", content: userPrompt }],
     });

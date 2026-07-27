@@ -89,6 +89,10 @@ export class GroqProvider implements LlmProvider {
         },
         body: JSON.stringify({
           model: GROQ_MODEL,
+          // Explicite plutot que de compter sur le defaut de l'API : certaines
+          // redactions (recherche de jurisprudence approfondie) visent
+          // desormais jusqu'a 3000 mots avec tableaux comparatifs.
+          max_tokens: 8192,
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt },
