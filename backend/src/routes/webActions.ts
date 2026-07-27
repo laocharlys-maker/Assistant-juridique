@@ -1306,8 +1306,15 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
 
       const civiliteClientNotif = clientPourInfosNotif?.civilite || form.civilite_client_manuel || null;
 
+      const MODE_NOTIFICATION_LABELS: Record<string, string> = {
+        huissier: "PAR EXPLOIT DE COMMISSAIRE DE JUSTICE (HUISSIER)",
+        lrar: "LETTRE RECOMMANDÉE AVEC ACCUSÉ DE RÉCEPTION",
+        main_propre: "REMIS EN MAIN PROPRE CONTRE DÉCHARGE",
+      };
+      const modeNotificationNotif = MODE_NOTIFICATION_LABELS[form.mode_notification ?? ""] || MODE_NOTIFICATION_LABELS.huissier;
+
       extraWebhookFields = {
-        mode_notification: form.mode_notification ?? null,
+        mode_notification: modeNotificationNotif,
         nom_avocat: form.nom_avocat ?? null,
         adresse_cabinet: cabinetPourAdresseNotif?.adresse || form.adresse_cabinet_manuel || null,
         nom_cabinet: cabinetPourAdresseNotif?.nom || null,
