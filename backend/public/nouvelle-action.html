@@ -54,8 +54,26 @@
         <select name="nom_juridiction" id="notes-juridiction"></select>
         <label>Chambre (optionnel)</label>
         <input name="nom_chambre" placeholder="ex: Chambre civile" />
-        <label>Décision / déroulement de l'audience</label>
+        <label>Numéro RG (optionnel)</label>
+        <input name="numero_rg" placeholder="ex: RG n° 123/2026" />
+        <label>Objet du litige (optionnel)</label>
+        <input name="objet_litige" placeholder="ex: Recouvrement de créance" />
+        <label>Juge / Président de chambre (optionnel)</label>
+        <input name="nom_juge" />
+        <label>Greffier (optionnel)</label>
+        <input name="nom_greffier" />
+        <label>Partie adverse (optionnel)</label>
+        <input name="nom_partie_adverse" />
+        <label>Rappel de la procédure (optionnel)</label>
+        <textarea name="rappel_procedure" placeholder="ex: contexte des étapes précédentes de l'affaire"></textarea>
+        <label>Déroulement des débats et plaidoiries</label>
+        <textarea name="deroulement_debats" required placeholder="ex: présence des parties, arguments échangés"></textarea>
+        <label>Décision rendue par le tribunal</label>
         <textarea name="decision" required></textarea>
+        <label>Stratégie et suite à donner par le cabinet (optionnel)<span class="field-hint" title="Rédigée par toi, pas par l'IA — ce compte-rendu part aussi au client. Tu peux utiliser le bouton ci-dessous pour obtenir une proposition à relire et adapter.">?</span></label>
+        <textarea name="strategie_suite" id="notes-strategie-suite" placeholder="ex: prochaines actions du cabinet, pistes à suivre"></textarea>
+        <button type="button" class="secondary" id="notes-suggerer-strategie-btn">Laisser l'IA proposer un brouillon</button>
+        <p class="muted" id="notes-suggerer-strategie-msg" style="display:none;"></p>
         <label>Date de la prochaine audience</label>
         <input name="prochaine_audience" type="date" />
         <label>Pièces à prévoir</label>
@@ -1435,10 +1453,51 @@
         nom_client: fd.get("nom_client"),
         nom_juridiction: fd.get("nom_juridiction") || undefined,
         nom_chambre: fd.get("nom_chambre") || undefined,
+        numero_rg: fd.get("numero_rg") || undefined,
+        objet_litige: fd.get("objet_litige") || undefined,
+        nom_juge: fd.get("nom_juge") || undefined,
+        nom_greffier: fd.get("nom_greffier") || undefined,
+        nom_partie_adverse: fd.get("nom_partie_adverse") || undefined,
+        rappel_procedure: fd.get("rappel_procedure") || undefined,
+        deroulement_debats: fd.get("deroulement_debats"),
         decision: fd.get("decision"),
+        strategie_suite: fd.get("strategie_suite") || undefined,
         prochaine_audience: fd.get("prochaine_audience") || undefined,
         pieces_prevoir: listValues("pieces-list"),
       }, forms.notes.querySelector('button[type="submit"]'));
+    });
+
+    document.getElementById("notes-suggerer-strategie-btn").addEventListener("click", async () => {
+      const btn = document.getElementById("notes-suggerer-strategie-btn");
+      const msgEl = document.getElementById("notes-suggerer-strategie-msg");
+      const fd = new FormData(forms.notes);
+      const nomAffaire = fd.get("nom_affaire");
+      const deroulementDebats = fd.get("deroulement_debats");
+      const decision = fd.get("decision");
+      msgEl.style.display = "block";
+      if (!nomAffaire || !deroulementDebats || !decision) {
+        msgEl.textContent = "Renseigne d'abord le nom de l'affaire, le déroulement des débats et la décision rendue ci-dessus.";
+        return;
+      }
+      msgEl.textContent = "Génération de la proposition…";
+      btn.disabled = true;
+      try {
+        const { suggestion } = await apiFetch("/api/actions/notes/suggerer-strategie", {
+          method: "POST",
+          body: {
+            nom_affaire: nomAffaire,
+            rappel_procedure: fd.get("rappel_procedure") || undefined,
+            deroulement_debats: deroulementDebats,
+            decision: decision,
+          },
+        });
+        document.getElementById("notes-strategie-suite").value = suggestion;
+        msgEl.textContent = "Proposition générée — relis-la et adapte-la avant de générer le compte-rendu.";
+      } catch (err) {
+        msgEl.textContent = err.message;
+      } finally {
+        btn.disabled = false;
+      }
     });
 
     forms.redac.addEventListener("submit", (e) => {

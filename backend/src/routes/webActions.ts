@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { z } from "zod";
 import pdfParse from "pdf-parse";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
@@ -8,6 +9,7 @@ import { logAuditStep } from "../services/audit";
 import { webActionFormSchema } from "../schemas/webForms";
 import {
   NOTES_SYSTEM_PROMPT,
+  NOTES_STRATEGIE_SUGGESTION_SYSTEM_PROMPT,
   REDAC_SYSTEM_PROMPT,
   CONCLUSIONS_SYSTEM_PROMPT,
   NOTE_PLAIDOIRIE_SYSTEM_PROMPT,
@@ -22,6 +24,7 @@ import {
   REQUETE_SYSTEM_PROMPT,
   PROJET_ORDONNANCE_SYSTEM_PROMPT,
   buildNotesUserPrompt,
+  buildNotesStrategieSuggestionUserPrompt,
   buildRedacUserPrompt,
   buildConclusionsUserPrompt,
   buildNotePlaidoirieUserPrompt,
@@ -353,6 +356,40 @@ function composeDestinataire(
   return `${civilite} ${connecteur} ${juridiction}${ville ? ` de ${ville}` : ""}`;
 }
 
+const suggererStrategieSchema = z.object({
+  nom_affaire: z.string().min(1),
+  rappel_procedure: z.string().optional(),
+  deroulement_debats: z.string().min(1),
+  decision: z.string().min(1),
+});
+
+// Bouton "Laisser l'IA proposer un brouillon" sur le champ "Strategie et
+// suite a donner" du compte-rendu d'audience - renvoie une simple
+// proposition texte, jamais integree automatiquement : l'avocat la relit,
+// la corrige et la colle lui-meme dans le formulaire avant generation.
+webActionsRouter.post(
+  "/api/actions/notes/suggerer-strategie",
+  requireAuth,
+  aiActionsLimiter,
+  async (req, res) => {
+    const parsed = suggererStrategieSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Requête invalide", details: parsed.error.issues });
+    }
+    const llm = getLlmProvider();
+    const suggestion = await llm.redact(
+      NOTES_STRATEGIE_SUGGESTION_SYSTEM_PROMPT,
+      buildNotesStrategieSuggestionUserPrompt({
+        nomAffaire: parsed.data.nom_affaire,
+        rappelProcedure: parsed.data.rappel_procedure,
+        deroulementDebats: parsed.data.deroulement_debats,
+        decision: parsed.data.decision,
+      })
+    );
+    return res.json({ suggestion });
+  }
+);
+
 webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (req, res) => {
   const parsed = webActionFormSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -417,7 +454,15 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
           nomClient: form.nom_client,
           nomJuridiction: form.nom_juridiction,
           nomChambre: form.nom_chambre,
+          numeroRg: form.numero_rg,
+          objetLitige: form.objet_litige,
+          nomJuge: form.nom_juge,
+          nomGreffier: form.nom_greffier,
+          nomPartieAdverse: form.nom_partie_adverse,
+          rappelProcedure: form.rappel_procedure,
+          deroulementDebats: form.deroulement_debats,
           decision: form.decision,
+          strategieSuite: form.strategie_suite,
           prochaineAudience: form.prochaine_audience,
           piecesPrevoir: form.pieces_prevoir,
         })

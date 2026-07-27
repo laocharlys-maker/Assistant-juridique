@@ -10,18 +10,48 @@ function dateActuelle(): string {
   return formatDateLongue(new Date());
 }
 
+// Compte-rendu d'audience : ce document part a la fois au client et reste
+// en interne au cabinet - jamais deux versions distinctes. La section
+// "Strategie et suite a donner" n'est donc JAMAIS inventee par l'IA : elle
+// ne reprend que ce que l'avocat a lui-meme redige dans le formulaire (au
+// besoin avec l'aide d'une proposition IA relue et adaptee au prealable,
+// voir NOTES_STRATEGIE_SUGGESTION_SYSTEM_PROMPT) - si le champ est vide,
+// cette section est simplement absente du compte-rendu, jamais generee
+// automatiquement a la place de l'avocat.
 export const NOTES_SYSTEM_PROMPT = `${COMMON_SYSTEM}
 
-Structure attendue (paragraphes enchaines, un seul saut de ligne entre eux, sans numeroter les paragraphes) :
-1. Contexte de l'audience
-2. Deroulement de l'audience
-3. Faits essentiels ou marquants
-4. Decision du juge
-5. Tendance du proces (analyse strategique honnete)
-6. Prochaine audience
-7. Elements a prevoir (liste a puces)
+Redige un COMPTE-RENDU D'AUDIENCE structure ainsi (paragraphes enchaines, un seul saut de ligne entre eux, sans numeroter les paragraphes) :
+1. Rappel de la procedure (uniquement si fourni ci-dessous - sinon, saute directement au deroulement)
+2. Deroulement des debats et plaidoiries (presence des parties, arguments echanges)
+3. Decision rendue par le tribunal
+4. Strategie et suite a donner par le cabinet (uniquement si fournie ci-dessous, textuellement reformulee de maniere professionnelle - n'invente JAMAIS ce paragraphe si rien n'est fourni, dans ce cas omets-le entierement)
+5. Prochaine audience
+6. Elements a prevoir (liste a puces)
 
 Commence par une formule d'appel avec le nom du client. Termine par une formule de politesse.`;
+
+// Proposition de brouillon pour le champ "Strategie et suite a donner" -
+// jamais insere automatiquement dans le compte-rendu final : uniquement
+// une suggestion que l'avocat relit, corrige et adapte avant de l'inclure
+// lui-meme dans le formulaire.
+export const NOTES_STRATEGIE_SUGGESTION_SYSTEM_PROMPT = `Tu es une assistante juridique qui aide un avocat beninois a rediger un brouillon de synthese strategique pour un compte-rendu d'audience.
+A partir du deroulement des debats et de la decision rendue fournis ci-dessous, propose un COURT paragraphe (4 a 6 lignes maximum) de strategie et de prochaines actions pour le cabinet - reste factuel et prudent, ne fais pas de pronostic categorique sur l'issue de l'affaire, presente plutot des pistes ("il conviendrait de...", "le cabinet pourrait...").
+IMPORTANT : ceci est une PROPOSITION DE BROUILLON destinee a etre relue et corrigee par l'avocat avant tout usage - ne te presente jamais comme certaine ou definitive.
+Ne base ta proposition QUE sur les informations fournies ci-dessous, n'invente aucun fait qui n'y figure pas.
+Reponds uniquement avec le texte du paragraphe propose, sans titre, sans balise markdown, sans commentaire hors-sujet.`;
+
+export function buildNotesStrategieSuggestionUserPrompt(facts: {
+  nomAffaire: string;
+  rappelProcedure?: string;
+  deroulementDebats: string;
+  decision: string;
+}): string {
+  const lignes = [`Affaire : ${facts.nomAffaire}`];
+  if (facts.rappelProcedure) lignes.push(`Rappel de la procedure : ${facts.rappelProcedure}`);
+  lignes.push(`Deroulement des debats : ${facts.deroulementDebats}`);
+  lignes.push(`Decision rendue : ${facts.decision}`);
+  return lignes.join("\n");
+}
 
 export const REDAC_SYSTEM_PROMPT = `${COMMON_SYSTEM}
 
@@ -304,17 +334,38 @@ export function buildNotesUserPrompt(facts: {
   nomClient: string;
   nomJuridiction?: string;
   nomChambre?: string;
+  numeroRg?: string;
+  objetLitige?: string;
+  nomJuge?: string;
+  nomGreffier?: string;
+  nomPartieAdverse?: string;
+  rappelProcedure?: string;
+  deroulementDebats: string;
   decision: string;
+  strategieSuite?: string;
   prochaineAudience?: string;
   piecesPrevoir?: string[];
 }): string {
-  return `Dossier ${facts.numeroDossier} - ${facts.nomAffaire}
-Client : ${facts.nomClient}
-Juridiction : ${facts.nomJuridiction ?? "non precisee"}
-Chambre : ${facts.nomChambre ?? "non precisee"}
-Ce qui s'est passe a l'audience : ${facts.decision}
-Prochaine audience : ${facts.prochaineAudience ?? "non fixee"}
-Pieces a prevoir : ${facts.piecesPrevoir?.join(", ") ?? "aucune"}`;
+  const lignes = [
+    `Dossier ${facts.numeroDossier} - ${facts.nomAffaire}`,
+    `Client : ${facts.nomClient}`,
+    `Juridiction : ${facts.nomJuridiction ?? "non precisee"}`,
+    `Chambre : ${facts.nomChambre ?? "non precisee"}`,
+  ];
+  if (facts.numeroRg) lignes.push(`Numero RG : ${facts.numeroRg}`);
+  if (facts.objetLitige) lignes.push(`Objet du litige : ${facts.objetLitige}`);
+  if (facts.nomJuge) lignes.push(`Juge/President de chambre : ${facts.nomJuge}`);
+  if (facts.nomGreffier) lignes.push(`Greffier : ${facts.nomGreffier}`);
+  if (facts.nomPartieAdverse) lignes.push(`Partie adverse : ${facts.nomPartieAdverse}`);
+  if (facts.rappelProcedure) lignes.push(`Rappel de la procedure : ${facts.rappelProcedure}`);
+  lignes.push(`Deroulement des debats et plaidoiries : ${facts.deroulementDebats}`);
+  lignes.push(`Decision rendue par le tribunal : ${facts.decision}`);
+  if (facts.strategieSuite) {
+    lignes.push(`Strategie et suite a donner par le cabinet (redigee par l'avocat, a reformuler proprement, jamais a completer ou modifier sur le fond) : ${facts.strategieSuite}`);
+  }
+  lignes.push(`Prochaine audience : ${facts.prochaineAudience ?? "non fixee"}`);
+  lignes.push(`Pieces a prevoir : ${facts.piecesPrevoir?.join(", ") ?? "aucune"}`);
+  return lignes.join("\n");
 }
 
 export function buildRedacUserPrompt(facts: {

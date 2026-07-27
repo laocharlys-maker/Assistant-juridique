@@ -21,9 +21,20 @@ export const notesFormSchema = z.object({
   nom_client: z.string().min(1),
   nom_juridiction: z.string().optional(),
   nom_chambre: z.string().optional(),
+  numero_rg: z.string().optional(),
+  objet_litige: z.string().optional(),
+  nom_juge: z.string().optional(),
+  nom_greffier: z.string().optional(),
+  nom_partie_adverse: z.string().optional(),
+  rappel_procedure: z.string().optional(),
+  deroulement_debats: z.string().min(1),
   decision: z.string().min(1),
   prochaine_audience: z.string().optional(),
   pieces_prevoir: z.array(z.string()).optional(),
+  // Redige par l'avocat lui-meme (au besoin avec l'aide d'une proposition
+  // IA relue et adaptee avant envoi) - jamais genere automatiquement dans
+  // le compte-rendu final, car cette note part aussi au client.
+  strategie_suite: z.string().optional(),
 });
 
 // Champs communs a plaidoirie / conclusions / assignation : meme logique
