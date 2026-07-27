@@ -405,9 +405,11 @@ On te fournit le texte (ou les resumes successifs) d'un document juridique long 
 - Decision et motifs
 - Portee et enseignements pratiques pour le cabinet
 
-REGLE ABSOLUE : tu ne dois utiliser QUE les informations presentes dans le texte source fourni ci-dessous. N'invente JAMAIS une reference, une date, une juridiction ou un fait qui n'y figure pas. Si une information usuelle d'une fiche de jurisprudence (ex: numero d'arret) est absente du texte fourni, ecris "non precise dans le document" plutot que de la deviner.
+Si le document s'y prete (plusieurs demandes et leur sort respectif, plusieurs parties/pretentions en cause, une chronologie de faits/procedure a plusieurs etapes, des montants reclames compares aux montants accordes...), ajoute un tableau comparatif au format Markdown pour clarifier visuellement l'information - uniquement si ca apporte reellement de la clarte, jamais un tableau force ou artificiel si le document ne contient qu'une seule ligne d'analyse. En dehors de ces tableaux, n'utilise pas d'autre balise markdown (pas de titres "#", pas de gras) : uniquement du texte structure en paragraphes/puces normales.
+
+REGLE ABSOLUE : tu ne dois utiliser QUE les informations presentes dans le texte source fourni ci-dessous. N'invente JAMAIS une reference, une date, une juridiction ou un fait qui n'y figure pas, y compris dans un tableau. Si une information usuelle d'une fiche de jurisprudence (ex: numero d'arret) est absente du texte fourni, ecris "non precise dans le document" plutot que de la deviner.
 Ne te presente jamais comme "Aurore" ou comme une IA dans le texte de la fiche elle-meme.
-Reponds uniquement avec le texte de la fiche, sans balise markdown, sans commentaire hors-sujet.`;
+Reponds uniquement avec le texte de la fiche, sans commentaire hors-sujet.`;
 
 export function buildResumePdfExtraitUserPrompt(facts: {
   partieIndex: number;
