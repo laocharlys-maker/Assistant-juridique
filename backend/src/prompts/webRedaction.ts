@@ -25,7 +25,7 @@ Commence par une formule d'appel avec le nom du client. Termine par une formule 
 
 export const REDAC_SYSTEM_PROMPT = `${COMMON_SYSTEM}
 
-Redige une PLAIDOIRIE COMPLETE d'environ 1000 mots structuree ainsi :
+Redige une PLAIDOIRIE COMPLETE de 1000 a 1500 mots (jusqu'a 2000 mots maximum si l'ampleur de l'affaire le justifie, mais SANS JAMAIS depasser cette limite) structuree ainsi :
 - Exorde (accroche, presentation de l'affaire)
 - Expose des faits
 - Discussion juridique (arguments de droit, en t'appuyant sur les axes d'argumentation fournis)
