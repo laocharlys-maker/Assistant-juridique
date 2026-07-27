@@ -24,6 +24,11 @@
       <button class="tab" data-scope="cabinet">Dossiers du cabinet</button>
     </div>
 
+    <div class="tabs" id="display-mode-tabs">
+      <button class="tab active" data-mode="dossier">Par dossier</button>
+      <button class="tab" data-mode="type">Par type de document</button>
+    </div>
+
     <input type="search" id="dossiers-search" placeholder="Rechercher par numéro ou nom d'affaire…" style="margin-bottom:14px;" />
 
     <div class="card">
@@ -35,8 +40,10 @@
   <script>
     let currentScope = "mine";
     let currentVue = "dossiers";
+    let currentDisplayMode = "dossier";
     let currentUserRole = null;
     let currentDossiers = [];
+    let currentDocuments = [];
 
     const STATUT_TAG_LABELS = {
       a_jour: "à jour",
@@ -44,33 +51,77 @@
       cloture: "clôturé",
     };
 
-    async function loadDossiers() {
+    // Libelle affiche pour chaque type de document dans la "Vue par type" -
+    // memes intitules que le reste de l'appli (nouvelle-action.html,
+    // dossier.html, tableau-de-bord.html).
+    const TYPE_LABELS = {
+      notes: "Compte-rendu d'audience",
+      redac: "Plaidoirie",
+      conclusions: "Conclusions",
+      assignation: "Assignation",
+      mise_en_demeure: "Mise en demeure",
+      jurisprudence: "Recherche de jurisprudence",
+      recherche_juridique: "Recherche juridique",
+      resume_pdf: "Résumé de jurisprudence",
+      veille_juridique: "Veille juridique",
+      traduction: "Traduction",
+      plainte: "Plainte",
+      contrat: "Contrat",
+      notification_date: "Notification",
+      requete: "Requête",
+      projet_ordonnance: "Projet d'ordonnance",
+      note_plaidoirie: "Note de plaidoirie",
+    };
+
+    function estVueDossierPourScope(vue) {
+      return vue === "dossiers" || vue === "archives";
+    }
+
+    async function loadListe() {
       const listEl = document.getElementById("dossiers-list");
       listEl.innerHTML = '<p class="muted">Chargement…</p>';
-      try {
-        const { dossiers, scope: appliedScope, vue: appliedVue } = await apiFetch(
-          `/api/dossiers?scope=${currentScope}&vue=${currentVue}`
-        );
-        currentScope = appliedScope;
-        currentVue = appliedVue;
-        document.querySelectorAll("#scope-tabs .tab").forEach((btn) => {
-          btn.classList.toggle("active", btn.dataset.scope === appliedScope);
-        });
-        document.querySelectorAll("#vue-tabs .tab").forEach((btn) => {
-          btn.classList.toggle("active", btn.dataset.vue === appliedVue);
-        });
-        const peutVoirCabinet =
-          currentUserRole === "titulaire" || currentUserRole === "avocat" || currentUserRole === "collaborateur";
-        const estVueDossier = appliedVue === "dossiers" || appliedVue === "archives";
-        document.getElementById("scope-tabs").style.display =
-          peutVoirCabinet && estVueDossier ? "flex" : "none";
+      const peutVoirCabinet =
+        currentUserRole === "titulaire" || currentUserRole === "avocat" || currentUserRole === "collaborateur";
 
-        currentDossiers = dossiers;
-        document.getElementById("dossiers-search").value = "";
-        renderDossiersList(dossiers, estVueDossier);
+      try {
+        if (currentDisplayMode === "type") {
+          const { documents, scope: appliedScope, vue: appliedVue } = await apiFetch(
+            `/api/documents?scope=${currentScope}&vue=${currentVue}`
+          );
+          currentScope = appliedScope;
+          currentVue = appliedVue;
+          applyTabsActiveState(appliedScope, appliedVue);
+          document.getElementById("scope-tabs").style.display =
+            peutVoirCabinet && estVueDossierPourScope(appliedVue) ? "flex" : "none";
+          currentDocuments = documents;
+          document.getElementById("dossiers-search").value = "";
+          renderDocumentsByType(documents);
+        } else {
+          const { dossiers, scope: appliedScope, vue: appliedVue } = await apiFetch(
+            `/api/dossiers?scope=${currentScope}&vue=${currentVue}`
+          );
+          currentScope = appliedScope;
+          currentVue = appliedVue;
+          applyTabsActiveState(appliedScope, appliedVue);
+          const estVueDossier = estVueDossierPourScope(appliedVue);
+          document.getElementById("scope-tabs").style.display =
+            peutVoirCabinet && estVueDossier ? "flex" : "none";
+          currentDossiers = dossiers;
+          document.getElementById("dossiers-search").value = "";
+          renderDossiersList(dossiers, estVueDossier);
+        }
       } catch (err) {
         listEl.innerHTML = `<p class="error visible">${escapeHtml(err.message)}</p>`;
       }
+    }
+
+    function applyTabsActiveState(appliedScope, appliedVue) {
+      document.querySelectorAll("#scope-tabs .tab").forEach((btn) => {
+        btn.classList.toggle("active", btn.dataset.scope === appliedScope);
+      });
+      document.querySelectorAll("#vue-tabs .tab").forEach((btn) => {
+        btn.classList.toggle("active", btn.dataset.vue === appliedVue);
+      });
     }
 
     function renderDossiersList(dossiers, estVueDossier) {
@@ -104,9 +155,70 @@
         .join("");
     }
 
+    // Regroupe les documents par type (Assignations ensemble, Comptes-rendus
+    // ensemble...), chaque groupe deja trie du plus recent au plus ancien
+    // (l'API renvoie les documents tries par date de creation decroissante -
+    // Array.filter/reduce preservent cet ordre a l'interieur de chaque groupe).
+    function renderDocumentsByType(documents) {
+      const listEl = document.getElementById("dossiers-list");
+      if (documents.length === 0) {
+        listEl.innerHTML = '<p class="muted">Aucun document pour l\'instant.</p>';
+        return;
+      }
+
+      const groupes = new Map();
+      documents.forEach((doc) => {
+        if (!groupes.has(doc.typeAction)) groupes.set(doc.typeAction, []);
+        groupes.get(doc.typeAction).push(doc);
+      });
+
+      const typesTries = Array.from(groupes.keys()).sort((a, b) => {
+        const labelA = TYPE_LABELS[a] || a;
+        const labelB = TYPE_LABELS[b] || b;
+        return labelA.localeCompare(labelB, "fr");
+      });
+
+      listEl.innerHTML = typesTries
+        .map((type) => {
+          const docs = groupes.get(type);
+          const lignes = docs
+            .map((doc) => {
+              const titre = doc.nomDocument || TYPE_LABELS[doc.typeAction] || doc.typeAction;
+              const date = formatDateLongue(doc.createdAt);
+              const meta = `${escapeHtml(doc.dossier.numeroDossier)} — ${escapeHtml(doc.dossier.nomAffaire)} · ${date} · créé par ${escapeHtml(doc.creePar.nom)}`;
+              return `
+            <div class="dossier-item">
+              <div>
+                <div><a href="/dossier.html?id=${doc.dossier.id}">${escapeHtml(titre)}</a></div>
+                <div class="meta">${meta}</div>
+              </div>
+            </div>`;
+            })
+            .join("");
+          return `
+        <h3 style="margin:20px 0 8px;">${escapeHtml(TYPE_LABELS[type] || type)} <span class="muted">(${docs.length})</span></h3>
+        ${lignes}`;
+        })
+        .join("");
+    }
+
     function applyDossiersSearch() {
-      const estVueDossier = currentVue === "dossiers" || currentVue === "archives";
       const terme = document.getElementById("dossiers-search").value.trim().toLowerCase();
+      if (currentDisplayMode === "type") {
+        if (!terme) {
+          renderDocumentsByType(currentDocuments);
+          return;
+        }
+        const filtres = currentDocuments.filter((doc) => {
+          const numero = (doc.dossier.numeroDossier || "").toLowerCase();
+          const nom = (doc.dossier.nomAffaire || "").toLowerCase();
+          const titre = (doc.nomDocument || "").toLowerCase();
+          return numero.includes(terme) || nom.includes(terme) || titre.includes(terme);
+        });
+        renderDocumentsByType(filtres);
+        return;
+      }
+      const estVueDossier = estVueDossierPourScope(currentVue);
       if (!terme) {
         renderDossiersList(currentDossiers, estVueDossier);
         return;
@@ -137,7 +249,7 @@
         document.querySelectorAll("#scope-tabs .tab").forEach((btn) => {
           btn.addEventListener("click", () => {
             currentScope = btn.dataset.scope;
-            loadDossiers();
+            loadListe();
           });
         });
       }
@@ -150,13 +262,22 @@
       document.querySelectorAll("#vue-tabs .tab").forEach((btn) => {
         btn.addEventListener("click", () => {
           currentVue = btn.dataset.vue;
-          loadDossiers();
+          loadListe();
+        });
+      });
+
+      document.querySelectorAll("#display-mode-tabs .tab").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          currentDisplayMode = btn.dataset.mode;
+          document.querySelectorAll("#display-mode-tabs .tab").forEach((b) => b.classList.remove("active"));
+          btn.classList.add("active");
+          loadListe();
         });
       });
 
       document.getElementById("dossiers-search").addEventListener("input", applyDossiersSearch);
 
-      loadDossiers();
+      loadListe();
     })();
   </script>
 </body>

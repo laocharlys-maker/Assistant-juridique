@@ -126,6 +126,55 @@ dossiersRouter.get("/api/dossiers", requireAuth, async (req, res) => {
   return res.json({ scope, vue, dossiers: dossiersAvecTag });
 });
 
+// Sert la "Vue par type de document" de la page Documents generes : les
+// memes filtres scope/vue que /api/dossiers ci-dessus, mais renvoie les
+// documents (Action) individuellement plutot que les dossiers, tries du
+// plus recent au plus ancien - le frontend les regroupe ensuite par type.
+dossiersRouter.get("/api/documents", requireAuth, async (req, res) => {
+  const { auth } = req;
+
+  const requestedScope = req.query.scope === "cabinet" ? "cabinet" : "mine";
+  const scope = requestedScope === "cabinet" && peutVoirTouLeCabinet(auth!.role) ? "cabinet" : "mine";
+  const accessibleAvocatIds = scope === "mine" ? await getAccessibleAvocatIds(auth!) : null;
+
+  const vueParam = req.query.vue;
+  const vue =
+    vueParam === "recherches"
+      ? "recherches"
+      : vueParam === "traductions"
+        ? "traductions"
+        : vueParam === "archives"
+          ? "archives"
+          : "dossiers";
+
+  const documents = await prisma.action.findMany({
+    where: {
+      dossier: {
+        cabinetId: auth!.cabinetId,
+        estRecherche: vue === "recherches" || vue === "traductions",
+        ...(vue === "dossiers" ? { archivedAt: null } : {}),
+        ...(vue === "archives" ? { archivedAt: { not: null } } : {}),
+        ...(vue === "traductions" ? { numeroDossier: { startsWith: "TRAD-" } } : {}),
+        ...(vue === "recherches" ? { numeroDossier: { not: { startsWith: "TRAD-" } } } : {}),
+        ...(accessibleAvocatIds ? { createdBy: { in: accessibleAvocatIds } } : {}),
+      },
+    },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      typeAction: true,
+      nomDocument: true,
+      statut: true,
+      documentUrl: true,
+      createdAt: true,
+      dossier: { select: { id: true, numeroDossier: true, nomAffaire: true, nomClient: true } },
+      creePar: { select: { nom: true } },
+    },
+  });
+
+  return res.json({ scope, vue, documents });
+});
+
 dossiersRouter.get("/api/dossiers/:id", requireAuth, async (req, res) => {
   const { auth } = req;
 
