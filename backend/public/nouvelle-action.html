@@ -986,6 +986,8 @@
         <h3>Objet et faits</h3>
         <label>Objet de l'ordonnance</label>
         <input name="objet" required placeholder="ex: Ordonnance d'injonction de payer" />
+        <label>Date de dépôt de la requête d'origine (optionnel)<span class="field-hint" title="Figure dans le visa 'Vu la requête en date du...'. Laisse vide si non pertinent.">?</span></label>
+        <input name="date_requete" type="date" />
         <label>Faits et pièces produits au soutien de la requête</label>
         <textarea name="contexte" required></textarea>
         <label>Fondement juridique invoqué (optionnel)</label>
@@ -1879,6 +1881,7 @@
         nom_juridiction: fd.get("nom_juridiction") || undefined,
         ville: fd.get("ville") || undefined,
         objet: fd.get("objet"),
+        date_requete: fd.get("date_requete") || undefined,
         contexte: fd.get("contexte"),
         fondement_juridique: fd.get("fondement_juridique") || undefined,
         montant_engage: fd.get("montant_engage") || undefined,

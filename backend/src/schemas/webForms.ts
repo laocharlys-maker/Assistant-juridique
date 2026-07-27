@@ -439,6 +439,10 @@ export const projetOrdonnanceFormSchema = z.object({
   nom_juridiction: z.string().optional(),
   ville: z.string().optional(),
   objet: z.string().min(1),
+  // Date a laquelle la requete d'origine a ete deposee - figure dans le visa
+  // "Vu la requete en date du..." de l'ordonnance, distincte de la date du
+  // jour (date de l'ordonnance elle-meme).
+  date_requete: z.string().optional(),
   contexte: z.string().min(1),
   fondement_juridique: z.string().optional(),
   montant_engage: z.string().optional(),
