@@ -58,11 +58,24 @@ export async function searchWeb(
   }
 }
 
+// Le contenu Tavily (search_depth "advanced") peut atteindre plusieurs
+// milliers de caracteres par source. Non tronque, une recherche combinant
+// une dizaine de sources depasse a elle seule le quota de tokens/minute des
+// fournisseurs LLM a plan gratuit (ex: Groq, 12000 TPM) et fait echouer la
+// requete (413 "Request too large"). Un extrait de 500 caracteres reste
+// largement suffisant pour que le LLM cite la source et son contenu.
+const LONGUEUR_MAX_EXTRAIT = 500;
+
+function tronquerExtrait(content: string): string {
+  if (content.length <= LONGUEUR_MAX_EXTRAIT) return content;
+  return `${content.slice(0, LONGUEUR_MAX_EXTRAIT)}…`;
+}
+
 export function formatWebSearchContext(results: WebSearchResult[]): string {
   if (results.length === 0) {
     return "Aucun resultat de recherche web trouve pour cette question.";
   }
   return results
-    .map((r, i) => `[Source ${i + 1}] ${r.title}\nURL : ${r.url}\n${r.content}`)
+    .map((r, i) => `[Source ${i + 1}] ${r.title}\nURL : ${r.url}\n${tronquerExtrait(r.content)}`)
     .join("\n\n");
 }
