@@ -1515,15 +1515,18 @@
       const options = otherTypes.map((t) => `<option value="${t}">${TYPE_CATALOG[t].label}</option>`).join("");
 
       const wrap = document.createElement("div");
-      wrap.style.cssText = "display:flex; gap:8px; align-items:center; justify-content:flex-end; flex-wrap:wrap; margin-top:8px;";
+      wrap.className = "prefill-panel";
       wrap.innerHTML = `
-        <select id="${targetType}-prefill-source" style="width:auto; margin:0;">${options}</select>
-        <button type="button" class="prefill-btn" id="${targetType}-prefill-btn">Pré-remplir depuis un autre acte</button>
+        <span class="prefill-panel-label">Pré-remplir depuis un acte existant</span>
+        <div class="prefill-panel-controls">
+          <select id="${targetType}-prefill-source">${options}</select>
+          <button type="button" class="prefill-btn" id="${targetType}-prefill-btn">Pré-remplir</button>
+        </div>
       `;
       const msg = document.createElement("p");
       msg.className = "muted";
       msg.id = `${targetType}-prefill-msg`;
-      msg.style.display = "none";
+      msg.style.cssText = "display:none; margin:4px 0 16px;";
 
       numeroInput.insertAdjacentElement("afterend", msg);
       numeroInput.insertAdjacentElement("afterend", wrap);

@@ -238,15 +238,54 @@ button.secondary {
 button.secondary:hover { background: var(--accent-tint); border-color: var(--accent); color: var(--accent-hover); box-shadow: var(--shadow-sm); }
 button.secondary:active { background: var(--panel-alt); }
 
+.prefill-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  background: var(--success-tint);
+  border: 1px solid var(--success);
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin: 14px 0 8px;
+}
+.prefill-panel-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-strong);
+}
+.prefill-panel-label::before { content: "✨"; font-size: 1rem; }
+.prefill-panel-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.prefill-panel select {
+  margin: 0;
+  width: auto;
+  min-width: 200px;
+  background: var(--panel);
+}
+
 button.prefill-btn {
+  margin: 0;
+  padding: 9px 18px;
+  font-size: 0.85rem;
   background: var(--success);
   color: #ffffff;
   border: 1px solid var(--success);
   box-shadow: var(--shadow-sm);
+  white-space: nowrap;
 }
 button.prefill-btn:hover { background: var(--success); filter: brightness(1.08); box-shadow: var(--shadow-sm); }
 button.prefill-btn:active { filter: brightness(0.95); }
 :root[data-theme="dark"] button.prefill-btn { color: #ffffff; }
+
+@media (max-width: 640px) {
+  .prefill-panel { flex-direction: column; align-items: stretch; }
+  .prefill-panel-controls { width: 100%; }
+  .prefill-panel select { flex: 1; min-width: 0; }
+}
 
 button.ghost {
   background: transparent;
