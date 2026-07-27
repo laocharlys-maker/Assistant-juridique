@@ -123,6 +123,17 @@ function assemblerCivilite(civilite: string | null, nom: string): string {
   return civilite ? `${civilite} ${nom}` : nom;
 }
 
+const CIVILITE_LONGUE: Record<string, string> = { "M.": "Monsieur", Mme: "Madame", Mlle: "Mademoiselle" };
+
+// Formule d'appel ("Monsieur," / "Madame," / "Mademoiselle,") deduite de la
+// civilite d'un destinataire - jamais figee dans le template, pour ne
+// jamais afficher "Monsieur" devant une societe. Repli generique "Madame,
+// Monsieur," si la civilite n'est pas precisee (personne morale, ou
+// personne physique dont la civilite n'a pas ete choisie).
+function civiliteAppel(civilite: string | null | undefined): string {
+  return civilite ? `${CIVILITE_LONGUE[civilite]},` : "Madame, Monsieur,";
+}
+
 // Decoupe un texte rediage par l'IA en blocs, chacun precede d'un marqueur
 // "[[NOM_DU_BLOC]]" sur sa propre ligne (voir CONCLUSIONS_SYSTEM_PROMPT).
 // Utilise pour repartir le texte genere entre plusieurs balises d'un
@@ -804,15 +815,7 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
 
       const objetMED = form.objet || `D'EXÉCUTER SES OBLIGATIONS CONTRACTUELLES SOUS ${form.delai_jours} JOURS`;
 
-      // Formule d'appel ("Monsieur," / "Madame," / "Mademoiselle,") deduite
-      // de la civilite du destinataire - jamais figee dans le template, pour
-      // ne jamais afficher "Monsieur" devant une societe. Repli generique
-      // "Madame, Monsieur," si la civilite n'est pas precisee (personne
-      // morale, ou personne physique dont la civilite n'a pas ete choisie).
-      const CIVILITE_LONGUE: Record<string, string> = { "M.": "Monsieur", Mme: "Madame", Mlle: "Mademoiselle" };
-      const civiliteAppelDestinataireMED = form.civilite_destinataire
-        ? `${CIVILITE_LONGUE[form.civilite_destinataire]},`
-        : "Madame, Monsieur,";
+      const civiliteAppelDestinataireMED = civiliteAppel(form.civilite_destinataire);
 
       const consequencesMED = form.consequences.map((c, i) => `${i + 1}. ${c}`).join("\n");
 
@@ -1314,6 +1317,7 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
         destinataire: form.destinataire,
         civilite_destinataire: form.civilite_destinataire ?? null,
         civilite_nom_destinataire: assemblerCivilite(form.civilite_destinataire ?? null, form.destinataire),
+        civilite_appel_destinataire: civiliteAppel(form.civilite_destinataire),
         adresse_destinataire: form.adresse_destinataire ?? null,
         objet: objetNotif,
       };
