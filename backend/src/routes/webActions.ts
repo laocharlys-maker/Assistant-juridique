@@ -158,6 +158,7 @@ function nomAdversePourForm(form: WebActionForm): string | null {
     case "mise_en_demeure":
       return form.destinataire || null;
     case "plainte":
+    case "requete":
       return form.nom_defendeur || null;
     case "conclusions":
     case "note_plaidoirie":
@@ -1345,35 +1346,100 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
         argumentaire: redigé,
       };
     } else {
-      const destinataireCompose = composeDestinataire(form.destinataire, form.nom_juridiction, form.ville);
-      const redigé = await llm.redact(
+      const destinataireComposeRequete = composeDestinataire(form.destinataire, form.nom_juridiction, form.ville);
+      const redigeBrutRequete = await llm.redact(
         REQUETE_SYSTEM_PROMPT,
         buildRequeteUserPrompt({
           nomAffaire: form.nom_affaire,
-          destinataire: destinataireCompose,
+          destinataire: destinataireComposeRequete,
           objet: form.objet,
-          motifs: form.motifs,
+          contexte: form.contexte,
+          fondementJuridique: form.fondement_juridique,
+          montantEngage: form.montant_engage,
         })
       );
 
-      const dossierLookup = await findOrCreateDossier({
+      const blocsRequete = decouperBlocsMarques(redigeBrutRequete, ["EXPOSE_DES_FAITS", "DISCUSSION_JURIDIQUE"]);
+      const exposeDesFaitsRequete = blocsRequete.EXPOSE_DES_FAITS ?? "";
+      const discussionJuridiqueRequete = blocsRequete.DISCUSSION_JURIDIQUE ?? "";
+
+      const dossierLookupRequete = await findOrCreateDossier({
         cabinetId: auth!.cabinetId,
         userId: auth!.userId,
         numeroDossier: form.numero_dossier,
         nomAffaire: form.nom_affaire,
         nomClient: form.nom_client,
       });
-      if (!dossierLookup.ok) {
-        return res.status(404).json({ error: dossierLookup.error });
+      if (!dossierLookupRequete.ok) {
+        return res.status(404).json({ error: dossierLookupRequete.error });
       }
-      dossierId = dossierLookup.dossier.id;
+      const dossierRequete = dossierLookupRequete.dossier;
+      dossierId = dossierRequete.id;
+
+      const [cabinetPourAdresseRequete, clientPourInfosRequete] = await Promise.all([
+        prisma.cabinet.findUnique({ where: { id: auth!.cabinetId }, select: { nom: true, adresse: true } }),
+        dossierRequete.clientId
+          ? prisma.client.findUnique({ where: { id: dossierRequete.clientId }, select: { civilite: true } })
+          : Promise.resolve(null),
+      ]);
+
+      const civiliteClientRequete = clientPourInfosRequete?.civilite || form.civilite_client_manuel || null;
+
+      const CIVILITE_APPEL_REQUETE: Record<string, string> = {
+        "M. le Président": "Monsieur le Président",
+        "Mme la Présidente": "Madame la Présidente",
+        "M. le Procureur de la République près": "Monsieur le Procureur de la République",
+      };
+      const civiliteAppelRequete = `${CIVILITE_APPEL_REQUETE[form.destinataire ?? ""] || "Monsieur le Président"},`;
+
+      const demandesRequete = form.demandes.map((d) => `- ${d}`).join("\n");
+      const bordereauPiecesRequete =
+        form.pieces && form.pieces.length > 0
+          ? form.pieces.map((p, i) => `${i + 1}. ${p}`).join("\n")
+          : "Aucune pièce communiquée à ce stade.";
+
+      // Utilise pour le contenu enregistre en base et les exports Word/PDF
+      // locaux (qui n'ont pas de template a balises separees).
+      const redigéRequete = [
+        ["I. EXPOSÉ DES FAITS", exposeDesFaitsRequete].filter(Boolean).join("\n\n"),
+        ["II. DISCUSSION JURIDIQUE", discussionJuridiqueRequete].filter(Boolean).join("\n\n"),
+        ["PAR CES MOTIFS", demandesRequete].filter(Boolean).join("\n\n"),
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+
+      extraWebhookFields = {
+        objet: form.objet,
+        expose_des_faits: exposeDesFaitsRequete,
+        discussion_juridique: discussionJuridiqueRequete,
+        demandes: demandesRequete,
+        piece_a_prevoir: bordereauPiecesRequete,
+        montant_engage: form.montant_engage ?? null,
+        nom_avocat: form.nom_avocat ?? null,
+        adresse_cabinet: cabinetPourAdresseRequete?.adresse || form.adresse_cabinet_manuel || null,
+        nom_cabinet: cabinetPourAdresseRequete?.nom || null,
+        civilite_client: civiliteClientRequete,
+        civilite_nom_client: assemblerCivilite(civiliteClientRequete, dossierRequete.nomClient),
+        informations_client: form.informations_client ?? null,
+        representant_legal: form.representant_legal ?? null,
+        qualite_representant: form.qualite_representant ?? null,
+        nom_defendeur: form.nom_defendeur ?? null,
+        civilite_defendeur: form.civilite_defendeur ?? null,
+        civilite_nom_defendeur: form.nom_defendeur
+          ? assemblerCivilite(form.civilite_defendeur ?? null, form.nom_defendeur)
+          : null,
+        profession_defendeur: form.profession_defendeur ?? null,
+        adresse_defendeur: form.adresse_defendeur ?? null,
+        civilite_appel_destinataire: civiliteAppelRequete,
+        destinataire: destinataireComposeRequete ?? null,
+      };
 
       action = {
         type_action: "requete",
         categorie_texte: "Requête",
-        numero_dossier: dossierLookup.dossier.numeroDossier,
-        nom_affaire: dossierLookup.dossier.nomAffaire,
-        nom_client: dossierLookup.dossier.nomClient,
+        numero_dossier: dossierRequete.numeroDossier,
+        nom_affaire: dossierRequete.nomAffaire,
+        nom_client: dossierRequete.nomClient,
         nom_juridiction: null,
         nom_chambre: null,
         date_audience: null,
@@ -1381,7 +1447,7 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
         prochaine_audience: null,
         pieces_prevoir: null,
         synthese: null,
-        argumentaire: redigé,
+        argumentaire: redigéRequete,
       };
     }
 

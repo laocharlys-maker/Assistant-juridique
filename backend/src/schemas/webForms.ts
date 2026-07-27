@@ -378,14 +378,37 @@ export const requeteFormSchema = z.object({
   type_action: z.literal("requete"),
   numero_dossier: z.string().optional(),
   nom_affaire: z.string().optional(),
+  nom_avocat: z.string().optional(),
+  adresse_cabinet_manuel: z.string().optional(),
+  // Le requerant (client) - memes principes que partout ailleurs (DB-first,
+  // secours manuel si absent de sa fiche).
   nom_client: z.string().min(1).optional(),
+  civilite_client_manuel: z.enum(["M.", "Mme", "Mlle"]).optional(),
+  informations_client: z.string().optional(),
+  // Uniquement si le requerant est une personne morale agissant par son
+  // representant legal (ex: "son Directeur General, Monsieur X").
+  representant_legal: z.string().optional(),
+  qualite_representant: z.string().optional(),
+  // Le requis (partie adverse) - optionnel : une requete n'a pas toujours
+  // de partie adverse nommee (ex: designation d'expert, requete conjointe).
+  nom_defendeur: z.string().optional(),
+  civilite_defendeur: z.enum(["M.", "Mme", "Mlle"]).optional(),
+  profession_defendeur: z.string().optional(),
+  adresse_defendeur: z.string().optional(),
   // Civilite du destinataire, composee avec la juridiction et la ville par
   // le backend pour former l'adresse complete du courrier. Facultatif.
   destinataire: z.string().optional(),
   nom_juridiction: z.string().optional(),
   ville: z.string().optional(),
   objet: z.string().min(1),
-  motifs: z.string().min(1),
+  contexte: z.string().min(1),
+  fondement_juridique: z.string().optional(),
+  montant_engage: z.string().optional(),
+  // Demandes precises a l'autorite ("PAR CES MOTIFS") - jamais devinees
+  // par l'IA, toujours saisies par l'avocat.
+  demandes: z.array(z.string().min(1)).min(1),
+  // Pieces versees aux debats (bordereau) - optionnel.
+  pieces: z.array(z.string().min(1)).optional(),
 });
 
 export const webActionFormSchema = z.discriminatedUnion("type_action", [

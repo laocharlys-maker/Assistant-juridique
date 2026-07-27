@@ -637,28 +637,44 @@ export function buildNotificationDateUserPrompt(facts: {
   return lignes.join("\n");
 }
 
-// Requete : courrier adresse a une autorite (Procureur, president de
-// juridiction...) pour formuler une demande precise (ex: fixation de date
-// d'audience).
+// Requete : courrier adresse a une autorite judiciaire (President de
+// juridiction, Procureur...) pour formuler une demande precise (injonction
+// de payer, fixation de date, designation d'expert...). Meme principe que
+// la Plainte : deux blocs marques, le reste (en-tete, identification des
+// parties, PAR CES MOTIFS, bordereau, signature) est fixe ou saisi tel
+// quel, jamais redige par l'IA.
 export const REQUETE_SYSTEM_PROMPT = `${COMMON_SYSTEM}
 
-Redige une REQUETE (courrier formel adresse a une autorite judiciaire). Commence par une formule d'adresse a l'autorite destinataire fournie ci-dessous, puis structure ainsi :
-- Objet precis de la requete
-- Motifs / justification de la demande
-- Demande precise formulee a l'autorite destinataire
-- Formule de politesse
+Ecris comme un avocat beninois experimente redigeant lui-meme cette requete pour son client - avec l'autorite et la rigueur propres a une piece de procedure, jamais un ton neutre ou descriptif.
 
-REGLE ABSOLUE : n'invente jamais un motif, un fait ou une demande qui ne figure pas dans les informations fournies ci-dessous.`;
+Tu rediges UNIQUEMENT le contenu variable d'une REQUETE beninoise. Ce texte s'insere dans une lettre deja mise en forme par ailleurs (en-tete, identification des parties, formule d'ouverture, PAR CES MOTIFS, bordereau des pieces, formule de politesse, signature) : ne redige JAMAIS ces elements. Les montants s'expriment toujours en Francs CFA (FCFA).
+
+Structure ta reponse en EXACTEMENT deux blocs, chacun precede de son marqueur entre doubles crochets sur sa propre ligne (rien d'autre sur cette ligne), dans cet ordre :
+
+[[EXPOSE_DES_FAITS]]
+Recit chronologique des faits, en paragraphes commencant de preference par "Qu'..." ou "Attendu que..." (style traditionnel des actes de procedure), en te basant uniquement sur le contexte fourni ci-dessous. Cite les pieces mentionnees si elles le sont (ex: "(Piece n°X)").
+
+[[DISCUSSION_JURIDIQUE]]
+Le fondement juridique de la demande, en lien avec le fondement fourni ci-dessous (cite-le tel quel s'il s'agit d'un texte precis - n'invente jamais un article de loi si aucun n'est fourni), puis une phrase reliant ce fondement aux faits exposes pour justifier la demande formulee a l'autorite destinataire.
+
+REGLE ABSOLUE : n'invente jamais un fait, une date, un montant ou un article de loi precis qui ne figure pas dans les informations fournies ci-dessous.`;
 
 export function buildRequeteUserPrompt(facts: {
   nomAffaire?: string;
   destinataire?: string;
   objet: string;
-  motifs: string;
+  contexte: string;
+  fondementJuridique?: string;
+  montantEngage?: string;
 }): string {
-  return `Affaire : ${facts.nomAffaire || "non précisée"}
-Destinataire : ${facts.destinataire || "non précisé"}
-Objet de la requete : ${facts.objet}
-Motifs : ${facts.motifs}
-Date du jour : ${dateActuelle()}`;
+  const lignes = [
+    `Affaire : ${facts.nomAffaire || "non précisée"}`,
+    `Destinataire : ${facts.destinataire || "non précisé"}`,
+    `Objet de la requete : ${facts.objet}`,
+    `Contexte : ${facts.contexte}`,
+  ];
+  if (facts.fondementJuridique) lignes.push(`Fondement juridique invoque : ${facts.fondementJuridique}`);
+  if (facts.montantEngage) lignes.push(`Montant en jeu : ${facts.montantEngage}`);
+  lignes.push(`Date du jour : ${dateActuelle()}`);
+  return lignes.join("\n");
 }

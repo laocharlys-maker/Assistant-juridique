@@ -815,8 +815,62 @@
         <input name="numero_dossier" list="dossiers-datalist" placeholder="Laisse vide si non applicable" />
         <label>Nom de l'affaire (optionnel)</label>
         <input name="nom_affaire" placeholder="Laisse vide si non applicable" />
+        <label>Avocat en charge (optionnel)</label>
+        <input name="nom_avocat" id="requete-nom-avocat" />
+        <label>Adresse du cabinet (optionnel)</label>
+        <input name="adresse_cabinet_manuel" placeholder="Reprise automatiquement depuis Paramètres si déjà renseignée — sinon, précise-la ici" />
+
+        <h3>Le requérant</h3>
+        <label>Type de client (optionnel)</label>
+        <select name="type_client" id="requete-type-client">
+          <option value="physique">Personne physique</option>
+          <option value="morale">Personne morale</option>
+        </select>
+        <div id="requete-civilite-client-wrap">
+          <label>Civilité du client (optionnel)</label>
+          <select name="civilite_client_manuel">
+            <option value="">— Non précisé —</option>
+            <option value="M.">M.</option>
+            <option value="Mme">Mme</option>
+            <option value="Mlle">Mlle</option>
+          </select>
+        </div>
         <label>Nom du client (si nouveau dossier)</label>
         <input name="nom_client" placeholder="Laisse vide si le dossier existe déjà" />
+        <label>Informations sur le client (optionnel)<span class="field-hint" title="État civil pour une personne physique, ou forme juridique/capital/siège social/RCCM pour une entreprise.">?</span></label>
+        <input name="informations_client" placeholder="ex: SARL au capital de 5 000 000 FCFA, dont le siège social est à Cotonou, RCCM RB/COT/24 B 1234" />
+        <div id="requete-representant-wrap" style="display:none;">
+          <label>Représentant légal (optionnel)<span class="field-hint" title="Uniquement si le client est une personne morale agissant par son représentant légal (ex: Directeur Général, Gérant).">?</span></label>
+          <input name="representant_legal" placeholder="ex: Monsieur AGONTINDE Corneille" />
+          <label>Qualité du représentant (optionnel)</label>
+          <input name="qualite_representant" placeholder="ex: Directeur Général" />
+        </div>
+
+        <h3>La partie adverse (optionnel)</h3>
+        <label>Type (optionnel)</label>
+        <select name="type_defendeur" id="requete-type-defendeur">
+          <option value="physique">Personne physique</option>
+          <option value="morale">Personne morale</option>
+        </select>
+        <div id="requete-civilite-defendeur-wrap">
+          <label>Civilité (optionnel)</label>
+          <select name="civilite_defendeur">
+            <option value="">— Non précisé —</option>
+            <option value="M.">M.</option>
+            <option value="Mme">Mme</option>
+            <option value="Mlle">Mlle</option>
+          </select>
+        </div>
+        <label>Nom de la partie adverse (optionnel)<span class="field-hint" title="Laisse vide si cette requête n'a pas de partie adverse nommée (ex: désignation d'expert, requête conjointe).">?</span></label>
+        <input name="nom_defendeur" />
+        <div id="requete-profession-defendeur-wrap">
+          <label>Profession (optionnel)</label>
+          <input name="profession_defendeur" placeholder="ex: Commerçant" />
+        </div>
+        <label>Adresse (optionnel)</label>
+        <input name="adresse_defendeur" placeholder="ex: Quartier Cadjèhoun, Cotonou" />
+
+        <h3>Destinataire</h3>
         <label>Destinataire (optionnel)</label>
         <select name="destinataire">
           <option value="">— Non précisé —</option>
@@ -828,10 +882,26 @@
         <select name="nom_juridiction" id="requete-juridiction"></select>
         <label>Ville (optionnel)</label>
         <select name="ville" id="requete-ville"></select>
+
+        <h3>Objet et faits</h3>
         <label>Objet de la requête</label>
-        <input name="objet" required placeholder="ex: Demande de fixation de date d'audience" />
-        <label>Motifs</label>
-        <textarea name="motifs" required></textarea>
+        <input name="objet" required placeholder="ex: Requête aux fins d'injonction de payer" />
+        <label>Contexte de l'affaire</label>
+        <textarea name="contexte" required></textarea>
+        <label>Fondement juridique invoqué (optionnel)</label>
+        <textarea name="fondement_juridique" placeholder="ex: Article 1er de l'Acte Uniforme OHADA portant organisation des procédures simplifiées de recouvrement"></textarea>
+        <label>Montant en jeu (optionnel)<span class="field-hint" title="Le montant pertinent pour cette requête (créance réclamée, somme concernée...), si applicable.">?</span></label>
+        <input name="montant_engage" placeholder="ex: 2 000 000 FCFA" />
+
+        <h3>Par ces motifs</h3>
+        <label>Demande(s) précises à l'autorité</label>
+        <ul class="pieces-list" id="demandes-list-requete"></ul>
+        <button type="button" class="secondary" data-add-list="demandes-list-requete">+ Ajouter une demande</button>
+        <br />
+        <label>Pièces à produire (optionnel)</label>
+        <ul class="pieces-list" id="pieces-list-requete"></ul>
+        <button type="button" class="secondary" data-add-list="pieces-list-requete">+ Ajouter une pièce</button>
+        <br />
         <button type="submit">Générer la requête</button>
       </form>
 
@@ -960,7 +1030,7 @@
           field.style.display = select.value === "Maître" ? "block" : "none";
         });
       });
-      ["assignation-nom-avocat", "plainte-nom-avocat", "conclusions-nom-avocat", "note_plaidoirie-nom-avocat"].forEach((id) => {
+      ["assignation-nom-avocat", "plainte-nom-avocat", "conclusions-nom-avocat", "note_plaidoirie-nom-avocat", "requete-nom-avocat"].forEach((id) => {
         const input = document.getElementById(id);
         if (input) input.value = me.nom;
       });
@@ -993,6 +1063,27 @@
       wireProfessionToggle("plainte-type-client", "plainte-profession-client-wrap");
       wireProfessionToggle("plainte-type-defendeur", "plainte-civilite-defendeur-wrap");
       wireProfessionToggle("plainte-type-defendeur", "plainte-profession-defendeur-wrap");
+      wireProfessionToggle("requete-type-client", "requete-civilite-client-wrap");
+      wireProfessionToggle("requete-type-defendeur", "requete-civilite-defendeur-wrap");
+      wireProfessionToggle("requete-type-defendeur", "requete-profession-defendeur-wrap");
+
+      // Le representant legal n'a de sens que pour une personne morale (ex:
+      // Directeur General agissant pour la societe) - inverse de
+      // wireProfessionToggle, qui masque au lieu d'afficher quand c'est une
+      // personne morale.
+      const requeteTypeClient = document.getElementById("requete-type-client");
+      const requeteRepresentantWrap = document.getElementById("requete-representant-wrap");
+      if (requeteTypeClient && requeteRepresentantWrap) {
+        requeteTypeClient.addEventListener("change", () => {
+          const estMorale = requeteTypeClient.value === "morale";
+          requeteRepresentantWrap.style.display = estMorale ? "block" : "none";
+          if (!estMorale) {
+            requeteRepresentantWrap.querySelectorAll("input").forEach((el) => {
+              el.value = "";
+            });
+          }
+        });
+      }
 
       // Le champ "Montant" reste au libelle generique quel que soit le type
       // de contrat (loyer, salaire, prix de vente... tous des montants) -
@@ -1141,6 +1232,8 @@
     addListItem("pieces-list-assignation", "ex: Copie du contrat");
     addListItem("demandes-list-plainte", "ex: Poursuites contre le mis en cause");
     addListItem("preuves-list-plainte", "ex: Copie de la plainte initiale");
+    addListItem("demandes-list-requete", "ex: Enjoindre le débiteur de payer la somme de 2 000 000 FCFA");
+    addListItem("pieces-list-requete", "ex: Facture impayée du...");
     addListItem("clauses-list-contrat", "ex: Clause de confidentialité");
 
     const contratEstAvenant = document.getElementById("contrat-est-avenant");
@@ -1547,12 +1640,26 @@
       submitForm("requete", {
         numero_dossier: fd.get("numero_dossier") || undefined,
         nom_affaire: fd.get("nom_affaire") || undefined,
+        nom_avocat: fd.get("nom_avocat") || undefined,
+        adresse_cabinet_manuel: fd.get("adresse_cabinet_manuel") || undefined,
         nom_client: fd.get("nom_client") || undefined,
+        civilite_client_manuel: fd.get("civilite_client_manuel") || undefined,
+        informations_client: fd.get("informations_client") || undefined,
+        representant_legal: fd.get("representant_legal") || undefined,
+        qualite_representant: fd.get("qualite_representant") || undefined,
+        nom_defendeur: fd.get("nom_defendeur") || undefined,
+        civilite_defendeur: fd.get("civilite_defendeur") || undefined,
+        profession_defendeur: fd.get("profession_defendeur") || undefined,
+        adresse_defendeur: fd.get("adresse_defendeur") || undefined,
         destinataire: fd.get("destinataire") || undefined,
         nom_juridiction: fd.get("nom_juridiction") || undefined,
         ville: fd.get("ville") || undefined,
         objet: fd.get("objet"),
-        motifs: fd.get("motifs"),
+        contexte: fd.get("contexte"),
+        fondement_juridique: fd.get("fondement_juridique") || undefined,
+        montant_engage: fd.get("montant_engage") || undefined,
+        demandes: listValues("demandes-list-requete"),
+        pieces: listValues("pieces-list-requete"),
       }, forms.requete.querySelector('button[type="submit"]'));
     });
 
