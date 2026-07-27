@@ -493,16 +493,18 @@ export const CONTRAT_SYSTEM_PROMPT = `${COMMON_SYSTEM}
 
 Si le contexte precise qu'il s'agit d'un AVENANT a un contrat existant, redige un AVENANT court : rappel du contrat initial (reference fournie), objet precis de la modification, puis "Les autres clauses du contrat initial demeurent inchangees."
 
-Sinon, redige un CONTRAT structure en articles numerotes, en n'incluant QUE les articles pour lesquels une information a ete fournie ci-dessous (ne cree jamais un article vide ou avec un contenu invente) :
-- Preambule : identifie les parties avec leur qualite (personne physique/morale et informations fournies). Si un contexte/motif est fourni, redige-le sous forme de paragraphes "Attendu que..." avant la formule d'accord ; sinon contente-toi d'une formule d'introduction neutre sans inventer d'historique.
-- Article 1 - Objet du contrat
-- Article 2 - Obligations des parties
-- Article 3 - Duree (et conditions de renouvellement/reconduction si fournies)
-- Article 4 - Contrepartie financiere (uniquement si un montant est fourni) : adapte le vocabulaire au type de contrat fourni ci-dessous (ex: "Loyer" pour un bail, "Salaire" pour un contrat de travail, "Prix de vente" pour une vente, "Remuneration" pour une prestation de services) plutot que d'utiliser systematiquement le mot "Remuneration"
-- Article 5 - Modalites de paiement (uniquement si fournies, ex: echeancier, mode de paiement)
-- Article 6 - Conditions de resiliation (uniquement si fournies)
-- Article 7 - Juridiction competente et droit applicable (uniquement si fourni)
-- Articles suivants - Clauses particulieres fournies, une par article
+Sinon, redige un CONTRAT structure en articles numerotes. FORMAT IMPERATIF de chaque titre d'article : "ARTICLE [numero] - [TITRE]", tout en MAJUSCULES, SEUL sur sa propre ligne, SANS AUCUN symbole devant (pas de "#", pas de "-", pas de puce, pas de numerotation Markdown de type "1." ou "2.") - exactement comme un contrat papier redige par un avocat, jamais comme une liste. Exemple exact : "ARTICLE 1 - OBJET DU CONTRAT" suivi du texte de l'article.
+
+N'inclus QUE les articles pour lesquels une information a ete fournie ci-dessous (ne cree jamais un article vide ou avec un contenu invente), et NUMEROTE-LES DE FACON CONTINUE a partir de 1 selon ceux effectivement inclus (si un article de la liste ci-dessous est absent faute d'information, ne saute pas son numero : l'article suivant prend le numero qui suit immediatement le dernier article ecrit). Ordre et contenu possibles, dans cet ordre si presents :
+- Preambule (pas d'"ARTICLE", juste ce mot seul en tete, en MAJUSCULES, sur sa propre ligne) : identifie les parties avec leur qualite (personne physique/morale et informations fournies). Si un contexte/motif est fourni, redige-le sous forme de paragraphes "Attendu que..." avant la formule d'accord ; sinon contente-toi d'une formule d'introduction neutre sans inventer d'historique.
+- Objet du contrat
+- Obligations des parties
+- Duree (et conditions de renouvellement/reconduction si fournies)
+- Contrepartie financiere (uniquement si un montant est fourni) : adapte le vocabulaire au type de contrat fourni ci-dessous (ex: "Loyer" pour un bail, "Salaire" pour un contrat de travail, "Prix de vente" pour une vente, "Remuneration" pour une prestation de services) plutot que d'utiliser systematiquement le mot "Remuneration"
+- Modalites de paiement (uniquement si fournies, ex: echeancier, mode de paiement)
+- Conditions de resiliation (uniquement si fournies)
+- Juridiction competente et droit applicable (uniquement si fourni)
+- Clauses particulieres fournies, une par article, dans l'ordre fourni
 
 Ne redige JAMAIS de clause de force majeure : elle est ajoutee separement, en texte fixe, si l'avocat l'a demandee.
 
