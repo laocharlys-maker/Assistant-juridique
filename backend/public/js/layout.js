@@ -114,7 +114,7 @@ function initLayout(me) {
         <span></span><span></span><span></span>
       </button>
       <img src="/logo-aurore-header.png" alt="" class="brand-logo" onerror="this.style.display='none'" />
-      <span class="brand-word">AURORE</span>
+      <span class="brand-word">AURORE, ASSISTANTE JURIDIQUE</span>
     </div>
     <div class="topbar-right">
       <button type="button" id="theme-toggle-btn" class="icon-btn" aria-label="Changer de thème" title="Mode clair / sombre">

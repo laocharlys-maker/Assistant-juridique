@@ -73,15 +73,15 @@
 
     <div class="card">
       <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
-        <button type="button" class="secondary btn-sm" id="prev-week-btn">← Semaine précédente</button>
-        <strong id="week-label">Semaine du …</strong>
-        <button type="button" class="secondary btn-sm" id="next-week-btn">Semaine suivante →</button>
+        <button type="button" class="secondary btn-sm" id="prev-month-btn">← Mois précédent</button>
+        <strong id="month-label">…</strong>
+        <button type="button" class="secondary btn-sm" id="next-month-btn">Mois suivant →</button>
       </div>
     </div>
 
     <div id="suggestions-content"></div>
 
-    <div id="week-content"><p class="muted">Chargement…</p></div>
+    <div id="month-content"><p class="muted">Chargement…</p></div>
   </div>
   <script src="/js/api.js"></script>
   <script src="/js/layout.js"></script>
@@ -96,21 +96,43 @@
     const STATUT_LABELS = { a_preparer: "À préparer", pret: "Prêt", traite: "Traité" };
     const STATUT_BADGE = { a_preparer: "badge-echeance_proche", pret: "badge-envoyee", traite: "badge-a_jour" };
 
-    let currentMonday = mondayOf(new Date());
+    let currentMonthStart = startOfMonth(new Date());
     let dossiersParNumero = new Map();
 
-    function mondayOf(date) {
+    function startOfMonth(date) {
       const d = new Date(date);
-      const jour = d.getDay();
-      const decalage = jour === 0 ? -6 : 1 - jour;
-      d.setDate(d.getDate() + decalage);
+      d.setDate(1);
       d.setHours(0, 0, 0, 0);
       return d;
     }
 
-    function formatJourCourt(date) {
-      return date.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+    // Construit la grille du mois (semaines de lundi a vendredi), avec des
+    // cases vides (null) pour completer la premiere et la derniere semaine
+    // quand le mois ne commence/finit pas un lundi/vendredi.
+    function construireSemainesDuMois(monthStart) {
+      const annee = monthStart.getFullYear();
+      const mois = monthStart.getMonth();
+      const dernierJour = new Date(annee, mois + 1, 0).getDate();
+      const semaines = [];
+      let semaineCourante = [];
+      for (let jour = 1; jour <= dernierJour; jour += 1) {
+        const date = new Date(annee, mois, jour);
+        const idx = date.getDay() - 1; // 0 = lundi ... 4 = vendredi (week-end ignore)
+        if (idx < 0 || idx > 4) continue;
+        if (semaineCourante.length > 0 && idx === 0) {
+          semaines.push(semaineCourante);
+          semaineCourante = [];
+        }
+        while (semaineCourante.length < idx) semaineCourante.push(null);
+        semaineCourante.push(date);
+      }
+      if (semaineCourante.length > 0) {
+        while (semaineCourante.length < 5) semaineCourante.push(null);
+        semaines.push(semaineCourante);
+      }
+      return semaines;
     }
+
     function formatHeure(iso) {
       return new Date(iso).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
     }
@@ -138,75 +160,77 @@
       }
     }
 
-    async function loadWeek(scope) {
+    async function loadMonth(scope) {
       const errorEl = document.getElementById("error");
       hideError(errorEl);
-      const contentEl = document.getElementById("week-content");
+      const contentEl = document.getElementById("month-content");
       contentEl.innerHTML = '<p class="muted">Chargement…</p>';
       try {
         const query = scope ? `?scope=${scope}` : "";
-        const debutStr = toLocalDateStr(currentMonday);
+        const debutStr = toLocalDateStr(currentMonthStart);
         const sep = query ? "&" : "?";
-        const data = await apiFetch(`/api/role-audiences${query}${sep}debut=${debutStr}`);
+        const data = await apiFetch(`/api/role-audiences${query}${sep}debut=${debutStr}&periode=mois`);
         document.querySelectorAll("#scope-tabs .tab").forEach((btn) => {
           btn.classList.toggle("active", btn.dataset.scope === data.scope);
         });
 
-        const vendredi = new Date(currentMonday);
-        vendredi.setDate(vendredi.getDate() + 4);
-        document.getElementById("week-label").textContent =
-          `Semaine du ${formatJourCourt(currentMonday)} au ${formatJourCourt(vendredi)}`;
+        document.getElementById("month-label").textContent =
+          currentMonthStart.toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
 
-        const parJour = {};
-        JOURS.forEach((j) => (parJour[j] = []));
+        const parJour = new Map();
         data.audiences.forEach((a) => {
-          const d = new Date(a.dateAudience);
-          const idx = (d.getDay() + 6) % 7; // 0 = lundi
-          if (idx >= 0 && idx < 5) parJour[JOURS[idx]].push(a);
+          const key = toLocalDateStr(new Date(a.dateAudience));
+          if (!parJour.has(key)) parJour.set(key, []);
+          parJour.get(key).push(a);
         });
 
-        contentEl.innerHTML = JOURS.map((jour, idx) => {
-          const jourDate = new Date(currentMonday);
-          jourDate.setDate(jourDate.getDate() + idx);
-          const audiences = parJour[jour];
-          return `
-          <div class="card">
-            <h2 style="margin-bottom:10px;">${jour} ${formatJourCourt(jourDate)}</h2>
-            ${
-              audiences.length === 0
-                ? '<p class="muted">Aucune audience.</p>'
-                : audiences
-                    .map(
-                      (a) => `
-              <div class="dossier-item">
-                <div>
-                  <strong>${formatHeure(a.dateAudience)} — ${escapeHtml(a.parties)}</strong>
-                  <div class="meta">
-                    ${escapeHtml(a.juridiction)}${a.chambre ? " · " + escapeHtml(a.chambre) : ""}${a.procedureNumero ? " · " + escapeHtml(a.procedureNumero) : ""}
-                    ${a.qualiteProcedurale ? " · " + escapeHtml(a.qualiteProcedurale) : ""}
-                    ${a.objetProcedure ? "<br />" + escapeHtml(a.objetProcedure) : ""}
-                    ${a.dossier ? `<br />Dossier lié : ${escapeHtml(a.dossier.numeroDossier)} — ${escapeHtml(a.dossier.nomAffaire)}` : ""}
-                    ${a.dernierMotif ? `<br />Dernier motif : ${escapeHtml(a.dernierMotif)}` : ""}
-                    ${a.diligences ? ` · Diligences : ${escapeHtml(a.diligences)}` : ""}
-                  </div>
-                </div>
-                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                  <span class="badge ${STATUT_BADGE[a.statut]}">${STATUT_LABELS[a.statut]}</span>
-                  <select data-statut-select="${a.id}" style="width:auto; margin:0;">
-                    <option value="a_preparer"${a.statut === "a_preparer" ? " selected" : ""}>À préparer</option>
-                    <option value="pret"${a.statut === "pret" ? " selected" : ""}>Prêt</option>
-                    <option value="traite"${a.statut === "traite" ? " selected" : ""}>Traité</option>
-                  </select>
-                  <button type="button" class="icon-action is-danger" data-tooltip="Supprimer" data-delete="${a.id}">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-                  </button>
-                </div>
-              </div>`
-                    )
-                    .join("")
-            }
-          </div>`;
-        }).join("");
+        const semaines = construireSemainesDuMois(currentMonthStart);
+
+        contentEl.innerHTML = `
+          <div class="role-month-grid-header">
+            ${JOURS.map((j) => `<div class="role-month-col-label">${j}</div>`).join("")}
+          </div>
+          ${semaines
+            .map(
+              (semaine) => `
+            <div class="role-month-week">
+              ${semaine
+                .map((jourDate) => {
+                  if (!jourDate) return '<div class="role-month-cell role-month-cell-empty"></div>';
+                  const audiences = parJour.get(toLocalDateStr(jourDate)) || [];
+                  return `
+                  <div class="role-month-cell">
+                    <div class="role-month-cell-date">${jourDate.getDate()}</div>
+                    ${audiences
+                      .map(
+                        (a) => `
+                      <div class="role-month-entry">
+                        <div><strong>${formatHeure(a.dateAudience)}</strong> — ${escapeHtml(a.parties)}</div>
+                        <div class="meta" style="font-size:0.78rem;">
+                          ${escapeHtml(a.juridiction)}${a.chambre ? " · " + escapeHtml(a.chambre) : ""}
+                          ${a.dossier ? `<br />Dossier : ${escapeHtml(a.dossier.numeroDossier)}` : ""}
+                        </div>
+                        <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-top:4px;">
+                          <span class="badge ${STATUT_BADGE[a.statut]}" style="font-size:0.7rem;">${STATUT_LABELS[a.statut]}</span>
+                          <select data-statut-select="${a.id}" style="width:auto; margin:0; font-size:0.78rem; padding:4px 8px;">
+                            <option value="a_preparer"${a.statut === "a_preparer" ? " selected" : ""}>À préparer</option>
+                            <option value="pret"${a.statut === "pret" ? " selected" : ""}>Prêt</option>
+                            <option value="traite"${a.statut === "traite" ? " selected" : ""}>Traité</option>
+                          </select>
+                          <button type="button" class="icon-action is-danger" data-tooltip="Supprimer" data-delete="${a.id}">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                          </button>
+                        </div>
+                      </div>`
+                      )
+                      .join("")}
+                  </div>`;
+                })
+                .join("")}
+            </div>`
+            )
+            .join("")}
+        `;
 
         contentEl.querySelectorAll("[data-statut-select]").forEach((sel) => {
           sel.addEventListener("change", async () => {
@@ -215,7 +239,7 @@
                 method: "PATCH",
                 body: { statut: sel.value },
               });
-              loadWeek(scope);
+              loadMonth(scope);
             } catch (err) {
               showError(errorEl, err.message);
             }
@@ -226,7 +250,7 @@
             if (!confirm("Supprimer cette audience du rôle ?")) return;
             try {
               await apiFetch(`/api/role-audiences/${btn.dataset.delete}`, { method: "DELETE" });
-              loadWeek(scope);
+              loadMonth(scope);
             } catch (err) {
               showError(errorEl, err.message);
             }
@@ -241,8 +265,8 @@
     async function loadSuggestions() {
       const box = document.getElementById("suggestions-content");
       try {
-        const debutStr = toLocalDateStr(currentMonday);
-        const { suggestions } = await apiFetch(`/api/role-audiences/suggestions?debut=${debutStr}`);
+        const debutStr = toLocalDateStr(currentMonthStart);
+        const { suggestions } = await apiFetch(`/api/role-audiences/suggestions?debut=${debutStr}&periode=mois`);
         if (suggestions.length === 0) {
           box.innerHTML = "";
           return;
@@ -250,7 +274,7 @@
         box.innerHTML = `
           <div class="card">
             <h2 style="margin-bottom:6px;">Suggestions</h2>
-            <p class="muted" style="margin-top:0;">Ces dossiers annoncent une prochaine audience cette semaine-là dans leur dernier compte-rendu — vérifie et complète avant d'ajouter au rôle.</p>
+            <p class="muted" style="margin-top:0;">Ces dossiers annoncent une prochaine audience ce mois-ci dans leur dernier compte-rendu — vérifie et complète avant d'ajouter au calendrier.</p>
             ${suggestions
               .map(
                 (s) => `
@@ -260,8 +284,8 @@
                   <div class="meta">Dossier ${escapeHtml(s.dossier.numeroDossier)} · ${escapeHtml(s.dossier.nomClient)} · Prochaine audience : ${new Date(s.prochaineAudience).toLocaleString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}${s.piecesPrevoir ? `<br />Pièces à prévoir : ${escapeHtml(s.piecesPrevoir)}` : ""}</div>
                 </div>
                 <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                  <button type="button" class="secondary btn-sm" data-suggestion-add='${JSON.stringify({ dossierId: s.dossierId, dossierNumero: s.dossier.numeroDossier, parties: s.dossier.nomAffaire, prochaineAudience: s.prochaineAudience }).replace(/'/g, "&#39;")}'>Ajouter au rôle</button>
-                  <button type="button" class="ghost btn-sm" data-suggestion-ignorer="${s.actionId}">Ne pas ajouter au rôle</button>
+                  <button type="button" class="secondary btn-sm" data-suggestion-add='${JSON.stringify({ dossierId: s.dossierId, dossierNumero: s.dossier.numeroDossier, parties: s.dossier.nomAffaire, prochaineAudience: s.prochaineAudience }).replace(/'/g, "&#39;")}'>Ajouter au calendrier</button>
+                  <button type="button" class="ghost btn-sm" data-suggestion-ignorer="${s.actionId}">Ne pas ajouter au calendrier</button>
                 </div>
               </div>`
               )
@@ -309,14 +333,14 @@
         document.querySelectorAll("#scope-tabs .tab").forEach((btn) => {
           btn.addEventListener("click", () => {
             activeScope = btn.dataset.scope;
-            loadWeek(activeScope);
+            loadMonth(activeScope);
             loadSuggestions();
           });
         });
       }
 
       loadDossiersForDatalist();
-      loadWeek(activeScope);
+      loadMonth(activeScope);
       loadSuggestions();
 
       // Empeche de choisir une date/heure passee directement dans le
@@ -328,14 +352,14 @@
       document.querySelector('#add-form [name="dateAudience"]').min = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
     })();
 
-    document.getElementById("prev-week-btn").addEventListener("click", () => {
-      currentMonday.setDate(currentMonday.getDate() - 7);
-      loadWeek(activeScope);
+    document.getElementById("prev-month-btn").addEventListener("click", () => {
+      currentMonthStart.setMonth(currentMonthStart.getMonth() - 1);
+      loadMonth(activeScope);
       loadSuggestions();
     });
-    document.getElementById("next-week-btn").addEventListener("click", () => {
-      currentMonday.setDate(currentMonday.getDate() + 7);
-      loadWeek(activeScope);
+    document.getElementById("next-month-btn").addEventListener("click", () => {
+      currentMonthStart.setMonth(currentMonthStart.getMonth() + 1);
+      loadMonth(activeScope);
       loadSuggestions();
     });
 
@@ -382,10 +406,10 @@
         e.target.reset();
         addPanel.classList.remove("open");
         toggleAddBtn.textContent = "+ Ajouter une audience";
-        // Se positionne sur la semaine de l'audience qu'on vient de creer,
-        // pour que l'utilisateur voie tout de suite qu'elle est au bon jour.
-        currentMonday = mondayOf(dateAudienceLocale);
-        loadWeek(activeScope);
+        // Se positionne sur le mois de l'audience qu'on vient de creer,
+        // pour que l'utilisateur la voie tout de suite dans le calendrier.
+        currentMonthStart = startOfMonth(dateAudienceLocale);
+        loadMonth(activeScope);
         loadSuggestions();
       } catch (err) {
         showError(errorEl, err.message);

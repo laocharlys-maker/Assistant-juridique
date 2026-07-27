@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { Prisma } from "@prisma/client";
+import { Prisma, TypeAction } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
 import { getAccessibleAvocatIds } from "../services/access";
@@ -209,11 +209,18 @@ dossiersRouter.get("/api/dossiers/:id", requireAuth, async (req, res) => {
   return res.json({ ...dossier, statutTag });
 });
 
-// Sert au bouton "Pre-remplir depuis les Conclusions" de la Note de
-// plaidoirie : recupere les champs saisis lors des dernieres Conclusions
-// de ce dossier, s'il y en a.
-dossiersRouter.get("/api/dossiers/:id/derniere-conclusion", requireAuth, async (req, res) => {
+// Sert au bouton generique "Pre-remplir depuis un autre acte" present sur
+// tous les formulaires : recupere les champs saisis lors du dernier acte
+// d'un type donne pour ce dossier, s'il y en a. Le frontend se charge de
+// mapper les champs recus sur les noms de champs du formulaire cible.
+dossiersRouter.get("/api/dossiers/:id/dernier-document", requireAuth, async (req, res) => {
   const { auth } = req;
+
+  const typeParam = typeof req.query.type === "string" ? req.query.type : "";
+  if (!typeParam || !(typeParam in TypeAction)) {
+    return res.status(400).json({ error: "Paramètre type invalide" });
+  }
+  const type = typeParam as TypeAction;
 
   const dossier = await prisma.dossier.findFirst({
     where: { id: req.params.id, cabinetId: auth!.cabinetId },
@@ -223,35 +230,11 @@ dossiersRouter.get("/api/dossiers/:id/derniere-conclusion", requireAuth, async (
   }
 
   const action = await prisma.action.findFirst({
-    where: { dossierId: dossier.id, typeAction: "conclusions", champsFormulaire: { not: Prisma.JsonNull } },
+    where: { dossierId: dossier.id, typeAction: type, champsFormulaire: { not: Prisma.JsonNull } },
     orderBy: { createdAt: "desc" },
   });
   if (!action || !action.champsFormulaire) {
-    return res.status(404).json({ error: "Aucune conclusion trouvée pour ce dossier" });
-  }
-
-  return res.json({ champs: action.champsFormulaire });
-});
-
-// Sert au bouton "Pre-remplir depuis la derniere Requete" du Projet
-// d'ordonnance : recupere les champs saisis lors de la derniere Requete de
-// ce dossier, s'il y en a (memes noms de champs, voir projetOrdonnanceFormSchema).
-dossiersRouter.get("/api/dossiers/:id/derniere-requete", requireAuth, async (req, res) => {
-  const { auth } = req;
-
-  const dossier = await prisma.dossier.findFirst({
-    where: { id: req.params.id, cabinetId: auth!.cabinetId },
-  });
-  if (!dossier) {
-    return res.status(404).json({ error: "Dossier introuvable" });
-  }
-
-  const action = await prisma.action.findFirst({
-    where: { dossierId: dossier.id, typeAction: "requete", champsFormulaire: { not: Prisma.JsonNull } },
-    orderBy: { createdAt: "desc" },
-  });
-  if (!action || !action.champsFormulaire) {
-    return res.status(404).json({ error: "Aucune requête trouvée pour ce dossier" });
+    return res.status(404).json({ error: "Aucun document de ce type trouvé pour ce dossier" });
   }
 
   return res.json({ champs: action.champsFormulaire });

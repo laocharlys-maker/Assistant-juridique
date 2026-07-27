@@ -405,10 +405,11 @@
         controls = `<p class="muted" style="margin-top:8px;">Document prêt — ce type de document ne nécessite pas d'envoi par email.</p>`;
       }
 
+      const titreAction = a.nomDocument || TYPE_LABELS[a.typeAction] || a.typeAction;
       return `
         <div class="accordion-item">
           <button type="button" class="accordion-header" data-accordion-toggle>
-            <span class="tag">${TYPE_LABELS[a.typeAction] || a.typeAction} · ${a.canal} · ${escapeHtml(statutLabel)}</span>
+            <span class="tag">${escapeHtml(titreAction)} · ${escapeHtml(statutLabel)}</span>
             <div><strong>Réalisé par ${escapeHtml(a.creePar.nom)}</strong> — ${new Date(a.createdAt).toLocaleString("fr-FR")}</div>
           </button>
           <div class="accordion-body">

@@ -1744,10 +1744,9 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
         dateAudience: action.date_audience ? new Date(action.date_audience) : null,
         prochaineAudience: action.prochaine_audience ? new Date(action.prochaine_audience) : null,
         piecesPrevoir: action.pieces_prevoir,
-        // Conserve les champs saisis pour permettre de pre-remplir une Note
-        // de plaidoirie plus tard depuis ces memes Conclusions.
-        champsFormulaire:
-          form.type_action === "conclusions" || form.type_action === "requete" ? (form as object) : undefined,
+        // Conserve les champs saisis pour permettre de pre-remplir n'importe
+        // quel autre formulaire plus tard a partir de cet acte.
+        champsFormulaire: form as object,
         nomDocument,
         createdBy: auth!.userId,
       },

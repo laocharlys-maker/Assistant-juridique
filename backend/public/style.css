@@ -238,6 +238,16 @@ button.secondary {
 button.secondary:hover { background: var(--accent-tint); border-color: var(--accent); color: var(--accent-hover); box-shadow: var(--shadow-sm); }
 button.secondary:active { background: var(--panel-alt); }
 
+button.prefill-btn {
+  background: var(--success);
+  color: #ffffff;
+  border: 1px solid var(--success);
+  box-shadow: var(--shadow-sm);
+}
+button.prefill-btn:hover { background: var(--success); filter: brightness(1.08); box-shadow: var(--shadow-sm); }
+button.prefill-btn:active { filter: brightness(0.95); }
+:root[data-theme="dark"] button.prefill-btn { color: #ffffff; }
+
 button.ghost {
   background: transparent;
   color: var(--muted);
@@ -497,7 +507,10 @@ header.app-topbar {
 .topbar-left { display: flex; align-items: center; gap: 10px; }
 .topbar-right { display: flex; align-items: center; gap: 10px; }
 .brand-logo { height: 28px; width: auto; }
-.brand-word { font-family: var(--font-display); font-weight: 600; letter-spacing: 0.06em; color: var(--accent); font-size: 1.05rem; }
+.brand-word { font-family: var(--font-display); font-weight: 600; letter-spacing: 0.06em; color: var(--accent); font-size: 1.05rem; white-space: nowrap; }
+@media (max-width: 640px) {
+  .brand-word { display: none; }
+}
 .topbar-link { color: var(--text); text-decoration: none; font-size: 0.9rem; margin: 0 6px; }
 .topbar-link:hover { color: var(--accent); }
 
@@ -629,6 +642,7 @@ header.app-topbar {
 .na-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 28px; }
 .na-chip { padding: 8px 16px; border-radius: 999px; border: 1px solid var(--border); background: var(--panel); cursor: pointer; font-size: 0.86rem; color: var(--text); box-shadow: none; }
 .na-chip:hover { background: var(--accent-tint); border-color: var(--accent); color: var(--accent-hover); }
+.na-chip.selected { background: var(--accent); border-color: var(--accent); color: #241705; font-weight: 600; }
 
 .na-category-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-top: 8px; }
 .na-type-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-top: 8px; }
@@ -769,3 +783,20 @@ header.app-topbar {
   padding: 24px;
 }
 .modal-box h2 { margin-top: 0; }
+
+/* ---------- Audiences programmees : calendrier mensuel ---------- */
+.role-month-grid-header { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin: 16px 0 8px; }
+.role-month-col-label { text-align: center; font-size: 0.78rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.role-month-week { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 8px; }
+.role-month-cell { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 8px; min-height: 90px; box-shadow: var(--shadow-sm); }
+.role-month-cell-empty { background: transparent; border: 1px dashed var(--hairline); box-shadow: none; }
+.role-month-cell-date { font-size: 0.78rem; font-weight: 700; color: var(--muted); margin-bottom: 6px; }
+.role-month-entry { border-top: 1px solid var(--hairline); padding-top: 6px; margin-top: 6px; font-size: 0.85rem; }
+.role-month-entry:first-of-type { border-top: none; padding-top: 0; margin-top: 0; }
+
+@media (max-width: 900px) {
+  .role-month-grid-header { display: none; }
+  .role-month-week { grid-template-columns: 1fr; }
+  .role-month-cell-empty { display: none; }
+  .role-month-cell-date::before { content: "Le "; }
+}

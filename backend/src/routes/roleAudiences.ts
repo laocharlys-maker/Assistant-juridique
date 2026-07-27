@@ -20,6 +20,25 @@ function lundiDeLaSemaine(date: Date): Date {
   return d;
 }
 
+// Calcule la periode [debut, fin[ demandee - une semaine (comportement
+// historique) ou un mois entier (vue calendrier mensuel de la page
+// Audiences programmees), selon le parametre "periode".
+function calculerPeriode(req: { query: { debut?: unknown; periode?: unknown } }): { debut: Date; fin: Date } {
+  const debutParam = typeof req.query.debut === "string" ? new Date(req.query.debut) : new Date();
+  const base = Number.isNaN(debutParam.getTime()) ? new Date() : debutParam;
+
+  if (req.query.periode === "mois") {
+    const debut = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), 1));
+    const fin = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + 1, 1));
+    return { debut, fin };
+  }
+
+  const debut = lundiDeLaSemaine(base);
+  const fin = new Date(debut);
+  fin.setUTCDate(fin.getUTCDate() + 7);
+  return { debut, fin };
+}
+
 // Role de la semaine : audiences a venir, saisies manuellement par le
 // cabinet (le format recu du greffe/tribunal varie trop pour etre extrait
 // automatiquement de facon fiable). Vue centrale pour preparer les
@@ -32,10 +51,7 @@ roleAudiencesRouter.get("/api/role-audiences", requireAuth, async (req, res) => 
   const scope = requestedScope === "cabinet" && peutVoirTouLeCabinet(auth!.role) ? "cabinet" : "mine";
   const accessibleAvocatIds = scope === "mine" ? await getAccessibleAvocatIds(auth!) : null;
 
-  const debutParam = typeof req.query.debut === "string" ? new Date(req.query.debut) : new Date();
-  const debut = lundiDeLaSemaine(Number.isNaN(debutParam.getTime()) ? new Date() : debutParam);
-  const fin = new Date(debut);
-  fin.setUTCDate(fin.getUTCDate() + 7);
+  const { debut, fin } = calculerPeriode(req);
 
   const audiences = await prisma.roleAudience.findMany({
     where: {
@@ -62,10 +78,7 @@ roleAudiencesRouter.get("/api/role-audiences", requireAuth, async (req, res) => 
 roleAudiencesRouter.get("/api/role-audiences/suggestions", requireAuth, async (req, res) => {
   const { auth } = req;
 
-  const debutParam = typeof req.query.debut === "string" ? new Date(req.query.debut) : new Date();
-  const debut = lundiDeLaSemaine(Number.isNaN(debutParam.getTime()) ? new Date() : debutParam);
-  const fin = new Date(debut);
-  fin.setUTCDate(fin.getUTCDate() + 7);
+  const { debut, fin } = calculerPeriode(req);
 
   const accessibleAvocatIds = peutVoirTouLeCabinet(auth!.role) ? null : await getAccessibleAvocatIds(auth!);
 

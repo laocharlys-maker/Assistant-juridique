@@ -21,8 +21,9 @@
       </div>
 
       <div id="na-recent-dossiers-wrap" style="display:none;">
-        <p class="muted">Reprendre un dossier récent</p>
+        <p class="muted">Reprendre depuis un document récent</p>
         <div class="na-chips" id="na-recent-dossiers-chips"></div>
+        <p class="muted" id="na-recent-dossiers-msg" style="display:none;"></p>
       </div>
 
       <div class="na-category-grid" id="na-category-grid"></div>
@@ -42,6 +43,7 @@
         <a href="#" id="na-breadcrumb-to-category"></a> ›
         <span id="na-form-current-label"></span>
       </p>
+      <h1 id="na-form-heading"></h1>
 
       <div class="tabs" style="display:none;">
         <button class="tab active" data-type="notes">Compte-rendu d'audience</button>
@@ -278,8 +280,6 @@
       <form id="note_plaidoirie-form" class="action-form" style="display:none;">
         <label>Numéro de dossier concerné (optionnel)</label>
         <input name="numero_dossier" list="dossiers-datalist" placeholder="Laisse vide si non applicable" id="note_plaidoirie-numero-dossier" />
-        <button type="button" class="secondary" id="note_plaidoirie-prefill-btn">Pré-remplir depuis les Conclusions du dossier</button>
-        <p class="muted" id="note_plaidoirie-prefill-msg" style="display:none;"></p>
         <label>Nom de l'affaire (optionnel)</label>
         <input name="nom_affaire" placeholder="Laisse vide si non applicable" />
         <label>Type de client (optionnel)</label>
@@ -567,13 +567,13 @@
         <input name="numero_dossier" list="dossiers-datalist" placeholder="Laisse vide si non applicable" />
         <label>Nom de l'affaire (optionnel)</label>
         <input name="nom_affaire" placeholder="Laisse vide si non applicable" />
-        <label>Rédigée par<span class="field-hint" title="Détermine quel modèle de document est utilisé : le cabinet représente le client (en-tête cabinet, « en qualité de conseil de... »), ou le plaignant rédige et signe personnellement (en-tête à ses propres coordonnées, l'avocat n'assiste qu'à la rédaction).">?</span></label>
+        <label>Rédigée par<span class="field-hint" title="Détermine quel modèle de document est utilisé : le cabinet représente le client (en-tête cabinet, « en qualité de conseil de... »), ou le requérant rédige et signe personnellement (en-tête à ses propres coordonnées, l'avocat n'assiste qu'à la rédaction).">?</span></label>
         <select name="mode_redaction" required>
           <option value="avocat">L'avocat, pour son client (représentation)</option>
-          <option value="plaignant">Le plaignant lui-même (assistance rédactionnelle seulement)</option>
+          <option value="plaignant">Le requérant lui-même (assistance rédactionnelle seulement)</option>
         </select>
 
-        <h3>Le plaignant</h3>
+        <h3>Le requérant</h3>
         <label>Type de client (optionnel)</label>
         <select name="type_client" id="plainte-type-client">
           <option value="physique">Personne physique</option>
@@ -588,7 +588,7 @@
             <option value="Mlle">Mlle</option>
           </select>
         </div>
-        <label>Nom du client / plaignant (si nouveau dossier)</label>
+        <label>Nom du client / requérant (si nouveau dossier)</label>
         <input name="nom_client" placeholder="Laisse vide si le dossier existe déjà" />
         <div id="plainte-profession-client-wrap">
           <label>Profession du client (optionnel)</label>
@@ -598,7 +598,7 @@
         <input name="informations_client" placeholder="Reprises automatiquement depuis sa fiche si déjà renseignées — sinon, précise ici (né(e) le..., n° pièce d'identité, situation matrimoniale...)" />
         <label>Adresse du client (optionnel)</label>
         <input name="adresse_client_manuel" placeholder="Reprise automatiquement depuis sa fiche si déjà renseignée — sinon, précise-la ici" />
-        <label>Téléphone du client (optionnel)<span class="field-hint" title="Utilisé seulement en en-tête si la plainte est rédigée par le plaignant lui-même - sans effet si l'avocat représente le client.">?</span></label>
+        <label>Téléphone du client (optionnel)<span class="field-hint" title="Utilisé seulement en en-tête si la plainte est rédigée par le requérant lui-même - sans effet si l'avocat représente le client.">?</span></label>
         <input name="telephone_client_manuel" placeholder="Repris automatiquement depuis sa fiche si déjà renseigné — sinon, précise-le ici" />
         <label>Email du client (optionnel)</label>
         <input name="email_client_manuel" placeholder="Repris automatiquement depuis sa fiche si déjà renseigné — sinon, précise-le ici" />
@@ -663,7 +663,7 @@
         <input name="adresse_cabinet_manuel" placeholder="Reprise automatiquement depuis Paramètres si déjà renseignée — sinon, précise-la ici" />
 
         <h3>Par ces motifs</h3>
-        <label>Demande(s) du plaignant / client</label>
+        <label>Demande(s) du requérant / client</label>
         <ul class="pieces-list" id="demandes-list-plainte"></ul>
         <button type="button" class="secondary" data-add-list="demandes-list-plainte">+ Ajouter une demande</button>
         <br />
@@ -969,8 +969,6 @@
       <form id="projet_ordonnance-form" class="action-form" style="display:none;">
         <label>Numéro de dossier concerné (optionnel)</label>
         <input name="numero_dossier" list="dossiers-datalist" placeholder="Laisse vide si non applicable" id="projet_ordonnance-numero-dossier" />
-        <button type="button" class="secondary" id="projet_ordonnance-prefill-btn">Pré-remplir depuis la dernière Requête du dossier</button>
-        <p class="muted" id="projet_ordonnance-prefill-msg" style="display:none;"></p>
         <label>Nom de l'affaire (optionnel)</label>
         <input name="nom_affaire" placeholder="Laisse vide si non applicable" />
         <label>Avocat en charge (optionnel)</label>
@@ -1325,6 +1323,7 @@
         });
       }
       await loadDossiersForAutofill();
+      naLoadRecentDocuments();
     })();
 
     // Autocompletion + pre-remplissage : quand on saisit/choisit un numero
@@ -1340,7 +1339,6 @@
           .map((d) => `<option value="${escapeHtmlAttr(d.numeroDossier)}">${escapeHtmlAttr(d.nomAffaire)}</option>`)
           .join("");
         dossiers.forEach((d) => dossiersParNumero.set(d.numeroDossier, d));
-        naRenderRecentDossiers(dossiers);
       } catch {
         // Pas bloquant : la saisie manuelle reste possible sans autocompletion.
       }
@@ -1392,27 +1390,149 @@
     // bon bouton suffit a afficher le bon formulaire, aucune duplication
     // de logique).
     const TYPE_CATALOG = {
-      notes: { label: "Compte-rendu d'audience", sub: "Synthèse après passage au tribunal", icon: "📋", category: "rediger" },
-      redac: { label: "Plaidoirie", sub: "Argumentaire complet, structuré", icon: "⚖️", category: "rediger" },
-      note_plaidoirie: { label: "Notes de plaidoirie", sub: "Version courte, aide-mémoire", icon: "📝", category: "rediger" },
-      conclusions: { label: "Conclusions", sub: "Écriture de procédure civile", icon: "📄", category: "rediger" },
-      plainte: { label: "Plainte", sub: "Dépôt initial d'une procédure", icon: "✉️", category: "rediger" },
-      mise_en_demeure: { label: "Mise en demeure", sub: "Sommation avant contentieux", icon: "⚠️", category: "rediger" },
-      assignation: { label: "Assignation", sub: "Convocation d'une partie en justice", icon: "🏛️", category: "rediger" },
-      requete: { label: "Requête", sub: "Demande adressée au juge", icon: "❓", category: "rediger" },
-      projet_ordonnance: { label: "Projet d'ordonnance", sub: "Ébauche à joindre à une requête", icon: "🖋️", category: "rediger" },
-      contrat: { label: "Contrat", sub: "Bail, prestation, vente...", icon: "🤝", category: "rediger" },
-      notification_date: { label: "Notification", sub: "Courrier aux tiers concernés", icon: "📢", category: "rediger" },
-      jurisprudence: { label: "Recherche de jurisprudence", sub: "Décisions par thème et juridiction", icon: "🔍", category: "rechercher" },
-      recherche_juridique: { label: "Recherche juridique", sub: "Question de droit générale", icon: "🔍", category: "rechercher" },
-      resume_pdf: { label: "Résumé de jurisprudence (PDF)", sub: "Synthèse d'un document long", icon: "📄", category: "rechercher" },
-      traduction: { label: "Traduction FR ⇄ EN", sub: "Français ↔ Anglais", icon: "🌐", category: "traduire" },
+      notes: { label: "Compte-rendu d'audience", titre: "Rédiger un compte-rendu d'audience", sub: "Synthèse après passage au tribunal", icon: "📋", category: "rediger" },
+      redac: { label: "Plaidoirie", titre: "Rédiger une plaidoirie", sub: "Argumentaire complet, structuré", icon: "⚖️", category: "rediger" },
+      note_plaidoirie: { label: "Notes de plaidoirie", titre: "Rédiger une note de plaidoirie", sub: "Version courte, aide-mémoire", icon: "📝", category: "rediger" },
+      conclusions: { label: "Conclusions", titre: "Rédiger des conclusions", sub: "Écriture de procédure civile", icon: "📄", category: "rediger" },
+      plainte: { label: "Plainte", titre: "Rédiger une plainte", sub: "Dépôt initial d'une procédure", icon: "✉️", category: "rediger" },
+      mise_en_demeure: { label: "Mise en demeure", titre: "Rédiger une mise en demeure", sub: "Sommation avant contentieux", icon: "⚠️", category: "rediger" },
+      assignation: { label: "Assignation", titre: "Rédiger une assignation", sub: "Convocation d'une partie en justice", icon: "🏛️", category: "rediger" },
+      requete: { label: "Requête", titre: "Rédiger une requête", sub: "Demande adressée au juge", icon: "❓", category: "rediger" },
+      projet_ordonnance: { label: "Projet d'ordonnance", titre: "Rédiger un projet d'ordonnance", sub: "Ébauche à joindre à une requête", icon: "🖋️", category: "rediger" },
+      contrat: { label: "Contrat", titre: "Rédiger un contrat", sub: "Bail, prestation, vente...", icon: "🤝", category: "rediger" },
+      notification_date: { label: "Notification", titre: "Rédiger une notification", sub: "Courrier aux tiers concernés", icon: "📢", category: "rediger" },
+      jurisprudence: { label: "Recherche de jurisprudence", titre: "Lancer une recherche de jurisprudence", sub: "Décisions par thème et juridiction", icon: "🔍", category: "rechercher" },
+      recherche_juridique: { label: "Recherche juridique", titre: "Lancer une recherche juridique", sub: "Question de droit générale", icon: "🔍", category: "rechercher" },
+      resume_pdf: { label: "Résumé de jurisprudence (PDF)", titre: "Résumer un document PDF", sub: "Synthèse d'un document long", icon: "📄", category: "rechercher" },
+      traduction: { label: "Traduction FR ⇄ EN", titre: "Traduire un document", sub: "Français ↔ Anglais", icon: "🌐", category: "traduire" },
     };
     const CATEGORIES = {
       rediger: { label: "Rédiger un acte", icon: "✏️", sub: "CR, plaidoirie, mise en demeure, contrat..." },
       rechercher: { label: "Rechercher", icon: "🔍", sub: "Jurisprudence, textes de loi, doctrine" },
       traduire: { label: "Traduire", icon: "🌐", sub: "Français ↔ Anglais" },
     };
+
+    // ---------- Pre-remplissage generalise depuis un autre acte ----------
+    // Chaque formulaire d'acte propose un bloc "Pre-remplir depuis un autre
+    // acte" : on recupere les derniers champs saisis pour le type source
+    // choisi (meme dossier) et on les reinjecte, champ par champ, dans le
+    // formulaire cible via un simple appariement par attribut name.
+    const PREFILL_TYPES = [
+      "notes", "redac", "conclusions", "note_plaidoirie", "assignation",
+      "mise_en_demeure", "plainte", "contrat", "notification_date", "requete", "projet_ordonnance",
+    ];
+
+    const LIST_FIELD_LIST_ID = {
+      axes_argumentation: (t) => `axes-list-${t}`,
+      demandes: (t) => `demandes-list-${t}`,
+      pieces: (t) => (t === "notes" ? "pieces-list" : `pieces-list-${t}`),
+      pieces_prevoir: (t) => (t === "notes" ? "pieces-list" : `pieces-list-${t}`),
+      consequences: (t) => `consequences-list-${t}`,
+      preuves: (t) => `preuves-list-${t}`,
+      clauses_particulieres: (t) => `clauses-list-${t}`,
+    };
+
+    function applyChampsPrefill(targetType, champs) {
+      const form = forms[targetType];
+      if (!form) return;
+
+      // Cas particulier 1 : le representant legal n'existe que pour un
+      // client "personne morale" - bascule le type avant d'y ecrire.
+      if (champs.representant_legal) {
+        const typeSelect = form.querySelector('[name="type_client"]');
+        if (typeSelect) {
+          typeSelect.value = "morale";
+          typeSelect.dispatchEvent(new Event("change"));
+        }
+      }
+      // Cas particulier 2 : certains formulaires (Conclusions, Note de
+      // plaidoirie...) ne stockent la partie adverse que sous une seule
+      // chaine deja composee. On la reinjecte dans le champ "personne
+      // morale" du formulaire cible pour ne rien reformater.
+      if (champs.nom_partie_adverse) {
+        const typeSelect = form.querySelector('[name="type_partie_adverse"]');
+        const moraleField = form.querySelector('[name="nom_partie_adverse_morale"]');
+        if (typeSelect && moraleField) {
+          typeSelect.value = "morale";
+          typeSelect.dispatchEvent(new Event("change"));
+          moraleField.value = champs.nom_partie_adverse;
+        }
+      }
+
+      Object.entries(champs).forEach(([key, value]) => {
+        if (value === null || value === undefined || value === "") return;
+
+        if (Array.isArray(value)) {
+          const listIdFn = LIST_FIELD_LIST_ID[key];
+          if (!listIdFn || value.length === 0) return;
+          const list = document.getElementById(listIdFn(targetType));
+          if (!list) return;
+          list.innerHTML = "";
+          value.forEach((item) => {
+            addListItem(list.id, "");
+            const rows = list.querySelectorAll("input");
+            rows[rows.length - 1].value = item;
+          });
+          return;
+        }
+
+        let fieldValue = value;
+        if (key === "objet" && targetType === "projet_ordonnance" && typeof value === "string") {
+          fieldValue = value.replace(/^Requête/i, "Ordonnance");
+        }
+        const field = form.querySelector(`[name="${key}"]`);
+        if (field) field.value = fieldValue;
+      });
+    }
+
+    async function fetchAndApplyPrefill(targetType, sourceType) {
+      const msgEl = document.getElementById(`${targetType}-prefill-msg`);
+      if (msgEl) msgEl.style.display = "block";
+      const form = forms[targetType];
+      const numeroDossier = (form.querySelector('[name="numero_dossier"]').value || "").trim();
+      const dossier = dossiersParNumero.get(numeroDossier);
+      if (!dossier) {
+        if (msgEl) msgEl.textContent = "Renseigne d'abord un numéro de dossier existant ci-dessus.";
+        return;
+      }
+      try {
+        const { champs } = await apiFetch(`/api/dossiers/${dossier.id}/dernier-document?type=${sourceType}`);
+        applyChampsPrefill(targetType, champs);
+        if (msgEl) {
+          msgEl.textContent = `Champs pré-remplis depuis « ${TYPE_CATALOG[sourceType].label} » de ce dossier. Vérifie et complète avant de générer.`;
+        }
+      } catch (err) {
+        if (msgEl) msgEl.textContent = err.message;
+      }
+    }
+
+    PREFILL_TYPES.forEach((targetType) => {
+      const form = forms[targetType];
+      const numeroInput = form.querySelector('[name="numero_dossier"]');
+      if (!numeroInput) return;
+
+      const otherTypes = PREFILL_TYPES.filter((t) => t !== targetType);
+      const options = otherTypes.map((t) => `<option value="${t}">${TYPE_CATALOG[t].label}</option>`).join("");
+
+      const wrap = document.createElement("div");
+      wrap.style.cssText = "display:flex; gap:8px; align-items:center; justify-content:flex-end; flex-wrap:wrap; margin-top:8px;";
+      wrap.innerHTML = `
+        <select id="${targetType}-prefill-source" style="width:auto; margin:0;">${options}</select>
+        <button type="button" class="prefill-btn" id="${targetType}-prefill-btn">Pré-remplir depuis un autre acte</button>
+      `;
+      const msg = document.createElement("p");
+      msg.className = "muted";
+      msg.id = `${targetType}-prefill-msg`;
+      msg.style.display = "none";
+
+      numeroInput.insertAdjacentElement("afterend", msg);
+      numeroInput.insertAdjacentElement("afterend", wrap);
+
+      wrap.querySelector(`#${targetType}-prefill-btn`).addEventListener("click", () => {
+        const sourceType = document.getElementById(`${targetType}-prefill-source`).value;
+        fetchAndApplyPrefill(targetType, sourceType);
+      });
+    });
 
     const naHubScreen = document.getElementById("na-hub-screen");
     const naCategoryScreen = document.getElementById("na-category-screen");
@@ -1432,6 +1552,7 @@
       tabBtn.click();
       const entry = TYPE_CATALOG[type];
       document.getElementById("na-form-current-label").textContent = entry.label;
+      document.getElementById("na-form-heading").textContent = entry.titre;
       const catEntry = CATEGORIES[entry.category];
       const breadcrumbCategory = document.getElementById("na-breadcrumb-to-category");
       breadcrumbCategory.textContent = catEntry.label;
@@ -1545,26 +1666,41 @@
       }
     });
 
-    // Dossiers recents : pre-remplit le numero de dossier une fois le
-    // formulaire choisi, sans imposer de type d'action a l'avance.
-    function naRenderRecentDossiers(dossiers) {
+    // Les 3 derniers documents generes (tous types confondus) : cliquer sur
+    // l'un d'eux memorise le numero de dossier correspondant, pour le
+    // pre-remplir une fois le prochain type de document choisi. Feedback
+    // visuel immediat (chip selectionnee + message) car cette selection n'a
+    // sinon aucun effet visible avant de choisir un type.
+    async function naLoadRecentDocuments() {
+      try {
+        const { documents } = await apiFetch("/api/documents?scope=mine&vue=dossiers");
+        naRenderRecentDocuments(documents.slice(0, 3));
+      } catch {
+        // Pas bloquant : la selection manuelle reste possible.
+      }
+    }
+
+    function naRenderRecentDocuments(documents) {
       const wrap = document.getElementById("na-recent-dossiers-wrap");
       const chipsEl = document.getElementById("na-recent-dossiers-chips");
-      const recents = dossiers.filter((d) => d.numeroDossier !== "SANS-NUMERO").slice(0, 5);
-      if (recents.length === 0) {
+      const msgEl = document.getElementById("na-recent-dossiers-msg");
+      if (documents.length === 0) {
         wrap.style.display = "none";
         return;
       }
       chipsEl.innerHTML = "";
-      recents.forEach((d) => {
+      msgEl.style.display = "none";
+      documents.forEach((doc) => {
         const chip = document.createElement("button");
         chip.type = "button";
         chip.className = "na-chip";
-        chip.textContent = d.nomAffaire;
+        chip.textContent = doc.nomDocument || doc.dossier.nomAffaire;
         chip.addEventListener("click", () => {
-          naPendingDossier = d.numeroDossier;
-          naShowScreen("hub");
-          document.getElementById("na-category-grid").scrollIntoView({ behavior: "smooth" });
+          chipsEl.querySelectorAll(".na-chip").forEach((c) => c.classList.remove("selected"));
+          chip.classList.add("selected");
+          naPendingDossier = doc.dossier.numeroDossier;
+          msgEl.textContent = `Dossier « ${doc.dossier.nomAffaire} » sélectionné — choisis maintenant un type de document ci-dessous.`;
+          msgEl.style.display = "block";
         });
         chipsEl.appendChild(chip);
       });
@@ -1785,58 +1921,6 @@
         demander_depens: fd.get("demander_depens") === "on",
         pieces: listValues("pieces-list-conclusions"),
       }, forms.conclusions.querySelector('button[type="submit"]'));
-    });
-
-    document.getElementById("note_plaidoirie-prefill-btn").addEventListener("click", async () => {
-      const msgEl = document.getElementById("note_plaidoirie-prefill-msg");
-      msgEl.style.display = "block";
-      const numeroDossier = document.getElementById("note_plaidoirie-numero-dossier").value.trim();
-      const dossier = dossiersParNumero.get(numeroDossier);
-      if (!dossier) {
-        msgEl.textContent = "Renseigne d'abord un numéro de dossier existant ci-dessus.";
-        return;
-      }
-      try {
-        const { champs } = await apiFetch(`/api/dossiers/${dossier.id}/derniere-conclusion`);
-        const form = forms.note_plaidoirie;
-        const setValue = (name, value) => {
-          if (!value) return;
-          const field = form.querySelector(`[name="${name}"]`);
-          if (field) field.value = value;
-        };
-        setValue("nom_avocat", champs.nom_avocat);
-        setValue("adresse_cabinet_manuel", champs.adresse_cabinet_manuel);
-        setValue("qualite_client", champs.qualite_client);
-        setValue("informations_client", champs.informations_client);
-        setValue("qualite_partie_adverse", champs.qualite_partie_adverse);
-        setValue("informations_partie_adverse", champs.informations_partie_adverse);
-        setValue("fondement_juridique", champs.fondement_juridique);
-        setValue("qualification_juridique", champs.qualification_juridique);
-        setValue("prejudice_subi", champs.prejudice_subi);
-        setValue("contexte", champs.contexte);
-        // La partie adverse des Conclusions n'est stockee qu'en une seule
-        // chaine deja composee (civilite + nom, ou nom d'entreprise) : on la
-        // reinjecte dans le champ "personne morale" pour ne rien reformater
-        // et rester fidele a la saisie d'origine.
-        if (champs.nom_partie_adverse) {
-          const typeSelect = document.getElementById("note_plaidoirie-type-partie-adverse");
-          typeSelect.value = "morale";
-          typeSelect.dispatchEvent(new Event("change"));
-          setValue("nom_partie_adverse_morale", champs.nom_partie_adverse);
-        }
-        if (Array.isArray(champs.axes_argumentation) && champs.axes_argumentation.length > 0) {
-          const list = document.getElementById("axes-list-note_plaidoirie");
-          list.innerHTML = "";
-          champs.axes_argumentation.forEach((axe) => {
-            addListItem("axes-list-note_plaidoirie", "ex: Titre foncier définitif et inattaquable");
-            const rows = list.querySelectorAll("input");
-            rows[rows.length - 1].value = axe;
-          });
-        }
-        msgEl.textContent = "Champs pré-remplis depuis les dernières Conclusions de ce dossier. Vérifie et complète avant de générer.";
-      } catch (err) {
-        msgEl.textContent = err.message;
-      }
     });
 
     forms.note_plaidoirie.addEventListener("submit", (e) => {
@@ -2080,76 +2164,7 @@
       }
       document.querySelector('.tab[data-type="projet_ordonnance"]').click();
       document.getElementById("projet_ordonnance-numero-dossier").value = numeroDossier;
-      document.getElementById("projet_ordonnance-prefill-btn").click();
-    });
-
-    document.getElementById("projet_ordonnance-prefill-btn").addEventListener("click", async () => {
-      const msgEl = document.getElementById("projet_ordonnance-prefill-msg");
-      msgEl.style.display = "block";
-      const numeroDossier = document.getElementById("projet_ordonnance-numero-dossier").value.trim();
-      const dossier = dossiersParNumero.get(numeroDossier);
-      if (!dossier) {
-        msgEl.textContent = "Renseigne d'abord un numéro de dossier existant ci-dessus.";
-        return;
-      }
-      try {
-        const { champs } = await apiFetch(`/api/dossiers/${dossier.id}/derniere-requete`);
-        const form = forms.projet_ordonnance;
-        const setValue = (name, value) => {
-          if (!value) return;
-          const field = form.querySelector(`[name="${name}"]`);
-          if (field) field.value = value;
-        };
-        setValue("nom_avocat", champs.nom_avocat);
-        setValue("adresse_cabinet_manuel", champs.adresse_cabinet_manuel);
-        setValue("civilite_client_manuel", champs.civilite_client_manuel);
-        setValue("nom_client", champs.nom_client);
-        setValue("informations_client", champs.informations_client);
-        setValue("nom_defendeur", champs.nom_defendeur);
-        setValue("civilite_defendeur", champs.civilite_defendeur);
-        setValue("profession_defendeur", champs.profession_defendeur);
-        setValue("adresse_defendeur", champs.adresse_defendeur);
-        setValue("destinataire", champs.destinataire);
-        setValue("nom_juridiction", champs.nom_juridiction);
-        setValue("ville", champs.ville);
-        setValue("contexte", champs.contexte);
-        setValue("fondement_juridique", champs.fondement_juridique);
-        setValue("montant_engage", champs.montant_engage);
-        if (champs.objet) {
-          const objetField = form.querySelector('[name="objet"]');
-          if (objetField) objetField.value = champs.objet.replace(/^Requête/i, "Ordonnance");
-        }
-        // Le representant legal n'existe que dans les champs d'une Requete
-        // deposee pour une personne morale - bascule le type pour l'afficher.
-        if (champs.representant_legal) {
-          const typeSelect = document.getElementById("projet_ordonnance-type-client");
-          typeSelect.value = "morale";
-          typeSelect.dispatchEvent(new Event("change"));
-          setValue("representant_legal", champs.representant_legal);
-          setValue("qualite_representant", champs.qualite_representant);
-        }
-        if (Array.isArray(champs.demandes) && champs.demandes.length > 0) {
-          const list = document.getElementById("demandes-list-projet_ordonnance");
-          list.innerHTML = "";
-          champs.demandes.forEach((demande) => {
-            addListItem("demandes-list-projet_ordonnance", "ex: Enjoindre le débiteur de payer la somme de 2 000 000 FCFA");
-            const rows = list.querySelectorAll("input");
-            rows[rows.length - 1].value = demande;
-          });
-        }
-        if (Array.isArray(champs.pieces) && champs.pieces.length > 0) {
-          const list = document.getElementById("pieces-list-projet_ordonnance");
-          list.innerHTML = "";
-          champs.pieces.forEach((piece) => {
-            addListItem("pieces-list-projet_ordonnance", "ex: Facture impayée du...");
-            const rows = list.querySelectorAll("input");
-            rows[rows.length - 1].value = piece;
-          });
-        }
-        msgEl.textContent = "Champs pré-remplis depuis la dernière Requête de ce dossier. Vérifie et complète avant de générer.";
-      } catch (err) {
-        msgEl.textContent = err.message;
-      }
+      fetchAndApplyPrefill("projet_ordonnance", "requete");
     });
 
     forms.projet_ordonnance.addEventListener("submit", (e) => {
