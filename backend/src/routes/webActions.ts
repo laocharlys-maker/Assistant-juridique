@@ -1524,10 +1524,7 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
       const civiliteClientOrdonnance = clientPourInfosOrdonnance?.civilite || form.civilite_client_manuel || null;
       const delaiOppositionOrdonnance = form.delai_opposition_jours ?? 15;
 
-      // Dispositif numerote ("1. ... ; 2. ... ;"), convention des ordonnances
-      // beninoises (contrairement aux "- " de la Requete qui s'adresse a un
-      // juge, pas d'un juge qui statue).
-      const demandesOrdonnance = form.demandes.map((d, i) => `${i + 1}. ${d}`).join("\n");
+      const demandesOrdonnance = form.demandes.map((d) => `- ${d}`).join("\n");
       const bordereauPiecesOrdonnance =
         form.pieces && form.pieces.length > 0
           ? form.pieces.map((p, i) => `${i + 1}. ${p}`).join("\n")
