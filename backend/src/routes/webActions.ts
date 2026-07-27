@@ -254,6 +254,22 @@ async function findOrCreateDossier(facts: {
   return { ok: true, dossier };
 }
 
+// Domaines officiels/reconnus de jurisprudence beninoise et OHADA - a
+// interroger en priorite (recherche Tavily restreinte a ces domaines) avant
+// de completer avec une recherche web generale. Choisis avec l'avocat du
+// cabinet : bases de decisions structurees, pas de simples pages generalistes.
+const JURIDICTIONS_BENIN_DOMAINES_CONFIANCE = [
+  "tcc.justice.bj",
+  "coursupreme.bj",
+  "jurisprudencebenin.org",
+  "juricaf.org",
+  "ahjucaf.org",
+  "ohada.org",
+  "actualitesdroitohada.com",
+  "ca-cot.justice.bj",
+  "justice.gouv.bj",
+];
+
 // Genre grammatical des juridictions beninoises proposees dans le
 // formulaire de plainte, pour composer une adresse correcte selon la
 // civilite choisie ("du/de la Cour..." ou "pres le/la ..." pour un
@@ -901,10 +917,29 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
       // reste de la francophonie, reste du monde, via le web (Tavily) -
       // toujours effectuee. La base de jurisprudence propre au cabinet
       // n'est incluse en plus que si explicitement cochee.
-      const [webResults, cabinetMatches] = await Promise.all([
-        searchWeb(`jurisprudence ${form.theme} Bénin, zone OHADA, Afrique, France, francophonie`),
-        form.inclure_cabinet ? searchJurisprudence(form.theme) : Promise.resolve([]),
-      ]);
+      //
+      // Tavily ne permet pas "prioriser ces domaines puis se rabattre sur le
+      // web general" en un seul appel (include_domains restreint totalement
+      // les resultats) - on fait donc deux recherches en parallele : une
+      // restreinte aux sources beninoises/OHADA officielles et reconnues
+      // (jurisprudence deja structuree, pas juste des pages generalistes),
+      // une generale pour completer. Les resultats des domaines de confiance
+      // sont places en premier, dedupliques par URL avec la recherche generale.
+      const webResults = await (async () => {
+        const [domainesConfiance, general] = await Promise.all([
+          searchWeb(`${form.theme} jurisprudence Bénin`, 5, JURIDICTIONS_BENIN_DOMAINES_CONFIANCE),
+          searchWeb(`jurisprudence ${form.theme} Bénin, zone OHADA, Afrique, France, francophonie`, 5),
+        ]);
+        const urlsVues = new Set<string>();
+        const combines: typeof domainesConfiance = [];
+        for (const resultat of [...domainesConfiance, ...general]) {
+          if (urlsVues.has(resultat.url)) continue;
+          urlsVues.add(resultat.url);
+          combines.push(resultat);
+        }
+        return combines;
+      })();
+      const cabinetMatches = form.inclure_cabinet ? await searchJurisprudence(form.theme) : [];
       const redigé = await llm.redact(
         JURISPRUDENCE_SYSTEM_PROMPT,
         buildJurisprudenceUserPrompt({

@@ -14,7 +14,11 @@ export interface WebSearchResult {
  * faire planter la generation : le LLM doit alors dire qu'il n'a pas
  * trouve de source, jamais inventer.
  */
-export async function searchWeb(query: string, maxResults = 5): Promise<WebSearchResult[]> {
+export async function searchWeb(
+  query: string,
+  maxResults = 5,
+  includeDomains?: string[]
+): Promise<WebSearchResult[]> {
   if (!env.TAVILY_API_KEY) {
     console.error("TAVILY_API_KEY non configuree, recherche juridique impossible");
     return [];
@@ -30,6 +34,7 @@ export async function searchWeb(query: string, maxResults = 5): Promise<WebSearc
         search_depth: "advanced",
         max_results: maxResults,
         include_answer: false,
+        ...(includeDomains && includeDomains.length > 0 ? { include_domains: includeDomains } : {}),
       }),
     });
 
