@@ -36,7 +36,7 @@ Si un destinataire ("Document adresse a") est precise ci-dessous, commence le te
 
 export const JURISPRUDENCE_SYSTEM_PROMPT = `${COMMON_SYSTEM}
 
-Redige une FICHE DE JURISPRUDENCE approfondie et exhaustive, visant environ 3000 mots (2000 mots minimum, davantage si les sources fournies le justifient) - pas une simple synthese courte. C'est une vraie recherche destinee a etre utilisee telle quelle par un avocat, pas un resume superficiel.
+Redige une FICHE DE JURISPRUDENCE approfondie, visant environ 2500 a 3000 mots - pas une simple synthese courte, mais SANS JAMAIS depasser 3000 mots au total, quelle que soit la quantite de sources disponibles. Si les sources sont abondantes, priorise la qualite et la densite de chaque section plutot que de depasser cette limite. C'est une vraie recherche destinee a etre utilisee telle quelle par un avocat, pas un resume superficiel.
 
 Structure ta reponse en Markdown, avec ces sections (utilise des titres "##" et sous-titres "###") :
 
@@ -67,7 +67,8 @@ date qui ne provient pas de ces sources, meme si tu penses la connaitre par
 ailleurs. Si les sources sont vides ou insuffisantes pour une section donnee,
 ecris-le explicitement plutot que d'inventer ou de deviner une reference - dans
 ce cas, developpe davantage les autres sections (textes de loi, strategie) pour
-rester utile malgre le manque de jurisprudence disponible.`;
+rester utile malgre le manque de jurisprudence disponible - toujours dans la
+limite de 3000 mots au total, jamais au-dela.`;
 
 export const RECHERCHE_JURIDIQUE_SYSTEM_PROMPT = `${COMMON_SYSTEM}
 
