@@ -50,8 +50,10 @@
         <input name="nom_affaire" required />
         <label>Nom du client</label>
         <input name="nom_client" required />
-        <label>Juridiction (optionnel)</label>
-        <select name="nom_juridiction" id="notes-juridiction"></select>
+        <label>Date de l'audience</label>
+        <input name="date_audience" type="date" required />
+        <label>Juridiction</label>
+        <select name="nom_juridiction" id="notes-juridiction" required></select>
         <label>Chambre (optionnel)</label>
         <input name="nom_chambre" placeholder="ex: Chambre civile" />
         <label>Avocat en charge (optionnel)</label>
@@ -60,10 +62,10 @@
         <input name="adresse_cabinet_manuel" placeholder="Reprise automatiquement depuis Paramètres si déjà renseignée — sinon, précise-la ici" />
         <label>Ville (optionnel)</label>
         <select name="ville" id="notes-ville"></select>
-        <label>Numéro RG (optionnel)</label>
-        <input name="numero_rg" placeholder="ex: RG n° 123/2026" />
-        <label>Objet du litige (optionnel)</label>
-        <input name="objet_litige" placeholder="ex: Recouvrement de créance" />
+        <label>Numéro RG</label>
+        <input name="numero_rg" required placeholder="ex: RG n° 123/2026" />
+        <label>Objet du litige</label>
+        <input name="objet_litige" required placeholder="ex: Recouvrement de créance" />
         <label>Juge / Président de chambre (optionnel)</label>
         <input name="nom_juge" />
         <label>Greffier (optionnel)</label>
@@ -81,7 +83,7 @@
         <button type="button" class="secondary" id="notes-suggerer-strategie-btn">Laisser l'IA proposer un brouillon</button>
         <p class="muted" id="notes-suggerer-strategie-msg" style="display:none;"></p>
         <label>Date de la prochaine audience</label>
-        <input name="prochaine_audience" type="date" />
+        <input name="prochaine_audience" type="date" required />
         <label>Pièces à prévoir</label>
         <ul class="pieces-list" id="pieces-list"></ul>
         <button type="button" class="secondary" data-add-list="pieces-list">+ Ajouter une pièce</button>
@@ -1458,13 +1460,14 @@
         numero_dossier: fd.get("numero_dossier"),
         nom_affaire: fd.get("nom_affaire"),
         nom_client: fd.get("nom_client"),
-        nom_juridiction: fd.get("nom_juridiction") || undefined,
+        date_audience: fd.get("date_audience"),
+        nom_juridiction: fd.get("nom_juridiction"),
         nom_chambre: fd.get("nom_chambre") || undefined,
         nom_avocat: fd.get("nom_avocat") || undefined,
         adresse_cabinet_manuel: fd.get("adresse_cabinet_manuel") || undefined,
         ville: fd.get("ville") || undefined,
-        numero_rg: fd.get("numero_rg") || undefined,
-        objet_litige: fd.get("objet_litige") || undefined,
+        numero_rg: fd.get("numero_rg"),
+        objet_litige: fd.get("objet_litige"),
         nom_juge: fd.get("nom_juge") || undefined,
         nom_greffier: fd.get("nom_greffier") || undefined,
         nom_partie_adverse: fd.get("nom_partie_adverse") || undefined,
@@ -1472,7 +1475,7 @@
         deroulement_debats: fd.get("deroulement_debats"),
         decision: fd.get("decision"),
         strategie_suite: fd.get("strategie_suite") || undefined,
-        prochaine_audience: fd.get("prochaine_audience") || undefined,
+        prochaine_audience: fd.get("prochaine_audience"),
         pieces_prevoir: listValues("pieces-list"),
       }, forms.notes.querySelector('button[type="submit"]'));
     });

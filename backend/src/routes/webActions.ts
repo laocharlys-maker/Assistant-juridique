@@ -536,7 +536,7 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
         nom_client: form.nom_client,
         nom_juridiction: form.nom_juridiction ?? null,
         nom_chambre: form.nom_chambre ?? null,
-        date_audience: new Date().toISOString().slice(0, 10),
+        date_audience: form.date_audience,
         decision: decisionRedigee,
         prochaine_audience: form.prochaine_audience ?? null,
         pieces_prevoir: form.pieces_prevoir?.join(", ") ?? null,
