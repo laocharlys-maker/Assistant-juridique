@@ -1185,8 +1185,10 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
           obligations: form.obligations ?? "non précisé",
           duree: form.duree,
           remuneration: form.remuneration,
+          modalitesPaiement: form.modalites_paiement,
           dateEffet: form.date_effet,
           conditionsResiliation: form.conditions_resiliation,
+          juridictionCompetente: form.juridiction_competente,
           clausesParticulieres: form.clauses_particulieres,
           estAvenant: form.est_avenant ?? false,
           referenceContratInitial: form.reference_contrat_initial,
@@ -1205,6 +1207,19 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
         return res.status(404).json({ error: dossierLookup.error });
       }
       dossierId = dossierLookup.dossier.id;
+
+      const cabinetPourAdresseContrat = await prisma.cabinet.findUnique({
+        where: { id: auth!.cabinetId },
+        select: { nom: true, adresse: true },
+      });
+
+      extraWebhookFields = {
+        type_contrat: form.type_contrat ?? null,
+        partie_1: form.partie_1 ?? null,
+        partie_2: form.partie_2 ?? null,
+        nom_cabinet: cabinetPourAdresseContrat?.nom || null,
+        adresse_cabinet: cabinetPourAdresseContrat?.adresse || form.adresse_cabinet_manuel || null,
+      };
 
       action = {
         type_action: "contrat",

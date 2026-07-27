@@ -633,6 +633,8 @@
             <option value="Contrat de travail">Contrat de travail</option>
             <option value="Contrat de bail">Contrat de bail</option>
             <option value="Contrat de vente">Contrat de vente</option>
+            <option value="Contrat commercial">Contrat commercial</option>
+            <option value="Contrat de mandat">Contrat de mandat</option>
             <option value="Contrat de société">Contrat de société</option>
             <option value="Contrat de distribution / franchise">Contrat de distribution / franchise</option>
             <option value="autre">Autre (précise ci-dessous)</option>
@@ -641,6 +643,8 @@
             <label>Précise le type de contrat</label>
             <input name="type_contrat_autre" placeholder="ex: Contrat de partenariat commercial" />
           </div>
+          <label>Adresse du cabinet (optionnel)</label>
+          <input name="adresse_cabinet_manuel" placeholder="Reprise automatiquement depuis Paramètres si déjà renseignée — sinon, précise-la ici" />
           <label>Partie 1</label>
           <input name="partie_1" />
           <label>Partie 2</label>
@@ -651,13 +655,17 @@
           <textarea name="obligations"></textarea>
           <label>Durée</label>
           <input name="duree" placeholder="ex: 12 mois renouvelables" />
-          <label id="contrat-remuneration-label">Rémunération</label>
-          <input name="remuneration" />
+          <label>Montant (optionnel)<span class="field-hint" title="Le montant pertinent quel que soit le type de contrat : loyer, salaire, prix de vente, rémunération de prestation, etc.">?</span></label>
+          <input name="remuneration" placeholder="ex: 150 000 FCFA/mois" />
+          <label>Modalités de paiement (optionnel)</label>
+          <input name="modalites_paiement" placeholder="ex: en 3 échéances mensuelles, par virement bancaire" />
           <label>Date d'effet</label>
           <input name="date_effet" type="date" />
           <label>Conditions de résiliation</label>
           <textarea name="conditions_resiliation"></textarea>
-          <label>Clauses particulières (optionnel)</label>
+          <label>Juridiction compétente / droit applicable (optionnel)</label>
+          <input name="juridiction_competente" placeholder="ex: Tribunal de Commerce de Cotonou" />
+          <label>Clauses particulières (optionnel)<span class="field-hint" title="Toute clause additionnelle propre à ce contrat : confidentialité, non-concurrence, garanties, force majeure, propriété intellectuelle, etc. Une clause par ligne.">?</span></label>
           <ul class="pieces-list" id="clauses-list-contrat"></ul>
           <button type="button" class="secondary" data-add-list="clauses-list-contrat">+ Ajouter une clause</button>
         </div>
@@ -877,27 +885,14 @@
       wireProfessionToggle("plainte-type-defendeur", "plainte-civilite-defendeur-wrap");
       wireProfessionToggle("plainte-type-defendeur", "plainte-profession-defendeur-wrap");
 
-      // Le libelle "Remuneration" n'a pas de sens pour tous les types de
-      // contrat (ex: un bail a un loyer, pas une remuneration) - adapte
-      // selon le type choisi. Le champ envoye au backend reste
-      // "remuneration" dans tous les cas (le prompt parle deja de
-      // "contrepartie financiere", terme generique).
-      const REMUNERATION_LABELS = {
-        "Contrat de bail": "Loyer",
-        "Contrat de travail": "Salaire",
-        "Contrat de vente": "Prix de vente",
-        "Contrat de prestation de services": "Rémunération",
-        "Contrat de société": "Apports / répartition des bénéfices",
-        "Contrat de distribution / franchise": "Redevance / contrepartie financière",
-      };
+      // Le champ "Montant" reste au libelle generique quel que soit le type
+      // de contrat (loyer, salaire, prix de vente... tous des montants) -
+      // seul le sous-champ "Autre" a afficher/masquer selon le type choisi.
       const contratTypeSelect = document.getElementById("contrat-type-select");
       const contratTypeAutreWrap = document.getElementById("contrat-type-autre-wrap");
-      const contratRemunerationLabel = document.getElementById("contrat-remuneration-label");
       if (contratTypeSelect) {
         contratTypeSelect.addEventListener("change", () => {
           contratTypeAutreWrap.style.display = contratTypeSelect.value === "autre" ? "block" : "none";
-          contratRemunerationLabel.textContent =
-            REMUNERATION_LABELS[contratTypeSelect.value] || "Rémunération / contrepartie financière";
         });
       }
 
@@ -1341,14 +1336,17 @@
         nom_client: fd.get("nom_client") || undefined,
         est_avenant: estAvenant,
         type_contrat: typeContrat,
+        adresse_cabinet_manuel: fd.get("adresse_cabinet_manuel") || undefined,
         partie_1: fd.get("partie_1") || undefined,
         partie_2: fd.get("partie_2") || undefined,
         objet: fd.get("objet") || undefined,
         obligations: fd.get("obligations") || undefined,
         duree: fd.get("duree") || undefined,
         remuneration: fd.get("remuneration") || undefined,
+        modalites_paiement: fd.get("modalites_paiement") || undefined,
         date_effet: fd.get("date_effet") || undefined,
         conditions_resiliation: fd.get("conditions_resiliation") || undefined,
+        juridiction_competente: fd.get("juridiction_competente") || undefined,
         clauses_particulieres: listValues("clauses-list-contrat"),
         reference_contrat_initial: fd.get("reference_contrat_initial") || undefined,
         objet_avenant: fd.get("objet_avenant") || undefined,

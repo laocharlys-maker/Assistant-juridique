@@ -499,7 +499,9 @@ Sinon, redige un CONTRAT structure en articles numerotes, en n'incluant QUE les 
 - Article 2 - Obligations des parties
 - Article 3 - Duree
 - Article 4 - Contrepartie financiere (uniquement si un montant est fourni) : adapte le vocabulaire au type de contrat fourni ci-dessous (ex: "Loyer" pour un bail, "Salaire" pour un contrat de travail, "Prix de vente" pour une vente, "Remuneration" pour une prestation de services) plutot que d'utiliser systematiquement le mot "Remuneration"
-- Article 5 - Conditions de resiliation (uniquement si fournies)
+- Article 5 - Modalites de paiement (uniquement si fournies, ex: echeancier, mode de paiement)
+- Article 6 - Conditions de resiliation (uniquement si fournies)
+- Article 7 - Juridiction competente et droit applicable (uniquement si fourni)
 - Articles suivants - Clauses particulieres fournies, une par article
 
 REGLE ABSOLUE : n'invente jamais une clause, un montant, une duree ou une obligation qui ne figure pas dans les informations fournies ci-dessous.`;
@@ -512,8 +514,10 @@ export function buildContratUserPrompt(facts: {
   obligations: string;
   duree?: string;
   remuneration?: string;
+  modalitesPaiement?: string;
   dateEffet?: string;
   conditionsResiliation?: string;
+  juridictionCompetente?: string;
   clausesParticulieres?: string[];
   estAvenant: boolean;
   referenceContratInitial?: string;
@@ -534,8 +538,10 @@ Date du jour : ${dateActuelle()}`;
   ];
   if (facts.duree) lignes.push(`Duree : ${facts.duree}`);
   if (facts.remuneration) lignes.push(`Contrepartie financiere (montant) : ${facts.remuneration}`);
+  if (facts.modalitesPaiement) lignes.push(`Modalites de paiement : ${facts.modalitesPaiement}`);
   if (facts.dateEffet) lignes.push(`Date d'effet : ${facts.dateEffet}`);
   if (facts.conditionsResiliation) lignes.push(`Conditions de resiliation : ${facts.conditionsResiliation}`);
+  if (facts.juridictionCompetente) lignes.push(`Juridiction competente / droit applicable : ${facts.juridictionCompetente}`);
   if (facts.clausesParticulieres && facts.clausesParticulieres.length > 0) {
     lignes.push(
       `Clauses particulieres :\n${facts.clausesParticulieres.map((c, i) => `${i + 1}. ${c}`).join("\n")}`
