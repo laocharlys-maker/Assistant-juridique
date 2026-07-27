@@ -616,6 +616,43 @@ header.app-topbar {
 .toggle-switch.on { background: var(--accent); }
 .toggle-switch.on::after { transform: translateX(16px); }
 
+/* ---------- Nouvelle action : accueil / catégories / recherche ---------- */
+.na-hero-search { position: relative; margin: 20px 0 24px; }
+.na-hero-search input[type="search"] { width: 100%; padding: 15px 18px 15px 44px; font-size: 1rem; border-radius: 14px; border: 1px solid var(--border); background: var(--panel); box-shadow: var(--shadow-sm); }
+.na-hero-search .na-search-icon { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); font-size: 1rem; pointer-events: none; }
+.na-search-results { position: absolute; z-index: 5; left: 0; right: 0; margin-top: 6px; border-radius: 12px; border: 1px solid var(--border); background: var(--panel); box-shadow: var(--shadow-md); overflow: hidden; }
+.na-search-results button { display: block; width: 100%; text-align: left; padding: 11px 18px; background: none; border: none; border-top: 1px solid var(--hairline); cursor: pointer; color: var(--text); font-size: 0.92rem; box-shadow: none; border-radius: 0; }
+.na-search-results button:first-child { border-top: none; }
+.na-search-results button:hover { background: var(--accent-tint); color: var(--accent-hover); }
+.na-search-results button .muted { display: block; font-size: 0.78rem; margin-top: 2px; }
+
+.na-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 28px; }
+.na-chip { padding: 8px 16px; border-radius: 999px; border: 1px solid var(--border); background: var(--panel); cursor: pointer; font-size: 0.86rem; color: var(--text); box-shadow: none; }
+.na-chip:hover { background: var(--accent-tint); border-color: var(--accent); color: var(--accent-hover); }
+
+.na-category-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-top: 8px; }
+.na-type-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-top: 8px; }
+.na-card { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 20px 22px; box-shadow: var(--shadow-sm); cursor: pointer; text-align: left; transition: transform 0.14s ease, box-shadow 0.14s ease; font: inherit; color: var(--text); }
+.na-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); border-color: var(--accent); }
+.na-card .icon-badge { width: 40px; height: 40px; border-radius: 11px; background: var(--accent-tint); display: flex; align-items: center; justify-content: center; color: var(--accent-hover); margin-bottom: 10px; font-size: 1.1rem; }
+.na-card strong { font-size: 1rem; color: var(--text-strong); }
+.na-card .muted { font-size: 0.82rem; line-height: 1.4; }
+
+.na-breadcrumb { color: var(--muted); font-size: 0.86rem; margin-bottom: 6px; }
+.na-breadcrumb a { color: var(--muted); text-decoration: none; cursor: pointer; }
+.na-breadcrumb a:hover { color: var(--accent); text-decoration: underline; }
+
+@media (max-width: 640px) {
+  .na-category-grid, .na-type-grid { grid-template-columns: 1fr; }
+}
+
+/* La regle generale ":root[data-theme='dark'] button { color: #241705; }"
+   (texte fonce, pense pour les boutons a fond degrade or) a une specificite
+   superieure a ".na-chip"/".na-card" seuls - sans ce correctif, leur texte
+   redevient illisible (brun fonce sur fond sombre) en theme sombre. */
+:root[data-theme="dark"] .na-chip,
+:root[data-theme="dark"] .na-card { color: var(--text); }
+
 /* ---------- Panneau depliable (ex: calcul de delai) ---------- */
 .collapse-panel {
   max-height: 0;

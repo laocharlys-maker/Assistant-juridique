@@ -9,40 +9,72 @@
 </head>
 <body>
   <div class="page">
-    <h1>Faites une nouvelle action aujourd'hui</h1>
 
-    <div class="tabs">
-      <button class="tab active" data-type="notes">Compte-rendu d'audience</button>
-      <button class="tab" data-type="redac">Plaidoirie</button>
-      <button class="tab" data-type="conclusions">Conclusions</button>
-      <button class="tab" data-type="note_plaidoirie">Note de plaidoirie</button>
-      <button class="tab" data-type="assignation">Assignation</button>
-      <button class="tab" data-type="mise_en_demeure">Mise en demeure</button>
-      <button class="tab" data-type="plainte">Plainte</button>
-      <button class="tab" data-type="contrat">Contrat</button>
-      <button class="tab" data-type="notification_date">Notification</button>
-      <button class="tab" data-type="requete">Requête</button>
-      <button class="tab" data-type="projet_ordonnance">Projet d'ordonnance</button>
-      <button class="tab" data-type="jurisprudence">Recherche de jurisprudence</button>
-      <button class="tab" data-type="recherche_juridique">Recherche juridique</button>
-      <button class="tab" data-type="resume_pdf">Résumé de jurisprudence (PDF)</button>
-      <button class="tab" data-type="traduction">Traduction FR ⇄ EN</button>
-    </div>
+    <!-- Écran 1 : accueil (recherche + dossiers récents + catégories) -->
+    <div id="na-hub-screen">
+      <h1>Nouvelle action</h1>
 
-    <div id="error" class="error"></div>
-    <datalist id="dossiers-datalist"></datalist>
-    <div id="result" class="card" style="display:none;">
-      <h2>Résultat</h2>
-      <p class="muted" id="result-meta"></p>
-      <pre id="result-text" style="white-space: pre-wrap;"></pre>
-      <div id="result-downloads" style="display:none; margin-bottom:12px;">
-        <a id="result-word-link" href="#" target="_blank" style="margin-right:12px;">Télécharger en Word</a>
-        <a id="result-pdf-link" href="#" target="_blank">Télécharger en PDF</a>
+      <div class="na-hero-search">
+        <span class="na-search-icon">🔎</span>
+        <input type="search" id="na-search-input" placeholder='Que veux-tu faire aujourd&#39;hui ? Ex. "mise en demeure pour Koffi"' autocomplete="off" />
+        <div class="na-search-results" id="na-search-results" style="display:none;"></div>
       </div>
-      <button type="button" class="secondary" id="reset-form-btn">Nouvelle génération</button>
+
+      <div id="na-recent-dossiers-wrap" style="display:none;">
+        <p class="muted">Reprendre un dossier récent</p>
+        <div class="na-chips" id="na-recent-dossiers-chips"></div>
+      </div>
+
+      <div class="na-category-grid" id="na-category-grid"></div>
     </div>
 
-    <div class="card">
+    <!-- Écran 2 : grille des types au sein d'une catégorie -->
+    <div id="na-category-screen" style="display:none;">
+      <p class="na-breadcrumb"><a href="#" id="na-breadcrumb-to-hub">Nouvelle action</a> › <span id="na-category-current-label"></span></p>
+      <h1 id="na-category-heading"></h1>
+      <div class="na-type-grid" id="na-type-grid"></div>
+    </div>
+
+    <!-- Écran 3 : formulaire choisi -->
+    <div id="na-form-screen" style="display:none;">
+      <p class="na-breadcrumb">
+        <a href="#" id="na-breadcrumb-to-hub-2">Nouvelle action</a> ›
+        <a href="#" id="na-breadcrumb-to-category"></a> ›
+        <span id="na-form-current-label"></span>
+      </p>
+
+      <div class="tabs" style="display:none;">
+        <button class="tab active" data-type="notes">Compte-rendu d'audience</button>
+        <button class="tab" data-type="redac">Plaidoirie</button>
+        <button class="tab" data-type="conclusions">Conclusions</button>
+        <button class="tab" data-type="note_plaidoirie">Note de plaidoirie</button>
+        <button class="tab" data-type="assignation">Assignation</button>
+        <button class="tab" data-type="mise_en_demeure">Mise en demeure</button>
+        <button class="tab" data-type="plainte">Plainte</button>
+        <button class="tab" data-type="contrat">Contrat</button>
+        <button class="tab" data-type="notification_date">Notification</button>
+        <button class="tab" data-type="requete">Requête</button>
+        <button class="tab" data-type="projet_ordonnance">Projet d'ordonnance</button>
+        <button class="tab" data-type="jurisprudence">Recherche de jurisprudence</button>
+        <button class="tab" data-type="recherche_juridique">Recherche juridique</button>
+        <button class="tab" data-type="resume_pdf">Résumé de jurisprudence (PDF)</button>
+        <button class="tab" data-type="traduction">Traduction FR ⇄ EN</button>
+      </div>
+
+      <div id="error" class="error"></div>
+      <datalist id="dossiers-datalist"></datalist>
+      <div id="result" class="card" style="display:none;">
+        <h2>Résultat</h2>
+        <p class="muted" id="result-meta"></p>
+        <pre id="result-text" style="white-space: pre-wrap;"></pre>
+        <div id="result-downloads" style="display:none; margin-bottom:12px;">
+          <a id="result-word-link" href="#" target="_blank" style="margin-right:12px;">Télécharger en Word</a>
+          <a id="result-pdf-link" href="#" target="_blank">Télécharger en PDF</a>
+        </div>
+        <button type="button" class="secondary" id="reset-form-btn">Nouvelle génération</button>
+      </div>
+
+      <div class="card">
       <form id="notes-form" class="action-form">
         <label>Numéro de dossier</label>
         <input name="numero_dossier" list="dossiers-datalist" required />
@@ -1090,6 +1122,7 @@
         <button type="submit">Traduire</button>
         <p class="muted" style="margin-top:8px;">Traduction fidèle, sans ajout ni interprétation. Les textes longs sont découpés puis recomposés automatiquement.</p>
       </form>
+      </div>
     </div>
   </div>
   <script src="/js/api.js"></script>
@@ -1307,6 +1340,7 @@
           .map((d) => `<option value="${escapeHtmlAttr(d.numeroDossier)}">${escapeHtmlAttr(d.nomAffaire)}</option>`)
           .join("");
         dossiers.forEach((d) => dossiersParNumero.set(d.numeroDossier, d));
+        naRenderRecentDossiers(dossiers);
       } catch {
         // Pas bloquant : la saisie manuelle reste possible sans autocompletion.
       }
@@ -1350,6 +1384,192 @@
         document.getElementById("result").style.display = "none";
       });
     });
+
+    // ---------- Nouvelle action : accueil / catégories / formulaire ----------
+    // Catalogue de tous les types d'actions, regroupes par categorie, pour
+    // piloter les 3 ecrans (accueil -> categorie -> formulaire). Reutilise
+    // tel quel le mecanisme existant des .tab (un simple .click() sur le
+    // bon bouton suffit a afficher le bon formulaire, aucune duplication
+    // de logique).
+    const TYPE_CATALOG = {
+      notes: { label: "Compte-rendu d'audience", sub: "Synthèse après passage au tribunal", icon: "📋", category: "rediger" },
+      redac: { label: "Plaidoirie", sub: "Argumentaire complet, structuré", icon: "⚖️", category: "rediger" },
+      note_plaidoirie: { label: "Notes de plaidoirie", sub: "Version courte, aide-mémoire", icon: "📝", category: "rediger" },
+      conclusions: { label: "Conclusions", sub: "Écriture de procédure civile", icon: "📄", category: "rediger" },
+      plainte: { label: "Plainte", sub: "Dépôt initial d'une procédure", icon: "✉️", category: "rediger" },
+      mise_en_demeure: { label: "Mise en demeure", sub: "Sommation avant contentieux", icon: "⚠️", category: "rediger" },
+      assignation: { label: "Assignation", sub: "Convocation d'une partie en justice", icon: "🏛️", category: "rediger" },
+      requete: { label: "Requête", sub: "Demande adressée au juge", icon: "❓", category: "rediger" },
+      projet_ordonnance: { label: "Projet d'ordonnance", sub: "Ébauche à joindre à une requête", icon: "🖋️", category: "rediger" },
+      contrat: { label: "Contrat", sub: "Bail, prestation, vente...", icon: "🤝", category: "rediger" },
+      notification_date: { label: "Notification", sub: "Courrier aux tiers concernés", icon: "📢", category: "rediger" },
+      jurisprudence: { label: "Recherche de jurisprudence", sub: "Décisions par thème et juridiction", icon: "🔍", category: "rechercher" },
+      recherche_juridique: { label: "Recherche juridique", sub: "Question de droit générale", icon: "🔍", category: "rechercher" },
+      resume_pdf: { label: "Résumé de jurisprudence (PDF)", sub: "Synthèse d'un document long", icon: "📄", category: "rechercher" },
+      traduction: { label: "Traduction FR ⇄ EN", sub: "Français ↔ Anglais", icon: "🌐", category: "traduire" },
+    };
+    const CATEGORIES = {
+      rediger: { label: "Rédiger un acte", icon: "✏️", sub: "CR, plaidoirie, mise en demeure, contrat..." },
+      rechercher: { label: "Rechercher", icon: "🔍", sub: "Jurisprudence, textes de loi, doctrine" },
+      traduire: { label: "Traduire", icon: "🌐", sub: "Français ↔ Anglais" },
+    };
+
+    const naHubScreen = document.getElementById("na-hub-screen");
+    const naCategoryScreen = document.getElementById("na-category-screen");
+    const naFormScreen = document.getElementById("na-form-screen");
+    let naPendingDossier = null;
+
+    function naShowScreen(name) {
+      naHubScreen.style.display = name === "hub" ? "block" : "none";
+      naCategoryScreen.style.display = name === "category" ? "block" : "none";
+      naFormScreen.style.display = name === "form" ? "block" : "none";
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function naGoToForm(type) {
+      const tabBtn = document.querySelector(`.tab[data-type="${type}"]`);
+      if (!tabBtn) return;
+      tabBtn.click();
+      const entry = TYPE_CATALOG[type];
+      document.getElementById("na-form-current-label").textContent = entry.label;
+      const catEntry = CATEGORIES[entry.category];
+      const breadcrumbCategory = document.getElementById("na-breadcrumb-to-category");
+      breadcrumbCategory.textContent = catEntry.label;
+      breadcrumbCategory.dataset.category = entry.category;
+      naShowScreen("form");
+      if (naPendingDossier) {
+        const form = forms[type];
+        const input = form ? form.querySelector('input[name="numero_dossier"]') : null;
+        if (input) {
+          input.value = naPendingDossier;
+          input.dispatchEvent(new Event("input"));
+        }
+        naPendingDossier = null;
+      }
+    }
+
+    function naRenderCategoryCard(key) {
+      const cat = CATEGORIES[key];
+      const card = document.createElement("button");
+      card.type = "button";
+      card.className = "na-card";
+      card.innerHTML = `<span class="icon-badge">${cat.icon}</span><strong></strong><span class="muted"></span>`;
+      card.querySelector("strong").textContent = cat.label;
+      card.querySelector(".muted").textContent = cat.sub;
+      card.addEventListener("click", () => naOpenCategory(key));
+      return card;
+    }
+
+    function naOpenCategory(key) {
+      const typesInCategory = Object.entries(TYPE_CATALOG).filter(([, v]) => v.category === key);
+      // Une seule action possible dans cette categorie (ex: Traduire) : on
+      // saute directement au formulaire, pas besoin d'un ecran intermediaire
+      // avec une seule carte a cliquer.
+      if (typesInCategory.length === 1) {
+        naGoToForm(typesInCategory[0][0]);
+        return;
+      }
+      document.getElementById("na-category-current-label").textContent = CATEGORIES[key].label;
+      document.getElementById("na-category-heading").textContent = CATEGORIES[key].label;
+      const grid = document.getElementById("na-type-grid");
+      grid.innerHTML = "";
+      typesInCategory.forEach(([type, entry]) => {
+        const card = document.createElement("button");
+        card.type = "button";
+        card.className = "na-card";
+        card.innerHTML = `<span class="icon-badge">${entry.icon}</span><strong></strong><span class="muted"></span>`;
+        card.querySelector("strong").textContent = entry.label;
+        card.querySelector(".muted").textContent = entry.sub;
+        card.addEventListener("click", () => naGoToForm(type));
+        grid.appendChild(card);
+      });
+      naShowScreen("category");
+    }
+
+    document.getElementById("na-category-grid").append(
+      ...Object.keys(CATEGORIES).map((key) => naRenderCategoryCard(key))
+    );
+
+    document.getElementById("na-breadcrumb-to-hub").addEventListener("click", (e) => {
+      e.preventDefault();
+      naShowScreen("hub");
+    });
+    document.getElementById("na-breadcrumb-to-hub-2").addEventListener("click", (e) => {
+      e.preventDefault();
+      naShowScreen("hub");
+    });
+    document.getElementById("na-breadcrumb-to-category").addEventListener("click", (e) => {
+      e.preventDefault();
+      const key = e.target.dataset.category;
+      if (key) naOpenCategory(key);
+    });
+
+    // Recherche libre : filtre live sur le libelle de chaque type, saute
+    // directement au formulaire choisi.
+    const naSearchInput = document.getElementById("na-search-input");
+    const naSearchResults = document.getElementById("na-search-results");
+    naSearchInput.addEventListener("input", () => {
+      const terme = naSearchInput.value.trim().toLowerCase();
+      if (!terme) {
+        naSearchResults.style.display = "none";
+        naSearchResults.innerHTML = "";
+        return;
+      }
+      const matches = Object.entries(TYPE_CATALOG).filter(([, entry]) =>
+        entry.label.toLowerCase().includes(terme)
+      );
+      if (matches.length === 0) {
+        naSearchResults.innerHTML = '<button type="button" disabled>Aucun résultat</button>';
+        naSearchResults.style.display = "block";
+        return;
+      }
+      naSearchResults.innerHTML = "";
+      matches.forEach(([type, entry]) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.innerHTML = `${entry.icon} <strong></strong><span class="muted"></span>`;
+        btn.querySelector("strong").textContent = ` ${entry.label}`;
+        btn.querySelector(".muted").textContent = entry.sub;
+        btn.addEventListener("click", () => {
+          naSearchInput.value = "";
+          naSearchResults.style.display = "none";
+          naGoToForm(type);
+        });
+        naSearchResults.appendChild(btn);
+      });
+      naSearchResults.style.display = "block";
+    });
+    document.addEventListener("click", (e) => {
+      if (!naSearchInput.contains(e.target) && !naSearchResults.contains(e.target)) {
+        naSearchResults.style.display = "none";
+      }
+    });
+
+    // Dossiers recents : pre-remplit le numero de dossier une fois le
+    // formulaire choisi, sans imposer de type d'action a l'avance.
+    function naRenderRecentDossiers(dossiers) {
+      const wrap = document.getElementById("na-recent-dossiers-wrap");
+      const chipsEl = document.getElementById("na-recent-dossiers-chips");
+      const recents = dossiers.filter((d) => d.numeroDossier !== "SANS-NUMERO").slice(0, 5);
+      if (recents.length === 0) {
+        wrap.style.display = "none";
+        return;
+      }
+      chipsEl.innerHTML = "";
+      recents.forEach((d) => {
+        const chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "na-chip";
+        chip.textContent = d.nomAffaire;
+        chip.addEventListener("click", () => {
+          naPendingDossier = d.numeroDossier;
+          naShowScreen("hub");
+          document.getElementById("na-category-grid").scrollIntoView({ behavior: "smooth" });
+        });
+        chipsEl.appendChild(chip);
+      });
+      wrap.style.display = "block";
+    }
 
     function addListItem(listId, placeholder) {
       const list = document.getElementById(listId);
