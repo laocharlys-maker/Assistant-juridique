@@ -1251,37 +1251,79 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
         argumentaire: redigé,
       };
     } else if (form.type_action === "notification_date") {
+      const OBJETS_PAR_DEFAUT: Record<string, string> = {
+        date: "NOTIFICATION DE DATE",
+        rupture_contrat: `NOTIFICATION FORMELLE DE RUPTURE DU CONTRAT DE ${form.type_contrat_concerne || ""}`.trim(),
+        autre: "NOTIFICATION",
+      };
+      const objetNotif = form.objet || OBJETS_PAR_DEFAUT[form.type_notification];
+
       const redigé = await llm.redact(
         NOTIFICATION_DATE_SYSTEM_PROMPT,
         buildNotificationDateUserPrompt({
           nomAffaire: form.nom_affaire || "non précisée",
           destinataire: form.destinataire,
-          objet: form.objet,
+          objet: objetNotif,
           dateNotifiee: form.date_notifiee,
           lieu: form.lieu,
           juridiction: form.nom_juridiction,
+          typeContratConcerne: form.type_contrat_concerne,
+          dateSignatureContrat: form.date_signature_contrat,
+          articleResiliation: form.article_resiliation,
+          dureePreavis: form.duree_preavis,
+          modeRupture: form.mode_rupture,
+          dateFinPrevue: form.date_fin_prevue,
+          motifFaute: form.motif_faute,
+          dateMiseEnDemeurePrealable: form.date_mise_en_demeure_prealable,
+          instructionsCloture: form.instructions_cloture,
+          contexte: form.contexte,
           precisions: form.precisions,
         })
       );
 
-      const dossierLookup = await findOrCreateDossier({
+      const dossierLookupNotif = await findOrCreateDossier({
         cabinetId: auth!.cabinetId,
         userId: auth!.userId,
         numeroDossier: form.numero_dossier,
         nomAffaire: form.nom_affaire,
         nomClient: form.nom_client,
       });
-      if (!dossierLookup.ok) {
-        return res.status(404).json({ error: dossierLookup.error });
+      if (!dossierLookupNotif.ok) {
+        return res.status(404).json({ error: dossierLookupNotif.error });
       }
-      dossierId = dossierLookup.dossier.id;
+      const dossierNotif = dossierLookupNotif.dossier;
+      dossierId = dossierNotif.id;
+
+      const [cabinetPourAdresseNotif, clientPourInfosNotif] = await Promise.all([
+        prisma.cabinet.findUnique({ where: { id: auth!.cabinetId }, select: { nom: true, adresse: true } }),
+        dossierNotif.clientId
+          ? prisma.client.findUnique({ where: { id: dossierNotif.clientId }, select: { civilite: true } })
+          : Promise.resolve(null),
+      ]);
+
+      const civiliteClientNotif = clientPourInfosNotif?.civilite || form.civilite_client_manuel || null;
+
+      extraWebhookFields = {
+        mode_notification: form.mode_notification ?? null,
+        nom_avocat: form.nom_avocat ?? null,
+        adresse_cabinet: cabinetPourAdresseNotif?.adresse || form.adresse_cabinet_manuel || null,
+        nom_cabinet: cabinetPourAdresseNotif?.nom || null,
+        civilite_client: civiliteClientNotif,
+        civilite_nom_client: assemblerCivilite(civiliteClientNotif, dossierNotif.nomClient),
+        informations_client: form.informations_client ?? null,
+        destinataire: form.destinataire,
+        civilite_destinataire: form.civilite_destinataire ?? null,
+        civilite_nom_destinataire: assemblerCivilite(form.civilite_destinataire ?? null, form.destinataire),
+        adresse_destinataire: form.adresse_destinataire ?? null,
+        objet: objetNotif,
+      };
 
       action = {
         type_action: "notification_date",
-        categorie_texte: "Notification de date",
-        numero_dossier: dossierLookup.dossier.numeroDossier,
-        nom_affaire: dossierLookup.dossier.nomAffaire,
-        nom_client: dossierLookup.dossier.nomClient,
+        categorie_texte: "Notification",
+        numero_dossier: dossierNotif.numeroDossier,
+        nom_affaire: dossierNotif.nomAffaire,
+        nom_client: dossierNotif.nomClient,
         nom_juridiction: null,
         nom_chambre: null,
         date_audience: null,

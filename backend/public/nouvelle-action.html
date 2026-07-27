@@ -20,7 +20,7 @@
       <button class="tab" data-type="mise_en_demeure">Mise en demeure</button>
       <button class="tab" data-type="plainte">Plainte</button>
       <button class="tab" data-type="contrat">Contrat</button>
-      <button class="tab" data-type="notification_date">Notification de date</button>
+      <button class="tab" data-type="notification_date">Notification</button>
       <button class="tab" data-type="requete">Requête</button>
       <button class="tab" data-type="jurisprudence">Recherche de jurisprudence</button>
       <button class="tab" data-type="recherche_juridique">Recherche juridique</button>
@@ -716,19 +716,96 @@
         <input name="numero_dossier" list="dossiers-datalist" placeholder="Laisse vide si non applicable" />
         <label>Nom de l'affaire (optionnel)</label>
         <input name="nom_affaire" placeholder="Laisse vide si non applicable" />
+        <label>Mode de notification</label>
+        <select name="mode_notification">
+          <option value="huissier">Par exploit de commissaire de justice (huissier)</option>
+          <option value="lrar">Lettre recommandée avec accusé de réception</option>
+          <option value="main_propre">Remis en main propre contre décharge</option>
+        </select>
+        <label>Avocat en charge (optionnel)</label>
+        <input name="nom_avocat" />
+        <label>Adresse du cabinet (optionnel)</label>
+        <input name="adresse_cabinet_manuel" placeholder="Reprise automatiquement depuis Paramètres si déjà renseignée — sinon, précise-la ici" />
+
+        <h3>Le client</h3>
         <label>Nom du client (si nouveau dossier)</label>
         <input name="nom_client" placeholder="Laisse vide si le dossier existe déjà" />
-        <label>Destinataire</label>
+        <label>Civilité du client (optionnel)</label>
+        <select name="civilite_client_manuel">
+          <option value="">— Non précisé —</option>
+          <option value="M.">M.</option>
+          <option value="Mme">Mme</option>
+          <option value="Mlle">Mlle</option>
+        </select>
+        <label>Informations sur le client (optionnel)<span class="field-hint" title="État civil pour une personne physique, ou forme juridique/capital/siège social/RCCM pour une entreprise. Repris automatiquement de sa fiche si déjà renseigné.">?</span></label>
+        <input name="informations_client" placeholder="ex: SARL au capital de 1 000 000 FCFA, dont le siège social est à Cotonou, RCCM RB/COT/24 B 1234" />
+
+        <h3>Le destinataire</h3>
+        <label>Nom du destinataire</label>
         <input name="destinataire" required />
-        <label>Objet de la notification</label>
-        <input name="objet" required placeholder="ex: Notification de la date d'audience" />
-        <label>Date notifiée</label>
-        <input name="date_notifiee" type="date" required />
-        <label>Lieu (optionnel)</label>
-        <input name="lieu" placeholder="ex: Tribunal Judiciaire de Cotonou, salle 3" />
-        <label>Juridiction (optionnel)</label>
-        <input name="nom_juridiction" />
-        <label>Précisions (optionnel)</label>
+        <label>Civilité du destinataire (optionnel)</label>
+        <select name="civilite_destinataire">
+          <option value="">— Non précisé —</option>
+          <option value="M.">M.</option>
+          <option value="Mme">Mme</option>
+          <option value="Mlle">Mlle</option>
+        </select>
+        <label>Adresse du destinataire (optionnel)</label>
+        <input name="adresse_destinataire" placeholder="ex: Quartier Haie Vive, Cotonou" />
+
+        <h3>Ce qui est notifié</h3>
+        <label>Type de notification</label>
+        <select name="type_notification" id="notification-type">
+          <option value="date">Notification d'une date (audience, comparution, rendez-vous...)</option>
+          <option value="rupture_contrat">Notification de rupture de contrat</option>
+          <option value="autre">Autre notification</option>
+        </select>
+        <label>Ligne d'objet (optionnel)<span class="field-hint" title="Si laissé vide, une formule générique est utilisée selon le type de notification choisi.">?</span></label>
+        <input name="objet" placeholder="ex: NOTIFICATION FORMELLE DE RUPTURE DU CONTRAT DE PRESTATION DE SERVICES" />
+
+        <div id="notification-champs-date">
+          <label>Date à notifier</label>
+          <input name="date_notifiee" type="date" />
+          <label>Lieu (optionnel)</label>
+          <input name="lieu" placeholder="ex: Tribunal de Première Instance de Cotonou, salle 3" />
+          <label>Juridiction (optionnel)</label>
+          <input name="nom_juridiction" />
+        </div>
+
+        <div id="notification-champs-rupture" style="display:none;">
+          <label>Type de contrat concerné</label>
+          <input name="type_contrat_concerne" placeholder="ex: prestation de services" />
+          <label>Date de signature du contrat</label>
+          <input name="date_signature_contrat" type="date" />
+          <label>Article du contrat permettant la résiliation (optionnel)</label>
+          <input name="article_resiliation" placeholder="ex: Article 8" />
+          <label>Durée du préavis contractuel (optionnel)</label>
+          <input name="duree_preavis" placeholder="ex: un (01) mois" />
+          <label>Mode de rupture</label>
+          <select name="mode_rupture" id="notification-mode-rupture">
+            <option value="avec_preavis">Rupture normale avec préavis</option>
+            <option value="pour_faute">Rupture pour faute, sans préavis</option>
+          </select>
+          <div id="notification-rupture-avec-preavis">
+            <label>Date exacte de fin des relations contractuelles</label>
+            <input name="date_fin_prevue" type="date" />
+          </div>
+          <div id="notification-rupture-pour-faute" style="display:none;">
+            <label>Motif de la faute</label>
+            <input name="motif_faute" placeholder="ex: défaut de paiement des factures depuis 3 mois" />
+            <label>Date de la mise en demeure préalable restée infructueuse</label>
+            <input name="date_mise_en_demeure_prealable" type="date" />
+          </div>
+          <label>Instructions de clôture (optionnel)<span class="field-hint" title="Ex: arrêter les prestations, restituer le matériel, établir les comptes de clôture, avant telle date.">?</span></label>
+          <textarea name="instructions_cloture" placeholder="ex: arrêter les prestations en cours et restituer le matériel appartenant au client au plus tard le..."></textarea>
+        </div>
+
+        <div id="notification-champs-autre" style="display:none;">
+          <label>Contexte de la notification</label>
+          <textarea name="contexte"></textarea>
+        </div>
+
+        <label>Précisions complémentaires (optionnel)</label>
         <textarea name="precisions"></textarea>
         <button type="submit">Générer la notification</button>
       </form>
@@ -941,6 +1018,30 @@
       }
       wireContratPartieLabel("contrat-type-partie-1", "contrat-informations-partie-1-label");
       wireContratPartieLabel("contrat-type-partie-2", "contrat-informations-partie-2-label");
+
+      // Bascule les groupes de champs de la Notification selon ce qui est
+      // notifie (date / rupture de contrat / autre), et le sous-choix du
+      // mode de rupture (avec preavis / pour faute).
+      const notificationTypeSelect = document.getElementById("notification-type");
+      const notificationChampsDate = document.getElementById("notification-champs-date");
+      const notificationChampsRupture = document.getElementById("notification-champs-rupture");
+      const notificationChampsAutre = document.getElementById("notification-champs-autre");
+      if (notificationTypeSelect) {
+        notificationTypeSelect.addEventListener("change", () => {
+          notificationChampsDate.style.display = notificationTypeSelect.value === "date" ? "block" : "none";
+          notificationChampsRupture.style.display = notificationTypeSelect.value === "rupture_contrat" ? "block" : "none";
+          notificationChampsAutre.style.display = notificationTypeSelect.value === "autre" ? "block" : "none";
+        });
+      }
+      const notificationModeRupture = document.getElementById("notification-mode-rupture");
+      const notificationAvecPreavis = document.getElementById("notification-rupture-avec-preavis");
+      const notificationPourFaute = document.getElementById("notification-rupture-pour-faute");
+      if (notificationModeRupture) {
+        notificationModeRupture.addEventListener("change", () => {
+          notificationAvecPreavis.style.display = notificationModeRupture.value === "avec_preavis" ? "block" : "none";
+          notificationPourFaute.style.display = notificationModeRupture.value === "pour_faute" ? "block" : "none";
+        });
+      }
 
       const typePartieAdverseSelect = document.getElementById("conclusions-type-partie-adverse");
       const partieAdversePhysique = document.getElementById("conclusions-partie-adverse-physique");
@@ -1412,12 +1513,30 @@
       submitForm("notification_date", {
         numero_dossier: fd.get("numero_dossier") || undefined,
         nom_affaire: fd.get("nom_affaire") || undefined,
+        mode_notification: fd.get("mode_notification") || undefined,
+        nom_avocat: fd.get("nom_avocat") || undefined,
+        adresse_cabinet_manuel: fd.get("adresse_cabinet_manuel") || undefined,
         nom_client: fd.get("nom_client") || undefined,
+        civilite_client_manuel: fd.get("civilite_client_manuel") || undefined,
+        informations_client: fd.get("informations_client") || undefined,
         destinataire: fd.get("destinataire"),
-        objet: fd.get("objet"),
-        date_notifiee: fd.get("date_notifiee"),
+        civilite_destinataire: fd.get("civilite_destinataire") || undefined,
+        adresse_destinataire: fd.get("adresse_destinataire") || undefined,
+        type_notification: fd.get("type_notification"),
+        objet: fd.get("objet") || undefined,
+        date_notifiee: fd.get("date_notifiee") || undefined,
         lieu: fd.get("lieu") || undefined,
         nom_juridiction: fd.get("nom_juridiction") || undefined,
+        type_contrat_concerne: fd.get("type_contrat_concerne") || undefined,
+        date_signature_contrat: fd.get("date_signature_contrat") || undefined,
+        article_resiliation: fd.get("article_resiliation") || undefined,
+        duree_preavis: fd.get("duree_preavis") || undefined,
+        mode_rupture: fd.get("mode_rupture") || undefined,
+        date_fin_prevue: fd.get("date_fin_prevue") || undefined,
+        motif_faute: fd.get("motif_faute") || undefined,
+        date_mise_en_demeure_prealable: fd.get("date_mise_en_demeure_prealable") || undefined,
+        instructions_cloture: fd.get("instructions_cloture") || undefined,
+        contexte: fd.get("contexte") || undefined,
         precisions: fd.get("precisions") || undefined,
       }, forms.notification_date.querySelector('button[type="submit"]'));
     });

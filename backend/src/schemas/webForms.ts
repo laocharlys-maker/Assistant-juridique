@@ -335,11 +335,42 @@ export const notificationDateFormSchema = z.object({
   numero_dossier: z.string().optional(),
   nom_affaire: z.string().optional(),
   nom_client: z.string().min(1).optional(),
+  // Mode de notification de l'acte - jamais devine.
+  mode_notification: z.enum(["huissier", "lrar", "main_propre"]).optional(),
+  nom_avocat: z.string().optional(),
+  adresse_cabinet_manuel: z.string().optional(),
+  // Le client (expediteur, represente par l'avocat) - memes principes que
+  // partout ailleurs (DB-first, secours manuel si absent de sa fiche).
+  civilite_client_manuel: z.enum(["M.", "Mme", "Mlle"]).optional(),
+  informations_client: z.string().optional(),
+  // Destinataire de la notification - distinct du client.
   destinataire: z.string().min(1),
-  objet: z.string().min(1),
-  date_notifiee: z.string().min(1),
+  civilite_destinataire: z.enum(["M.", "Mme", "Mlle"]).optional(),
+  adresse_destinataire: z.string().optional(),
+  // Ce qui est notifie determine quels champs s'appliquent - jamais un
+  // seul gabarit fige, une notification peut concerner une date, une
+  // rupture de contrat, ou autre chose.
+  type_notification: z.enum(["date", "rupture_contrat", "autre"]),
+  // Ligne d'objet libre - sinon composee automatiquement selon le type.
+  objet: z.string().optional(),
+  // -- Notification de date --
+  date_notifiee: z.string().optional(),
   lieu: z.string().optional(),
   nom_juridiction: z.string().optional(),
+  // -- Notification de rupture de contrat --
+  type_contrat_concerne: z.string().optional(),
+  date_signature_contrat: z.string().optional(),
+  article_resiliation: z.string().optional(),
+  duree_preavis: z.string().optional(),
+  // Rupture avec preavis, ou pour faute (sans preavis) - deux redactions
+  // tres differentes, jamais devinees par l'IA.
+  mode_rupture: z.enum(["avec_preavis", "pour_faute"]).optional(),
+  date_fin_prevue: z.string().optional(),
+  motif_faute: z.string().optional(),
+  date_mise_en_demeure_prealable: z.string().optional(),
+  instructions_cloture: z.string().optional(),
+  // -- Autre notification --
+  contexte: z.string().optional(),
   precisions: z.string().optional(),
 });
 

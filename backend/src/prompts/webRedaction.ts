@@ -573,34 +573,65 @@ Date du jour : ${dateActuelle()}`;
 }
 
 // Notification de date (audience, comparution, evenement...) a un destinataire.
+// Notification : courrier formel informant le destinataire de quelque
+// chose de precis - une date, une rupture de contrat, ou autre chose. Le
+// contenu varie enormement selon ce qui est notifie (contrairement a la
+// Mise en demeure, jamais comminatoire) : le texte s'adapte selon les
+// informations effectivement fournies ci-dessous, sans jamais inventer.
 export const NOTIFICATION_DATE_SYSTEM_PROMPT = `${COMMON_SYSTEM}
 
-Redige une NOTIFICATION DE DATE (courrier formel bref) informant le destinataire d'une date precise (audience, comparution, rendez-vous...). Commence par une formule d'adresse au destinataire fourni ci-dessous, puis structure ainsi :
-- Objet clair de la notification
-- Rappel du dossier concerne
-- Date, et lieu si fourni, indiques clairement et integralement
-- Precisions complementaires si fournies
-- Formule de politesse
+Ecris comme un avocat beninois experimente redigeant lui-meme ce courrier pour son client - registre soutenu, ton neutre et factuel (jamais comminatoire comme une mise en demeure : une notification informe, elle ne menace pas).
 
-REGLE ABSOLUE : recopie la date fournie exactement, n'invente jamais une date, un lieu ou un dossier qui ne figure pas dans les informations fournies.`;
+Tu rediges UNIQUEMENT le corps d'un courrier de NOTIFICATION formelle. Ce texte s'insere dans une lettre deja mise en forme par ailleurs (en-tete, date, adresse au destinataire, mode de notification, formule d'appel, formule de politesse finale, signature) : ne redige JAMAIS ces elements. Les montants s'expriment toujours en Francs CFA (FCFA).
+
+Selon les informations fournies ci-dessous, redige dans l'un de ces trois cas (un seul s'applique) :
+
+CAS 1 - Si une date a notifier est fournie : redige un texte court et clair informant le destinataire de cette date (audience, comparution, rendez-vous...), avec le lieu si fourni, sans autre developpement.
+
+CAS 2 - Si les informations concernent une rupture de contrat : annonce formellement, au nom du client, la decision de mettre fin au contrat identifie (type de contrat, date de signature, article du contrat le permettant, duree de preavis). Si un mode de rupture "avec preavis" est indique avec une date de fin prevue : precise que le preavis court a compter de la reception de la presente et que les relations prendront fin a la date indiquee. Si un mode de rupture "pour faute" est indique avec un motif et une mise en demeure prealable : indique que la rupture est immediate en raison de ce manquement, en rappelant la mise en demeure restee infructueuse a la date fournie. Si des instructions de cloture sont fournies (restitution de materiel, arret des prestations, date limite...), mentionne-les dans un dernier paragraphe.
+
+CAS 3 - Sinon (notification generale) : redige un texte factuel de deux a trois paragraphes maximum a partir du contexte fourni.
+
+REGLE ABSOLUE : n'invente jamais une date, un montant, un article de contrat, un motif ou un fait qui ne figure pas dans les informations fournies ci-dessous.`;
 
 export function buildNotificationDateUserPrompt(facts: {
   nomAffaire: string;
   destinataire: string;
   objet: string;
-  dateNotifiee: string;
+  dateNotifiee?: string;
   lieu?: string;
   juridiction?: string;
+  typeContratConcerne?: string;
+  dateSignatureContrat?: string;
+  articleResiliation?: string;
+  dureePreavis?: string;
+  modeRupture?: string;
+  dateFinPrevue?: string;
+  motifFaute?: string;
+  dateMiseEnDemeurePrealable?: string;
+  instructionsCloture?: string;
+  contexte?: string;
   precisions?: string;
 }): string {
   const lignes = [
     `Affaire : ${facts.nomAffaire}`,
     `Destinataire : ${facts.destinataire}`,
     `Objet de la notification : ${facts.objet}`,
-    `Date a notifier : ${facts.dateNotifiee}`,
   ];
+  if (facts.dateNotifiee) lignes.push(`Date a notifier : ${facts.dateNotifiee}`);
   if (facts.lieu) lignes.push(`Lieu : ${facts.lieu}`);
   if (facts.juridiction) lignes.push(`Juridiction concernee : ${facts.juridiction}`);
+  if (facts.typeContratConcerne) lignes.push(`Type de contrat concerne par la rupture : ${facts.typeContratConcerne}`);
+  if (facts.dateSignatureContrat) lignes.push(`Date de signature du contrat : ${facts.dateSignatureContrat}`);
+  if (facts.articleResiliation) lignes.push(`Article du contrat permettant la resiliation : ${facts.articleResiliation}`);
+  if (facts.dureePreavis) lignes.push(`Duree du preavis contractuel : ${facts.dureePreavis}`);
+  if (facts.modeRupture === "avec_preavis") lignes.push(`Mode de rupture : avec preavis`);
+  if (facts.dateFinPrevue) lignes.push(`Date de fin prevue des relations contractuelles : ${facts.dateFinPrevue}`);
+  if (facts.modeRupture === "pour_faute") lignes.push(`Mode de rupture : pour faute, sans preavis`);
+  if (facts.motifFaute) lignes.push(`Motif de la faute : ${facts.motifFaute}`);
+  if (facts.dateMiseEnDemeurePrealable) lignes.push(`Date de la mise en demeure prealable restee infructueuse : ${facts.dateMiseEnDemeurePrealable}`);
+  if (facts.instructionsCloture) lignes.push(`Instructions de cloture : ${facts.instructionsCloture}`);
+  if (facts.contexte) lignes.push(`Contexte (notification generale) : ${facts.contexte}`);
   if (facts.precisions) lignes.push(`Precisions complementaires : ${facts.precisions}`);
   lignes.push(`Date du jour : ${dateActuelle()}`);
   return lignes.join("\n");
