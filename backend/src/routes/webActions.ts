@@ -490,6 +490,23 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
       });
       dossierId = dossier.id;
 
+      const cabinetPourAdresseNotes = await prisma.cabinet.findUnique({
+        where: { id: auth!.cabinetId },
+        select: { nom: true, adresse: true },
+      });
+
+      extraWebhookFields = {
+        numero_rg: form.numero_rg ?? null,
+        objet_litige: form.objet_litige ?? null,
+        nom_juge: form.nom_juge ?? null,
+        nom_greffier: form.nom_greffier ?? null,
+        nom_partie_adverse: form.nom_partie_adverse ?? null,
+        nom_avocat: form.nom_avocat ?? null,
+        nom_cabinet: cabinetPourAdresseNotes?.nom || null,
+        adresse_cabinet: cabinetPourAdresseNotes?.adresse || form.adresse_cabinet_manuel || null,
+        ville: form.ville ?? null,
+      };
+
       action = {
         type_action: "notes",
         categorie_texte: "Compte-rendu d'audience",
