@@ -37,7 +37,7 @@ import {
 } from "../prompts/webRedaction";
 import { ActionOutput } from "../schemas/action";
 import { searchJurisprudence, formatJurisprudenceContext } from "../services/rag";
-import { searchWeb, formatWebSearchContext } from "../services/tavily";
+import { searchWeb, formatWebSearchContext, WebSearchResult } from "../services/tavily";
 import { summarizeLongText } from "../services/resumePdf";
 import { translateText, extractTextFromDocument } from "../services/traduction";
 import { aiActionsLimiter } from "../middleware/rateLimit";
@@ -269,6 +269,44 @@ const JURIDICTIONS_BENIN_DOMAINES_CONFIANCE = [
   "ca-cot.justice.bj",
   "justice.gouv.bj",
 ];
+
+// Domaines de textes officiels et de doctrine reconnus pour le droit
+// beninois/OHADA - utilises par la Recherche juridique (droit general,
+// textes, doctrine), distincts des bases de decisions ci-dessus meme si
+// certains se recoupent (ohada.org, justice.gouv.bj).
+const RECHERCHE_JURIDIQUE_DOMAINES_CONFIANCE = [
+  "ohada.org",
+  "justice.gouv.bj",
+  "assemblee-nationale.bj",
+  "sgg.gouv.bj",
+  "droit-afrique.com",
+  "actualitesdroitohada.com",
+  "droit.cairn.info",
+];
+
+// Recherche Tavily en deux temps : une restreinte aux domaines de confiance
+// fournis, une generale pour completer (Tavily ne permet pas de "prioriser
+// puis se rabattre" en un seul appel - include_domains restreint totalement
+// les resultats). Les resultats des domaines de confiance sont places en
+// premier, dedupliques par URL avec la recherche generale.
+async function searchWebPrioritaire(
+  queryDomainesConfiance: string,
+  queryGenerale: string,
+  domainesConfiance: string[]
+): Promise<WebSearchResult[]> {
+  const [prioritaires, generaux] = await Promise.all([
+    searchWeb(queryDomainesConfiance, 5, domainesConfiance),
+    searchWeb(queryGenerale, 5),
+  ]);
+  const urlsVues = new Set<string>();
+  const combines: WebSearchResult[] = [];
+  for (const resultat of [...prioritaires, ...generaux]) {
+    if (urlsVues.has(resultat.url)) continue;
+    urlsVues.add(resultat.url);
+    combines.push(resultat);
+  }
+  return combines;
+}
 
 // Genre grammatical des juridictions beninoises proposees dans le
 // formulaire de plainte, pour composer une adresse correcte selon la
@@ -918,27 +956,11 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
       // toujours effectuee. La base de jurisprudence propre au cabinet
       // n'est incluse en plus que si explicitement cochee.
       //
-      // Tavily ne permet pas "prioriser ces domaines puis se rabattre sur le
-      // web general" en un seul appel (include_domains restreint totalement
-      // les resultats) - on fait donc deux recherches en parallele : une
-      // restreinte aux sources beninoises/OHADA officielles et reconnues
-      // (jurisprudence deja structuree, pas juste des pages generalistes),
-      // une generale pour completer. Les resultats des domaines de confiance
-      // sont places en premier, dedupliques par URL avec la recherche generale.
-      const webResults = await (async () => {
-        const [domainesConfiance, general] = await Promise.all([
-          searchWeb(`${form.theme} jurisprudence Bénin`, 5, JURIDICTIONS_BENIN_DOMAINES_CONFIANCE),
-          searchWeb(`jurisprudence ${form.theme} Bénin, zone OHADA, Afrique, France, francophonie`, 5),
-        ]);
-        const urlsVues = new Set<string>();
-        const combines: typeof domainesConfiance = [];
-        for (const resultat of [...domainesConfiance, ...general]) {
-          if (urlsVues.has(resultat.url)) continue;
-          urlsVues.add(resultat.url);
-          combines.push(resultat);
-        }
-        return combines;
-      })();
+      const webResults = await searchWebPrioritaire(
+        `${form.theme} jurisprudence Bénin`,
+        `jurisprudence ${form.theme} Bénin, zone OHADA, Afrique, France, francophonie`,
+        JURIDICTIONS_BENIN_DOMAINES_CONFIANCE
+      );
       const cabinetMatches = form.inclure_cabinet ? await searchJurisprudence(form.theme) : [];
       const redigé = await llm.redact(
         JURISPRUDENCE_SYSTEM_PROMPT,
@@ -983,7 +1005,11 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
         argumentaire: redigé,
       };
     } else if (form.type_action === "recherche_juridique") {
-      const resultats = await searchWeb(form.question);
+      const resultats = await searchWebPrioritaire(
+        form.question,
+        form.question,
+        RECHERCHE_JURIDIQUE_DOMAINES_CONFIANCE
+      );
       const redigé = await llm.redact(
         RECHERCHE_JURIDIQUE_SYSTEM_PROMPT,
         buildRechercheJuridiqueUserPrompt({
