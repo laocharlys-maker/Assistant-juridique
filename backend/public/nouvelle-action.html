@@ -628,7 +628,19 @@
         </label>
         <div id="contrat-normal-fields">
           <label>Type de contrat</label>
-          <input name="type_contrat" placeholder="ex: Contrat de prestation de services" />
+          <select name="type_contrat_select" id="contrat-type-select">
+            <option value="Contrat de prestation de services">Contrat de prestation de services</option>
+            <option value="Contrat de travail">Contrat de travail</option>
+            <option value="Contrat de bail">Contrat de bail</option>
+            <option value="Contrat de vente">Contrat de vente</option>
+            <option value="Contrat de société">Contrat de société</option>
+            <option value="Contrat de distribution / franchise">Contrat de distribution / franchise</option>
+            <option value="autre">Autre (précise ci-dessous)</option>
+          </select>
+          <div id="contrat-type-autre-wrap" style="display:none;">
+            <label>Précise le type de contrat</label>
+            <input name="type_contrat_autre" placeholder="ex: Contrat de partenariat commercial" />
+          </div>
           <label>Partie 1</label>
           <input name="partie_1" />
           <label>Partie 2</label>
@@ -639,7 +651,7 @@
           <textarea name="obligations"></textarea>
           <label>Durée</label>
           <input name="duree" placeholder="ex: 12 mois renouvelables" />
-          <label>Rémunération</label>
+          <label id="contrat-remuneration-label">Rémunération</label>
           <input name="remuneration" />
           <label>Date d'effet</label>
           <input name="date_effet" type="date" />
@@ -864,6 +876,30 @@
       wireProfessionToggle("plainte-type-client", "plainte-profession-client-wrap");
       wireProfessionToggle("plainte-type-defendeur", "plainte-civilite-defendeur-wrap");
       wireProfessionToggle("plainte-type-defendeur", "plainte-profession-defendeur-wrap");
+
+      // Le libelle "Remuneration" n'a pas de sens pour tous les types de
+      // contrat (ex: un bail a un loyer, pas une remuneration) - adapte
+      // selon le type choisi. Le champ envoye au backend reste
+      // "remuneration" dans tous les cas (le prompt parle deja de
+      // "contrepartie financiere", terme generique).
+      const REMUNERATION_LABELS = {
+        "Contrat de bail": "Loyer",
+        "Contrat de travail": "Salaire",
+        "Contrat de vente": "Prix de vente",
+        "Contrat de prestation de services": "Rémunération",
+        "Contrat de société": "Apports / répartition des bénéfices",
+        "Contrat de distribution / franchise": "Redevance / contrepartie financière",
+      };
+      const contratTypeSelect = document.getElementById("contrat-type-select");
+      const contratTypeAutreWrap = document.getElementById("contrat-type-autre-wrap");
+      const contratRemunerationLabel = document.getElementById("contrat-remuneration-label");
+      if (contratTypeSelect) {
+        contratTypeSelect.addEventListener("change", () => {
+          contratTypeAutreWrap.style.display = contratTypeSelect.value === "autre" ? "block" : "none";
+          contratRemunerationLabel.textContent =
+            REMUNERATION_LABELS[contratTypeSelect.value] || "Rémunération / contrepartie financière";
+        });
+      }
 
       const typePartieAdverseSelect = document.getElementById("conclusions-type-partie-adverse");
       const partieAdversePhysique = document.getElementById("conclusions-partie-adverse-physique");
@@ -1297,12 +1333,14 @@
       e.preventDefault();
       const fd = new FormData(forms.contrat);
       const estAvenant = fd.get("est_avenant") === "on";
+      const typeContratSelect = fd.get("type_contrat_select");
+      const typeContrat = typeContratSelect === "autre" ? fd.get("type_contrat_autre") || undefined : typeContratSelect || undefined;
       submitForm("contrat", {
         numero_dossier: fd.get("numero_dossier") || undefined,
         nom_affaire: fd.get("nom_affaire") || undefined,
         nom_client: fd.get("nom_client") || undefined,
         est_avenant: estAvenant,
-        type_contrat: fd.get("type_contrat") || undefined,
+        type_contrat: typeContrat,
         partie_1: fd.get("partie_1") || undefined,
         partie_2: fd.get("partie_2") || undefined,
         objet: fd.get("objet") || undefined,

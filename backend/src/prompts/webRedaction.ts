@@ -498,7 +498,7 @@ Sinon, redige un CONTRAT structure en articles numerotes, en n'incluant QUE les 
 - Article 1 - Objet du contrat
 - Article 2 - Obligations des parties
 - Article 3 - Duree
-- Article 4 - Remuneration / contrepartie financiere (uniquement si un montant est fourni)
+- Article 4 - Contrepartie financiere (uniquement si un montant est fourni) : adapte le vocabulaire au type de contrat fourni ci-dessous (ex: "Loyer" pour un bail, "Salaire" pour un contrat de travail, "Prix de vente" pour une vente, "Remuneration" pour une prestation de services) plutot que d'utiliser systematiquement le mot "Remuneration"
 - Article 5 - Conditions de resiliation (uniquement si fournies)
 - Articles suivants - Clauses particulieres fournies, une par article
 
@@ -533,7 +533,7 @@ Date du jour : ${dateActuelle()}`;
     `Obligations des parties : ${facts.obligations}`,
   ];
   if (facts.duree) lignes.push(`Duree : ${facts.duree}`);
-  if (facts.remuneration) lignes.push(`Remuneration : ${facts.remuneration}`);
+  if (facts.remuneration) lignes.push(`Contrepartie financiere (montant) : ${facts.remuneration}`);
   if (facts.dateEffet) lignes.push(`Date d'effet : ${facts.dateEffet}`);
   if (facts.conditionsResiliation) lignes.push(`Conditions de resiliation : ${facts.conditionsResiliation}`);
   if (facts.clausesParticulieres && facts.clausesParticulieres.length > 0) {
