@@ -116,6 +116,10 @@ model Cabinet {
   // total de documents generes par TOUS les comptes du cabinet confondus,
   // selon la formule souscrite. Null = pas de plafond.
   limiteDocumentsCabinetParMois       Int?      @map("limite_documents_cabinet_par_mois")
+  // Nombre max de comptes (tous roles confondus, titulaire inclus) que le
+  // cabinet peut creer, impose par la plateforme selon la formule
+  // souscrite. Null = pas de plafond.
+  limiteComptes                       Int?      @map("limite_comptes")
   // Fin de la periode d'acces accordee par la plateforme (essai gratuit,
   // periode payee...). Null = acces permanent. Une fois cette date passee,
   // la connexion est bloquee comme une suspension, jusqu'a ce que la

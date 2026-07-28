@@ -28,15 +28,12 @@
           </select>
         </div>
         <div style="display:flex; align-items:center; gap:8px;">
-          <label style="margin:0; font-weight:400;">Période :</label>
-          <select id="filter-periode" style="width:auto;">
-            <option value="">Tout</option>
-            <option value="1">Dernier mois</option>
-            <option value="2">2 derniers mois</option>
-            <option value="3" selected>3 derniers mois</option>
-            <option value="6">6 derniers mois</option>
-            <option value="12">12 derniers mois</option>
-          </select>
+          <label style="margin:0; font-weight:400;">Mois :</label>
+          <select id="filter-mois" style="width:auto;"><option value="">Tout</option></select>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <label style="margin:0; font-weight:400;">Type d'action :</label>
+          <select id="filter-type" style="width:auto;"><option value="">Tout</option></select>
         </div>
       </div>
       <div id="logs-list"><p class="muted">Chargement…</p></div>
@@ -55,15 +52,62 @@
       return new Date(iso).toLocaleString("fr-FR");
     }
 
+    const TYPE_LABELS = {
+      notes: "Compte-rendu d'audience",
+      redac: "Plaidoirie",
+      conclusions: "Conclusions",
+      assignation: "Assignation",
+      mise_en_demeure: "Mise en demeure",
+      jurisprudence: "Recherche de jurisprudence",
+      recherche_juridique: "Recherche juridique",
+      resume_pdf: "Résumé de jurisprudence",
+      veille_juridique: "Veille juridique",
+      traduction: "Traduction",
+      plainte: "Plainte",
+      contrat: "Contrat",
+      notification_date: "Notification",
+      requete: "Requête",
+      projet_ordonnance: "Projet d'ordonnance",
+      note_plaidoirie: "Note de plaidoirie",
+    };
+
+    function remplirFiltreMois() {
+      const select = document.getElementById("filter-mois");
+      const maintenant = new Date();
+      let options = '<option value="">Tout</option>';
+      for (let i = 0; i < 12; i++) {
+        const d = new Date(maintenant.getFullYear(), maintenant.getMonth() - i, 1);
+        const label = d.toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+        options += `<option value="${d.getMonth() + 1},${d.getFullYear()}">${escapeHtml(label)}</option>`;
+      }
+      select.innerHTML = options;
+    }
+
+    function remplirFiltreType() {
+      const select = document.getElementById("filter-type");
+      select.innerHTML =
+        '<option value="">Tout</option>' +
+        Object.entries(TYPE_LABELS)
+          .sort((a, b) => a[1].localeCompare(b[1]))
+          .map(([key, label]) => `<option value="${key}">${escapeHtml(label)}</option>`)
+          .join("");
+    }
+
     async function loadLogs() {
       const listEl = document.getElementById("logs-list");
       const statut = document.getElementById("filter-statut").value;
-      const periode = document.getElementById("filter-periode").value;
+      const moisValeur = document.getElementById("filter-mois").value;
+      const typeAction = document.getElementById("filter-type").value;
       listEl.innerHTML = '<p class="muted">Chargement…</p>';
       try {
         const params = new URLSearchParams();
         if (statut) params.set("statut", statut);
-        if (periode) params.set("depuisMois", periode);
+        if (moisValeur) {
+          const [mois, annee] = moisValeur.split(",");
+          params.set("mois", mois);
+          params.set("annee", annee);
+        }
+        if (typeAction) params.set("typeAction", typeAction);
         const qs = params.toString() ? `?${params.toString()}` : "";
         const logs = await apiFetch(`/api/admin/audit-logs${qs}`);
         if (logs.length === 0) {
@@ -94,11 +138,14 @@
       const me = await requireSession();
       if (!me) return;
       initLayout(me);
+      remplirFiltreMois();
+      remplirFiltreType();
       loadLogs();
     })();
 
     document.getElementById("filter-statut").addEventListener("change", loadLogs);
-    document.getElementById("filter-periode").addEventListener("change", loadLogs);
+    document.getElementById("filter-mois").addEventListener("change", loadLogs);
+    document.getElementById("filter-type").addEventListener("change", loadLogs);
   </script>
 </body>
 </html>

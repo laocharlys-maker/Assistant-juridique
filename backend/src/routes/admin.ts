@@ -47,6 +47,7 @@ adminRouter.get("/api/admin/cabinets", async (_req, res) => {
       plan: true,
       essaiExpireLe: true,
       limiteDocumentsCabinetParMois: true,
+      limiteComptes: true,
       createdAt: true,
       _count: { select: { users: true, dossiers: true } },
     },
@@ -183,6 +184,7 @@ const updateCabinetSchema = z.object({
   // Retire toute limite d'essai (acces permanent).
   retirerLimiteEssai: z.boolean().optional(),
   limiteDocumentsCabinetParMois: z.number().int().positive().max(100000).nullable().optional(),
+  limiteComptes: z.number().int().positive().max(10000).nullable().optional(),
 });
 
 adminRouter.patch("/api/admin/cabinets/:id", async (req, res) => {
@@ -240,10 +242,34 @@ adminRouter.patch("/api/admin/users/:id/quota", async (req, res) => {
   return res.json({ id: updated.id, limiteDocumentsParMois: updated.limiteDocumentsParMois });
 });
 
+const TYPES_ACTION = [
+  "notes",
+  "redac",
+  "jurisprudence",
+  "recherche_juridique",
+  "conclusions",
+  "assignation",
+  "mise_en_demeure",
+  "traduction",
+  "resume_pdf",
+  "veille_juridique",
+  "plainte",
+  "contrat",
+  "notification_date",
+  "requete",
+  "projet_ordonnance",
+  "note_plaidoirie",
+] as const;
+
 const auditLogsQuerySchema = z.object({
   statut: z.enum(["succes", "erreur"]).optional(),
   cabinetId: z.string().uuid().optional(),
-  depuisMois: z.coerce.number().int().positive().max(60).optional(),
+  typeAction: z.enum(TYPES_ACTION).optional(),
+  // Mois calendaire precis (1-12) + annee - filtre les entrees de CE
+  // mois-la uniquement, pas "les N derniers mois". Les deux doivent etre
+  // fournis ensemble, sinon ignores.
+  mois: z.coerce.number().int().min(1).max(12).optional(),
+  annee: z.coerce.number().int().min(2020).max(2100).optional(),
   limit: z.coerce.number().int().positive().max(500).default(200),
 });
 
@@ -256,15 +282,19 @@ adminRouter.get("/api/admin/audit-logs", async (req, res) => {
   if (!parsed.success) {
     return res.status(400).json({ error: "Requête invalide" });
   }
-  const { statut, cabinetId, depuisMois, limit } = parsed.data;
+  const { statut, cabinetId, typeAction, mois, annee, limit } = parsed.data;
 
-  const depuisDate = depuisMois ? new Date(new Date().setMonth(new Date().getMonth() - depuisMois)) : undefined;
+  let periode: { gte: Date; lt: Date } | undefined;
+  if (mois && annee) {
+    periode = { gte: new Date(Date.UTC(annee, mois - 1, 1)), lt: new Date(Date.UTC(annee, mois, 1)) };
+  }
 
   const logs = await prisma.auditLog.findMany({
     where: {
       statut,
-      timestamp: depuisDate ? { gte: depuisDate } : undefined,
+      timestamp: periode,
       action: {
+        typeAction,
         dossier: { cabinetId: cabinetId ?? { not: CABINET_PLATEFORME_ID } },
       },
     },

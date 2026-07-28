@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aurore — Facturation abonnement</title>
+  <link rel="icon" type="image/png" href="/favicon-256.png" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="page">
+    <div class="page-hero">
+      <div class="eyebrow">Plateforme</div>
+      <h1>Facturation abonnement</h1>
+      <p>Facturer un cabinet client pour son abonnement Aurore et lui envoyer la facture par email. Distinct des factures que le cabinet émet lui-même à ses propres clients.</p>
+    </div>
+
+    <div id="error" class="error"></div>
+
+    <div class="card">
+      <label>Cabinet</label>
+      <select id="cabinet-select"><option value="">Chargement…</option></select>
+    </div>
+
+    <div id="details-box"></div>
+  </div>
+  <script src="/js/api.js"></script>
+  <script src="/js/layout.js"></script>
+  <script>
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str ?? "";
+      return div.innerHTML;
+    }
+
+    function formatMontant(montant) {
+      return `${montant.toLocaleString("fr-FR")} F CFA`;
+    }
+
+    const STATUT_FACTURE_LABELS = { brouillon: "Brouillon", envoyee: "Envoyée", payee: "Payée" };
+
+    async function renderFacturesList(cabinetId, listEl) {
+      listEl.innerHTML = '<p class="muted" style="margin:0;">Chargement…</p>';
+      try {
+        const factures = await apiFetch(`/api/admin/cabinets/${cabinetId}/factures`);
+        if (factures.length === 0) {
+          listEl.innerHTML = '<p class="muted" style="margin:0;">Aucune facture d\'abonnement pour ce cabinet.</p>';
+          return;
+        }
+        listEl.innerHTML = factures
+          .map(
+            (f) => `
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; padding:8px 0; border-bottom:1px solid var(--border);">
+            <div>
+              <strong>${escapeHtml(f.numero)}</strong> — ${escapeHtml(f.description)} — ${formatMontant(f.montant)}
+              <div class="meta">${STATUT_FACTURE_LABELS[f.statut] || f.statut}${f.envoyeAt ? ` · envoyée le ${new Date(f.envoyeAt).toLocaleDateString("fr-FR")} à ${escapeHtml(f.destinataireEmail || "")}` : ""}</div>
+            </div>
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+              <a class="secondary btn-sm" href="/api/admin/factures/${f.id}/pdf" target="_blank" style="text-decoration:none;">PDF</a>
+              <button type="button" class="secondary btn-sm" data-envoyer-abonnement="${f.id}">Envoyer par email</button>
+              ${f.statut !== "payee" ? `<button type="button" class="ghost btn-sm" data-marquer-payee="${f.id}">Marquer payée</button>` : ""}
+            </div>
+          </div>`
+          )
+          .join("");
+
+        listEl.querySelectorAll("[data-envoyer-abonnement]").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            const email = prompt("Adresse email du cabinet pour l'envoi de la facture :");
+            if (!email) return;
+            try {
+              await apiFetch(`/api/admin/factures/${btn.dataset.envoyerAbonnement}/envoyer`, { method: "POST", body: { email } });
+              renderFacturesList(cabinetId, listEl);
+            } catch (err) {
+              showError(document.getElementById("error"), err.message);
+            }
+          });
+        });
+        listEl.querySelectorAll("[data-marquer-payee]").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            try {
+              await apiFetch(`/api/admin/factures/${btn.dataset.marquerPayee}`, { method: "PATCH", body: { statut: "payee" } });
+              renderFacturesList(cabinetId, listEl);
+            } catch (err) {
+              showError(document.getElementById("error"), err.message);
+            }
+          });
+        });
+      } catch (err) {
+        listEl.innerHTML = `<p class="error visible">${escapeHtml(err.message)}</p>`;
+      }
+    }
+
+    async function loadDetails(cabinetId) {
+      const box = document.getElementById("details-box");
+      if (!cabinetId) {
+        box.innerHTML = "";
+        return;
+      }
+      box.innerHTML = `
+        <div class="card">
+          <h2 style="margin-top:0;">Nouvelle facture</h2>
+          <form id="facture-form" style="display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end;">
+            <div><label style="margin:0; font-weight:400; font-size:0.82rem;">Description</label><input name="description" required placeholder="ex: Abonnement Aurore — Août 2026" style="margin:0; width:260px;" /></div>
+            <div><label style="margin:0; font-weight:400; font-size:0.82rem;">Montant (F CFA)</label><input name="montant" type="number" min="1" required style="margin:0; width:140px;" /></div>
+            <div><label style="margin:0; font-weight:400; font-size:0.82rem;">Échéance</label><input name="dateEcheance" type="date" style="margin:0;" /></div>
+            <label style="margin:0; display:flex; align-items:center; gap:4px; font-weight:400; font-size:0.82rem;"><input type="checkbox" name="appliquerTva" style="width:auto; margin:0;" /> TVA 18%</label>
+            <button type="submit" class="secondary">Créer la facture</button>
+          </form>
+        </div>
+        <div class="card">
+          <h2 style="margin-top:0;">Factures émises</h2>
+          <div id="factures-list"><p class="muted">Chargement…</p></div>
+        </div>
+      `;
+
+      document.getElementById("facture-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        try {
+          await apiFetch(`/api/admin/cabinets/${cabinetId}/factures`, {
+            method: "POST",
+            body: {
+              description: fd.get("description"),
+              montant: Number(fd.get("montant")),
+              appliquerTva: fd.get("appliquerTva") === "on",
+              dateEcheance: fd.get("dateEcheance") || undefined,
+            },
+          });
+          e.target.reset();
+          renderFacturesList(cabinetId, document.getElementById("factures-list"));
+        } catch (err) {
+          showError(document.getElementById("error"), err.message);
+        }
+      });
+
+      await renderFacturesList(cabinetId, document.getElementById("factures-list"));
+    }
+
+    async function loadCabinetsSelect(keepSelectedId) {
+      const cabinets = await apiFetch("/api/admin/cabinets");
+      const select = document.getElementById("cabinet-select");
+      select.innerHTML =
+        '<option value="">— Choisir un cabinet —</option>' +
+        cabinets.map((c) => `<option value="${c.id}"${c.id === keepSelectedId ? " selected" : ""}>${escapeHtml(c.nom)}</option>`).join("");
+      await loadDetails(keepSelectedId || "");
+    }
+
+    (async () => {
+      const me = await requireSession();
+      if (!me) return;
+      initLayout(me);
+      const params = new URLSearchParams(window.location.search);
+      const cabinetId = params.get("cabinet") || "";
+      try {
+        await loadCabinetsSelect(cabinetId);
+      } catch (err) {
+        showError(document.getElementById("error"), err.message);
+      }
+    })();
+
+    document.getElementById("cabinet-select").addEventListener("change", (e) => {
+      const url = new URL(window.location.href);
+      if (e.target.value) url.searchParams.set("cabinet", e.target.value);
+      else url.searchParams.delete("cabinet");
+      window.history.replaceState({}, "", url);
+      loadDetails(e.target.value);
+    });
+  </script>
+</body>
+</html>

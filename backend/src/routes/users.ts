@@ -13,6 +13,19 @@ const createUserSchema = z.object({
   email: z.string().email(),
 });
 
+// Plafond de comptes impose par la plateforme (selon la formule souscrite) -
+// verifie avant toute creation de compte, quel que soit le role. Renvoie
+// null si pas de plafond ou si la limite n'est pas atteinte.
+async function verifierLimiteComptes(cabinetId: string): Promise<string | null> {
+  const cabinet = await prisma.cabinet.findUnique({ where: { id: cabinetId }, select: { limiteComptes: true } });
+  if (!cabinet?.limiteComptes) return null;
+  const count = await prisma.user.count({ where: { cabinetId } });
+  if (count >= cabinet.limiteComptes) {
+    return `Limite de ${cabinet.limiteComptes} compte(s) atteinte pour votre cabinet. Contactez l'administrateur de la plateforme pour l'augmenter.`;
+  }
+  return null;
+}
+
 // Annuaire minimal du cabinet (id/nom/email/role), accessible a tout membre
 // authentifie - utilise par ex. pour choisir un destinataire interne lors
 // de l'envoi d'un document, sans exposer la hierarchie ou les acces.
@@ -55,6 +68,11 @@ usersRouter.post("/api/users", requireAuth, requireAvocat, async (req, res) => {
   }
   const { nom, email } = parsed.data;
 
+  const erreurLimite = await verifierLimiteComptes(req.auth!.cabinetId);
+  if (erreurLimite) {
+    return res.status(429).json({ error: erreurLimite });
+  }
+
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
     return res.status(409).json({ error: "Un compte existe déjà avec cet email" });
@@ -90,6 +108,11 @@ usersRouter.post("/api/users/avocats", requireAuth, requireAdmin, async (req, re
     return res.status(400).json({ error: "Formulaire invalide", details: parsed.error.issues });
   }
   const { nom, email } = parsed.data;
+
+  const erreurLimite = await verifierLimiteComptes(req.auth!.cabinetId);
+  if (erreurLimite) {
+    return res.status(429).json({ error: erreurLimite });
+  }
 
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
