@@ -2,6 +2,7 @@ import { prisma } from "../lib/prisma";
 import { callN8nWebhook } from "./n8n";
 import { buildRoleSemaineRecapEmailHtml } from "./roleSemaineRecapEmail";
 import { formatDateLongue } from "../utils/dateFormat";
+import { resolveCabinetEmailIdentite } from "./cabinetContact";
 
 // Lundi de la semaine contenant la date donnee (UTC). Duplique volontairement
 // de roleAudiences.ts pour ne pas faire dependre un service planifie d'un
@@ -46,6 +47,8 @@ export async function runRoleSemaineRecapPourCabinet(cabinetId: string): Promise
   vendredi.setUTCDate(vendredi.getUTCDate() + 4);
   const periode = `${formatDateLongue(debut, "UTC")} au ${formatDateLongue(vendredi, "UTC")}`;
 
+  const { replyToEmail } = await resolveCabinetEmailIdentite(cabinetId);
+
   for (const destinataire of destinataires) {
     const contenuHtml = buildRoleSemaineRecapEmailHtml({
       cabinetNom: cabinet.nom,
@@ -59,6 +62,7 @@ export async function runRoleSemaineRecapPourCabinet(cabinetId: string): Promise
       contenuHtml,
       destinataireEmail: destinataire.email,
       destinataireNom: destinataire.nom,
+      replyToEmail,
     });
   }
 }

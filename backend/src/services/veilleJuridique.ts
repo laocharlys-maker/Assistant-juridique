@@ -64,6 +64,8 @@ export async function runVeilleForCabinet(cabinetId: string, llm: LlmProvider): 
     where: { cabinetId, role: { in: ["titulaire", "avocat"] }, recoitVeille: true },
   });
 
+  const replyToEmail = cabinet.emailContact ?? titulaire.email;
+
   for (const destinataire of destinataires) {
     const contenuHtml = buildVeilleEmailHtml({
       cabinetNom: cabinet.nom,
@@ -80,6 +82,7 @@ export async function runVeilleForCabinet(cabinetId: string, llm: LlmProvider): 
       contenuHtml,
       destinataireEmail: destinataire.email,
       destinataireNom: destinataire.nom,
+      replyToEmail,
     });
     await logAuditStep(
       action.id,

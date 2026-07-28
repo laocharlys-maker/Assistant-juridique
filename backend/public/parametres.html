@@ -33,6 +33,22 @@
       </div>
 
       <div class="settings-card">
+        <div class="icon-badge"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v16H4z"/><path d="M22 6l-10 7L2 6"/></svg></div>
+        <h3>Email de contact</h3>
+        <p class="desc">Adresse à laquelle tes clients peuvent répondre quand ils reçoivent un email d'Aurore (facture, document...). Laisse vide pour utiliser automatiquement ton propre email de connexion.</p>
+        <form id="email-contact-form">
+          <label>Email de contact</label>
+          <input name="emailContact" type="email" placeholder="ex: contact@cabinet-koffi.bj" />
+          <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:6px;">
+            <button type="submit" class="btn-sm">Enregistrer</button>
+            <button type="button" class="secondary btn-sm" id="test-email-contact-btn">Envoyer un email de test</button>
+          </div>
+          <span id="email-contact-saved" class="muted" style="display:none; margin-left:10px;">Enregistré ✓</span>
+          <span id="email-contact-test-result" class="muted" style="display:none; margin-left:10px;"></span>
+        </form>
+      </div>
+
+      <div class="settings-card">
         <div class="icon-badge"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></div>
         <h3>En-tête du cabinet</h3>
         <p class="desc">Logo ou bandeau insérable en haut des documents, via une case à cocher — jamais automatiquement.</p>
@@ -148,6 +164,7 @@
         const cabinet = await apiFetch("/api/cabinet");
         document.querySelector('#cabinet-form input[name="nom"]').value = cabinet.nom;
         document.querySelector('#cabinet-form input[name="adresse"]').value = cabinet.adresse || "";
+        document.querySelector('#email-contact-form input[name="emailContact"]').value = cabinet.emailContact || "";
         renderEntete(cabinet.enteteUrl);
         document.querySelector('#retention-form input[name="archivageDelaiMois"]').value = cabinet.archivageDelaiMois;
         document.querySelector('#limite-documents-form input[name="limiteDocumentsCollaborateurParMois"]').value =
@@ -172,6 +189,42 @@
         });
         savedEl.style.display = "inline";
         setTimeout(() => { savedEl.style.display = "none"; }, 3000);
+      } catch (err) {
+        showError(errorEl, err.message);
+      }
+    });
+
+    document.getElementById("email-contact-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      hideError(errorEl);
+      const fd = new FormData(e.target);
+      const savedEl = document.getElementById("email-contact-saved");
+      savedEl.style.display = "none";
+      try {
+        await apiFetch("/api/cabinet/email-contact", {
+          method: "PATCH",
+          body: { emailContact: fd.get("emailContact") || null },
+        });
+        savedEl.style.display = "inline";
+        setTimeout(() => { savedEl.style.display = "none"; }, 3000);
+      } catch (err) {
+        showError(errorEl, err.message);
+      }
+    });
+
+    document.getElementById("test-email-contact-btn").addEventListener("click", async () => {
+      hideError(errorEl);
+      const resultEl = document.getElementById("email-contact-test-result");
+      resultEl.style.display = "none";
+      const email = document.querySelector('#email-contact-form input[name="emailContact"]').value.trim();
+      if (!email) {
+        showError(errorEl, "Saisis d'abord une adresse email à tester.");
+        return;
+      }
+      try {
+        await apiFetch("/api/cabinet/email-contact/test", { method: "POST", body: { email } });
+        resultEl.textContent = `Email de test envoyé à ${email} — vérifie ta boîte de réception.`;
+        resultEl.style.display = "inline";
       } catch (err) {
         showError(errorEl, err.message);
       }

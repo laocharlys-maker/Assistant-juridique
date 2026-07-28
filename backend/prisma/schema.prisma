@@ -94,6 +94,12 @@ model Cabinet {
   // certains documents generes (ex: conclusions), saisie une fois pour
   // toutes plutot que redemandee a chaque document.
   adresse                             String?
+  // Adresse de reponse (Reply-To) utilisee pour tous les emails envoyes
+  // depuis Aurore au nom de ce cabinet (facture, document, veille...) -
+  // permet aux destinataires de repondre directement au cabinet, meme si
+  // l'envoi technique passe par une adresse plateforme partagee. Null =
+  // repli automatique sur l'email du titulaire.
+  emailContact                        String?   @map("email_contact")
   // Image d'en-tete (logo/bandeau) inseree en haut des documents, a la
   // demande (case a cocher), jamais automatiquement.
   enteteUrl                           String?   @map("entete_url")

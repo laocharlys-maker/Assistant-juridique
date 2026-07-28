@@ -5,6 +5,7 @@ import { requireAuth } from "../middleware/requireAuth";
 import { env } from "../config/env";
 import { callN8nWebhook } from "../services/n8n";
 import { logAuditStep } from "../services/audit";
+import { resolveCabinetEmailIdentite } from "../services/cabinetContact";
 
 export const actionsCallbackRouter = Router();
 
@@ -120,6 +121,8 @@ actionsCallbackRouter.post("/api/actions/:id/envoyer", requireAuth, async (req, 
         : null;
   }
 
+  const { cabinetNom, replyToEmail } = await resolveCabinetEmailIdentite(req.auth!.cabinetId);
+
   const n8nResult = await callN8nWebhook("envoyer-email", {
     actionId: action.id,
     documentId: action.documentId,
@@ -127,6 +130,8 @@ actionsCallbackRouter.post("/api/actions/:id/envoyer", requireAuth, async (req, 
     nomAffaire: action.dossier.nomAffaire,
     signatureUrl,
     signatureAlignment: parsed.data.positionSignature,
+    cabinetNom,
+    replyToEmail,
   });
 
   await logAuditStep(

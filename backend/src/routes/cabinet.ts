@@ -5,6 +5,7 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
 import { requireAdmin } from "../middleware/roles";
+import { callN8nWebhook } from "../services/n8n";
 
 export const cabinetRouter = Router();
 
@@ -15,6 +16,7 @@ cabinetRouter.get("/api/cabinet", requireAuth, async (req, res) => {
       id: true,
       nom: true,
       adresse: true,
+      emailContact: true,
       enteteUrl: true,
       veilleSujets: true,
       veilleActive: true,
@@ -97,6 +99,50 @@ cabinetRouter.patch("/api/cabinet/limite-documents", requireAuth, requireAdmin, 
     data: { limiteDocumentsCollaborateurParMois: parsed.data.limiteDocumentsCollaborateurParMois },
   });
   return res.json({ limiteDocumentsCollaborateurParMois: cabinet.limiteDocumentsCollaborateurParMois });
+});
+
+const updateEmailContactSchema = z.object({
+  // Vide/absent = retire l'adresse dediee, repli automatique sur l'email
+  // du titulaire pour le Reply-To des emails envoyes au nom du cabinet.
+  emailContact: z.union([z.string().email(), z.literal("")]).nullable().optional(),
+});
+
+cabinetRouter.patch("/api/cabinet/email-contact", requireAuth, requireAdmin, async (req, res) => {
+  const parsed = updateEmailContactSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Adresse email invalide" });
+  }
+
+  const cabinet = await prisma.cabinet.update({
+    where: { id: req.auth!.cabinetId },
+    data: { emailContact: parsed.data.emailContact || null },
+  });
+  return res.json({ emailContact: cabinet.emailContact });
+});
+
+const testEmailContactSchema = z.object({
+  email: z.string().email(),
+});
+
+// Permet au titulaire de verifier lui-meme qu'une adresse de contact est
+// valide et consultee, avant meme de l'enregistrer (le champ envoye peut
+// differer de celui deja sauvegarde en base).
+cabinetRouter.post("/api/cabinet/email-contact/test", requireAuth, requireAdmin, async (req, res) => {
+  const parsed = testEmailContactSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Adresse email invalide" });
+  }
+
+  const cabinet = await prisma.cabinet.findUnique({ where: { id: req.auth!.cabinetId } });
+  const n8nResult = await callN8nWebhook("email-test", {
+    cabinetNom: cabinet?.nom ?? "",
+    destinataireEmail: parsed.data.email,
+  });
+
+  if (!n8nResult.ok) {
+    return res.status(502).json({ error: "Échec de l'envoi du test", detail: n8nResult.error });
+  }
+  return res.json({ ok: true });
 });
 
 const ENTETE_UPLOAD_DIR = path.join(__dirname, "..", "..", "public", "uploads", "entetes");

@@ -11,7 +11,8 @@ export type N8nWebhookName =
   | "creer-rappel-delai"
   | "veille-juridique"
   | "envoyer-facture"
-  | "role-semaine-recap";
+  | "role-semaine-recap"
+  | "email-test";
 
 export interface N8nCallResult {
   ok: boolean;

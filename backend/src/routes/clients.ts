@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
 import { callN8nWebhook } from "../services/n8n";
+import { resolveCabinetEmailIdentite } from "../services/cabinetContact";
 
 export const clientsRouter = Router();
 
@@ -141,6 +142,7 @@ clientsRouter.post("/api/clients/:id/envoyer-email", requireAuth, async (req, re
   }
 
   const auteur = await prisma.user.findUnique({ where: { id: req.auth!.userId } });
+  const { cabinetNom, replyToEmail } = await resolveCabinetEmailIdentite(req.auth!.cabinetId);
 
   const n8nResult = await callN8nWebhook("envoyer-email-client", {
     destinataireEmail: client.email,
@@ -151,6 +153,8 @@ clientsRouter.post("/api/clients/:id/envoyer-email", requireAuth, async (req, re
     pieceJointeNom: parsed.data.pieceJointeNom ?? null,
     envoyeParNom: auteur?.nom ?? null,
     envoyeParEmail: auteur?.email ?? null,
+    cabinetNom,
+    replyToEmail,
   });
 
   return res.json({ ok: true, n8nDispatched: n8nResult.ok });

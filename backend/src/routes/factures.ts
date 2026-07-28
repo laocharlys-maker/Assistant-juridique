@@ -6,6 +6,7 @@ import { requireAvocat, requireModule } from "../middleware/roles";
 import { buildFacturePdf } from "../services/facturePdf";
 import { resolveEntete } from "./documentExport";
 import { callN8nWebhook } from "../services/n8n";
+import { resolveCabinetEmailIdentite } from "../services/cabinetContact";
 
 export const facturesRouter = Router();
 
@@ -192,6 +193,8 @@ facturesRouter.post("/api/factures/:id/envoyer", requireAuth, requireAvocat, asy
     entete,
   });
 
+  const { replyToEmail } = await resolveCabinetEmailIdentite(req.auth!.cabinetId);
+
   const n8nResult = await callN8nWebhook("envoyer-facture", {
     factureId: facture.id,
     cabinetNom: cabinet?.nom ?? "",
@@ -200,6 +203,7 @@ facturesRouter.post("/api/factures/:id/envoyer", requireAuth, requireAvocat, asy
     description: facture.description,
     destinataireEmail: parsed.data.email,
     pdfBase64: buffer.toString("base64"),
+    replyToEmail,
   });
 
   if (!n8nResult.ok) {
