@@ -20,7 +20,7 @@ authRouter.post("/api/auth/login", loginLimiter, async (req, res) => {
   }
   const { email, password } = parsed.data;
 
-  const user = await prisma.user.findUnique({ where: { email } });
+  const user = await prisma.user.findUnique({ where: { email }, include: { cabinet: { select: { actif: true } } } });
   if (!user) {
     return res.status(401).json({ error: "Identifiants incorrects" });
   }
@@ -32,6 +32,10 @@ authRouter.post("/api/auth/login", loginLimiter, async (req, res) => {
 
   if (!user.actif) {
     return res.status(403).json({ error: "Ce compte a été désactivé. Contacte l'administrateur du cabinet." });
+  }
+
+  if (!user.cabinet.actif && user.role !== "super_admin") {
+    return res.status(403).json({ error: "L'accès de ce cabinet a été suspendu. Contactez l'administrateur de la plateforme." });
   }
 
   const token = signAuthToken({ userId: user.id, cabinetId: user.cabinetId, role: user.role });
@@ -67,6 +71,7 @@ authRouter.get("/api/auth/me", requireAuth, async (req, res) => {
       adresse: true,
       dateArrivee: true,
       responsable: { select: { nom: true, signatureUrl: true } },
+      cabinet: { select: { modulesDesactives: true } },
     },
   });
   if (!user) {
@@ -80,5 +85,7 @@ authRouter.get("/api/auth/me", requireAuth, async (req, res) => {
     ...user,
     responsable: user.responsable ? { nom: user.responsable.nom } : null,
     peutUtiliserSignatureResponsable,
+    modulesDesactives: user.cabinet.modulesDesactives,
+    cabinet: undefined,
   });
 });

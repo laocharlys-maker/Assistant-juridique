@@ -5,7 +5,7 @@ import { env } from "../config/env";
 export interface AuthTokenPayload {
   userId: string;
   cabinetId: string;
-  role: "titulaire" | "avocat" | "collaborateur";
+  role: "titulaire" | "avocat" | "collaborateur" | "super_admin";
 }
 
 export async function hashPassword(plain: string): Promise<string> {

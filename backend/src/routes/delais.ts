@@ -2,11 +2,17 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
-import { requireAdmin } from "../middleware/roles";
+import { requireAdmin, requireModule } from "../middleware/roles";
 import { computeDeadline } from "../services/delais";
 import { callN8nWebhook } from "../services/n8n";
 
 export const delaisRouter = Router();
+
+// Module payant : peut etre desactive par la plateforme pour un cabinet
+// dont la formule ne l'inclut pas. Chemins explicites obligatoires : sans
+// eux, ce middleware s'appliquerait a TOUTES les requetes de l'app (ce
+// routeur est monte sans prefixe sur app), pas seulement aux routes ici.
+delaisRouter.use(["/api/delais-types", "/api/delais"], requireAuth, requireModule("delais"));
 
 delaisRouter.get("/api/delais-types", requireAuth, async (req, res) => {
   const includeInactifs = req.query.all === "1" && req.auth!.role === "titulaire";

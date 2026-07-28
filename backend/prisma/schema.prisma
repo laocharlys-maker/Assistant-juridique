@@ -13,6 +13,12 @@ enum UserRole {
   titulaire
   avocat
   collaborateur
+  // Compte plateforme (l'exploitant d'Aurore, pas un cabinet client) :
+  // gere la liste des cabinets clients, leur acces et leurs modules actifs.
+  // N'appartient a aucune donnee metier d'un cabinet - seul le role compte,
+  // le cabinetId de ce compte n'est qu'un rattachement technique (voir
+  // scripts/bootstrapSuperAdmin.ts).
+  super_admin
 }
 
 enum Canal {
@@ -69,30 +75,39 @@ enum StatutRoleAudience {
 }
 
 model Cabinet {
-  id        String   @id @default(uuid())
-  nom       String
+  id                                  String   @id @default(uuid())
+  nom                                 String
+  // Acces coupe par la plateforme (impaye, resiliation...) : bloque la
+  // connexion de tous les utilisateurs du cabinet, sans supprimer aucune
+  // donnee - reactivable a tout moment.
+  actif                               Boolean  @default(true)
+  // Modules payants desactives pour ce cabinet (cle libre, ex:
+  // "facturation", "veille_juridique", "jurisprudence", "delais") - gere
+  // par la plateforme selon la formule souscrite. Absent de la liste =
+  // module actif.
+  modulesDesactives                   String[] @default([]) @map("modules_desactives")
   // Adresse postale du cabinet - utilisee notamment dans l'entete de
   // certains documents generes (ex: conclusions), saisie une fois pour
   // toutes plutot que redemandee a chaque document.
-  adresse   String?
+  adresse                             String?
   // Image d'en-tete (logo/bandeau) inseree en haut des documents, a la
   // demande (case a cocher), jamais automatiquement.
-  enteteUrl String?  @map("entete_url")
+  enteteUrl                           String?  @map("entete_url")
   // Sujets/mots-cles a surveiller pour la veille juridique hebdomadaire,
   // saisis en texte libre par le titulaire (separes par virgule ou saut de
   // ligne).
-  veilleSujets String? @map("veille_sujets")
+  veilleSujets                        String?  @map("veille_sujets")
   // La veille hebdomadaire n'est envoyee que si activee explicitement.
-  veilleActive Boolean @default(false) @map("veille_active")
+  veilleActive                        Boolean  @default(false) @map("veille_active")
   // Delai (en mois) apres la cloture d'un dossier avant archivage
   // automatique. N'entraine jamais de suppression, juste un rangement hors
   // de la liste par defaut.
-  archivageDelaiMois Int @default(6) @map("archivage_delai_mois")
+  archivageDelaiMois                  Int      @default(6) @map("archivage_delai_mois")
   // Nombre max de documents qu'un collaborateur peut generer par mois
   // calendaire (protection contre les abus/grosses factures IA). Null =
   // pas de limite. Ne s'applique jamais aux avocats/titulaire.
-  limiteDocumentsCollaborateurParMois Int? @map("limite_documents_collaborateur_par_mois")
-  createdAt DateTime @default(now()) @map("created_at")
+  limiteDocumentsCollaborateurParMois Int?     @map("limite_documents_collaborateur_par_mois")
+  createdAt                           DateTime @default(now()) @map("created_at")
 
   users         User[]
   dossiers      Dossier[]
@@ -122,45 +137,45 @@ model Huissier {
 }
 
 model User {
-  id                    String   @id @default(uuid())
-  cabinetId             String   @map("cabinet_id")
+  id                    String    @id @default(uuid())
+  cabinetId             String    @map("cabinet_id")
   nom                   String
-  email                 String   @unique
-  motDePasseHash        String   @map("mot_de_passe_hash")
-  role                  UserRole @default(collaborateur)
+  email                 String    @unique
+  motDePasseHash        String    @map("mot_de_passe_hash")
+  role                  UserRole  @default(collaborateur)
   // Avocat dont depend directement ce collaborateur (null pour un titulaire).
-  responsableId         String?  @map("responsable_id")
+  responsableId         String?   @map("responsable_id")
   // Chemin public de l'image de signature (ex: /uploads/signatures/xxx.png).
-  signatureUrl          String?  @map("signature_url")
+  signatureUrl          String?   @map("signature_url")
   // Un collaborateur peut, si son avocat responsable l'autorise, inserer
   // la signature de ce dernier lors de l'envoi d'un document.
-  partageSignatureActif Boolean  @default(false) @map("partage_signature_actif")
+  partageSignatureActif Boolean   @default(false) @map("partage_signature_actif")
   // Accorde par l'admin a un collaborateur : accede a TOUS les dossiers
   // du cabinet, pas seulement ceux de son responsable / des acces accordes.
-  accesTousDossiers     Boolean  @default(false) @map("acces_tous_dossiers")
+  accesTousDossiers     Boolean   @default(false) @map("acces_tous_dossiers")
   // Un avocat/titulaire peut se desinscrire de la veille juridique
   // hebdomadaire par email (sans effet pour un collaborateur).
-  recoitVeille          Boolean  @default(true) @map("recoit_veille")
+  recoitVeille          Boolean   @default(true) @map("recoit_veille")
   // Compte desactive par l'admin : bloque la connexion et invalide toute
   // session en cours, sans supprimer l'historique (dossiers/actions crees
   // par cette personne restent intacts).
-  actif                 Boolean  @default(true)
+  actif                 Boolean   @default(true)
   telephone             String?
   adresse               String?
   // Date d'arrivee au cabinet (peut differer de createdAt, saisie a la main
   // - utile pour quelqu'un qui a rejoint le cabinet avant l'existence du
   // compte Aurore).
   dateArrivee           DateTime? @map("date_arrivee")
-  createdAt             DateTime @default(now()) @map("created_at")
+  createdAt             DateTime  @default(now()) @map("created_at")
 
-  cabinet           Cabinet       @relation(fields: [cabinetId], references: [id])
-  responsable       User?         @relation("ResponsableCollaborateurs", fields: [responsableId], references: [id])
-  collaborateurs    User[]        @relation("ResponsableCollaborateurs")
-  dossiersCrees     Dossier[]     @relation("DossierCreatedBy")
-  actionsCreees     Action[]      @relation("ActionCreatedBy")
-  delaiTypesCrees   DelaiType[]
-  delaiCalculsCrees DelaiCalcul[]
-  facturesCreees    Facture[]     @relation("FactureCreatedBy")
+  cabinet             Cabinet        @relation(fields: [cabinetId], references: [id])
+  responsable         User?          @relation("ResponsableCollaborateurs", fields: [responsableId], references: [id])
+  collaborateurs      User[]         @relation("ResponsableCollaborateurs")
+  dossiersCrees       Dossier[]      @relation("DossierCreatedBy")
+  actionsCreees       Action[]       @relation("ActionCreatedBy")
+  delaiTypesCrees     DelaiType[]
+  delaiCalculsCrees   DelaiCalcul[]
+  facturesCreees      Facture[]      @relation("FactureCreatedBy")
   roleAudiencesCreees RoleAudience[] @relation("RoleAudienceCreatedBy")
 
   // Acces supplementaires accordes a CE collaborateur vers d'autres avocats.
@@ -196,27 +211,27 @@ model Client {
   // Personne physique ou morale (entreprise) - determine quels champs de la
   // fiche s'appliquent (une entreprise n'a pas de date de naissance, de
   // profession, etc.). "physique" par defaut pour les fiches existantes.
-  typePersonne String @default("physique") @map("type_personne")
+  typePersonne String  @default("physique") @map("type_personne")
   // Civilite (M./Mme/Mlle) - ne s'applique qu'aux personnes physiques,
   // utilisee notamment dans les actes generes (assignation, conclusions...).
   civilite     String?
 
   // Fiche d'identite detaillee - tous facultatifs, saisis au fil de l'eau
   // selon ce que le cabinet sait deja du client.
-  dateNaissance          DateTime? @map("date_naissance")
-  lieuNaissance          String?   @map("lieu_naissance")
+  dateNaissance         DateTime? @map("date_naissance")
+  lieuNaissance         String?   @map("lieu_naissance")
   // Numero de piece d'identite (CNI, passeport...) - utilise notamment dans
   // les actes d'huissier (assignation) qui doivent identifier precisement
   // le demandeur.
-  numeroPieceIdentite    String?   @map("numero_piece_identite")
-  quartierResidence      String?   @map("quartier_residence")
-  rue                    String?
-  autrePrecision         String?   @map("autre_precision")
-  maison                 String?
-  situationMatrimoniale  String?   @map("situation_matrimoniale")
-  fonction               String?
-  entreprise             String?
-  adresseEntreprise      String?   @map("adresse_entreprise")
+  numeroPieceIdentite   String?   @map("numero_piece_identite")
+  quartierResidence     String?   @map("quartier_residence")
+  rue                   String?
+  autrePrecision        String?   @map("autre_precision")
+  maison                String?
+  situationMatrimoniale String?   @map("situation_matrimoniale")
+  fonction              String?
+  entreprise            String?
+  adresseEntreprise     String?   @map("adresse_entreprise")
 
   cabinet  Cabinet   @relation(fields: [cabinetId], references: [id])
   dossiers Dossier[]
@@ -263,28 +278,28 @@ model DelaiCalcul {
 }
 
 model Dossier {
-  id            String   @id @default(uuid())
-  cabinetId     String   @map("cabinet_id")
-  clientId      String?  @map("client_id")
-  numeroDossier String   @map("numero_dossier")
-  nomAffaire    String   @map("nom_affaire")
-  nomClient     String   @map("nom_client")
-  nomJuridiction String? @map("nom_juridiction")
-  nomChambre    String?  @map("nom_chambre")
-  createdBy     String   @map("created_by")
-  statut        String   @default("actif")
+  id             String    @id @default(uuid())
+  cabinetId      String    @map("cabinet_id")
+  clientId       String?   @map("client_id")
+  numeroDossier  String    @map("numero_dossier")
+  nomAffaire     String    @map("nom_affaire")
+  nomClient      String    @map("nom_client")
+  nomJuridiction String?   @map("nom_juridiction")
+  nomChambre     String?   @map("nom_chambre")
+  createdBy      String    @map("created_by")
+  statut         String    @default("actif")
   // true pour les fiches creees par une recherche (jurisprudence /
   // recherche juridique) : ce ne sont pas de vrais dossiers clients.
-  estRecherche  Boolean  @default(false) @map("est_recherche")
+  estRecherche   Boolean   @default(false) @map("est_recherche")
   // Date de passage a "cloture" - sert de point de depart au delai
   // d'archivage automatique. Remise a null si le dossier est rouvert.
-  dateCloture   DateTime? @map("date_cloture")
+  dateCloture    DateTime? @map("date_cloture")
   // Rempli automatiquement une fois le delai d'archivage ecoule depuis
   // dateCloture. N'entraine jamais de suppression : juste masque de la
   // liste "Dossiers" par defaut, toujours consultable via "Archives".
-  archivedAt    DateTime? @map("archived_at")
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
+  archivedAt     DateTime? @map("archived_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
 
   cabinet       Cabinet        @relation(fields: [cabinetId], references: [id])
   client        Client?        @relation(fields: [clientId], references: [id])
@@ -333,18 +348,18 @@ model RoleAudience {
 // reste emise separement par l'avocat sur son propre compte SYGMEF. Ce
 // document sert au cabinet pour le suivi (montant, statut, envoi client).
 model Facture {
-  id          String  @id @default(uuid())
-  cabinetId   String  @map("cabinet_id")
+  id                String        @id @default(uuid())
+  cabinetId         String        @map("cabinet_id")
   // Optionnel : une facture (notamment une proforma) peut concerner un
   // client sans dossier encore ouvert.
-  dossierId   String? @map("dossier_id")
+  dossierId         String?       @map("dossier_id")
   // Nom du client tel que saisi/choisi au moment de la facture - independant
   // du dossier, pour couvrir le cas d'un prospect pas encore en base.
   // Nullable en base pour les factures creees avant l'ajout de ce champ
   // (toujours fourni obligatoirement a la creation via l'API).
-  clientNom   String? @map("client_nom")
-  numero      String
-  description String
+  clientNom         String?       @map("client_nom")
+  numero            String
+  description       String
   // Montant Hors Taxes en Francs CFA.
   montant           Int
   appliquerTva      Boolean       @default(false) @map("appliquer_tva")
@@ -367,35 +382,35 @@ model Facture {
 }
 
 model Action {
-  id                String       @id @default(uuid())
-  dossierId         String       @map("dossier_id")
-  typeAction        TypeAction   @map("type_action")
-  canal             Canal
-  contenuGenere     String?      @map("contenu_genere")
-  dateAudience      DateTime?    @map("date_audience")
-  prochaineAudience DateTime?    @map("prochaine_audience")
-  piecesPrevoir     String?      @map("pieces_prevoir")
+  id                    String       @id @default(uuid())
+  dossierId             String       @map("dossier_id")
+  typeAction            TypeAction   @map("type_action")
+  canal                 Canal
+  contenuGenere         String?      @map("contenu_genere")
+  dateAudience          DateTime?    @map("date_audience")
+  prochaineAudience     DateTime?    @map("prochaine_audience")
+  piecesPrevoir         String?      @map("pieces_prevoir")
   // Le cabinet a explicitement decide de ne pas reprendre cette prochaine
   // audience dans le role de la semaine (evite qu'une suggestion ecartee
   // ne revienne systematiquement).
-  ignorerSuggestionRole Boolean  @default(false) @map("ignorer_suggestion_role")
+  ignorerSuggestionRole Boolean      @default(false) @map("ignorer_suggestion_role")
   // Statut de validation/envoi (remplace l'envoi automatique par mail).
-  statut            StatutAction @default(brouillon)
-  documentUrl       String?      @map("document_url")
-  documentId        String?      @map("document_id")
-  destinataireEmail String?      @map("destinataire_email")
-  envoyeAt          DateTime?    @map("envoye_at")
+  statut                StatutAction @default(brouillon)
+  documentUrl           String?      @map("document_url")
+  documentId            String?      @map("document_id")
+  destinataireEmail     String?      @map("destinataire_email")
+  envoyeAt              DateTime?    @map("envoye_at")
   // Copie brute des champs saisis dans le formulaire (uniquement pour les
   // Conclusions pour l'instant) - permet de pre-remplir un autre document
   // du meme dossier (ex: Note de plaidoirie) sans tout ressaisir.
-  champsFormulaire  Json?        @map("champs_formulaire")
+  champsFormulaire      Json?        @map("champs_formulaire")
   // Nom "humain" du document genere (ex: "Assignation_KODJO Marcelline
   // contre AGBODJAN Serge") - distingue chaque document du meme type par
   // les noms des parties, utilise pour le titre du Google Doc (n8n) et pour
   // le nom de fichier des exports Word/PDF locaux.
-  nomDocument       String?      @map("nom_document")
-  createdBy         String       @map("created_by")
-  createdAt         DateTime     @default(now()) @map("created_at")
+  nomDocument           String?      @map("nom_document")
+  createdBy             String       @map("created_by")
+  createdAt             DateTime     @default(now()) @map("created_at")
 
   dossier   Dossier    @relation(fields: [dossierId], references: [id])
   creePar   User       @relation("ActionCreatedBy", fields: [createdBy], references: [id])

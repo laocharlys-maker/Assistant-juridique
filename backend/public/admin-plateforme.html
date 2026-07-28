@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aurore — Administration plateforme</title>
+  <link rel="icon" type="image/png" href="/favicon-256.png" />
+  <link rel="stylesheet" href="/style.css" />
+  <style>
+    .cabinet-item { border-bottom: 1px solid var(--border); padding: 16px 0; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+    .cabinet-item:last-child { border-bottom: none; }
+    .module-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border); font-size: 0.78rem; cursor: pointer; user-select: none; background: var(--panel); }
+    .module-chip.actif { background: var(--success-tint); color: var(--success); border-color: transparent; }
+    .module-chip.inactif { background: var(--hairline); color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="page-hero">
+      <div class="eyebrow">Plateforme</div>
+      <h1>Cabinets clients</h1>
+      <p>Créer de nouveaux cabinets, suspendre un accès, activer ou désactiver des modules selon la formule souscrite.</p>
+    </div>
+
+    <div id="error" class="error"></div>
+
+    <div style="display:flex; align-items:center; justify-content:flex-end; margin-bottom:16px;">
+      <button type="button" class="secondary" id="toggle-add-btn">+ Nouveau cabinet</button>
+    </div>
+
+    <div class="collapse-panel" id="add-panel">
+      <div class="collapse-panel-inner">
+        <form id="add-form">
+          <label>Nom du cabinet</label>
+          <input name="nom" required placeholder="ex: Cabinet KOFFI & ASSOCIES" />
+          <label>Adresse (optionnel)</label>
+          <input name="adresse" placeholder="ex: Cotonou, quartier..." />
+          <label>Nom du titulaire (premier compte créé)</label>
+          <input name="titulaireNom" required placeholder="ex: Maître Koffi" />
+          <label>Email du titulaire</label>
+          <input name="titulaireEmail" type="email" required placeholder="ex: contact@cabinet-koffi.bj" />
+          <div style="display:flex; gap:10px; margin-top:18px;">
+            <button type="submit">Créer le cabinet</button>
+            <button type="button" class="ghost" id="cancel-add-btn">Annuler</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div id="nouveau-compte-box"></div>
+
+    <div class="card">
+      <div id="cabinets-content"><p class="muted">Chargement…</p></div>
+    </div>
+  </div>
+  <script src="/js/api.js"></script>
+  <script src="/js/layout.js"></script>
+  <script>
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str ?? "";
+      return div.innerHTML;
+    }
+
+    const MODULES = [
+      { key: "facturation", label: "Facturation" },
+      { key: "veille_juridique", label: "Veille juridique" },
+      { key: "jurisprudence", label: "Jurisprudence" },
+      { key: "delais", label: "Délais" },
+    ];
+
+    async function loadCabinets() {
+      const errorEl = document.getElementById("error");
+      hideError(errorEl);
+      const contentEl = document.getElementById("cabinets-content");
+      contentEl.innerHTML = '<p class="muted">Chargement…</p>';
+      try {
+        const cabinets = await apiFetch("/api/admin/cabinets");
+        if (cabinets.length === 0) {
+          contentEl.innerHTML = '<p class="muted">Aucun cabinet client pour l\'instant.</p>';
+          return;
+        }
+        contentEl.innerHTML = cabinets
+          .map(
+            (c) => `
+          <div class="cabinet-item">
+            <div>
+              <strong>${escapeHtml(c.nom)}</strong>
+              <span class="badge ${c.actif ? "badge-a_jour" : "badge-echeance_proche"}" style="margin-left:8px;">${c.actif ? "Actif" : "Suspendu"}</span>
+              <div class="meta">${c._count.users} utilisateur(s) · ${c._count.dossiers} dossier(s) · créé le ${new Date(c.createdAt).toLocaleDateString("fr-FR")}</div>
+              <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;">
+                ${MODULES.map((m) => {
+                  const actif = !c.modulesDesactives.includes(m.key);
+                  return `<span class="module-chip ${actif ? "actif" : "inactif"}" data-toggle-module="${c.id}" data-module-key="${m.key}">${actif ? "✓" : "✕"} ${escapeHtml(m.label)}</span>`;
+                }).join("")}
+              </div>
+            </div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <button type="button" class="secondary btn-sm" data-toggle-actif="${c.id}" data-actif="${c.actif}">${c.actif ? "Suspendre" : "Réactiver"}</button>
+            </div>
+          </div>`
+          )
+          .join("");
+
+        contentEl.querySelectorAll("[data-toggle-actif]").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            const actif = btn.dataset.actif === "true";
+            if (actif && !confirm("Suspendre l'accès de ce cabinet ? Tous ses utilisateurs seront bloqués immédiatement (leurs données restent intactes).")) return;
+            try {
+              await apiFetch(`/api/admin/cabinets/${btn.dataset.toggleActif}`, {
+                method: "PATCH",
+                body: { actif: !actif },
+              });
+              loadCabinets();
+            } catch (err) {
+              showError(errorEl, err.message);
+            }
+          });
+        });
+
+        contentEl.querySelectorAll("[data-toggle-module]").forEach((chip) => {
+          chip.addEventListener("click", async () => {
+            const cabinetId = chip.dataset.toggleModule;
+            const cabinet = cabinets.find((c) => c.id === cabinetId);
+            const key = chip.dataset.moduleKey;
+            const estActif = !cabinet.modulesDesactives.includes(key);
+            const nouvelleListe = estActif
+              ? [...cabinet.modulesDesactives, key]
+              : cabinet.modulesDesactives.filter((k) => k !== key);
+            try {
+              await apiFetch(`/api/admin/cabinets/${cabinetId}`, {
+                method: "PATCH",
+                body: { modulesDesactives: nouvelleListe },
+              });
+              loadCabinets();
+            } catch (err) {
+              showError(errorEl, err.message);
+            }
+          });
+        });
+      } catch (err) {
+        showError(errorEl, err.message);
+        contentEl.innerHTML = "";
+      }
+    }
+
+    (async () => {
+      const me = await requireSession();
+      if (!me) return;
+      initLayout(me);
+      loadCabinets();
+    })();
+
+    const addPanel = document.getElementById("add-panel");
+    const toggleAddBtn = document.getElementById("toggle-add-btn");
+    toggleAddBtn.addEventListener("click", () => {
+      addPanel.classList.toggle("open");
+      toggleAddBtn.textContent = addPanel.classList.contains("open") ? "Réduire" : "+ Nouveau cabinet";
+    });
+    document.getElementById("cancel-add-btn").addEventListener("click", () => {
+      addPanel.classList.remove("open");
+      toggleAddBtn.textContent = "+ Nouveau cabinet";
+    });
+
+    document.getElementById("add-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const errorEl = document.getElementById("error");
+      hideError(errorEl);
+      const fd = new FormData(e.target);
+      try {
+        const result = await apiFetch("/api/admin/cabinets", {
+          method: "POST",
+          body: {
+            nom: fd.get("nom"),
+            adresse: fd.get("adresse") || undefined,
+            titulaireNom: fd.get("titulaireNom"),
+            titulaireEmail: fd.get("titulaireEmail"),
+          },
+        });
+        e.target.reset();
+        addPanel.classList.remove("open");
+        toggleAddBtn.textContent = "+ Nouveau cabinet";
+        document.getElementById("nouveau-compte-box").innerHTML = `
+          <div class="card" style="border-color: var(--accent);">
+            <h2 style="margin-top:0;">Cabinet créé — identifiants à transmettre</h2>
+            <p class="muted">Ce mot de passe ne sera plus jamais affiché : note-le maintenant.</p>
+            <p><strong>Email :</strong> ${escapeHtml(result.titulaire.email)}<br />
+            <strong>Mot de passe :</strong> ${escapeHtml(result.titulaire.password)}</p>
+          </div>`;
+        loadCabinets();
+      } catch (err) {
+        showError(errorEl, err.message);
+      }
+    });
+  </script>
+</body>
+</html>

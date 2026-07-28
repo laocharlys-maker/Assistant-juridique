@@ -20,6 +20,7 @@ import { facturesRouter } from "./routes/factures";
 import { auditLogsRouter } from "./routes/auditLogs";
 import { roleAudiencesRouter } from "./routes/roleAudiences";
 import { huissiersRouter } from "./routes/huissiers";
+import { adminRouter } from "./routes/admin";
 import { globalApiLimiter } from "./middleware/rateLimit";
 
 export const app = express();
@@ -55,6 +56,7 @@ app.use(facturesRouter);
 app.use(auditLogsRouter);
 app.use(roleAudiencesRouter);
 app.use(huissiersRouter);
+app.use(adminRouter);
 app.use(
   express.static(path.join(__dirname, "..", "public"), {
     // CSS/JS/images partages par toutes les pages (multi-pages, pas de SPA) :

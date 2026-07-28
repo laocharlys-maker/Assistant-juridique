@@ -36,7 +36,7 @@ export async function runRoleSemaineRecapPourCabinet(cabinetId: string): Promise
   if (audiences.length === 0) return;
 
   const cabinet = await prisma.cabinet.findUnique({ where: { id: cabinetId } });
-  if (!cabinet) return;
+  if (!cabinet || !cabinet.actif) return;
 
   const destinataires = await prisma.user.findMany({
     where: { cabinetId, role: { in: ["titulaire", "avocat"] } },

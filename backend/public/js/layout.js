@@ -27,8 +27,8 @@ const NAV_ITEMS = [
   { href: "/nouvelle-action.html", label: "Nouvelle action", roles: ["titulaire", "avocat", "collaborateur"], group: "Travail", icon: "plus" },
   { href: "/dashboard.html", label: "Documents générés", roles: ["titulaire", "avocat", "collaborateur"], group: "Travail", icon: "docs" },
   { href: "/clients.html", label: "Clients", roles: ["titulaire", "avocat", "collaborateur"], group: "Travail", icon: "clients" },
-  { href: "/jurisprudence-base.html", label: "Jurisprudence", roles: ["titulaire", "avocat", "collaborateur"], group: "Travail", icon: "book" },
-  { href: "/delais-calculateur.html", label: "Délais", roles: ["titulaire", "avocat", "collaborateur"], group: "Travail", icon: "clock" },
+  { href: "/jurisprudence-base.html", label: "Jurisprudence", roles: ["titulaire", "avocat", "collaborateur"], group: "Travail", icon: "book", moduleKey: "jurisprudence" },
+  { href: "/delais-calculateur.html", label: "Délais", roles: ["titulaire", "avocat", "collaborateur"], group: "Travail", icon: "clock", moduleKey: "delais" },
   {
     label: "Équipe",
     roles: ["titulaire", "avocat"],
@@ -39,10 +39,11 @@ const NAV_ITEMS = [
       { href: "/collaborateurs.html?filtre=collaborateur", label: "Collaborateurs" },
     ],
   },
-  { href: "/factures.html", label: "Facturation", roles: ["titulaire", "avocat"], group: "Cabinet", icon: "invoice" },
-  { href: "/veille-juridique.html", label: "Veille juridique", roles: ["titulaire", "avocat"], group: "Cabinet", icon: "radar" },
+  { href: "/factures.html", label: "Facturation", roles: ["titulaire", "avocat"], group: "Cabinet", icon: "invoice", moduleKey: "facturation" },
+  { href: "/veille-juridique.html", label: "Veille juridique", roles: ["titulaire", "avocat"], group: "Cabinet", icon: "radar", moduleKey: "veille_juridique" },
   { href: "/audit-logs.html", label: "Journal d'audit", roles: ["titulaire"], group: "Cabinet", icon: "audit" },
   { href: "/parametres.html", label: "Paramètres", roles: ["titulaire"], group: "Cabinet", icon: "settings" },
+  { href: "/admin-plateforme.html", label: "Cabinets clients", roles: ["super_admin"], group: "Plateforme", icon: "team" },
 ];
 
 const THEME_STORAGE_KEY = "aurore-theme";
@@ -72,7 +73,10 @@ function initLayout(me) {
   sidebar.className = "sidebar";
   sidebar.id = "app-sidebar";
 
-  const items = NAV_ITEMS.filter((item) => item.roles.includes(me.role));
+  const modulesDesactives = me.modulesDesactives || [];
+  const items = NAV_ITEMS.filter(
+    (item) => item.roles.includes(me.role) && (!item.moduleKey || !modulesDesactives.includes(item.moduleKey))
+  );
   let navHtml = "";
   let lastGroup = null;
   items.forEach((item, idx) => {

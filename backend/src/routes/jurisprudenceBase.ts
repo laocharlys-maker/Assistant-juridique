@@ -3,9 +3,16 @@ import crypto from "node:crypto";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
+import { requireModule } from "../middleware/roles";
 import { embedText, toVectorLiteral } from "../services/embeddings";
 
 export const jurisprudenceBaseRouter = Router();
+
+// Module payant : peut etre desactive par la plateforme pour un cabinet
+// dont la formule ne l'inclut pas. Chemin explicite obligatoire : sans lui,
+// ce middleware s'appliquerait a TOUTES les requetes de l'app (ce routeur
+// est monte sans prefixe sur app), pas seulement a /api/jurisprudence-base*.
+jurisprudenceBaseRouter.use("/api/jurisprudence-base", requireAuth, requireModule("jurisprudence"));
 
 jurisprudenceBaseRouter.get("/api/jurisprudence-base", requireAuth, async (_req, res) => {
   const entries = await prisma.jurisprudenceChunk.findMany({

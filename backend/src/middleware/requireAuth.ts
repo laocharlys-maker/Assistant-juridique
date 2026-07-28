@@ -28,14 +28,21 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 
   try {
     // Verifie a chaque requete que le compte n'a pas ete desactive entre
-    // temps par l'admin (le token JWT lui-meme reste valide 7 jours).
+    // temps par l'admin (le token JWT lui-meme reste valide 7 jours), et
+    // que l'acces du cabinet n'a pas ete coupe par la plateforme depuis
+    // (impaye, resiliation...).
     const user = await prisma.user.findUnique({
       where: { id: payload.userId },
-      select: { actif: true },
+      select: { actif: true, cabinet: { select: { actif: true } } },
     });
     if (!user || !user.actif) {
       res.clearCookie("aurore_session");
       res.status(401).json({ error: "Ce compte a été désactivé." });
+      return;
+    }
+    if (!user.cabinet.actif && payload.role !== "super_admin") {
+      res.clearCookie("aurore_session");
+      res.status(403).json({ error: "L'accès de ce cabinet a été suspendu. Contactez l'administrateur de la plateforme." });
       return;
     }
   } catch (error) {

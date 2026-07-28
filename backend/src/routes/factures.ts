@@ -2,12 +2,18 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
-import { requireAvocat } from "../middleware/roles";
+import { requireAvocat, requireModule } from "../middleware/roles";
 import { buildFacturePdf } from "../services/facturePdf";
 import { resolveEntete } from "./documentExport";
 import { callN8nWebhook } from "../services/n8n";
 
 export const facturesRouter = Router();
+
+// Module payant : peut etre desactive par la plateforme pour un cabinet
+// dont la formule ne l'inclut pas. Chemin explicite obligatoire : sans lui,
+// ce middleware s'appliquerait a TOUTES les requetes de l'app (ce routeur
+// est monte sans prefixe sur app), pas seulement a /api/factures*.
+facturesRouter.use("/api/factures", requireAuth, requireModule("facturation"));
 
 // Prefixe distinct pour les proforma - series de numerotation independantes,
 // pour qu'une proforma ne "consomme" jamais un numero de facture definitive.

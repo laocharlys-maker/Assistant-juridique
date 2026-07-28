@@ -14,7 +14,10 @@ export { splitSujets, periodeLabel };
 
 export async function runVeilleForCabinet(cabinetId: string, llm: LlmProvider): Promise<void> {
   const cabinet = await prisma.cabinet.findUnique({ where: { id: cabinetId } });
-  if (!cabinet || !cabinet.veilleActive || !cabinet.veilleSujets?.trim()) return;
+  if (!cabinet || !cabinet.actif || !cabinet.veilleActive || !cabinet.veilleSujets?.trim()) return;
+  // Module desactive par la plateforme (formule ne l'incluant pas) : prime
+  // sur l'activation propre au cabinet.
+  if (cabinet.modulesDesactives.includes("veille_juridique")) return;
 
   const themes = splitSujets(cabinet.veilleSujets);
   if (themes.length === 0) return;
