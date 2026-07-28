@@ -53,6 +53,12 @@ export function buildFormalisme(
     unknown
   >;
 
+  // Aucune donnee composee disponible (document cree avant l'ajout de
+  // champsDocument, ou type sans champs saisis) : on ne construit pas un
+  // formalisme a moitie vide (virgules orphelines, lignes creuses) - on
+  // revient a l'affichage generique existant (voir buildDocx/buildPdf).
+  if (Object.keys(c).length === 0) return null;
+
   switch (typeAction) {
     case "notes": {
       const juridiction = ligne(s(c, "nom_juridiction"), s(c, "nom_chambre"));
@@ -77,28 +83,35 @@ export function buildFormalisme(
     }
 
     case "assignation": {
+      const identiteClient = ligne(
+        s(c, "civilite_nom_client") || ctx.nomClient,
+        s(c, "profession_client"),
+        s(c, "informations_client"),
+        s(c, "adresse_client")
+      );
+      const electionDomicile = s(c, "nom_avocat")
+        ? `, élisant domicile au cabinet de son conseil, ${s(c, "nom_avocat")}, Avocat au Barreau du Bénin${
+            s(c, "adresse_cabinet") ? `, ${s(c, "adresse_cabinet")}` : ""
+          },`
+        : ",";
+      const defendeur = s(c, "adresse_defendeur")
+        ? `${s(c, "nom_defendeur")}, demeurant à ${s(c, "adresse_defendeur")}`
+        : s(c, "nom_defendeur");
+      const juridictionPhrase =
+        s(c, "nom_chambre") || (s(c, "nom_juridiction") && `le ${s(c, "nom_juridiction")}`);
       const requerant = bloc(
         "ASSIGNATION",
         `L'AN ${new Date().getFullYear()}, et le ${ctx.dateLongue},`,
         "À LA REQUÊTE DE :",
-        `${ligne(
-          s(c, "civilite_nom_client"),
-          s(c, "profession_client"),
-          s(c, "informations_client"),
-          s(c, "adresse_client")
-        )}, élisant domicile au cabinet de son conseil, ${s(c, "nom_avocat")}, Avocat au Barreau du Bénin, ${s(
-          c,
-          "adresse_cabinet"
-        )},`,
+        `${identiteClient}${electionDomicile}`,
         s(c, "nom_huissier") &&
-          `J'AI, ${s(c, "nom_huissier")}, COMMISSAIRE DE JUSTICE près le ${s(c, "nom_juridiction")} de ${
+          `J'AI, ${s(c, "nom_huissier")}, COMMISSAIRE DE JUSTICE près le ${s(c, "nom_juridiction") || "Tribunal"} de ${
             ctx.ville
-          }, y demeurant et domicilié à ${s(c, "adresse_cabinet")} SOUSSIGNÉ :`,
-        "DONNÉ ASSIGNATION À :",
-        `${s(c, "nom_defendeur")}, demeurant à ${s(c, "adresse_defendeur")}`,
-        `De comparaître par-devant Monsieur le Président et les Juges composant ${
-          s(c, "nom_chambre") || (s(c, "nom_juridiction") && `le ${s(c, "nom_juridiction")}`)
-        } de ${ctx.ville}, siégeant en l'une des salles ordinaires des audiences dudit Tribunal.`,
+          }${s(c, "adresse_cabinet") ? `, y demeurant et domicilié à ${s(c, "adresse_cabinet")}` : ""} SOUSSIGNÉ :`,
+        defendeur && "DONNÉ ASSIGNATION À :",
+        defendeur,
+        juridictionPhrase &&
+          `De comparaître par-devant Monsieur le Président et les Juges composant ${juridictionPhrase} de ${ctx.ville}, siégeant en l'une des salles ordinaires des audiences dudit Tribunal.`,
         "TRÈS IMPORTANT — AVERTISSEMENT AU DÉFENDEUR :",
         "Conformément à la loi, vous êtes tenu de constituer un avocat dans un délai de 15 jours à compter de la date du présent acte pour vous représenter. À défaut, un jugement pourra être rendu contre vous sur les seuls éléments fournis par votre adversaire."
       );
@@ -109,7 +122,10 @@ export function buildFormalisme(
     }
 
     case "mise_en_demeure": {
-      const destinataire = ligne(s(c, "civilite_nom_destinataire"), s(c, "profession_destinataire"));
+      const destinataire = ligne(
+        s(c, "civilite_nom_destinataire") || s(c, "destinataire"),
+        s(c, "profession_destinataire")
+      );
       return {
         avant: bloc(
           s(c, "mode_notification"),
@@ -137,24 +153,23 @@ export function buildFormalisme(
         : "";
       return {
         avant: bloc(
-          s(c, "civilite_nom_client"),
+          s(c, "civilite_nom_client") || ctx.nomClient,
           s(c, "profession_client"),
           s(c, "adresse_client") && `Demeurant à : ${s(c, "adresse_client")}`,
           "À",
           s(c, "destinataire") || "M. le Procureur de la République",
           `OBJET : Plainte ${civileTxt}pour des faits de ${s(c, "qualification_infraction") || "..."}`,
           "Monsieur le Procureur de la République,",
-          `J'ai l'honneur de porter plainte entre vos mains contre le nommé ${s(
-            c,
-            "civilite_nom_defendeur"
-          )}${s(c, "adresse_defendeur") ? `, demeurant à ${s(c, "adresse_defendeur")}` : ""}, pour des faits de ${
+          `J'ai l'honneur de porter plainte entre vos mains contre le nommé ${
+            s(c, "civilite_nom_defendeur") || s(c, "nom_defendeur")
+          }${s(c, "adresse_defendeur") ? `, demeurant à ${s(c, "adresse_defendeur")}` : ""}, pour des faits de ${
             s(c, "qualification_infraction") || "..."
           } prévus et réprimés par le Code pénal en vigueur en République du Bénin.`
         ),
         apres: bloc(
           "Je me tiens à la disposition de vos services de police ou de gendarmerie pour toute audition ou confrontation nécessaire à la manifestation de la vérité.",
           "Je vous prie d'agréer, Monsieur le Procureur de la République, l'assurance de ma très haute considération.",
-          s(c, "civilite_nom_client"),
+          s(c, "civilite_nom_client") || ctx.nomClient,
           "[Signature de l'Avocat]"
         ),
       };
@@ -164,7 +179,7 @@ export function buildFormalisme(
       const qualite = ligne(s(c, "qualite_representant"), s(c, "representant_legal"));
       return {
         avant: bloc(
-          ligne(s(c, "civilite_nom_client"), qualite),
+          ligne(s(c, "civilite_nom_client") || ctx.nomClient, qualite),
           s(c, "informations_client"),
           "À",
           s(c, "destinataire"),
@@ -186,7 +201,7 @@ export function buildFormalisme(
           "RÉPUBLIQUE DU BÉNIN",
           s(c, "destinataire"),
           s(c, "objet") && `OBJET : ${s(c, "objet")}`,
-          ligne(s(c, "civilite_nom_client"), s(c, "informations_client"))
+          ligne(s(c, "civilite_nom_client") || ctx.nomClient, s(c, "informations_client"))
         ),
         apres: bloc(
           s(c, "delai_opposition_jours") && `Délai d'opposition : ${s(c, "delai_opposition_jours")} jours`,
@@ -220,7 +235,11 @@ export function buildFormalisme(
     }
 
     case "note_plaidoirie": {
-      const pour = ligne(s(c, "civilite_nom_client"), s(c, "profession_client"), s(c, "informations_client"));
+      const pour = ligne(
+        s(c, "civilite_nom_client") || ctx.nomClient,
+        s(c, "profession_client"),
+        s(c, "informations_client")
+      );
       const contre = ligne(
         s(c, "nom_partie_adverse"),
         s(c, "profession_partie_adverse"),
@@ -269,11 +288,14 @@ export function buildFormalisme(
         avant: bloc(
           s(c, "mode_notification"),
           "À l'attention de :",
-          s(c, "civilite_nom_destinataire"),
+          s(c, "civilite_nom_destinataire") || s(c, "destinataire"),
           s(c, "adresse_destinataire"),
           s(c, "objet") && `OBJET : ${s(c, "objet")}`,
           s(c, "civilite_appel_destinataire"),
-          `J'agis en qualité de conseil de ${ligne(s(c, "civilite_nom_client"), s(c, "informations_client"))}. Mon client a élu domicile en mon cabinet pour les besoins des présentes.`
+          `J'agis en qualité de conseil de ${ligne(
+            s(c, "civilite_nom_client") || ctx.nomClient,
+            s(c, "informations_client")
+          )}. Mon client a élu domicile en mon cabinet pour les besoins des présentes.`
         ),
         apres: bloc(
           "Nous vous remercions de l'attention que vous porterez à cette notification.",
