@@ -85,7 +85,11 @@ roleAudiencesRouter.get("/api/role-audiences/semaine-sur-prochaine", requireAuth
 
   const maintenant = new Date();
   const jourSemaine = maintenant.getUTCDay(); // 0 = dimanche ... 6 = samedi
-  const disponible = jourSemaine === 0 || jourSemaine >= 4; // jeudi(4) a dimanche(0)
+  // TEMPORAIRE - filtre jour-de-semaine neutralise pour permettre un test
+  // immediat, a retablir (jourSemaine === 0 || jourSemaine >= 4) une fois
+  // le test termine.
+  void jourSemaine;
+  const disponible = true;
 
   const debut = lundiDeLaSemaine(maintenant);
   debut.setUTCDate(debut.getUTCDate() + 14);
