@@ -100,6 +100,13 @@ model Cabinet {
   // l'envoi technique passe par une adresse plateforme partagee. Null =
   // repli automatique sur l'email du titulaire.
   emailContact                        String?   @map("email_contact")
+  // Police et taille de texte utilisees dans les exports Word/PDF generes
+  // par Aurore (pas les documents crees via Google Docs). Police limitee a
+  // un choix ferme (Times New Roman / Arial / Courier New) pour rester
+  // identique entre l'export Word (police libre) et l'export PDF (polices
+  // standard PDFKit uniquement, sans police a embarquer).
+  policeDocuments                     String    @default("Times New Roman") @map("police_documents")
+  tailleDocuments                     Int       @default(11) @map("taille_documents")
   // Image d'en-tete (logo/bandeau) inseree en haut des documents, a la
   // demande (case a cocher), jamais automatiquement.
   enteteUrl                           String?   @map("entete_url")

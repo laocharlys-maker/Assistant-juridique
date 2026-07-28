@@ -185,6 +185,65 @@
             validerAction(btn.dataset.valider);
           });
         });
+
+        actionsEl.querySelectorAll("[data-toggle-edit]").forEach((btn) => {
+          btn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const id = btn.dataset.toggleEdit;
+            const action = dossier.actions.find((a) => a.id === id);
+            const contentView = actionsEl.querySelector(`[data-content-view="${id}"]`);
+            const editPanel = actionsEl.querySelector(`[data-edit-panel="${id}"]`);
+            const textarea = actionsEl.querySelector(`[data-edit-textarea="${id}"]`);
+            const preview = actionsEl.querySelector(`[data-preview="${id}"]`);
+            contentView.hidden = true;
+            editPanel.hidden = false;
+            textarea.value = action.contenuGenere || "";
+            preview.innerHTML = renderMarkdown(textarea.value);
+          });
+        });
+
+        actionsEl.querySelectorAll("[data-edit-textarea]").forEach((textarea) => {
+          textarea.addEventListener("click", (e) => e.stopPropagation());
+          textarea.addEventListener("input", () => {
+            const id = textarea.dataset.editTextarea;
+            const preview = actionsEl.querySelector(`[data-preview="${id}"]`);
+            preview.innerHTML = renderMarkdown(textarea.value);
+          });
+        });
+
+        actionsEl.querySelectorAll("[data-cancel-edit]").forEach((btn) => {
+          btn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const id = btn.dataset.cancelEdit;
+            actionsEl.querySelector(`[data-content-view="${id}"]`).hidden = false;
+            actionsEl.querySelector(`[data-edit-panel="${id}"]`).hidden = true;
+          });
+        });
+
+        actionsEl.querySelectorAll("[data-save-edit]").forEach((btn) => {
+          btn.addEventListener("click", async (e) => {
+            e.stopPropagation();
+            const id = btn.dataset.saveEdit;
+            const textarea = actionsEl.querySelector(`[data-edit-textarea="${id}"]`);
+            const errorEl = actionsEl.querySelector(`[data-edit-error="${id}"]`);
+            errorEl.textContent = "";
+            errorEl.classList.remove("visible");
+            try {
+              const updated = await apiFetch(`/api/actions/${id}/contenu`, {
+                method: "PATCH",
+                body: { contenu: textarea.value },
+              });
+              const action = dossier.actions.find((a) => a.id === id);
+              action.contenuGenere = updated.contenuGenere;
+              actionsEl.querySelector(`[data-content-view="${id}"]`).innerHTML = renderMarkdown(updated.contenuGenere);
+              actionsEl.querySelector(`[data-content-view="${id}"]`).hidden = false;
+              actionsEl.querySelector(`[data-edit-panel="${id}"]`).hidden = true;
+            } catch (err) {
+              errorEl.textContent = err.message;
+              errorEl.classList.add("visible");
+            }
+          });
+        });
         actionsEl.querySelectorAll("[data-envoyer-form]").forEach((form) => {
           form.addEventListener("click", (e) => e.stopPropagation());
           form.addEventListener("submit", (e) => {
@@ -284,6 +343,10 @@
       const docLink = a.documentUrl
         ? `<a href="${escapeHtml(a.documentUrl)}" target="_blank" rel="noopener">Ouvrir / modifier le document</a>`
         : "";
+      const editTexteBtn =
+        a.contenuGenere && a.statut !== "envoye"
+          ? `<button type="button" class="ghost btn-sm" data-toggle-edit="${a.id}" style="margin-left:8px;">Modifier le texte</button>`
+          : "";
 
       const canUseOwnSignature = me && me.role !== "collaborateur" && me.signatureUrl;
       const canUseResponsableSignature = me && me.role === "collaborateur" && me.peutUtiliserSignatureResponsable;
@@ -415,9 +478,23 @@
           </button>
           <div class="accordion-body">
             ${generationEnEchec ? `<p class="error visible" style="margin:6px 0;">${escapeHtml(GENERATION_TIMEOUT_MESSAGE)}</p>` : ""}
-            ${docLink ? `<div style="margin:6px 0;">${docLink}</div>` : ""}
+            ${docLink || editTexteBtn ? `<div style="margin:6px 0;">${docLink}${editTexteBtn}</div>` : ""}
             ${downloadLinks}
-            <div class="md-content">${renderMarkdown(a.contenuGenere || "")}</div>
+            <div class="md-content" data-content-view="${a.id}">${renderMarkdown(a.contenuGenere || "")}</div>
+            <div class="edit-panel" data-edit-panel="${a.id}" hidden>
+              <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-start; margin-top:8px;">
+                <textarea data-edit-textarea="${a.id}" rows="14" style="flex:1; min-width:260px; font-family:monospace; font-size:0.85rem;">${escapeHtml(a.contenuGenere || "")}</textarea>
+                <div style="flex:1; min-width:260px;">
+                  <div class="muted" style="margin-bottom:4px;">Aperçu</div>
+                  <div class="md-content" data-preview="${a.id}" style="border:1px solid var(--border); border-radius:8px; padding:10px; max-height:340px; overflow:auto;"></div>
+                </div>
+              </div>
+              <div style="display:flex; gap:8px; margin-top:10px;">
+                <button type="button" class="btn-sm" data-save-edit="${a.id}">Enregistrer</button>
+                <button type="button" class="ghost btn-sm" data-cancel-edit="${a.id}">Annuler</button>
+              </div>
+              <p class="error" data-edit-error="${a.id}"></p>
+            </div>
             ${controls}
           </div>
         </div>`;

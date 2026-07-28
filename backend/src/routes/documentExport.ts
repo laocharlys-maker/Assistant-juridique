@@ -31,6 +31,8 @@ async function loadExportInput(actionId: string, cabinetId: string) {
       contenu: action.contenuGenere,
       auteurNom: action.creePar.nom,
       date: action.createdAt,
+      police: action.dossier.cabinet.policeDocuments,
+      tailleTexte: action.dossier.cabinet.tailleDocuments,
     },
   };
 }

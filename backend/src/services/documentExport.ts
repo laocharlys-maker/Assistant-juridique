@@ -29,6 +29,8 @@ export interface EnteteInput {
   type: "png" | "jpg";
 }
 
+export type PoliceDocuments = "Times New Roman" | "Arial" | "Courier New";
+
 export interface ExportInput {
   cabinetNom: string;
   numeroDossier: string;
@@ -39,9 +41,27 @@ export interface ExportInput {
   date: Date;
   signature?: SignatureInput;
   entete?: EnteteInput;
+  // Reglages du cabinet (Parametres) - defauts geres cote Prisma (Times New
+  // Roman, 11) donc toujours fournis en pratique, mais optionnels ici pour
+  // ne pas casser d'eventuels appelants existants.
+  police?: string;
+  tailleTexte?: number;
 }
 
 const formatDate = formatDateLongue;
+
+// Polices standard PDFKit (aucune police a embarquer) correspondant aux
+// choix proposes dans Parametres - doit rester en phase avec cette liste,
+// et avec le nom de police Word (libre, cote docx) qui porte le meme nom.
+const PDF_FONT_FAMILIES: Record<PoliceDocuments, { regular: string; bold: string; italic: string }> = {
+  "Times New Roman": { regular: "Times-Roman", bold: "Times-Bold", italic: "Times-Italic" },
+  Arial: { regular: "Helvetica", bold: "Helvetica-Bold", italic: "Helvetica-Oblique" },
+  "Courier New": { regular: "Courier", bold: "Courier-Bold", italic: "Courier-Oblique" },
+};
+
+function pdfFontFamily(police?: string): { regular: string; bold: string; italic: string } {
+  return PDF_FONT_FAMILIES[(police as PoliceDocuments) ?? "Times New Roman"] ?? PDF_FONT_FAMILIES["Times New Roman"];
+}
 
 // Certains prompts de redaction (assignation, plainte...) structurent le
 // texte avec des titres de section en MAJUSCULES sur leur propre ligne
@@ -164,6 +184,8 @@ function buildDocxContentElements(contenu: string): (Paragraph | Table)[] {
 }
 
 export async function buildDocx(input: ExportInput): Promise<Buffer> {
+  const police = input.police ?? "Times New Roman";
+  const tailleTexte = input.tailleTexte ?? 11;
   const paragraphesContenu = buildDocxContentElements(input.contenu);
 
   // Bloc courrier (date/lieu + objet), toujours ajoute par la mise en page
@@ -231,7 +253,7 @@ export async function buildDocx(input: ExportInput): Promise<Buffer> {
         }),
         new Paragraph({
           children: [
-            new TextRun({ text: `Rédigé par ${input.auteurNom} — ${formatDate(input.date)}`, size: 18 }),
+            new TextRun({ text: `Rédigé par ${input.auteurNom} — ${formatDate(input.date)}`, size: (tailleTexte - 2) * 2 }),
           ],
           alignment: AlignmentType.CENTER,
           spacing: { after: 400 },
@@ -258,7 +280,7 @@ export async function buildDocx(input: ExportInput): Promise<Buffer> {
     styles: {
       default: {
         document: {
-          run: { font: "Arial" },
+          run: { font: police, size: tailleTexte * 2 },
         },
       },
     },
@@ -285,7 +307,8 @@ export async function buildDocx(input: ExportInput): Promise<Buffer> {
 function renderPdfSpans(
   doc: PDFKit.PDFDocument,
   spans: TextSpan[],
-  options: { size: number; align?: "left" | "justify"; bold?: boolean }
+  options: { size: number; align?: "left" | "justify"; bold?: boolean },
+  fontFamily: { regular: string; bold: string; italic: string }
 ): void {
   const nonEmpty = spans.filter((s) => s.text.length > 0);
   if (nonEmpty.length === 0) return;
@@ -294,20 +317,27 @@ function renderPdfSpans(
 
   nonEmpty.forEach((span, idx) => {
     const isLast = idx === nonEmpty.length - 1;
-    doc.font(span.bold || options.bold ? "Helvetica-Bold" : "Helvetica").fontSize(options.size);
+    doc.font(span.bold || options.bold ? fontFamily.bold : fontFamily.regular).fontSize(options.size);
     doc.text(span.text, { continued: !isLast, align });
   });
 }
 
 const PDF_TABLE_CELL_PADDING = 6;
 
-function renderPdfTable(doc: PDFKit.PDFDocument, header: string[], rows: string[][]): void {
+function renderPdfTable(
+  doc: PDFKit.PDFDocument,
+  header: string[],
+  rows: string[][],
+  tailleTexte: number,
+  fontFamily: { regular: string; bold: string; italic: string }
+): void {
   const usableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
   const colWidth = usableWidth / header.length;
   const left = doc.page.margins.left;
+  const cellSize = tailleTexte - 2;
 
   function rowHeight(cells: string[], bold: boolean): number {
-    doc.font(bold ? "Helvetica-Bold" : "Helvetica").fontSize(9);
+    doc.font(bold ? fontFamily.bold : fontFamily.regular).fontSize(cellSize);
     return Math.max(
       ...cells.map(
         (c) => doc.heightOfString(c, { width: colWidth - PDF_TABLE_CELL_PADDING * 2 }) + PDF_TABLE_CELL_PADDING * 2
@@ -334,8 +364,8 @@ function renderPdfTable(doc: PDFKit.PDFDocument, header: string[], rows: string[
       doc.rect(x, top, colWidth, height).stroke();
       doc
         .fillColor("#000")
-        .font(bold ? "Helvetica-Bold" : "Helvetica")
-        .fontSize(9)
+        .font(bold ? fontFamily.bold : fontFamily.regular)
+        .fontSize(cellSize)
         .text(cell, x + PDF_TABLE_CELL_PADDING, top + PDF_TABLE_CELL_PADDING, {
           width: colWidth - PDF_TABLE_CELL_PADDING * 2,
         });
@@ -353,39 +383,44 @@ function renderPdfTable(doc: PDFKit.PDFDocument, header: string[], rows: string[
 // Meme logique que buildDocxContentElements, cote PDF : transforme le texte
 // redige (potentiellement du Markdown) en elements PDF reels plutot que
 // d'afficher la syntaxe brute.
-function renderPdfContent(doc: PDFKit.PDFDocument, contenu: string): void {
+function renderPdfContent(
+  doc: PDFKit.PDFDocument,
+  contenu: string,
+  tailleTexte: number,
+  fontFamily: { regular: string; bold: string; italic: string }
+): void {
   const blocks = parseMarkdownBlocks(contenu);
-  const HEADING_SIZE = { 1: 13, 2: 12, 3: 11 } as const;
+  const HEADING_SIZE = { 1: tailleTexte + 2, 2: tailleTexte + 1, 3: tailleTexte } as const;
 
   for (const block of blocks) {
     if (block.type === "heading") {
       doc.moveDown(0.4);
-      renderPdfSpans(doc, block.spans, { size: HEADING_SIZE[block.level], bold: true, align: "left" });
+      renderPdfSpans(doc, block.spans, { size: HEADING_SIZE[block.level], bold: true, align: "left" }, fontFamily);
       doc.moveDown(0.3);
     } else if (block.type === "bullet") {
       for (const item of block.items) {
         doc.x = doc.page.margins.left + 14;
-        renderPdfSpans(doc, [{ text: "• ", bold: false }, ...item], { size: 11, align: "left" });
+        renderPdfSpans(doc, [{ text: "• ", bold: false }, ...item], { size: tailleTexte, align: "left" }, fontFamily);
         doc.x = doc.page.margins.left;
         doc.moveDown(0.3);
       }
     } else if (block.type === "numbered") {
       block.items.forEach((item, idx) => {
         doc.x = doc.page.margins.left + 14;
-        renderPdfSpans(doc, [{ text: `${idx + 1}. `, bold: false }, ...item], { size: 11, align: "left" });
+        renderPdfSpans(doc, [{ text: `${idx + 1}. `, bold: false }, ...item], { size: tailleTexte, align: "left" }, fontFamily);
         doc.x = doc.page.margins.left;
         doc.moveDown(0.3);
       });
     } else if (block.type === "table") {
-      renderPdfTable(doc, block.header, block.rows);
+      renderPdfTable(doc, block.header, block.rows, tailleTexte, fontFamily);
     } else {
       const plainText = block.spans.map((s) => s.text).join("");
       if (block.spans.length === 1 && !block.spans[0].bold && isHeaderLine(plainText)) {
         doc.moveDown(0.4);
-        renderPdfSpans(doc, block.spans, { size: 11, bold: true, align: "left" });
+        renderPdfSpans(doc, block.spans, { size: tailleTexte, bold: true, align: "left" }, fontFamily);
         doc.moveDown(0.3);
       } else {
-        renderPdfSpans(doc, block.spans, { size: 11, align: "justify" });
+        renderPdfSpans(doc, block.spans, { size: tailleTexte, align: "justify" }, fontFamily);
         doc.moveDown(0.6);
       }
     }
@@ -402,6 +437,9 @@ export async function buildPdf(input: ExportInput): Promise<Buffer> {
     doc.on("end", () => resolve(Buffer.concat(chunks)));
     doc.on("error", reject);
 
+    const tailleTexte = input.tailleTexte ?? 11;
+    const fontFamily = pdfFontFamily(input.police);
+
     if (input.entete) {
       const usableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
       const enteteWidth = 450;
@@ -415,18 +453,18 @@ export async function buildPdf(input: ExportInput): Promise<Buffer> {
     // repeter ce bloc de titre en dessous ne fait que doublonner et, avec
     // un en-tete plus large, chevauche visuellement l'image.
     if (!input.entete) {
-      doc.font("Helvetica-Bold").fontSize(16).text(input.cabinetNom, { align: "center" });
+      doc.font(fontFamily.bold).fontSize(tailleTexte + 5).text(input.cabinetNom, { align: "center" });
       doc.moveDown(0.3);
-      doc.font("Helvetica-Bold").fontSize(11).text(input.typeLabel, { align: "center" });
+      doc.font(fontFamily.bold).fontSize(tailleTexte).text(input.typeLabel, { align: "center" });
       doc.moveDown(0.2);
       doc
-        .font("Helvetica-Oblique")
-        .fontSize(10)
+        .font(fontFamily.italic)
+        .fontSize(tailleTexte - 1)
         .text(`Dossier ${input.numeroDossier} — ${input.nomAffaire}`, { align: "center" });
       doc.moveDown(0.2);
       doc
-        .font("Helvetica")
-        .fontSize(9)
+        .font(fontFamily.regular)
+        .fontSize(tailleTexte - 2)
         .text(`Rédigé par ${input.auteurNom} — ${formatDate(input.date)}`, { align: "center" });
       doc.moveDown(1.2);
     } else {
@@ -436,17 +474,17 @@ export async function buildPdf(input: ExportInput): Promise<Buffer> {
     // Bloc courrier (date/lieu + objet), toujours ajoute par la mise en
     // page elle-meme - jamais par le texte redige (voir consigne dans les
     // prompts qui interdit desormais a l'IA d'ecrire elle-meme "Fait a...").
-    doc.font("Helvetica").fontSize(10).text(`Cotonou, le ${formatDate(input.date)}`, { align: "right" });
+    doc.font(fontFamily.regular).fontSize(tailleTexte - 1).text(`Cotonou, le ${formatDate(input.date)}`, { align: "right" });
     doc.moveDown(0.6);
     doc
-      .font("Helvetica-Bold")
-      .fontSize(10)
+      .font(fontFamily.bold)
+      .fontSize(tailleTexte - 1)
       .text(`Objet : ${input.typeLabel} — Dossier ${input.numeroDossier} — ${input.nomAffaire}`, {
         align: "left",
       });
     doc.moveDown(1);
 
-    renderPdfContent(doc, input.contenu);
+    renderPdfContent(doc, input.contenu, tailleTexte, fontFamily);
 
     if (input.signature) {
       doc.moveDown(1);

@@ -170,3 +170,36 @@ actionsCallbackRouter.post("/api/actions/:id/valider", requireAuth, async (req, 
   await prisma.action.update({ where: { id: action.id }, data: { statut: "valide" } });
   return res.json({ ok: true });
 });
+
+const updateContenuSchema = z.object({
+  contenu: z.string().min(1),
+});
+
+// Correction du texte genere directement dans Aurore (alternative au lien
+// "Ouvrir / modifier le document" qui pointe vers Google Docs) - alimente
+// ensuite les exports Word/PDF ET, une fois ce circuit devenu la source de
+// verite pour l'envoi, l'email envoye au client. Autorise a quiconque peut
+// deja generer des documents (y compris un collaborateur sur ses propres
+// brouillons) - seule la validation reste reservee aux avocats/titulaire.
+actionsCallbackRouter.patch("/api/actions/:id/contenu", requireAuth, async (req, res) => {
+  const parsed = updateContenuSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Contenu invalide" });
+  }
+
+  const action = await prisma.action.findFirst({
+    where: { id: req.params.id, dossier: { cabinetId: req.auth!.cabinetId } },
+  });
+  if (!action) {
+    return res.status(404).json({ error: "Action introuvable" });
+  }
+  if (action.statut === "envoye") {
+    return res.status(409).json({ error: "Ce document a déjà été envoyé, son contenu ne peut plus être modifié." });
+  }
+
+  const updated = await prisma.action.update({
+    where: { id: action.id },
+    data: { contenuGenere: parsed.data.contenu },
+  });
+  return res.json({ contenuGenere: updated.contenuGenere });
+});

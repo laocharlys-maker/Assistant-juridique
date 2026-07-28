@@ -17,6 +17,8 @@ cabinetRouter.get("/api/cabinet", requireAuth, async (req, res) => {
       nom: true,
       adresse: true,
       emailContact: true,
+      policeDocuments: true,
+      tailleDocuments: true,
       enteteUrl: true,
       veilleSujets: true,
       veilleActive: true,
@@ -143,6 +145,31 @@ cabinetRouter.post("/api/cabinet/email-contact/test", requireAuth, requireAdmin,
     return res.status(502).json({ error: "Échec de l'envoi du test", detail: n8nResult.error });
   }
   return res.json({ ok: true });
+});
+
+// Police limitee a ce choix ferme : doit rester synchronisee avec
+// PDF_FONT_FAMILIES (src/services/documentExport.ts), qui ne sait mapper
+// que ces trois noms vers des polices PDF standard (aucune police a
+// embarquer). Cote Word, n'importe quel nom fonctionnerait, mais on garde
+// le meme choix reduit pour un rendu identique entre Word et PDF.
+const POLICES_DISPONIBLES = ["Times New Roman", "Arial", "Courier New"] as const;
+
+const updateStyleDocumentsSchema = z.object({
+  policeDocuments: z.enum(POLICES_DISPONIBLES),
+  tailleDocuments: z.number().int().min(8).max(20),
+});
+
+cabinetRouter.patch("/api/cabinet/style", requireAuth, requireAdmin, async (req, res) => {
+  const parsed = updateStyleDocumentsSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Réglages invalides", details: parsed.error.issues });
+  }
+
+  const cabinet = await prisma.cabinet.update({
+    where: { id: req.auth!.cabinetId },
+    data: parsed.data,
+  });
+  return res.json({ policeDocuments: cabinet.policeDocuments, tailleDocuments: cabinet.tailleDocuments });
 });
 
 const ENTETE_UPLOAD_DIR = path.join(__dirname, "..", "..", "public", "uploads", "entetes");
