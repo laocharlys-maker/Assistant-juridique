@@ -3,6 +3,7 @@ import { z } from "zod";
 import pdfParse from "pdf-parse";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
+import { requireModule } from "../middleware/roles";
 import { getLlmProvider } from "../services/llm";
 import { callN8nWebhook, webhookForAction } from "../services/n8n";
 import { logAuditStep } from "../services/audit";
@@ -390,7 +391,7 @@ webActionsRouter.post(
   }
 );
 
-webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (req, res) => {
+webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_action"), aiActionsLimiter, async (req, res) => {
   const parsed = webActionFormSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "Formulaire invalide", details: parsed.error.issues });
@@ -398,6 +399,10 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
   const form = parsed.data;
   const { auth } = req;
   const llm = getLlmProvider();
+
+  const debutMois = new Date();
+  debutMois.setDate(1);
+  debutMois.setHours(0, 0, 0, 0);
 
   // Quota mensuel optionnel pour les collaborateurs, fixe par l'admin du
   // cabinet dans Parametres (protection contre les abus de generation -
@@ -410,9 +415,6 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
     });
     const limite = cabinet?.limiteDocumentsCollaborateurParMois;
     if (limite) {
-      const debutMois = new Date();
-      debutMois.setDate(1);
-      debutMois.setHours(0, 0, 0, 0);
       const count = await prisma.action.count({
         where: { createdBy: auth!.userId, createdAt: { gte: debutMois } },
       });
@@ -421,6 +423,34 @@ webActionsRouter.post("/api/actions/web", requireAuth, aiActionsLimiter, async (
           error: `Limite de ${limite} documents générés ce mois-ci atteinte. Contacte ton avocat responsable si tu as besoin d'en générer davantage.`,
         });
       }
+    }
+  }
+
+  // Quotas mensuels fixes par la PLATEFORME (distincts du quota interne
+  // ci-dessus) : un plafond par compte et/ou un plafond global pour tout
+  // le cabinet, tous roles confondus - selon la formule souscrite.
+  const [cabinetPourQuota, userPourQuota] = await Promise.all([
+    prisma.cabinet.findUnique({ where: { id: auth!.cabinetId }, select: { limiteDocumentsCabinetParMois: true } }),
+    prisma.user.findUnique({ where: { id: auth!.userId }, select: { limiteDocumentsParMois: true } }),
+  ]);
+
+  if (userPourQuota?.limiteDocumentsParMois) {
+    const count = await prisma.action.count({ where: { createdBy: auth!.userId, createdAt: { gte: debutMois } } });
+    if (count >= userPourQuota.limiteDocumentsParMois) {
+      return res.status(429).json({
+        error: `Limite de ${userPourQuota.limiteDocumentsParMois} documents générés ce mois-ci atteinte pour ce compte. Contactez l'administrateur de la plateforme.`,
+      });
+    }
+  }
+
+  if (cabinetPourQuota?.limiteDocumentsCabinetParMois) {
+    const count = await prisma.action.count({
+      where: { dossier: { cabinetId: auth!.cabinetId }, createdAt: { gte: debutMois } },
+    });
+    if (count >= cabinetPourQuota.limiteDocumentsCabinetParMois) {
+      return res.status(429).json({
+        error: `Limite de ${cabinetPourQuota.limiteDocumentsCabinetParMois} documents générés ce mois-ci atteinte pour le cabinet. Contactez l'administrateur de la plateforme.`,
+      });
     }
   }
 

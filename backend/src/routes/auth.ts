@@ -20,7 +20,10 @@ authRouter.post("/api/auth/login", loginLimiter, async (req, res) => {
   }
   const { email, password } = parsed.data;
 
-  const user = await prisma.user.findUnique({ where: { email }, include: { cabinet: { select: { actif: true } } } });
+  const user = await prisma.user.findUnique({
+    where: { email },
+    include: { cabinet: { select: { actif: true, essaiExpireLe: true } } },
+  });
   if (!user) {
     return res.status(401).json({ error: "Identifiants incorrects" });
   }
@@ -34,8 +37,13 @@ authRouter.post("/api/auth/login", loginLimiter, async (req, res) => {
     return res.status(403).json({ error: "Ce compte a été désactivé. Contacte l'administrateur du cabinet." });
   }
 
-  if (!user.cabinet.actif && user.role !== "super_admin") {
-    return res.status(403).json({ error: "L'accès de ce cabinet a été suspendu. Contactez l'administrateur de la plateforme." });
+  if (user.role !== "super_admin") {
+    if (!user.cabinet.actif) {
+      return res.status(403).json({ error: "L'accès de ce cabinet a été suspendu. Contactez l'administrateur de la plateforme." });
+    }
+    if (user.cabinet.essaiExpireLe && user.cabinet.essaiExpireLe.getTime() < Date.now()) {
+      return res.status(403).json({ error: "La période d'accès de ce cabinet a expiré. Contactez l'administrateur de la plateforme." });
+    }
   }
 
   await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });

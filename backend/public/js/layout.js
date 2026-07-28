@@ -24,8 +24,8 @@ const NAV_ICONS = {
 const NAV_ITEMS = [
   { href: "/tableau-de-bord.html", label: "Tableau de bord", roles: ["titulaire", "avocat", "collaborateur"], group: "Travail", icon: "dashboard" },
   { href: "/role-semaine.html", label: "Calendrier Audiences", roles: ["titulaire", "avocat", "collaborateur"], group: "Travail", icon: "calendar" },
-  { href: "/nouvelle-action.html", label: "Nouvelle action", roles: ["titulaire", "avocat", "collaborateur"], group: "Travail", icon: "plus" },
-  { href: "/dashboard.html", label: "Documents générés", roles: ["titulaire", "avocat", "collaborateur"], group: "Travail", icon: "docs" },
+  { href: "/nouvelle-action.html", label: "Nouvelle action", roles: ["titulaire", "avocat", "collaborateur"], group: "Travail", icon: "plus", moduleKey: "nouvelle_action" },
+  { href: "/dashboard.html", label: "Documents générés", roles: ["titulaire", "avocat", "collaborateur"], group: "Travail", icon: "docs", moduleKey: "documents_generes" },
   { href: "/clients.html", label: "Clients", roles: ["titulaire", "avocat", "collaborateur"], group: "Travail", icon: "clients" },
   { href: "/jurisprudence-base.html", label: "Jurisprudence", roles: ["titulaire", "avocat", "collaborateur"], group: "Travail", icon: "book", moduleKey: "jurisprudence" },
   { href: "/delais-calculateur.html", label: "Délais", roles: ["titulaire", "avocat", "collaborateur"], group: "Travail", icon: "clock", moduleKey: "delais" },
@@ -44,6 +44,7 @@ const NAV_ITEMS = [
   { href: "/audit-logs.html", label: "Journal d'audit", roles: ["titulaire"], group: "Cabinet", icon: "audit" },
   { href: "/parametres.html", label: "Paramètres", roles: ["titulaire"], group: "Cabinet", icon: "settings" },
   { href: "/admin-plateforme.html", label: "Cabinets clients", roles: ["super_admin"], group: "Plateforme", icon: "team" },
+  { href: "/journal-plateforme.html", label: "Journal plateforme", roles: ["super_admin"], group: "Plateforme", icon: "audit" },
 ];
 
 const THEME_STORAGE_KEY = "aurore-theme";

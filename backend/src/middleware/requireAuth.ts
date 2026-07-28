@@ -33,17 +33,24 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     // (impaye, resiliation...).
     const user = await prisma.user.findUnique({
       where: { id: payload.userId },
-      select: { actif: true, cabinet: { select: { actif: true } } },
+      select: { actif: true, cabinet: { select: { actif: true, essaiExpireLe: true } } },
     });
     if (!user || !user.actif) {
       res.clearCookie("aurore_session");
       res.status(401).json({ error: "Ce compte a été désactivé." });
       return;
     }
-    if (!user.cabinet.actif && payload.role !== "super_admin") {
-      res.clearCookie("aurore_session");
-      res.status(403).json({ error: "L'accès de ce cabinet a été suspendu. Contactez l'administrateur de la plateforme." });
-      return;
+    if (payload.role !== "super_admin") {
+      if (!user.cabinet.actif) {
+        res.clearCookie("aurore_session");
+        res.status(403).json({ error: "L'accès de ce cabinet a été suspendu. Contactez l'administrateur de la plateforme." });
+        return;
+      }
+      if (user.cabinet.essaiExpireLe && user.cabinet.essaiExpireLe.getTime() < Date.now()) {
+        res.clearCookie("aurore_session");
+        res.status(403).json({ error: "La période d'accès de ce cabinet a expiré. Contactez l'administrateur de la plateforme." });
+        return;
+      }
     }
   } catch (error) {
     console.error("Erreur lors de la verification du compte", error);

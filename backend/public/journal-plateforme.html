@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aurore — Journal plateforme</title>
+  <link rel="icon" type="image/png" href="/favicon-256.png" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="page">
+    <div class="page-hero">
+      <div class="eyebrow">Plateforme</div>
+      <h1>Journal plateforme</h1>
+      <p>Historique technique des documents générés, tous cabinets confondus (extraction IA, génération du document). Aucun contenu de document n'apparaît ici.</p>
+    </div>
+
+    <div id="error" class="error"></div>
+
+    <div class="card">
+      <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-bottom:12px;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <label style="margin:0; font-weight:400;">Statut :</label>
+          <select id="filter-statut" style="width:auto;">
+            <option value="">Tout</option>
+            <option value="erreur">Erreurs uniquement</option>
+            <option value="succes">Succès uniquement</option>
+          </select>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <label style="margin:0; font-weight:400;">Période :</label>
+          <select id="filter-periode" style="width:auto;">
+            <option value="">Tout</option>
+            <option value="1">Dernier mois</option>
+            <option value="2">2 derniers mois</option>
+            <option value="3" selected>3 derniers mois</option>
+            <option value="6">6 derniers mois</option>
+            <option value="12">12 derniers mois</option>
+          </select>
+        </div>
+      </div>
+      <div id="logs-list"><p class="muted">Chargement…</p></div>
+    </div>
+  </div>
+  <script src="/js/api.js"></script>
+  <script src="/js/layout.js"></script>
+  <script>
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str ?? "";
+      return div.innerHTML;
+    }
+
+    function formatDate(iso) {
+      return new Date(iso).toLocaleString("fr-FR");
+    }
+
+    async function loadLogs() {
+      const listEl = document.getElementById("logs-list");
+      const statut = document.getElementById("filter-statut").value;
+      const periode = document.getElementById("filter-periode").value;
+      listEl.innerHTML = '<p class="muted">Chargement…</p>';
+      try {
+        const params = new URLSearchParams();
+        if (statut) params.set("statut", statut);
+        if (periode) params.set("depuisMois", periode);
+        const qs = params.toString() ? `?${params.toString()}` : "";
+        const logs = await apiFetch(`/api/admin/audit-logs${qs}`);
+        if (logs.length === 0) {
+          listEl.innerHTML = '<p class="muted">Aucune entrée.</p>';
+          return;
+        }
+        listEl.innerHTML = logs
+          .map(
+            (l) => `
+            <div class="dossier-item">
+              <div>
+                <strong>${escapeHtml(l.etape)}</strong>
+                <span style="color:${l.statut === "erreur" ? "var(--danger)" : "var(--success)"}; font-weight:600; margin-left:8px;">${l.statut === "erreur" ? "Erreur" : "Succès"}</span>
+                <div class="meta">
+                  ${formatDate(l.timestamp)} · ${escapeHtml(l.cabinet?.nom || "-")} · Dossier ${escapeHtml(l.dossier?.numeroDossier || "-")} — ${escapeHtml(l.dossier?.nomAffaire || "-")} · ${escapeHtml(l.typeAction)} (${escapeHtml(l.canal)}) · Généré par ${escapeHtml(l.genrePar || "-")}
+                  ${l.detail ? `<br />${escapeHtml(l.detail)}` : ""}
+                </div>
+              </div>
+            </div>`
+          )
+          .join("");
+      } catch (err) {
+        listEl.innerHTML = `<p class="error visible">${escapeHtml(err.message)}</p>`;
+      }
+    }
+
+    (async () => {
+      const me = await requireSession();
+      if (!me) return;
+      initLayout(me);
+      loadLogs();
+    })();
+
+    document.getElementById("filter-statut").addEventListener("change", loadLogs);
+    document.getElementById("filter-periode").addEventListener("change", loadLogs);
+  </script>
+</body>
+</html>

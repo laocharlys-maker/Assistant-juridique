@@ -3,6 +3,7 @@ import { z } from "zod";
 import { Prisma, TypeAction } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
+import { requireModule } from "../middleware/roles";
 import { getAccessibleAvocatIds } from "../services/access";
 
 export const dossiersRouter = Router();
@@ -130,7 +131,7 @@ dossiersRouter.get("/api/dossiers", requireAuth, async (req, res) => {
 // memes filtres scope/vue que /api/dossiers ci-dessus, mais renvoie les
 // documents (Action) individuellement plutot que les dossiers, tries du
 // plus recent au plus ancien - le frontend les regroupe ensuite par type.
-dossiersRouter.get("/api/documents", requireAuth, async (req, res) => {
+dossiersRouter.get("/api/documents", requireAuth, requireModule("documents_generes"), async (req, res) => {
   const { auth } = req;
 
   const requestedScope = req.query.scope === "cabinet" ? "cabinet" : "mine";

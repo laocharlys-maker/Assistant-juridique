@@ -75,43 +75,53 @@ enum StatutRoleAudience {
 }
 
 model Cabinet {
-  id                                  String   @id @default(uuid())
+  id                                  String    @id @default(uuid())
   nom                                 String
   // Acces coupe par la plateforme (impaye, resiliation...) : bloque la
   // connexion de tous les utilisateurs du cabinet, sans supprimer aucune
   // donnee - reactivable a tout moment.
-  actif                               Boolean  @default(true)
+  actif                               Boolean   @default(true)
   // Modules payants desactives pour ce cabinet (cle libre, ex:
   // "facturation", "veille_juridique", "jurisprudence", "delais") - gere
   // par la plateforme selon la formule souscrite. Absent de la liste =
   // module actif.
-  modulesDesactives                   String[] @default([]) @map("modules_desactives")
+  modulesDesactives                   String[]  @default([]) @map("modules_desactives")
   // Palier tarifaire assigne par la plateforme (ex: "1-10 utilisateurs",
   // "11-20 utilisateurs"...) - purement informatif, sert de repere pour la
   // facturation manuelle du cabinet, n'entraine aucun calcul automatique.
-  plan                                String?  @map("plan")
+  plan                                String?   @map("plan")
   // Adresse postale du cabinet - utilisee notamment dans l'entete de
   // certains documents generes (ex: conclusions), saisie une fois pour
   // toutes plutot que redemandee a chaque document.
   adresse                             String?
   // Image d'en-tete (logo/bandeau) inseree en haut des documents, a la
   // demande (case a cocher), jamais automatiquement.
-  enteteUrl                           String?  @map("entete_url")
+  enteteUrl                           String?   @map("entete_url")
   // Sujets/mots-cles a surveiller pour la veille juridique hebdomadaire,
   // saisis en texte libre par le titulaire (separes par virgule ou saut de
   // ligne).
-  veilleSujets                        String?  @map("veille_sujets")
+  veilleSujets                        String?   @map("veille_sujets")
   // La veille hebdomadaire n'est envoyee que si activee explicitement.
-  veilleActive                        Boolean  @default(false) @map("veille_active")
+  veilleActive                        Boolean   @default(false) @map("veille_active")
   // Delai (en mois) apres la cloture d'un dossier avant archivage
   // automatique. N'entraine jamais de suppression, juste un rangement hors
   // de la liste par defaut.
-  archivageDelaiMois                  Int      @default(6) @map("archivage_delai_mois")
+  archivageDelaiMois                  Int       @default(6) @map("archivage_delai_mois")
   // Nombre max de documents qu'un collaborateur peut generer par mois
   // calendaire (protection contre les abus/grosses factures IA). Null =
   // pas de limite. Ne s'applique jamais aux avocats/titulaire.
-  limiteDocumentsCollaborateurParMois Int?     @map("limite_documents_collaborateur_par_mois")
-  createdAt                           DateTime @default(now()) @map("created_at")
+  limiteDocumentsCollaborateurParMois Int?      @map("limite_documents_collaborateur_par_mois")
+  // Quota mensuel impose par la PLATEFORME (distinct du quota ci-dessus,
+  // que le cabinet fixe lui-meme pour ses collaborateurs) : plafonne le
+  // total de documents generes par TOUS les comptes du cabinet confondus,
+  // selon la formule souscrite. Null = pas de plafond.
+  limiteDocumentsCabinetParMois       Int?      @map("limite_documents_cabinet_par_mois")
+  // Fin de la periode d'acces accordee par la plateforme (essai gratuit,
+  // periode payee...). Null = acces permanent. Une fois cette date passee,
+  // la connexion est bloquee comme une suspension, jusqu'a ce que la
+  // plateforme fixe une nouvelle date future.
+  essaiExpireLe                       DateTime? @map("essai_expire_le")
+  createdAt                           DateTime  @default(now()) @map("created_at")
 
   users         User[]
   dossiers      Dossier[]
@@ -141,39 +151,43 @@ model Huissier {
 }
 
 model User {
-  id                    String    @id @default(uuid())
-  cabinetId             String    @map("cabinet_id")
-  nom                   String
-  email                 String    @unique
-  motDePasseHash        String    @map("mot_de_passe_hash")
-  role                  UserRole  @default(collaborateur)
+  id                     String    @id @default(uuid())
+  cabinetId              String    @map("cabinet_id")
+  nom                    String
+  email                  String    @unique
+  motDePasseHash         String    @map("mot_de_passe_hash")
+  role                   UserRole  @default(collaborateur)
   // Avocat dont depend directement ce collaborateur (null pour un titulaire).
-  responsableId         String?   @map("responsable_id")
+  responsableId          String?   @map("responsable_id")
   // Chemin public de l'image de signature (ex: /uploads/signatures/xxx.png).
-  signatureUrl          String?   @map("signature_url")
+  signatureUrl           String?   @map("signature_url")
   // Un collaborateur peut, si son avocat responsable l'autorise, inserer
   // la signature de ce dernier lors de l'envoi d'un document.
-  partageSignatureActif Boolean   @default(false) @map("partage_signature_actif")
+  partageSignatureActif  Boolean   @default(false) @map("partage_signature_actif")
   // Accorde par l'admin a un collaborateur : accede a TOUS les dossiers
   // du cabinet, pas seulement ceux de son responsable / des acces accordes.
-  accesTousDossiers     Boolean   @default(false) @map("acces_tous_dossiers")
+  accesTousDossiers      Boolean   @default(false) @map("acces_tous_dossiers")
   // Un avocat/titulaire peut se desinscrire de la veille juridique
   // hebdomadaire par email (sans effet pour un collaborateur).
-  recoitVeille          Boolean   @default(true) @map("recoit_veille")
+  recoitVeille           Boolean   @default(true) @map("recoit_veille")
   // Compte desactive par l'admin : bloque la connexion et invalide toute
   // session en cours, sans supprimer l'historique (dossiers/actions crees
   // par cette personne restent intacts).
-  actif                 Boolean   @default(true)
+  actif                  Boolean   @default(true)
   // Horodatage de la derniere connexion reussie - utilise pour reperer les
   // cabinets/utilisateurs actifs depuis la page d'administration plateforme.
-  lastLoginAt           DateTime? @map("last_login_at")
-  telephone             String?
-  adresse               String?
+  lastLoginAt            DateTime? @map("last_login_at")
+  // Quota mensuel impose par la PLATEFORME sur CE compte precis, tous roles
+  // confondus (distinct du quota "collaborateurs" fixe par le cabinet
+  // lui-meme). Null = pas de plafond individuel.
+  limiteDocumentsParMois Int?      @map("limite_documents_par_mois")
+  telephone              String?
+  adresse                String?
   // Date d'arrivee au cabinet (peut differer de createdAt, saisie a la main
   // - utile pour quelqu'un qui a rejoint le cabinet avant l'existence du
   // compte Aurore).
-  dateArrivee           DateTime? @map("date_arrivee")
-  createdAt             DateTime  @default(now()) @map("created_at")
+  dateArrivee            DateTime? @map("date_arrivee")
+  createdAt              DateTime  @default(now()) @map("created_at")
 
   cabinet             Cabinet        @relation(fields: [cabinetId], references: [id])
   responsable         User?          @relation("ResponsableCollaborateurs", fields: [responsableId], references: [id])

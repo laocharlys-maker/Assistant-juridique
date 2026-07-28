@@ -49,6 +49,8 @@
           <input name="titulaireNom" required placeholder="ex: Maître Koffi" />
           <label>Email du titulaire</label>
           <input name="titulaireEmail" type="email" required placeholder="ex: contact@cabinet-koffi.bj" />
+          <label>Durée d'essai en jours (optionnel)</label>
+          <input name="essaiJours" type="number" min="1" max="365" placeholder="ex: 7 — vide = accès permanent" />
           <div style="display:flex; gap:10px; margin-top:18px;">
             <button type="submit">Créer le cabinet</button>
             <button type="button" class="ghost" id="cancel-add-btn">Annuler</button>
@@ -73,6 +75,8 @@
     }
 
     const MODULES = [
+      { key: "nouvelle_action", label: "Nouvelle action" },
+      { key: "documents_generes", label: "Documents générés" },
       { key: "facturation", label: "Facturation" },
       { key: "veille_juridique", label: "Veille juridique" },
       { key: "jurisprudence", label: "Jurisprudence" },
@@ -142,20 +146,153 @@
                 .join("")}</table>`;
         const usersHtml = `<table class="activite-table">${data.utilisateurs
           .map(
-            (u) =>
-              `<tr><td>${escapeHtml(u.nom)} <span class="muted">(${u.role}${u.actif ? "" : ", désactivé"})</span></td><td style="text-align:right;">${formatDateHeure(u.lastLoginAt)}</td></tr>`
+            (u) => `<tr>
+              <td>${escapeHtml(u.nom)} <span class="muted">(${u.role}${u.actif ? "" : ", désactivé"})</span></td>
+              <td>${formatDateHeure(u.lastLoginAt)}</td>
+              <td style="text-align:right; white-space:nowrap;">
+                Limite/mois : <input type="number" min="1" max="100000" value="${u.limiteDocumentsParMois ?? ""}" placeholder="illimité" data-quota-user="${u.id}" style="width:70px; margin:0; padding:2px 4px; font-size:0.78rem;" />
+              </td>
+            </tr>`
           )
           .join("")}</table>`;
         panelEl.innerHTML = `
           <strong>Opérations effectuées (30 derniers jours)</strong>
           ${opsHtml}
-          <strong style="display:block; margin-top:12px;">Dernière connexion par utilisateur</strong>
+          <strong style="display:block; margin-top:12px;">Utilisateurs</strong>
           ${usersHtml}
         `;
         panelEl.dataset.loaded = "1";
+
+        panelEl.querySelectorAll("[data-quota-user]").forEach((input) => {
+          input.addEventListener("change", async () => {
+            const valeur = input.value ? Number(input.value) : null;
+            try {
+              await apiFetch(`/api/admin/users/${input.dataset.quotaUser}/quota`, {
+                method: "PATCH",
+                body: { limiteDocumentsParMois: valeur },
+              });
+            } catch (err) {
+              showError(document.getElementById("error"), err.message);
+            }
+          });
+        });
       } catch (err) {
         panelEl.innerHTML = `<p class="error visible">${escapeHtml(err.message)}</p>`;
       }
+    }
+
+    function essaiStatusHtml(c) {
+      if (!c.essaiExpireLe) return '<span class="muted">Accès permanent</span>';
+      const expire = new Date(c.essaiExpireLe);
+      const joursRestants = Math.ceil((expire.getTime() - Date.now()) / 86400000);
+      const expireStr = expire.toLocaleDateString("fr-FR");
+      if (joursRestants < 0) {
+        return `<span style="color:var(--danger); font-weight:600;">Essai expiré le ${expireStr}</span>`;
+      }
+      return `<span>Essai jusqu'au ${expireStr} (${joursRestants} j restants)</span>`;
+    }
+
+    function formatMontant(montant) {
+      return `${montant.toLocaleString("fr-FR")} F CFA`;
+    }
+
+    const STATUT_FACTURE_LABELS = { brouillon: "Brouillon", envoyee: "Envoyée", payee: "Payée" };
+
+    async function renderFactures(cabinetId, panelEl) {
+      panelEl.innerHTML = `
+        <form data-facture-form="${cabinetId}" style="display:flex; gap:8px; flex-wrap:wrap; align-items:flex-end; margin-bottom:12px;">
+          <div><label style="margin:0; font-weight:400; font-size:0.78rem;">Description</label><input name="description" required placeholder="ex: Abonnement Aurore — Août 2026" style="margin:0; width:220px;" /></div>
+          <div><label style="margin:0; font-weight:400; font-size:0.78rem;">Montant (F CFA)</label><input name="montant" type="number" min="1" required style="margin:0; width:120px;" /></div>
+          <div><label style="margin:0; font-weight:400; font-size:0.78rem;">Échéance</label><input name="dateEcheance" type="date" style="margin:0;" /></div>
+          <label style="margin:0; display:flex; align-items:center; gap:4px; font-weight:400; font-size:0.78rem;"><input type="checkbox" name="appliquerTva" style="width:auto; margin:0;" /> TVA 18%</label>
+          <button type="submit" class="secondary btn-sm">Créer la facture</button>
+        </form>
+        <div data-factures-list="${cabinetId}"><p class="muted" style="margin:0;">Chargement…</p></div>
+      `;
+
+      const form = panelEl.querySelector(`[data-facture-form="${cabinetId}"]`);
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const fd = new FormData(form);
+        try {
+          await apiFetch(`/api/admin/cabinets/${cabinetId}/factures`, {
+            method: "POST",
+            body: {
+              description: fd.get("description"),
+              montant: Number(fd.get("montant")),
+              appliquerTva: fd.get("appliquerTva") === "on",
+              dateEcheance: fd.get("dateEcheance") || undefined,
+            },
+          });
+          form.reset();
+          renderFacturesList(cabinetId, panelEl.querySelector(`[data-factures-list="${cabinetId}"]`));
+        } catch (err) {
+          showError(document.getElementById("error"), err.message);
+        }
+      });
+
+      await renderFacturesList(cabinetId, panelEl.querySelector(`[data-factures-list="${cabinetId}"]`));
+    }
+
+    async function renderFacturesList(cabinetId, listEl) {
+      listEl.innerHTML = '<p class="muted" style="margin:0;">Chargement…</p>';
+      try {
+        const factures = await apiFetch(`/api/admin/cabinets/${cabinetId}/factures`);
+        if (factures.length === 0) {
+          listEl.innerHTML = '<p class="muted" style="margin:0;">Aucune facture d\'abonnement pour ce cabinet.</p>';
+          return;
+        }
+        listEl.innerHTML = factures
+          .map(
+            (f) => `
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; padding:8px 0; border-bottom:1px solid var(--border);">
+            <div>
+              <strong>${escapeHtml(f.numero)}</strong> — ${escapeHtml(f.description)} — ${formatMontant(f.montant)}
+              <div class="meta">${STATUT_FACTURE_LABELS[f.statut] || f.statut}${f.envoyeAt ? ` · envoyée le ${new Date(f.envoyeAt).toLocaleDateString("fr-FR")} à ${escapeHtml(f.destinataireEmail || "")}` : ""}</div>
+            </div>
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+              <a class="secondary btn-sm" href="/api/admin/factures/${f.id}/pdf" target="_blank" style="text-decoration:none;">PDF</a>
+              <button type="button" class="secondary btn-sm" data-envoyer-abonnement="${f.id}" data-cabinet="${cabinetId}">Envoyer par email</button>
+              ${f.statut !== "payee" ? `<button type="button" class="ghost btn-sm" data-marquer-payee="${f.id}" data-cabinet="${cabinetId}">Marquer payée</button>` : ""}
+            </div>
+          </div>`
+          )
+          .join("");
+
+        listEl.querySelectorAll("[data-envoyer-abonnement]").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            const email = prompt("Adresse email du cabinet pour l'envoi de la facture :");
+            if (!email) return;
+            try {
+              await apiFetch(`/api/admin/factures/${btn.dataset.envoyerAbonnement}/envoyer`, { method: "POST", body: { email } });
+              renderFacturesList(btn.dataset.cabinet, listEl);
+            } catch (err) {
+              showError(document.getElementById("error"), err.message);
+            }
+          });
+        });
+        listEl.querySelectorAll("[data-marquer-payee]").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            try {
+              await apiFetch(`/api/admin/factures/${btn.dataset.marquerPayee}`, { method: "PATCH", body: { statut: "payee" } });
+              renderFacturesList(btn.dataset.cabinet, listEl);
+            } catch (err) {
+              showError(document.getElementById("error"), err.message);
+            }
+          });
+        });
+      } catch (err) {
+        listEl.innerHTML = `<p class="error visible">${escapeHtml(err.message)}</p>`;
+      }
+    }
+
+    async function toggleFactures(cabinetId, panelEl) {
+      if (!panelEl.hidden) {
+        panelEl.hidden = true;
+        return;
+      }
+      panelEl.hidden = false;
+      await renderFactures(cabinetId, panelEl);
     }
 
     async function loadCabinets() {
@@ -188,13 +325,25 @@
                     ${PALIERS.map((p) => `<option value="${escapeHtml(p)}"${c.plan === p ? " selected" : ""}>${escapeHtml(p)}</option>`).join("")}
                   </select>
                 </div>
+                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:8px; font-size:0.82rem;">
+                  ${essaiStatusHtml(c)}
+                  <input type="number" min="1" max="365" placeholder="+jours" data-prolonger-input="${c.id}" style="width:80px; margin:0; padding:3px 6px; font-size:0.78rem;" />
+                  <button type="button" class="ghost btn-sm" data-prolonger-btn="${c.id}">Prolonger</button>
+                  ${c.essaiExpireLe ? `<button type="button" class="ghost btn-sm" data-retirer-essai="${c.id}">Accès permanent</button>` : ""}
+                </div>
+                <div style="display:flex; align-items:center; gap:6px; margin-top:6px; font-size:0.82rem;">
+                  <label style="margin:0; font-weight:400;">Limite documents/mois (cabinet) :</label>
+                  <input type="number" min="1" max="100000" value="${c.limiteDocumentsCabinetParMois ?? ""}" placeholder="illimité" data-quota-cabinet="${c.id}" style="width:90px; margin:0; padding:3px 6px; font-size:0.78rem;" />
+                </div>
               </div>
               <div style="display:flex; gap:8px; flex-wrap:wrap;">
                 <button type="button" class="ghost btn-sm" data-toggle-activite="${c.id}">Activité</button>
+                <button type="button" class="ghost btn-sm" data-toggle-factures="${c.id}">Facturation</button>
                 <button type="button" class="secondary btn-sm" data-toggle-actif="${c.id}" data-actif="${c.actif}">${c.actif ? "Suspendre" : "Réactiver"}</button>
               </div>
             </div>
             <div class="activite-panel" data-activite-panel="${c.id}" hidden></div>
+            <div class="activite-panel" data-factures-panel="${c.id}" hidden></div>
           </div>`
           )
           .join("");
@@ -255,6 +404,62 @@
             toggleActivite(btn.dataset.toggleActivite, panel);
           });
         });
+
+        contentEl.querySelectorAll("[data-toggle-factures]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const panel = contentEl.querySelector(`[data-factures-panel="${btn.dataset.toggleFactures}"]`);
+            toggleFactures(btn.dataset.toggleFactures, panel);
+          });
+        });
+
+        contentEl.querySelectorAll("[data-prolonger-btn]").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            const input = contentEl.querySelector(`[data-prolonger-input="${btn.dataset.prolongerBtn}"]`);
+            const jours = Number(input.value);
+            if (!jours || jours < 1) {
+              showError(errorEl, "Indique un nombre de jours valide.");
+              return;
+            }
+            try {
+              await apiFetch(`/api/admin/cabinets/${btn.dataset.prolongerBtn}`, {
+                method: "PATCH",
+                body: { prolongerJours: jours },
+              });
+              loadCabinets();
+            } catch (err) {
+              showError(errorEl, err.message);
+            }
+          });
+        });
+
+        contentEl.querySelectorAll("[data-retirer-essai]").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            if (!confirm("Retirer la limite d'essai et donner un accès permanent à ce cabinet ?")) return;
+            try {
+              await apiFetch(`/api/admin/cabinets/${btn.dataset.retirerEssai}`, {
+                method: "PATCH",
+                body: { retirerLimiteEssai: true },
+              });
+              loadCabinets();
+            } catch (err) {
+              showError(errorEl, err.message);
+            }
+          });
+        });
+
+        contentEl.querySelectorAll("[data-quota-cabinet]").forEach((input) => {
+          input.addEventListener("change", async () => {
+            const valeur = input.value ? Number(input.value) : null;
+            try {
+              await apiFetch(`/api/admin/cabinets/${input.dataset.quotaCabinet}`, {
+                method: "PATCH",
+                body: { limiteDocumentsCabinetParMois: valeur },
+              });
+            } catch (err) {
+              showError(errorEl, err.message);
+            }
+          });
+        });
       } catch (err) {
         showError(errorEl, err.message);
         contentEl.innerHTML = "";
@@ -293,6 +498,7 @@
             adresse: fd.get("adresse") || undefined,
             titulaireNom: fd.get("titulaireNom"),
             titulaireEmail: fd.get("titulaireEmail"),
+            essaiJours: fd.get("essaiJours") ? Number(fd.get("essaiJours")) : undefined,
           },
         });
         e.target.reset();
