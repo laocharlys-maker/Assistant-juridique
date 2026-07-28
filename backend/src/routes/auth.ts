@@ -38,6 +38,8 @@ authRouter.post("/api/auth/login", loginLimiter, async (req, res) => {
     return res.status(403).json({ error: "L'accès de ce cabinet a été suspendu. Contactez l'administrateur de la plateforme." });
   }
 
+  await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
+
   const token = signAuthToken({ userId: user.id, cabinetId: user.cabinetId, role: user.role });
 
   res.cookie("aurore_session", token, {

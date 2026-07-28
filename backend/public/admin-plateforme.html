@@ -7,11 +7,19 @@
   <link rel="icon" type="image/png" href="/favicon-256.png" />
   <link rel="stylesheet" href="/style.css" />
   <style>
-    .cabinet-item { border-bottom: 1px solid var(--border); padding: 16px 0; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+    .cabinet-item { border-bottom: 1px solid var(--border); padding: 16px 0; }
     .cabinet-item:last-child { border-bottom: none; }
+    .cabinet-item-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
     .module-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border); font-size: 0.78rem; cursor: pointer; user-select: none; background: var(--panel); }
     .module-chip.actif { background: var(--success-tint); color: var(--success); border-color: transparent; }
     .module-chip.inactif { background: var(--hairline); color: var(--muted); }
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin-bottom: 20px; }
+    .stat-tile { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+    .stat-tile .stat-value { font-size: 1.6rem; font-weight: 700; color: var(--text-strong); }
+    .stat-tile .stat-label { color: var(--muted); font-size: 0.82rem; }
+    .activite-panel { margin-top: 12px; padding: 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel-alt); }
+    .activite-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 6px; }
+    .activite-table td { padding: 4px 6px; border-bottom: 1px solid var(--border); }
   </style>
 </head>
 <body>
@@ -23,6 +31,8 @@
     </div>
 
     <div id="error" class="error"></div>
+
+    <div class="stats-grid" id="stats-grid"></div>
 
     <div style="display:flex; align-items:center; justify-content:flex-end; margin-bottom:16px;">
       <button type="button" class="secondary" id="toggle-add-btn">+ Nouveau cabinet</button>
@@ -69,6 +79,85 @@
       { key: "delais", label: "Délais" },
     ];
 
+    const PALIERS = ["1-10 utilisateurs", "11-20 utilisateurs", "21-30 utilisateurs", "31+ utilisateurs"];
+
+    const TYPE_LABELS = {
+      notes: "Compte-rendu d'audience",
+      redac: "Plaidoirie",
+      conclusions: "Conclusions",
+      assignation: "Assignation",
+      mise_en_demeure: "Mise en demeure",
+      jurisprudence: "Recherche de jurisprudence",
+      recherche_juridique: "Recherche juridique",
+      resume_pdf: "Résumé de jurisprudence",
+      veille_juridique: "Veille juridique",
+      traduction: "Traduction",
+      plainte: "Plainte",
+      contrat: "Contrat",
+      notification_date: "Notification",
+      requete: "Requête",
+      projet_ordonnance: "Projet d'ordonnance",
+      note_plaidoirie: "Note de plaidoirie",
+    };
+
+    function formatDateHeure(iso) {
+      if (!iso) return "jamais connecté";
+      return new Date(iso).toLocaleString("fr-FR", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+    }
+
+    async function loadStats() {
+      const box = document.getElementById("stats-grid");
+      try {
+        const s = await apiFetch("/api/admin/stats");
+        const tuiles = [
+          { label: "Cabinets inscrits", value: s.totalCabinets },
+          { label: "Cabinets actifs", value: s.cabinetsActifs },
+          { label: "Cabinets suspendus", value: s.cabinetsSuspendus },
+          { label: "Nouveaux ce mois-ci", value: s.nouveauxCeMois },
+          { label: "Utilisateurs au total", value: s.totalUtilisateurs },
+          { label: "Cabinets connectés (7j)", value: s.cabinetsConnectesCetteSemaine },
+        ];
+        box.innerHTML = tuiles
+          .map((t) => `<div class="stat-tile"><div class="stat-value">${t.value}</div><div class="stat-label">${t.label}</div></div>`)
+          .join("");
+      } catch {
+        box.innerHTML = "";
+      }
+    }
+
+    async function toggleActivite(cabinetId, panelEl) {
+      if (panelEl.dataset.loaded === "1") {
+        panelEl.hidden = !panelEl.hidden;
+        return;
+      }
+      panelEl.hidden = false;
+      panelEl.innerHTML = '<p class="muted" style="margin:0;">Chargement…</p>';
+      try {
+        const data = await apiFetch(`/api/admin/cabinets/${cabinetId}/activite`);
+        const opsHtml =
+          data.operations.length === 0
+            ? '<p class="muted" style="margin:4px 0 0;">Aucune opération sur les 30 derniers jours.</p>'
+            : `<table class="activite-table">${data.operations
+                .map((o) => `<tr><td>${escapeHtml(TYPE_LABELS[o.typeAction] || o.typeAction)}</td><td style="text-align:right;"><strong>${o.total}</strong></td></tr>`)
+                .join("")}</table>`;
+        const usersHtml = `<table class="activite-table">${data.utilisateurs
+          .map(
+            (u) =>
+              `<tr><td>${escapeHtml(u.nom)} <span class="muted">(${u.role}${u.actif ? "" : ", désactivé"})</span></td><td style="text-align:right;">${formatDateHeure(u.lastLoginAt)}</td></tr>`
+          )
+          .join("")}</table>`;
+        panelEl.innerHTML = `
+          <strong>Opérations effectuées (30 derniers jours)</strong>
+          ${opsHtml}
+          <strong style="display:block; margin-top:12px;">Dernière connexion par utilisateur</strong>
+          ${usersHtml}
+        `;
+        panelEl.dataset.loaded = "1";
+      } catch (err) {
+        panelEl.innerHTML = `<p class="error visible">${escapeHtml(err.message)}</p>`;
+      }
+    }
+
     async function loadCabinets() {
       const errorEl = document.getElementById("error");
       hideError(errorEl);
@@ -84,20 +173,28 @@
           .map(
             (c) => `
           <div class="cabinet-item">
-            <div>
-              <strong>${escapeHtml(c.nom)}</strong>
-              <span class="badge ${c.actif ? "badge-a_jour" : "badge-echeance_proche"}" style="margin-left:8px;">${c.actif ? "Actif" : "Suspendu"}</span>
-              <div class="meta">${c._count.users} utilisateur(s) · ${c._count.dossiers} dossier(s) · créé le ${new Date(c.createdAt).toLocaleDateString("fr-FR")}</div>
-              <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;">
-                ${MODULES.map((m) => {
-                  const actif = !c.modulesDesactives.includes(m.key);
-                  return `<span class="module-chip ${actif ? "actif" : "inactif"}" data-toggle-module="${c.id}" data-module-key="${m.key}">${actif ? "✓" : "✕"} ${escapeHtml(m.label)}</span>`;
-                }).join("")}
+            <div class="cabinet-item-top">
+              <div>
+                <strong>${escapeHtml(c.nom)}</strong>
+                <span class="badge ${c.actif ? "badge-a_jour" : "badge-echeance_proche"}" style="margin-left:8px;">${c.actif ? "Actif" : "Suspendu"}</span>
+                <div class="meta">${c._count.users} utilisateur(s) · ${c._count.dossiers} dossier(s) · créé le ${new Date(c.createdAt).toLocaleDateString("fr-FR")}</div>
+                <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-top:8px;">
+                  ${MODULES.map((m) => {
+                    const actif = !c.modulesDesactives.includes(m.key);
+                    return `<span class="module-chip ${actif ? "actif" : "inactif"}" data-toggle-module="${c.id}" data-module-key="${m.key}">${actif ? "✓" : "✕"} ${escapeHtml(m.label)}</span>`;
+                  }).join("")}
+                  <select data-plan-select="${c.id}" style="width:auto; margin:0; font-size:0.78rem; padding:4px 8px;">
+                    <option value="">— Palier tarifaire —</option>
+                    ${PALIERS.map((p) => `<option value="${escapeHtml(p)}"${c.plan === p ? " selected" : ""}>${escapeHtml(p)}</option>`).join("")}
+                  </select>
+                </div>
+              </div>
+              <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <button type="button" class="ghost btn-sm" data-toggle-activite="${c.id}">Activité</button>
+                <button type="button" class="secondary btn-sm" data-toggle-actif="${c.id}" data-actif="${c.actif}">${c.actif ? "Suspendre" : "Réactiver"}</button>
               </div>
             </div>
-            <div style="display:flex; gap:8px; flex-wrap:wrap;">
-              <button type="button" class="secondary btn-sm" data-toggle-actif="${c.id}" data-actif="${c.actif}">${c.actif ? "Suspendre" : "Réactiver"}</button>
-            </div>
+            <div class="activite-panel" data-activite-panel="${c.id}" hidden></div>
           </div>`
           )
           .join("");
@@ -138,6 +235,26 @@
             }
           });
         });
+
+        contentEl.querySelectorAll("[data-plan-select]").forEach((sel) => {
+          sel.addEventListener("change", async () => {
+            try {
+              await apiFetch(`/api/admin/cabinets/${sel.dataset.planSelect}`, {
+                method: "PATCH",
+                body: { plan: sel.value },
+              });
+            } catch (err) {
+              showError(errorEl, err.message);
+            }
+          });
+        });
+
+        contentEl.querySelectorAll("[data-toggle-activite]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const panel = contentEl.querySelector(`[data-activite-panel="${btn.dataset.toggleActivite}"]`);
+            toggleActivite(btn.dataset.toggleActivite, panel);
+          });
+        });
       } catch (err) {
         showError(errorEl, err.message);
         contentEl.innerHTML = "";
@@ -148,6 +265,7 @@
       const me = await requireSession();
       if (!me) return;
       initLayout(me);
+      loadStats();
       loadCabinets();
     })();
 

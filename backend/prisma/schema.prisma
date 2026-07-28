@@ -86,6 +86,10 @@ model Cabinet {
   // par la plateforme selon la formule souscrite. Absent de la liste =
   // module actif.
   modulesDesactives                   String[] @default([]) @map("modules_desactives")
+  // Palier tarifaire assigne par la plateforme (ex: "1-10 utilisateurs",
+  // "11-20 utilisateurs"...) - purement informatif, sert de repere pour la
+  // facturation manuelle du cabinet, n'entraine aucun calcul automatique.
+  plan                                String?  @map("plan")
   // Adresse postale du cabinet - utilisee notamment dans l'entete de
   // certains documents generes (ex: conclusions), saisie une fois pour
   // toutes plutot que redemandee a chaque document.
@@ -160,6 +164,9 @@ model User {
   // session en cours, sans supprimer l'historique (dossiers/actions crees
   // par cette personne restent intacts).
   actif                 Boolean   @default(true)
+  // Horodatage de la derniere connexion reussie - utilise pour reperer les
+  // cabinets/utilisateurs actifs depuis la page d'administration plateforme.
+  lastLoginAt           DateTime? @map("last_login_at")
   telephone             String?
   adresse               String?
   // Date d'arrivee au cabinet (peut differer de createdAt, saisie a la main
