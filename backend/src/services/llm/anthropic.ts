@@ -52,14 +52,17 @@ export class AnthropicProvider implements LlmProvider {
     return validated.data;
   }
 
-  async redact(systemPrompt: string, userPrompt: string): Promise<string> {
+  async redact(systemPrompt: string, userPrompt: string, options?: { maxTokens?: number }): Promise<string> {
     const message = await this.client.messages.create({
       model: "claude-sonnet-5",
-      // 8192 plutot que 4096 : certaines redactions (recherche de
-      // jurisprudence approfondie) visent desormais jusqu'a 3000 mots, ce
-      // qui approche voire depasse 4096 tokens de sortie une fois les
-      // tableaux comparatifs inclus.
-      max_tokens: 8192,
+      // 8192 par defaut plutot que 4096 : certaines redactions (recherche
+      // de jurisprudence approfondie) visent jusqu'a 3000 mots, ce qui
+      // approche voire depasse 4096 tokens de sortie une fois les tableaux
+      // comparatifs inclus. Les appels intermediaires (ex: resume d'un
+      // extrait de PDF avant combinaison finale) peuvent demander une
+      // limite plus basse pour rester sous le quota de tokens/minute des
+      // fournisseurs a plan gratuit.
+      max_tokens: options?.maxTokens ?? 8192,
       system: systemPrompt,
       messages: [{ role: "user", content: userPrompt }],
     });

@@ -52,13 +52,18 @@ export async function summarizeLongText(
   const chunks = splitIntoChunks(texte, CHUNK_SIZE_CHARS);
   const resumesPartiels: string[] = [];
   for (let i = 0; i < chunks.length; i += 1) {
+    // Resume intermediaire : nettement plus court que la synthese finale,
+    // pas besoin des 8192 tokens par defaut - reduit le risque de heurter
+    // le quota de tokens/minute des fournisseurs a plan gratuit quand
+    // plusieurs extraits sont resumes coup sur coup pour un meme PDF.
     const resume = await llm.redact(
       RESUME_PDF_EXTRAIT_SYSTEM_PROMPT,
       buildResumePdfExtraitUserPrompt({
         partieIndex: i + 1,
         partieTotal: chunks.length,
         extrait: chunks[i],
-      })
+      }),
+      { maxTokens: 1024 }
     );
     resumesPartiels.push(resume);
   }

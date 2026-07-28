@@ -6,7 +6,7 @@ export interface LlmProvider {
    * Redaction pure a partir de faits deja structures (formulaire web) :
    * pas d'extraction, juste transformer les faits fournis en texte redige.
    */
-  redact(systemPrompt: string, userPrompt: string): Promise<string>;
+  redact(systemPrompt: string, userPrompt: string, options?: { maxTokens?: number }): Promise<string>;
 }
 
 export class LlmOutputError extends Error {

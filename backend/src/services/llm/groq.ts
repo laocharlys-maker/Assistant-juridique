@@ -79,7 +79,7 @@ export class GroqProvider implements LlmProvider {
     return validated.data;
   }
 
-  async redact(systemPrompt: string, userPrompt: string): Promise<string> {
+  async redact(systemPrompt: string, userPrompt: string, options?: { maxTokens?: number }): Promise<string> {
     const response = await withTransientRetry(() =>
       fetch(GROQ_API_URL, {
         method: "POST",
@@ -91,8 +91,11 @@ export class GroqProvider implements LlmProvider {
           model: GROQ_MODEL,
           // Explicite plutot que de compter sur le defaut de l'API : certaines
           // redactions (recherche de jurisprudence approfondie) visent
-          // desormais jusqu'a 3000 mots avec tableaux comparatifs.
-          max_tokens: 8192,
+          // desormais jusqu'a 3000 mots avec tableaux comparatifs. Les appels
+          // intermediaires (ex: resume d'un extrait de PDF avant combinaison
+          // finale) demandent une limite plus basse pour rester sous le quota
+          // de tokens/minute des fournisseurs a plan gratuit (Groq : 12000 TPM).
+          max_tokens: options?.maxTokens ?? 8192,
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt },
