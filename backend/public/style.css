@@ -859,6 +859,41 @@ header.app-topbar {
   .role-month-cell-date::before { content: "Le "; }
 }
 
+/* ---------- Editeur de texte plein ecran (correction d'un document genere, alternative a Google Docs) ---------- */
+.edit-panel[hidden] { display: none; }
+.edit-panel:not([hidden]) {
+  position: fixed;
+  inset: 16px;
+  z-index: 1000;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow-md);
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+}
+.edit-panel-columns { flex: 1; min-height: 0; display: flex; gap: 16px; margin-top: 10px; }
+.edit-panel-columns > div { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.edit-panel textarea {
+  flex: 1;
+  min-height: 0;
+  resize: none;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+.edit-panel-preview {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  background: var(--panel-alt);
+}
+.edit-panel-actions { display: flex; gap: 10px; margin-top: 14px; flex-shrink: 0; }
+
 /* ---------- Rendu Markdown des textes generes (recherche juridique, jurisprudence...) ---------- */
 .md-content { font-size: 0.95rem; line-height: 1.6; color: var(--text); }
 .md-content p { margin: 0 0 14px; }

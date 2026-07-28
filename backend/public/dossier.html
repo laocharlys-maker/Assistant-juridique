@@ -482,18 +482,22 @@
             ${downloadLinks}
             <div class="md-content" data-content-view="${a.id}">${renderMarkdown(a.contenuGenere || "")}</div>
             <div class="edit-panel" data-edit-panel="${a.id}" hidden>
-              <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-start; margin-top:8px;">
-                <textarea data-edit-textarea="${a.id}" rows="14" style="flex:1; min-width:260px; font-family:monospace; font-size:0.85rem;">${escapeHtml(a.contenuGenere || "")}</textarea>
-                <div style="flex:1; min-width:260px;">
+              <strong>Modifier le texte — ${escapeHtml(titreAction)}</strong>
+              <div class="edit-panel-columns">
+                <div>
+                  <div class="muted" style="margin-bottom:4px;">Texte (Markdown : # titre, **gras**, listes, tableaux)</div>
+                  <textarea data-edit-textarea="${a.id}">${escapeHtml(a.contenuGenere || "")}</textarea>
+                </div>
+                <div>
                   <div class="muted" style="margin-bottom:4px;">Aperçu</div>
-                  <div class="md-content" data-preview="${a.id}" style="border:1px solid var(--border); border-radius:8px; padding:10px; max-height:340px; overflow:auto;"></div>
+                  <div class="md-content edit-panel-preview" data-preview="${a.id}"></div>
                 </div>
               </div>
-              <div style="display:flex; gap:8px; margin-top:10px;">
+              <p class="error" data-edit-error="${a.id}"></p>
+              <div class="edit-panel-actions">
                 <button type="button" class="btn-sm" data-save-edit="${a.id}">Enregistrer</button>
                 <button type="button" class="ghost btn-sm" data-cancel-edit="${a.id}">Annuler</button>
               </div>
-              <p class="error" data-edit-error="${a.id}"></p>
             </div>
             ${controls}
           </div>
