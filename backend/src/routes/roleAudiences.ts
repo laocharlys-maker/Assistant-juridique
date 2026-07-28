@@ -1,9 +1,10 @@
-import { Router } from "express";
+import { Router, Request, Response } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
 import { getAccessibleAvocatIds } from "../services/access";
 import { callN8nWebhook } from "../services/n8n";
+import { buildRoleSemainePdf, buildRoleSemaineWord } from "../services/roleSemaineExport";
 
 export const roleAudiencesRouter = Router();
 
@@ -69,20 +70,14 @@ roleAudiencesRouter.get("/api/role-audiences", requireAuth, async (req, res) => 
   return res.json({ scope, debut: debut.toISOString(), fin: fin.toISOString(), audiences });
 });
 
-// "Role de la semaine" (imprimable) : affiche la semaine SUR-prochaine (et
-// non la semaine suivante, deja visible depuis un moment via le calendrier)
-// - l'idee est de laisser toute la semaine a venir a l'avocat pour preparer
-// ces audiences-la. Uniquement pertinent du jeudi au dimanche : avant, la
-// semaine sur-prochaine n'est pas encore consideree comme "a preparer des
-// maintenant" ; le lundi au mercredi, on est deja dans la semaine qui la
-// precede immediatement, donc plus vraiment en amont.
-roleAudiencesRouter.get("/api/role-audiences/semaine-sur-prochaine", requireAuth, async (req, res) => {
-  const { auth } = req;
-
-  const requestedScope = req.query.scope === "cabinet" ? "cabinet" : "mine";
-  const scope = requestedScope === "cabinet" && peutVoirTouLeCabinet(auth!.role) ? "cabinet" : "mine";
-  const accessibleAvocatIds = scope === "mine" ? await getAccessibleAvocatIds(auth!) : null;
-
+// Periode de la semaine SUR-prochaine (et non la semaine suivante, deja
+// visible depuis un moment via le calendrier) - l'idee est de laisser toute
+// la semaine a venir a l'avocat pour preparer ces audiences-la. Uniquement
+// pertinent du jeudi au dimanche : avant, la semaine sur-prochaine n'est pas
+// encore consideree comme "a preparer des maintenant" ; le lundi au
+// mercredi, on est deja dans la semaine qui la precede immediatement, donc
+// plus vraiment en amont.
+function calculerSemaineSurProchaine(): { debut: Date; fin: Date; disponible: boolean } {
   const maintenant = new Date();
   const jourSemaine = maintenant.getUTCDay(); // 0 = dimanche ... 6 = samedi
   // TEMPORAIRE - filtre jour-de-semaine neutralise pour permettre un test
@@ -96,13 +91,20 @@ roleAudiencesRouter.get("/api/role-audiences/semaine-sur-prochaine", requireAuth
   const fin = new Date(debut);
   fin.setUTCDate(fin.getUTCDate() + 5); // lundi a vendredi inclus
 
+  return { debut, fin, disponible };
+}
+
+async function chargerAudiencesSemaineSurProchaine(auth: NonNullable<Express.Request["auth"]>, scope: "mine" | "cabinet") {
+  const accessibleAvocatIds = scope === "mine" ? await getAccessibleAvocatIds(auth) : null;
+  const { debut, fin, disponible } = calculerSemaineSurProchaine();
+
   if (!disponible) {
-    return res.json({ disponible: false, scope, debut: debut.toISOString(), fin: fin.toISOString(), audiences: [] });
+    return { disponible: false as const, debut, fin, audiences: [] };
   }
 
   const audiences = await prisma.roleAudience.findMany({
     where: {
-      cabinetId: auth!.cabinetId,
+      cabinetId: auth.cabinetId,
       dateAudience: { gte: debut, lt: fin },
       ...(accessibleAvocatIds ? { createdBy: { in: accessibleAvocatIds } } : {}),
     },
@@ -113,14 +115,59 @@ roleAudiencesRouter.get("/api/role-audiences/semaine-sur-prochaine", requireAuth
     orderBy: { dateAudience: "asc" },
   });
 
+  return { disponible: true as const, debut, fin, audiences };
+}
+
+roleAudiencesRouter.get("/api/role-audiences/semaine-sur-prochaine", requireAuth, async (req, res) => {
+  const { auth } = req;
+  const requestedScope = req.query.scope === "cabinet" ? "cabinet" : "mine";
+  const scope = requestedScope === "cabinet" && peutVoirTouLeCabinet(auth!.role) ? "cabinet" : "mine";
+
+  const { disponible, debut, fin, audiences } = await chargerAudiencesSemaineSurProchaine(auth!, scope);
+
   return res.json({
-    disponible: true,
+    disponible,
     scope,
     debut: debut.toISOString(),
     fin: fin.toISOString(),
     audiences,
   });
 });
+
+async function exportSemaineSurProchaine(req: Request, res: Response, format: "pdf" | "word") {
+  const { auth } = req;
+  const requestedScope = req.query.scope === "cabinet" ? "cabinet" : "mine";
+  const scope = requestedScope === "cabinet" && peutVoirTouLeCabinet(auth!.role) ? "cabinet" : "mine";
+
+  const { disponible, audiences } = await chargerAudiencesSemaineSurProchaine(auth!, scope);
+  if (!disponible || audiences.length === 0) {
+    return res.status(404).json({ error: "Aucune audience à exporter pour la semaine sur-prochaine." });
+  }
+
+  const cabinet = await prisma.cabinet.findUnique({ where: { id: auth!.cabinetId } });
+
+  if (format === "pdf") {
+    const buffer = await buildRoleSemainePdf({ cabinetNom: cabinet?.nom ?? "", audiences });
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", 'attachment; filename="role-de-la-semaine.pdf"');
+    return res.send(buffer);
+  }
+
+  const buffer = await buildRoleSemaineWord({ cabinetNom: cabinet?.nom ?? "", audiences });
+  res.setHeader(
+    "Content-Type",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+  );
+  res.setHeader("Content-Disposition", 'attachment; filename="role-de-la-semaine.docx"');
+  return res.send(buffer);
+}
+
+roleAudiencesRouter.get("/api/role-audiences/semaine-sur-prochaine/pdf", requireAuth, (req, res) =>
+  exportSemaineSurProchaine(req, res, "pdf")
+);
+roleAudiencesRouter.get("/api/role-audiences/semaine-sur-prochaine/word", requireAuth, (req, res) =>
+  exportSemaineSurProchaine(req, res, "word")
+);
 
 // Suggestions : dossiers dont le dernier compte-rendu annonce une
 // "prochaine audience" tombant dans la semaine consultee, et qui n'ont pas

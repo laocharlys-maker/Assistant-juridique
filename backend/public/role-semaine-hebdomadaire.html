@@ -7,12 +7,14 @@
   <link rel="icon" type="image/png" href="/favicon-256.png" />
   <link rel="stylesheet" href="/style.css" />
   <style>
-    .role-hebdo-table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+    .role-hebdo-card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 24px; margin-bottom: 20px; box-shadow: var(--shadow-sm); }
+    .role-hebdo-table { width: 100%; border-collapse: collapse; margin-bottom: 24px; background: var(--panel); }
     .role-hebdo-table th, .role-hebdo-table td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; vertical-align: top; font-size: 0.88rem; }
     .role-hebdo-table th { background: var(--panel-alt); color: var(--text-strong); }
     .role-hebdo-date-header { text-align: center; font-weight: 700; background: var(--accent-tint); padding: 10px; border: 1px solid var(--border); text-transform: uppercase; letter-spacing: 0.02em; }
     @media print {
-      header.topbar, .sidebar, #no-print, .page-hero p, #period-actions { display: none !important; }
+      .app-topbar, .sidebar, .no-print, .page-hero p, #period-actions { display: none !important; }
+      .app-shell, .main-area { display: block !important; }
       .page { max-width: 100%; padding: 0; }
       body { background: #fff; }
     }
@@ -139,49 +141,51 @@
         const jours = Array.from(parJour.keys()).sort();
 
         contentEl.innerHTML = `
-          <div id="period-actions" style="display:flex; justify-content:flex-end; margin-bottom:16px;">
-            <button type="button" class="secondary" id="print-btn">Imprimer / Télécharger</button>
+          <div id="period-actions" style="display:flex; justify-content:flex-end; gap:10px; margin-bottom:16px;">
+            <a class="secondary" href="/api/role-audiences/semaine-sur-prochaine/pdf" style="text-decoration:none; padding:8px 16px; border-radius:8px;">Télécharger en PDF</a>
+            <a class="secondary" href="/api/role-audiences/semaine-sur-prochaine/word" style="text-decoration:none; padding:8px 16px; border-radius:8px;">Télécharger en Word</a>
           </div>
-          ${jours
-            .map((jourKey) => {
-              const audiencesDuJour = parJour.get(jourKey);
-              const dateJour = new Date(audiencesDuJour[0].dateAudience);
-              return `
-              <table class="role-hebdo-table">
-                <thead>
-                  <tr><th colspan="6" class="role-hebdo-date-header">${escapeHtml(formatEnTeteJour(dateJour))}</th></tr>
-                  <tr>
-                    <th>Heure</th>
-                    <th>Juridiction / Chambre / Procédure</th>
-                    <th>Parties</th>
-                    <th>Qualité procédurale du client</th>
-                    <th>Objet de la procédure</th>
-                    <th>Dernier motif / Diligences</th>
-                    <th id="no-print"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${audiencesDuJour
-                    .map(
-                      (a) => `
+          <div class="role-hebdo-card">
+            ${jours
+              .map((jourKey) => {
+                const audiencesDuJour = parJour.get(jourKey);
+                const dateJour = new Date(audiencesDuJour[0].dateAudience);
+                return `
+                <table class="role-hebdo-table">
+                  <thead>
+                    <tr><th colspan="7" class="role-hebdo-date-header">${escapeHtml(formatEnTeteJour(dateJour))}</th></tr>
                     <tr>
-                      <td>${formatHeure(a.dateAudience)}</td>
-                      <td>${escapeHtml(a.juridiction)}${a.chambre ? "<br />" + escapeHtml(a.chambre) : ""}${a.procedureNumero ? "<br />" + escapeHtml(a.procedureNumero) : ""}</td>
-                      <td>${escapeHtml(a.parties)}</td>
-                      <td>${escapeHtml(a.qualiteProcedurale || "")}</td>
-                      <td>${escapeHtml(a.objetProcedure || "")}</td>
-                      <td>${escapeHtml(a.dernierMotif || "")}${a.diligences ? "<br />" + escapeHtml(a.diligences) : ""}</td>
-                      <td id="no-print"><button type="button" class="ghost btn-sm" data-modifier="${a.id}">Modifier</button></td>
-                    </tr>`
-                    )
-                    .join("")}
-                </tbody>
-              </table>`;
-            })
-            .join("")}
+                      <th>Heure</th>
+                      <th>Juridiction / Chambre / Procédure</th>
+                      <th>Parties</th>
+                      <th>Qualité procédurale du client</th>
+                      <th>Objet de la procédure</th>
+                      <th>Dernier motif / Diligences</th>
+                      <th class="no-print"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${audiencesDuJour
+                      .map(
+                        (a) => `
+                      <tr>
+                        <td>${formatHeure(a.dateAudience)}</td>
+                        <td>${escapeHtml(a.juridiction)}${a.chambre ? "<br />" + escapeHtml(a.chambre) : ""}${a.procedureNumero ? "<br />" + escapeHtml(a.procedureNumero) : ""}</td>
+                        <td>${escapeHtml(a.parties)}</td>
+                        <td>${escapeHtml(a.qualiteProcedurale || "")}</td>
+                        <td>${escapeHtml(a.objetProcedure || "")}</td>
+                        <td>${escapeHtml(a.dernierMotif || "")}${a.diligences ? "<br />" + escapeHtml(a.diligences) : ""}</td>
+                        <td class="no-print"><button type="button" class="ghost btn-sm" data-modifier="${a.id}">Modifier</button></td>
+                      </tr>`
+                      )
+                      .join("")}
+                  </tbody>
+                </table>`;
+              })
+              .join("")}
+          </div>
         `;
 
-        document.getElementById("print-btn").addEventListener("click", () => window.print());
         contentEl.querySelectorAll("[data-modifier]").forEach((btn) => {
           btn.addEventListener("click", () => ouvrirEdition(btn.dataset.modifier));
         });
