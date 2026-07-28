@@ -603,7 +603,7 @@ header.app-topbar {
   box-shadow: none;
 }
 .accordion-header:hover { background: var(--accent-tint); box-shadow: none; }
-.accordion-body { padding: 0 14px 14px; display: none; }
+.accordion-body { padding: 0 14px 14px; display: none; background: var(--panel); }
 .accordion-item.open .accordion-body { display: block; }
 .accordion-body pre {
   white-space: pre-wrap;
