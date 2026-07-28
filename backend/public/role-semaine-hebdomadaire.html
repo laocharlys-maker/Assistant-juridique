@@ -142,8 +142,9 @@
 
         contentEl.innerHTML = `
           <div id="period-actions" style="display:flex; justify-content:flex-end; gap:10px; margin-bottom:16px;">
-            <a class="secondary" href="/api/role-audiences/semaine-sur-prochaine/pdf" style="text-decoration:none; padding:8px 16px; border-radius:8px;">Télécharger en PDF</a>
-            <a class="secondary" href="/api/role-audiences/semaine-sur-prochaine/word" style="text-decoration:none; padding:8px 16px; border-radius:8px;">Télécharger en Word</a>
+            <button type="button" class="secondary" id="print-btn">Imprimer</button>
+            <a class="secondary" href="/api/role-audiences/semaine-sur-prochaine/pdf" style="text-decoration:none; padding:8px 16px; border-radius:8px;">Télécharger PDF</a>
+            <a class="secondary" href="/api/role-audiences/semaine-sur-prochaine/word" style="text-decoration:none; padding:8px 16px; border-radius:8px;">Télécharger Word</a>
           </div>
           <div class="role-hebdo-card">
             ${jours
@@ -186,6 +187,7 @@
           </div>
         `;
 
+        document.getElementById("print-btn").addEventListener("click", () => window.print());
         contentEl.querySelectorAll("[data-modifier]").forEach((btn) => {
           btn.addEventListener("click", () => ouvrirEdition(btn.dataset.modifier));
         });

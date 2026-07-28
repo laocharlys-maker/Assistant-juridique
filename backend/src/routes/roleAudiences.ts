@@ -139,21 +139,22 @@ async function exportSemaineSurProchaine(req: Request, res: Response, format: "p
   const requestedScope = req.query.scope === "cabinet" ? "cabinet" : "mine";
   const scope = requestedScope === "cabinet" && peutVoirTouLeCabinet(auth!.role) ? "cabinet" : "mine";
 
-  const { disponible, audiences } = await chargerAudiencesSemaineSurProchaine(auth!, scope);
+  const { disponible, debut, fin, audiences } = await chargerAudiencesSemaineSurProchaine(auth!, scope);
   if (!disponible || audiences.length === 0) {
     return res.status(404).json({ error: "Aucune audience à exporter pour la semaine sur-prochaine." });
   }
 
   const cabinet = await prisma.cabinet.findUnique({ where: { id: auth!.cabinetId } });
+  const exportInput = { cabinetNom: cabinet?.nom ?? "", cabinetAdresse: cabinet?.adresse ?? null, debut, fin, audiences };
 
   if (format === "pdf") {
-    const buffer = await buildRoleSemainePdf({ cabinetNom: cabinet?.nom ?? "", audiences });
+    const buffer = await buildRoleSemainePdf(exportInput);
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", 'attachment; filename="role-de-la-semaine.pdf"');
     return res.send(buffer);
   }
 
-  const buffer = await buildRoleSemaineWord({ cabinetNom: cabinet?.nom ?? "", audiences });
+  const buffer = await buildRoleSemaineWord(exportInput);
   res.setHeader(
     "Content-Type",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
