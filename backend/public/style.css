@@ -238,6 +238,25 @@ button.secondary {
 button.secondary:hover { background: var(--accent-tint); border-color: var(--accent); color: var(--accent-hover); box-shadow: var(--shadow-sm); }
 button.secondary:active { background: var(--panel-alt); }
 
+/* Lien stylise comme un bouton secondaire (ex: telechargements) - button.secondary
+   ne cible que <button>, donc un <a class="secondary"> a besoin de sa propre regle
+   pour reprendre le meme gabarit (padding, pilule, ombre) que les vrais boutons. */
+a.secondary {
+  display: inline-block;
+  padding: 11px 22px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-decoration: none;
+  box-shadow: var(--shadow-sm);
+  transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease, transform 0.08s ease;
+}
+a.secondary:hover { background: var(--accent-tint); border-color: var(--accent); color: var(--accent-hover); box-shadow: var(--shadow-sm); }
+a.secondary:active { background: var(--panel-alt); transform: translateY(1px); }
+
 .prefill-panel {
   display: flex;
   align-items: center;
