@@ -4,6 +4,7 @@ import { ActionOutput } from "../schemas/action";
 export type N8nWebhookName =
   | "notes-audience"
   | "document-juridique"
+  | "recherche-juridique"
   | "envoyer-email"
   | "envoyer-email-client"
   | "whatsapp-reply"
@@ -49,10 +50,19 @@ export async function callN8nWebhook(
 }
 
 export function webhookForAction(typeAction: ActionOutput["type_action"]): N8nWebhookName {
-  // Tous les documents "texte juridique" (plaidoirie, jurisprudence,
-  // conclusions, assignation, mise en demeure) suivent la meme chaine
-  // n8n : copie du template generique -> remplacement -> export -> envoi.
-  // Seul le compte-rendu d'audience a un template et des effets de bord
-  // distincts (Calendar, Sheets).
-  return typeAction === "notes" ? "notes-audience" : "document-juridique";
+  // Tous les documents "texte juridique classique" (plaidoirie,
+  // conclusions, assignation, mise en demeure...) suivent la meme chaine
+  // n8n : copie du template generique -> remplacement de texte brut ->
+  // export -> envoi. Seul le compte-rendu d'audience a un template et des
+  // effets de bord distincts (Calendar, Sheets).
+  //
+  // Jurisprudence et Recherche juridique sont volontairement isolees sur
+  // leur propre webhook/branche n8n : leur contenu est structure en
+  // Markdown (titres, listes, tableaux) et necessite un traitement dedie
+  // pour etre converti en vraie mise en forme Google Docs - un traitement
+  // experimental qui ne doit jamais pouvoir impacter la generation des
+  // documents juridiques classiques ci-dessus en cas de bug.
+  if (typeAction === "notes") return "notes-audience";
+  if (typeAction === "jurisprudence" || typeAction === "recherche_juridique") return "recherche-juridique";
+  return "document-juridique";
 }
