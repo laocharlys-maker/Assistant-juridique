@@ -1612,7 +1612,13 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
       const redigéRequete = [
         ["I. EXPOSÉ DES FAITS", exposeDesFaitsRequete].filter(Boolean).join("\n\n"),
         ["II. DISCUSSION JURIDIQUE", discussionJuridiqueRequete].filter(Boolean).join("\n\n"),
-        ["PAR CES MOTIFS", demandesRequete].filter(Boolean).join("\n\n"),
+        [
+          "PAR CES MOTIFS",
+          "Et tous autres à produire, déduire ou suppléer, même d'office, il est demandé à votre juridiction de bien vouloir :",
+          demandesRequete,
+        ]
+          .filter(Boolean)
+          .join("\n\n"),
       ]
         .filter(Boolean)
         .join("\n\n");

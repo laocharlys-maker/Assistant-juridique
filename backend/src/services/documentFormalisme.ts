@@ -176,21 +176,43 @@ export function buildFormalisme(
     }
 
     case "requete": {
-      const qualite = ligne(s(c, "qualite_representant"), s(c, "representant_legal"));
+      const qualiteClient = s(c, "qualite_representant")
+        ? `, agissant en qualité de ${s(c, "qualite_representant")}`
+        : "";
+      const conseil = s(c, "nom_avocat")
+        ? `Ayant pour Conseil Maître ${s(c, "nom_avocat")}, Avocat au Barreau du Bénin${
+            s(c, "adresse_cabinet")
+              ? `, y demeurant élisant domicile en son cabinet sis ${s(c, "adresse_cabinet")}.`
+              : "."
+          }`
+        : "";
+      const defendeur = ligne(
+        s(c, "civilite_nom_defendeur") || s(c, "nom_defendeur"),
+        s(c, "profession_defendeur")
+      );
       return {
         avant: bloc(
-          ligne(s(c, "civilite_nom_client") || ctx.nomClient, qualite),
-          s(c, "informations_client"),
-          "À",
+          `Fait à ${ctx.ville}, le ${ctx.dateLongue}`,
+          s(c, "nom_cabinet"),
+          s(c, "adresse_cabinet"),
+          "A",
           s(c, "destinataire"),
           s(c, "objet") && `OBJET : ${s(c, "objet")}`,
-          s(c, "civilite_appel_destinataire")
+          "REQUÊTE",
+          "POUR :",
+          `${s(c, "civilite_nom_client") || ctx.nomClient}${qualiteClient}`,
+          s(c, "informations_client"),
+          conseil,
+          defendeur && "CONTRE :",
+          defendeur,
+          s(c, "adresse_defendeur") && `Demeurant ${s(c, "adresse_defendeur")}`,
+          `À ${s(c, "civilite_appel_destinataire") || "Madame, Monsieur,"}`
         ),
         apres: bloc(
-          s(c, "piece_a_prevoir") && `Bordereau des pièces communiquées :\n${s(c, "piece_a_prevoir")}`,
-          `Fait à ${ctx.ville}, le ${ctx.dateLongue}`,
+          "Sous toutes réserves généralement quelconques.",
           s(c, "nom_avocat") && `Maître ${s(c, "nom_avocat")}`,
-          "Avocat au Barreau du Bénin"
+          "Avocat au Barreau du Bénin",
+          s(c, "piece_a_prevoir") && `BORDEREAU DES PIÈCES COMMUNIQUÉES\n\n${s(c, "piece_a_prevoir")}`
         ),
       };
     }

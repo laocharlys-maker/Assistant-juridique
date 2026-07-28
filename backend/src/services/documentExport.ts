@@ -267,8 +267,11 @@ export async function buildDocx(input: ExportInput): Promise<Buffer> {
 
   // Quand il y a un en-tête, il porte deja le nom/l'identite du cabinet -
   // repeter ce bloc de titre en dessous ne fait que doublonner et chevauche
-  // visuellement l'image (plus large qu'avant).
-  const titreParagraphs = input.entete
+  // visuellement l'image (plus large qu'avant). Idem quand un formalisme
+  // specifique s'applique : il porte deja son propre titre ("REQUÊTE",
+  // "ASSIGNATION"...) et l'identite des parties, ce bloc generique ferait
+  // doublon.
+  const titreParagraphs = input.entete || formalisme
     ? []
     : [
         new Paragraph({
@@ -491,8 +494,11 @@ export async function buildPdf(input: ExportInput): Promise<Buffer> {
 
     // Quand il y a un en-tête, il porte deja le nom/l'identite du cabinet -
     // repeter ce bloc de titre en dessous ne fait que doublonner et, avec
-    // un en-tete plus large, chevauche visuellement l'image.
-    if (!input.entete) {
+    // un en-tete plus large, chevauche visuellement l'image. Idem quand un
+    // formalisme specifique s'applique : il porte deja son propre titre et
+    // l'identite des parties.
+    const formalisme = resolveFormalisme(input);
+    if (!input.entete && !formalisme) {
       doc.font(fontFamily.bold).fontSize(tailleTexte + 5).text(input.cabinetNom, { align: "center" });
       doc.moveDown(0.3);
       doc.font(fontFamily.bold).fontSize(tailleTexte).text(input.typeLabel, { align: "center" });
@@ -518,7 +524,6 @@ export async function buildPdf(input: ExportInput): Promise<Buffer> {
     // existe (identite des parties, huissier, greffier, juge... - voir
     // documentFormalisme.ts), celui-ci gerant lui-meme sa propre mise en
     // forme de date/objet.
-    const formalisme = resolveFormalisme(input);
     if (!formalisme) {
       doc.font(fontFamily.regular).fontSize(tailleTexte - 1).text(`Cotonou, le ${formatDate(input.date)}`, { align: "right" });
       doc.moveDown(0.6);
