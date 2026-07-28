@@ -6,6 +6,9 @@ import { env } from "../config/env";
 import { callN8nWebhook } from "../services/n8n";
 import { logAuditStep } from "../services/audit";
 import { resolveCabinetEmailIdentite } from "../services/cabinetContact";
+import { buildPdf } from "../services/documentExport";
+import { loadExportInput, resolveSignature, resolveEntete } from "./documentExport";
+import { slugify } from "../utils/documentNaming";
 
 export const actionsCallbackRouter = Router();
 
@@ -76,7 +79,7 @@ actionsCallbackRouter.post("/api/actions/:id/envoyer", requireAuth, async (req, 
       });
     }
   }
-  if (!action.documentUrl || !action.documentId) {
+  if (!action.contenuGenere) {
     return res.status(409).json({ error: "Le document n'est pas encore prêt" });
   }
   // Les recherches (jurisprudence / recherche juridique) n'ont pas
@@ -92,44 +95,33 @@ actionsCallbackRouter.post("/api/actions/:id/envoyer", requireAuth, async (req, 
     return res.status(409).json({ error: "Le document n'est pas encore prêt" });
   }
 
-  let signatureUrl: string | null = null;
-  if (parsed.data.avecSignature) {
-    const currentUser = await prisma.user.findUnique({
-      where: { id: req.auth!.userId },
-      include: { responsable: true },
-    });
-
-    let signaturePath: string | null = null;
-    if (currentUser?.role === "collaborateur") {
-      // Un collaborateur n'insere jamais sa propre signature via ce
-      // mecanisme : uniquement celle de son responsable, et seulement si
-      // celui-ci l'y a explicitement autorise.
-      if (currentUser.partageSignatureActif && currentUser.responsable?.signatureUrl) {
-        signaturePath = currentUser.responsable.signatureUrl;
-      } else {
-        return res.status(403).json({
-          error: "Ton avocat responsable ne t'a pas autorisé à insérer sa signature",
-        });
-      }
-    } else {
-      signaturePath = currentUser?.signatureUrl ?? null;
-    }
-
-    signatureUrl =
-      signaturePath && env.PUBLIC_BASE_URL
-        ? `${env.PUBLIC_BASE_URL.replace(/\/$/, "")}${signaturePath}`
-        : null;
+  const signatureResolution = await resolveSignature(req.auth!.userId, parsed.data.avecSignature, parsed.data.positionSignature);
+  if (!signatureResolution.ok) {
+    return res.status(403).json({ error: signatureResolution.error });
   }
+
+  // Le document envoye au client est genere directement par Aurore (comme
+  // les telechargements Word/PDF) plutot que d'aller chercher un Google Doc
+  // via n8n - aucune balise/template externe n'est donc jamais impliquee
+  // dans ce qui part reellement au destinataire. L'en-tete est toujours
+  // inseree (comme c'etait deja le cas via l'ancien circuit n8n), a la
+  // difference du telechargement local ou elle reste optionnelle.
+  const loaded = await loadExportInput(action.id, req.auth!.cabinetId);
+  if (!loaded) {
+    return res.status(409).json({ error: "Le document n'est pas encore prêt" });
+  }
+  const entete = await resolveEntete(req.auth!.cabinetId, true);
+  const pdfBuffer = await buildPdf({ ...loaded.input, signature: signatureResolution.signature, entete });
+  const nomFichier = `${slugify(action.nomDocument || `${loaded.input.typeLabel}-${loaded.input.numeroDossier}`)}.pdf`;
 
   const { cabinetNom, replyToEmail } = await resolveCabinetEmailIdentite(req.auth!.cabinetId);
 
   const n8nResult = await callN8nWebhook("envoyer-email", {
     actionId: action.id,
-    documentId: action.documentId,
     destinataireEmail: parsed.data.email,
     nomAffaire: action.dossier.nomAffaire,
-    signatureUrl,
-    signatureAlignment: parsed.data.positionSignature,
+    pdfBase64: pdfBuffer.toString("base64"),
+    nomFichier,
     cabinetNom,
     replyToEmail,
   });

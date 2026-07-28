@@ -14,7 +14,7 @@ import { TYPE_LABELS, slugify } from "../utils/documentNaming";
 
 export const documentExportRouter = Router();
 
-async function loadExportInput(actionId: string, cabinetId: string) {
+export async function loadExportInput(actionId: string, cabinetId: string) {
   const action = await prisma.action.findFirst({
     where: { id: actionId, dossier: { cabinetId } },
     include: { dossier: { include: { cabinet: true } }, creePar: { select: { nom: true } } },
@@ -52,7 +52,7 @@ type SignatureResolution =
   | { ok: true; signature: SignatureInput | undefined }
   | { ok: false; error: string };
 
-async function resolveSignature(
+export async function resolveSignature(
   userId: string,
   avecSignature: boolean,
   alignment: SignatureAlignment
