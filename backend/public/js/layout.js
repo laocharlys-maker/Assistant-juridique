@@ -43,6 +43,7 @@ const NAV_ITEMS = [
   { href: "/veille-juridique.html", label: "Veille juridique", roles: ["titulaire", "avocat"], group: "Cabinet", icon: "radar", moduleKey: "veille_juridique" },
   { href: "/audit-logs.html", label: "Journal d'audit", roles: ["titulaire"], group: "Cabinet", icon: "audit" },
   { href: "/parametres.html", label: "Paramètres", roles: ["titulaire"], group: "Cabinet", icon: "settings" },
+  { href: "/admin-tableau-de-bord.html", label: "Tableau de bord", roles: ["super_admin"], group: "Plateforme", icon: "dashboard" },
   { href: "/admin-plateforme.html", label: "Cabinets clients", roles: ["super_admin"], group: "Plateforme", icon: "team" },
   { href: "/admin-acces.html", label: "Accès & quotas", roles: ["super_admin"], group: "Plateforme", icon: "clock" },
   { href: "/admin-factures.html", label: "Facturation abonnement", roles: ["super_admin"], group: "Plateforme", icon: "invoice" },

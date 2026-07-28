@@ -89,6 +89,40 @@ adminRouter.get("/api/admin/stats", async (_req, res) => {
   });
 });
 
+// Courbes d'evolution mois par mois (12 derniers mois, tous cabinets
+// confondus) - alimente les graphiques du tableau de bord plateforme.
+adminRouter.get("/api/admin/stats/evolution", async (_req, res) => {
+  const maintenant = new Date();
+  const mois = Array.from({ length: 12 }, (_, i) => {
+    const decalage = 11 - i;
+    const debut = new Date(Date.UTC(maintenant.getUTCFullYear(), maintenant.getUTCMonth() - decalage, 1));
+    const fin = new Date(Date.UTC(maintenant.getUTCFullYear(), maintenant.getUTCMonth() - decalage + 1, 1));
+    return { debut, fin };
+  });
+
+  const cabinetsWhere = { id: { not: CABINET_PLATEFORME_ID } };
+
+  const points = await Promise.all(
+    mois.map(async ({ debut, fin }) => {
+      const [cabinetsInscrits, nouveauxUtilisateurs, documentsGeneres] = await Promise.all([
+        prisma.cabinet.count({ where: { ...cabinetsWhere, createdAt: { gte: debut, lt: fin } } }),
+        prisma.user.count({ where: { cabinetId: { not: CABINET_PLATEFORME_ID }, createdAt: { gte: debut, lt: fin } } }),
+        prisma.action.count({
+          where: { createdAt: { gte: debut, lt: fin }, dossier: { cabinetId: { not: CABINET_PLATEFORME_ID } } },
+        }),
+      ]);
+      return {
+        mois: `${debut.getUTCFullYear()}-${String(debut.getUTCMonth() + 1).padStart(2, "0")}`,
+        cabinetsInscrits,
+        nouveauxUtilisateurs,
+        documentsGeneres,
+      };
+    })
+  );
+
+  return res.json(points);
+});
+
 // Activite d'un cabinet : type d'operations effectuees (docs generes...)
 // sur les 30 derniers jours, et derniere connexion de chaque utilisateur -
 // sert de base a la facturation manuelle, jamais le contenu des documents.
@@ -261,10 +295,18 @@ const TYPES_ACTION = [
   "note_plaidoirie",
 ] as const;
 
+// Etapes techniques reellement enregistrees par logAuditStep() dans le
+// pipeline de generation (extraction IA, redaction IA, declenchement du
+// webhook n8n, document pret, envoi email) - c'est CE champ qui porte des
+// valeurs comme "declenchement_n8n", distinct du type de document
+// (typeAction) filtre separement ci-dessous.
+const ETAPES_AUDIT = ["extraction_ia", "redaction_ia", "declenchement_n8n", "document_pret", "envoi_email"] as const;
+
 const auditLogsQuerySchema = z.object({
   statut: z.enum(["succes", "erreur"]).optional(),
   cabinetId: z.string().uuid().optional(),
   typeAction: z.enum(TYPES_ACTION).optional(),
+  etape: z.enum(ETAPES_AUDIT).optional(),
   // Mois calendaire precis (1-12) + annee - filtre les entrees de CE
   // mois-la uniquement, pas "les N derniers mois". Les deux doivent etre
   // fournis ensemble, sinon ignores.
@@ -282,7 +324,7 @@ adminRouter.get("/api/admin/audit-logs", async (req, res) => {
   if (!parsed.success) {
     return res.status(400).json({ error: "Requête invalide" });
   }
-  const { statut, cabinetId, typeAction, mois, annee, limit } = parsed.data;
+  const { statut, cabinetId, typeAction, etape, mois, annee, limit } = parsed.data;
 
   let periode: { gte: Date; lt: Date } | undefined;
   if (mois && annee) {
@@ -292,6 +334,7 @@ adminRouter.get("/api/admin/audit-logs", async (req, res) => {
   const logs = await prisma.auditLog.findMany({
     where: {
       statut,
+      etape,
       timestamp: periode,
       action: {
         typeAction,

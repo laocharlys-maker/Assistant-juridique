@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aurore — Tableau de bord plateforme</title>
+  <link rel="icon" type="image/png" href="/favicon-256.png" />
+  <link rel="stylesheet" href="/style.css" />
+  <style>
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin-bottom: 20px; }
+    .stat-tile { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+    .stat-tile .stat-value { font-size: 1.6rem; font-weight: 700; color: var(--text-strong); }
+    .stat-tile .stat-label { color: var(--muted); font-size: 0.82rem; }
+    .chart-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; }
+    .chart-card svg { width: 100%; height: 220px; overflow: visible; }
+    .chart-card .chart-title { font-weight: 600; margin-bottom: 4px; }
+    .chart-card .chart-total { color: var(--muted); font-size: 0.82rem; margin-bottom: 10px; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="page-hero">
+      <div class="eyebrow">Plateforme</div>
+      <h1>Tableau de bord</h1>
+      <p>Vue d'ensemble de la plateforme : cabinets clients, comptes et documents générés, avec leur évolution sur 12 mois.</p>
+    </div>
+
+    <div id="error" class="error"></div>
+
+    <div class="stats-grid" id="stats-grid"></div>
+
+    <div class="chart-grid" id="charts-grid"></div>
+  </div>
+  <script src="/js/api.js"></script>
+  <script src="/js/layout.js"></script>
+  <script>
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str ?? "";
+      return div.innerHTML;
+    }
+
+    async function loadStats() {
+      const box = document.getElementById("stats-grid");
+      try {
+        const s = await apiFetch("/api/admin/stats");
+        const tuiles = [
+          { label: "Cabinets inscrits", value: s.totalCabinets },
+          { label: "Cabinets actifs", value: s.cabinetsActifs },
+          { label: "Cabinets suspendus", value: s.cabinetsSuspendus },
+          { label: "Nouveaux ce mois-ci", value: s.nouveauxCeMois },
+          { label: "Utilisateurs au total", value: s.totalUtilisateurs },
+          { label: "Cabinets connectés (7j)", value: s.cabinetsConnectesCetteSemaine },
+        ];
+        box.innerHTML = tuiles
+          .map((t) => `<div class="stat-tile"><div class="stat-value">${t.value}</div><div class="stat-label">${t.label}</div></div>`)
+          .join("");
+      } catch (err) {
+        showError(document.getElementById("error"), err.message);
+      }
+    }
+
+    // Courbe SVG simple, sans dependance externe - suffisant pour une
+    // douzaine de points mensuels avec info-bulle native (title) au survol.
+    function buildLineChartSvg(values, labels, color) {
+      const width = 600;
+      const height = 200;
+      const padLeft = 30;
+      const padBottom = 24;
+      const padTop = 10;
+      const max = Math.max(1, ...values);
+      const usableWidth = width - padLeft - 10;
+      const usableHeight = height - padTop - padBottom;
+      const stepX = values.length > 1 ? usableWidth / (values.length - 1) : 0;
+
+      const points = values.map((v, i) => {
+        const x = padLeft + i * stepX;
+        const y = padTop + usableHeight - (v / max) * usableHeight;
+        return { x, y, v };
+      });
+
+      const polyline = points.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+
+      const axisY = [0, Math.round(max / 2), max];
+      const axisYHtml = axisY
+        .map((v) => {
+          const y = padTop + usableHeight - (v / max) * usableHeight;
+          return `<text x="${padLeft - 8}" y="${(y + 3).toFixed(1)}" font-size="10" fill="var(--muted)" text-anchor="end">${v}</text>
+                  <line x1="${padLeft}" y1="${y.toFixed(1)}" x2="${width - 10}" y2="${y.toFixed(1)}" stroke="var(--border)" stroke-width="1" />`;
+        })
+        .join("");
+
+      const labelsHtml = points
+        .map((p, i) => (i % 2 === 0 ? `<text x="${p.x.toFixed(1)}" y="${height - 4}" font-size="10" fill="var(--muted)" text-anchor="middle">${escapeHtml(labels[i])}</text>` : ""))
+        .join("");
+
+      const dotsHtml = points
+        .map((p, i) => `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3" fill="${color}"><title>${escapeHtml(labels[i])} : ${p.v}</title></circle>`)
+        .join("");
+
+      return `
+        <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">
+          ${axisYHtml}
+          <polyline points="${polyline}" fill="none" stroke="${color}" stroke-width="2" />
+          ${dotsHtml}
+          ${labelsHtml}
+        </svg>`;
+    }
+
+    function moisLabel(iso) {
+      const [annee, mois] = iso.split("-").map(Number);
+      return new Date(Date.UTC(annee, mois - 1, 1)).toLocaleDateString("fr-FR", { month: "short", year: "2-digit" });
+    }
+
+    async function loadEvolution() {
+      const box = document.getElementById("charts-grid");
+      try {
+        const data = await apiFetch("/api/admin/stats/evolution");
+        const labels = data.map((p) => moisLabel(p.mois));
+
+        const graphes = [
+          { key: "cabinetsInscrits", titre: "Nouveaux cabinets inscrits", color: "var(--accent)" },
+          { key: "nouveauxUtilisateurs", titre: "Nouveaux comptes utilisateurs", color: "#4f8ef7" },
+          { key: "documentsGeneres", titre: "Documents générés", color: "#2fb380" },
+        ];
+
+        box.innerHTML = graphes
+          .map((g) => {
+            const values = data.map((p) => p[g.key]);
+            const total = values.reduce((a, b) => a + b, 0);
+            return `
+            <div class="card chart-card">
+              <div class="chart-title">${escapeHtml(g.titre)}</div>
+              <div class="chart-total">${total} sur les 12 derniers mois</div>
+              ${buildLineChartSvg(values, labels, g.color)}
+            </div>`;
+          })
+          .join("");
+      } catch (err) {
+        showError(document.getElementById("error"), err.message);
+      }
+    }
+
+    (async () => {
+      const me = await requireSession();
+      if (!me) return;
+      initLayout(me);
+      loadStats();
+      loadEvolution();
+    })();
+  </script>
+</body>
+</html>

@@ -13,10 +13,6 @@
     .module-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border); font-size: 0.78rem; cursor: pointer; user-select: none; background: var(--panel); }
     .module-chip.actif { background: var(--success-tint); color: var(--success); border-color: transparent; }
     .module-chip.inactif { background: var(--hairline); color: var(--muted); }
-    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin-bottom: 20px; }
-    .stat-tile { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
-    .stat-tile .stat-value { font-size: 1.6rem; font-weight: 700; color: var(--text-strong); }
-    .stat-tile .stat-label { color: var(--muted); font-size: 0.82rem; }
     .activite-panel { margin-top: 12px; padding: 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel-alt); }
     .activite-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 6px; }
     .activite-table td { padding: 4px 6px; border-bottom: 1px solid var(--border); }
@@ -31,8 +27,6 @@
     </div>
 
     <div id="error" class="error"></div>
-
-    <div class="stats-grid" id="stats-grid"></div>
 
     <div style="display:flex; align-items:center; justify-content:flex-end; margin-bottom:16px;">
       <button type="button" class="secondary" id="toggle-add-btn">+ Nouveau cabinet</button>
@@ -107,26 +101,6 @@
     function formatDateHeure(iso) {
       if (!iso) return "jamais connecté";
       return new Date(iso).toLocaleString("fr-FR", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
-    }
-
-    async function loadStats() {
-      const box = document.getElementById("stats-grid");
-      try {
-        const s = await apiFetch("/api/admin/stats");
-        const tuiles = [
-          { label: "Cabinets inscrits", value: s.totalCabinets },
-          { label: "Cabinets actifs", value: s.cabinetsActifs },
-          { label: "Cabinets suspendus", value: s.cabinetsSuspendus },
-          { label: "Nouveaux ce mois-ci", value: s.nouveauxCeMois },
-          { label: "Utilisateurs au total", value: s.totalUtilisateurs },
-          { label: "Cabinets connectés (7j)", value: s.cabinetsConnectesCetteSemaine },
-        ];
-        box.innerHTML = tuiles
-          .map((t) => `<div class="stat-tile"><div class="stat-value">${t.value}</div><div class="stat-label">${t.label}</div></div>`)
-          .join("");
-      } catch {
-        box.innerHTML = "";
-      }
     }
 
     async function toggleActivite(cabinetId, panelEl) {
@@ -273,7 +247,6 @@
       const me = await requireSession();
       if (!me) return;
       initLayout(me);
-      loadStats();
       loadCabinets();
     })();
 
