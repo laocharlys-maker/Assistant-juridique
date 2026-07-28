@@ -553,6 +553,8 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
         nom_cabinet: cabinetPourAdresseNotes?.nom || null,
         adresse_cabinet: cabinetPourAdresseNotes?.adresse || form.adresse_cabinet_manuel || null,
         ville: form.ville ?? null,
+        nom_juridiction: form.nom_juridiction ?? null,
+        nom_chambre: form.nom_chambre ?? null,
         rappel_procedure: rappelProcedureRedige,
         deroulement_debats: deroulementDebatsRedige,
         strategie_suite: form.strategie_suite ?? null,
@@ -1777,6 +1779,12 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
         // Conserve les champs saisis pour permettre de pre-remplir n'importe
         // quel autre formulaire plus tard a partir de cet acte.
         champsFormulaire: form as object,
+        // Conserve les champs deja composes/resolus envoyes a n8n (identite
+        // des parties, huissier, greffier, juge, civilites, adresses...) -
+        // permet aux exports Word/PDF locaux de reconstruire le meme
+        // formalisme juridique que le document Google Docs (voir
+        // documentFormalisme.ts).
+        champsDocument: extraWebhookFields as object,
         nomDocument,
         createdBy: auth!.userId,
       },

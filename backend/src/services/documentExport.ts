@@ -15,6 +15,7 @@ import {
 import PDFDocument from "pdfkit";
 import { formatDateLongue } from "../utils/dateFormat";
 import { parseMarkdownBlocks, TextSpan } from "./markdownParse";
+import { buildFormalisme } from "./documentFormalisme";
 
 export type SignatureAlignment = "START" | "CENTER" | "END";
 
@@ -46,6 +47,17 @@ export interface ExportInput {
   // ne pas casser d'eventuels appelants existants.
   police?: string;
   tailleTexte?: number;
+  // Formalisme juridique specifique au type de document (identite des
+  // parties, huissier, greffier, juge...) - voir documentFormalisme.ts.
+  // Optionnels : absents pour les types sans formalisme specifique (recherche,
+  // traduction, resume...) ou pour d'eventuels appelants existants.
+  typeAction?: string;
+  champsDocument?: unknown;
+  nomClient?: string;
+  ville?: string;
+  dateAudience?: Date | null;
+  prochaineAudience?: Date | null;
+  piecesPrevoir?: string | null;
 }
 
 const formatDate = formatDateLongue;
@@ -183,31 +195,59 @@ function buildDocxContentElements(contenu: string): (Paragraph | Table)[] {
   return elements;
 }
 
+function resolveFormalisme(input: ExportInput) {
+  if (!input.typeAction) return null;
+  return buildFormalisme(input.typeAction, input.champsDocument, {
+    nomClient: input.nomClient || input.nomAffaire,
+    nomAffaire: input.nomAffaire,
+    numeroDossier: input.numeroDossier,
+    dateLongue: formatDate(input.date),
+    ville: input.ville || "Cotonou",
+    dateAudienceLongue: input.dateAudience ? formatDate(input.dateAudience) : undefined,
+    prochaineAudienceLongue: input.prochaineAudience ? formatDate(input.prochaineAudience) : undefined,
+    piecesPrevoir: input.piecesPrevoir || undefined,
+  });
+}
+
 export async function buildDocx(input: ExportInput): Promise<Buffer> {
   const police = input.police ?? "Times New Roman";
   const tailleTexte = input.tailleTexte ?? 11;
-  const paragraphesContenu = buildDocxContentElements(input.contenu);
+
+  // Pour les types de documents qui ont un formalisme juridique specifique
+  // (identite des parties, huissier, greffier, juge...), on le reconstruit a
+  // partir des champs composes (voir documentFormalisme.ts) et on l'insere
+  // avant/apres le texte redige par l'IA, en remplacement du bloc courrier
+  // generique ci-dessous.
+  const formalisme = resolveFormalisme(input);
+  const contenuComplet = formalisme
+    ? [formalisme.avant, input.contenu, formalisme.apres].filter(Boolean).join("\n\n")
+    : input.contenu;
+  const paragraphesContenu = buildDocxContentElements(contenuComplet);
 
   // Bloc courrier (date/lieu + objet), toujours ajoute par la mise en page
   // elle-meme - jamais par le texte redige (voir consigne dans les prompts
   // qui interdit desormais a l'IA d'ecrire elle-meme une ligne "Fait a...").
-  const enteteCourrier = [
-    new Paragraph({
-      children: [new TextRun({ text: `Cotonou, le ${formatDate(input.date)}` })],
-      alignment: AlignmentType.RIGHT,
-      spacing: { after: 200 },
-    }),
-    new Paragraph({
-      children: [
-        new TextRun({
-          text: `Objet : ${input.typeLabel} — Dossier ${input.numeroDossier} — ${input.nomAffaire}`,
-          bold: true,
+  // Remplace par le formalisme specifique du type de document quand il existe
+  // (celui-ci gere lui-meme sa propre mise en forme de date/objet).
+  const enteteCourrier = formalisme
+    ? []
+    : [
+        new Paragraph({
+          children: [new TextRun({ text: `Cotonou, le ${formatDate(input.date)}` })],
+          alignment: AlignmentType.RIGHT,
+          spacing: { after: 200 },
         }),
-      ],
-      alignment: AlignmentType.LEFT,
-      spacing: { after: 300 },
-    }),
-  ];
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: `Objet : ${input.typeLabel} — Dossier ${input.numeroDossier} — ${input.nomAffaire}`,
+              bold: true,
+            }),
+          ],
+          alignment: AlignmentType.LEFT,
+          spacing: { after: 300 },
+        }),
+      ];
 
   const enteteParagraph = input.entete
     ? [
@@ -474,17 +514,27 @@ export async function buildPdf(input: ExportInput): Promise<Buffer> {
     // Bloc courrier (date/lieu + objet), toujours ajoute par la mise en
     // page elle-meme - jamais par le texte redige (voir consigne dans les
     // prompts qui interdit desormais a l'IA d'ecrire elle-meme "Fait a...").
-    doc.font(fontFamily.regular).fontSize(tailleTexte - 1).text(`Cotonou, le ${formatDate(input.date)}`, { align: "right" });
-    doc.moveDown(0.6);
-    doc
-      .font(fontFamily.bold)
-      .fontSize(tailleTexte - 1)
-      .text(`Objet : ${input.typeLabel} — Dossier ${input.numeroDossier} — ${input.nomAffaire}`, {
-        align: "left",
-      });
-    doc.moveDown(1);
+    // Remplace par le formalisme specifique du type de document quand il
+    // existe (identite des parties, huissier, greffier, juge... - voir
+    // documentFormalisme.ts), celui-ci gerant lui-meme sa propre mise en
+    // forme de date/objet.
+    const formalisme = resolveFormalisme(input);
+    if (!formalisme) {
+      doc.font(fontFamily.regular).fontSize(tailleTexte - 1).text(`Cotonou, le ${formatDate(input.date)}`, { align: "right" });
+      doc.moveDown(0.6);
+      doc
+        .font(fontFamily.bold)
+        .fontSize(tailleTexte - 1)
+        .text(`Objet : ${input.typeLabel} — Dossier ${input.numeroDossier} — ${input.nomAffaire}`, {
+          align: "left",
+        });
+      doc.moveDown(1);
+    }
 
-    renderPdfContent(doc, input.contenu, tailleTexte, fontFamily);
+    const contenuComplet = formalisme
+      ? [formalisme.avant, input.contenu, formalisme.apres].filter(Boolean).join("\n\n")
+      : input.contenu;
+    renderPdfContent(doc, contenuComplet, tailleTexte, fontFamily);
 
     if (input.signature) {
       doc.moveDown(1);

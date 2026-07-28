@@ -33,6 +33,12 @@ export async function loadExportInput(actionId: string, cabinetId: string) {
       date: action.createdAt,
       police: action.dossier.cabinet.policeDocuments,
       tailleTexte: action.dossier.cabinet.tailleDocuments,
+      typeAction: action.typeAction,
+      champsDocument: action.champsDocument,
+      nomClient: action.dossier.nomClient,
+      dateAudience: action.dateAudience,
+      prochaineAudience: action.prochaineAudience,
+      piecesPrevoir: action.piecesPrevoir,
     },
   };
 }

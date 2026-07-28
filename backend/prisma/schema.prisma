@@ -442,6 +442,15 @@ model Action {
   // Conclusions pour l'instant) - permet de pre-remplir un autre document
   // du meme dossier (ex: Note de plaidoirie) sans tout ressaisir.
   champsFormulaire      Json?        @map("champs_formulaire")
+  // Copie des champs composes envoyes a n8n pour remplir les balises du
+  // template Google Docs (identite des parties, huissier, greffier, juge,
+  // civilites, adresses...) - contrairement a champsFormulaire (saisie brute
+  // du formulaire), ces valeurs sont deja resolues (fiche client en base,
+  // parametres du cabinet, formules composees) et servent a reconstruire le
+  // meme formalisme juridique dans les exports Word/PDF locaux (voir
+  // documentFormalisme.ts). Absent pour les types de documents sans
+  // formalisme specifique (recherche, traduction, resume...).
+  champsDocument        Json?        @map("champs_document")
   // Nom "humain" du document genere (ex: "Assignation_KODJO Marcelline
   // contre AGBODJAN Serge") - distingue chaque document du meme type par
   // les noms des parties, utilise pour le titre du Google Doc (n8n) et pour
