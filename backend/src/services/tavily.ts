@@ -4,6 +4,7 @@ export interface WebSearchResult {
   title: string;
   url: string;
   content: string;
+  publishedDate?: string;
 }
 
 /**
@@ -13,11 +14,17 @@ export interface WebSearchResult {
  * Renvoie [] si la cle API est absente ou en cas d'erreur, plutot que de
  * faire planter la generation : le LLM doit alors dire qu'il n'a pas
  * trouve de source, jamais inventer.
+ *
+ * timeRange restreint Tavily aux pages publiees recemment ("week" pour la
+ * veille juridique hebdomadaire, par ex.) - a laisser vide pour la
+ * recherche juridique generale, ou une source ancienne (texte de loi,
+ * jurisprudence de reference) reste pertinente et ne doit pas etre exclue.
  */
 export async function searchWeb(
   query: string,
   maxResults = 5,
-  includeDomains?: string[]
+  includeDomains?: string[],
+  timeRange?: "day" | "week" | "month" | "year"
 ): Promise<WebSearchResult[]> {
   if (!env.TAVILY_API_KEY) {
     console.error("TAVILY_API_KEY non configuree, recherche juridique impossible");
@@ -35,6 +42,7 @@ export async function searchWeb(
         max_results: maxResults,
         include_answer: false,
         ...(includeDomains && includeDomains.length > 0 ? { include_domains: includeDomains } : {}),
+        ...(timeRange ? { time_range: timeRange } : {}),
       }),
     });
 
@@ -44,13 +52,14 @@ export async function searchWeb(
     }
 
     const data = (await response.json()) as {
-      results?: { title: string; url: string; content: string }[];
+      results?: { title: string; url: string; content: string; published_date?: string }[];
     };
 
     return (data.results ?? []).map((r) => ({
       title: r.title,
       url: r.url,
       content: r.content,
+      publishedDate: r.published_date || undefined,
     }));
   } catch (error) {
     console.error("Erreur appel Tavily :", error);
@@ -76,6 +85,9 @@ export function formatWebSearchContext(results: WebSearchResult[]): string {
     return "Aucun resultat de recherche web trouve pour cette question.";
   }
   return results
-    .map((r, i) => `[Source ${i + 1}] ${r.title}\nURL : ${r.url}\n${tronquerExtrait(r.content)}`)
+    .map(
+      (r, i) =>
+        `[Source ${i + 1}] ${r.title}${r.publishedDate ? ` (publie le ${r.publishedDate})` : ""}\nURL : ${r.url}\n${tronquerExtrait(r.content)}`
+    )
     .join("\n\n");
 }

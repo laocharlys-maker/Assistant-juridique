@@ -25,7 +25,7 @@ export async function runVeilleForCabinet(cabinetId: string, llm: LlmProvider): 
   const periode = periodeLabel();
   const themeResultats = [];
   for (const theme of themes) {
-    const resultats = await searchWeb(`actualite juridique ${theme} Benin cette semaine`);
+    const resultats = await searchWeb(`actualite juridique ${theme} Benin cette semaine`, 5, undefined, "week");
     themeResultats.push({ theme, resultatsRecherche: formatWebSearchContext(resultats) });
   }
 
