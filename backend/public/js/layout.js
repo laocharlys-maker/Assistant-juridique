@@ -23,7 +23,7 @@ const NAV_ICONS = {
 
 const NAV_ITEMS = [
   { href: "/tableau-de-bord.html", label: "Tableau de bord", roles: ["titulaire", "avocat", "collaborateur"], group: "Travail", icon: "dashboard" },
-  { href: "/role-semaine.html", label: "Audiences programmées", roles: ["titulaire", "avocat", "collaborateur"], group: "Travail", icon: "calendar" },
+  { href: "/role-semaine.html", label: "Calendrier Audiences", roles: ["titulaire", "avocat", "collaborateur"], group: "Travail", icon: "calendar" },
   { href: "/nouvelle-action.html", label: "Nouvelle action", roles: ["titulaire", "avocat", "collaborateur"], group: "Travail", icon: "plus" },
   { href: "/dashboard.html", label: "Documents générés", roles: ["titulaire", "avocat", "collaborateur"], group: "Travail", icon: "docs" },
   { href: "/clients.html", label: "Clients", roles: ["titulaire", "avocat", "collaborateur"], group: "Travail", icon: "clients" },

@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aurore — Rôle de la semaine</title>
+  <link rel="icon" type="image/png" href="/favicon-256.png" />
+  <link rel="stylesheet" href="/style.css" />
+  <style>
+    .role-hebdo-table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+    .role-hebdo-table th, .role-hebdo-table td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; vertical-align: top; font-size: 0.88rem; }
+    .role-hebdo-table th { background: var(--panel-alt); color: var(--text-strong); }
+    .role-hebdo-date-header { text-align: center; font-weight: 700; background: var(--accent-tint); padding: 10px; border: 1px solid var(--border); text-transform: uppercase; letter-spacing: 0.02em; }
+    @media print {
+      header.topbar, .sidebar, #no-print, .page-hero p, #period-actions { display: none !important; }
+      .page { max-width: 100%; padding: 0; }
+      body { background: #fff; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="page-hero">
+      <div class="eyebrow">Procédure</div>
+      <h1>Rôle de la semaine</h1>
+      <p>Aperçu imprimable des audiences de la semaine sur-prochaine, disponible du jeudi au dimanche — pour laisser toute la semaine à venir à la préparation.</p>
+    </div>
+
+    <div id="error" class="error"></div>
+
+    <div id="content"><p class="muted">Chargement…</p></div>
+  </div>
+
+  <div class="modal-overlay" id="edit-modal" hidden>
+    <div class="modal-box">
+      <h2>Modifier l'audience</h2>
+      <div id="edit-error" class="error"></div>
+      <form id="edit-form">
+        <input type="hidden" id="edit-id" />
+        <label>Juridiction</label>
+        <input name="juridiction" id="edit-juridiction" required />
+        <label>Chambre (optionnel)</label>
+        <input name="chambre" id="edit-chambre" />
+        <label>Numéro de procédure (optionnel)</label>
+        <input name="procedureNumero" id="edit-procedureNumero" />
+        <label>Parties</label>
+        <input name="parties" id="edit-parties" required />
+        <label>Qualité procédurale du client (optionnel)</label>
+        <select name="qualiteProcedurale" id="edit-qualiteProcedurale">
+          <option value="">— Non précisé —</option>
+          <option value="Demandeur">Demandeur</option>
+          <option value="Défendeur">Défendeur</option>
+          <option value="Intervenant volontaire">Intervenant volontaire</option>
+          <option value="Intervenant forcé">Intervenant forcé</option>
+          <option value="Appelant">Appelant</option>
+          <option value="Intimé">Intimé</option>
+          <option value="Demandeur au pourvoi">Demandeur au pourvoi</option>
+          <option value="Défendeur au pourvoi">Défendeur au pourvoi</option>
+        </select>
+        <label>Objet de la procédure (optionnel)</label>
+        <input name="objetProcedure" id="edit-objetProcedure" />
+        <label>Dernier motif (optionnel)</label>
+        <input name="dernierMotif" id="edit-dernierMotif" />
+        <label>Diligences (optionnel)</label>
+        <input name="diligences" id="edit-diligences" />
+        <div style="display:flex; gap:10px; margin-top:18px;">
+          <button type="submit">Enregistrer</button>
+          <button type="button" class="secondary" id="edit-cancel-btn">Annuler</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/layout.js"></script>
+  <script>
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str ?? "";
+      return div.innerHTML;
+    }
+
+    const JOURS_LETTRES = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
+
+    function toLocalDateStr(d) {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${y}-${m}-${day}`;
+    }
+
+    function formatHeure(iso) {
+      return new Date(iso).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+    }
+
+    function formatEnTeteJour(date) {
+      const jour = JOURS_LETTRES[date.getDay()];
+      const jourMois = date.getDate();
+      const mois = date.toLocaleDateString("fr-FR", { month: "long" });
+      const annee = date.getFullYear();
+      return `Audience du ${jour} ${jourMois} ${mois} ${annee}`.toUpperCase();
+    }
+
+    let dernieresAudiences = [];
+
+    async function load() {
+      const errorEl = document.getElementById("error");
+      hideError(errorEl);
+      const contentEl = document.getElementById("content");
+      contentEl.innerHTML = '<p class="muted">Chargement…</p>';
+      try {
+        const data = await apiFetch("/api/role-audiences/semaine-sur-prochaine");
+
+        if (!data.disponible) {
+          const debut = new Date(data.debut);
+          const finAffichee = new Date(data.fin);
+          finAffichee.setDate(finAffichee.getDate() - 1);
+          contentEl.innerHTML = `
+            <div class="card">
+              <p class="muted" style="margin:0;">Le rôle de la semaine sur-prochaine (${debut.toLocaleDateString("fr-FR")} – ${finAffichee.toLocaleDateString("fr-FR")}) n'est disponible que du <strong>jeudi au dimanche</strong>. Reviens à partir de jeudi.</p>
+            </div>`;
+          return;
+        }
+
+        dernieresAudiences = data.audiences;
+
+        if (data.audiences.length === 0) {
+          contentEl.innerHTML = `<div class="card"><p class="muted" style="margin:0;">Aucune audience programmée pour la semaine sur-prochaine pour l'instant.</p></div>`;
+          return;
+        }
+
+        const parJour = new Map();
+        data.audiences.forEach((a) => {
+          const key = toLocalDateStr(new Date(a.dateAudience));
+          if (!parJour.has(key)) parJour.set(key, []);
+          parJour.get(key).push(a);
+        });
+
+        const jours = Array.from(parJour.keys()).sort();
+
+        contentEl.innerHTML = `
+          <div id="period-actions" style="display:flex; justify-content:flex-end; margin-bottom:16px;">
+            <button type="button" class="secondary" id="print-btn">Imprimer / Télécharger</button>
+          </div>
+          ${jours
+            .map((jourKey) => {
+              const audiencesDuJour = parJour.get(jourKey);
+              const dateJour = new Date(audiencesDuJour[0].dateAudience);
+              return `
+              <table class="role-hebdo-table">
+                <thead>
+                  <tr><th colspan="6" class="role-hebdo-date-header">${escapeHtml(formatEnTeteJour(dateJour))}</th></tr>
+                  <tr>
+                    <th>Heure</th>
+                    <th>Juridiction / Chambre / Procédure</th>
+                    <th>Parties</th>
+                    <th>Qualité procédurale du client</th>
+                    <th>Objet de la procédure</th>
+                    <th>Dernier motif / Diligences</th>
+                    <th id="no-print"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${audiencesDuJour
+                    .map(
+                      (a) => `
+                    <tr>
+                      <td>${formatHeure(a.dateAudience)}</td>
+                      <td>${escapeHtml(a.juridiction)}${a.chambre ? "<br />" + escapeHtml(a.chambre) : ""}${a.procedureNumero ? "<br />" + escapeHtml(a.procedureNumero) : ""}</td>
+                      <td>${escapeHtml(a.parties)}</td>
+                      <td>${escapeHtml(a.qualiteProcedurale || "")}</td>
+                      <td>${escapeHtml(a.objetProcedure || "")}</td>
+                      <td>${escapeHtml(a.dernierMotif || "")}${a.diligences ? "<br />" + escapeHtml(a.diligences) : ""}</td>
+                      <td id="no-print"><button type="button" class="ghost btn-sm" data-modifier="${a.id}">Modifier</button></td>
+                    </tr>`
+                    )
+                    .join("")}
+                </tbody>
+              </table>`;
+            })
+            .join("")}
+        `;
+
+        document.getElementById("print-btn").addEventListener("click", () => window.print());
+        contentEl.querySelectorAll("[data-modifier]").forEach((btn) => {
+          btn.addEventListener("click", () => ouvrirEdition(btn.dataset.modifier));
+        });
+      } catch (err) {
+        showError(errorEl, err.message);
+        contentEl.innerHTML = "";
+      }
+    }
+
+    const editModal = document.getElementById("edit-modal");
+
+    function ouvrirEdition(id) {
+      const audience = dernieresAudiences.find((a) => a.id === id);
+      if (!audience) return;
+      document.getElementById("edit-id").value = audience.id;
+      document.getElementById("edit-juridiction").value = audience.juridiction || "";
+      document.getElementById("edit-chambre").value = audience.chambre || "";
+      document.getElementById("edit-procedureNumero").value = audience.procedureNumero || "";
+      document.getElementById("edit-parties").value = audience.parties || "";
+      document.getElementById("edit-qualiteProcedurale").value = audience.qualiteProcedurale || "";
+      document.getElementById("edit-objetProcedure").value = audience.objetProcedure || "";
+      document.getElementById("edit-dernierMotif").value = audience.dernierMotif || "";
+      document.getElementById("edit-diligences").value = audience.diligences || "";
+      hideError(document.getElementById("edit-error"));
+      editModal.hidden = false;
+    }
+
+    document.getElementById("edit-cancel-btn").addEventListener("click", () => {
+      editModal.hidden = true;
+    });
+
+    document.getElementById("edit-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const errorEl = document.getElementById("edit-error");
+      hideError(errorEl);
+      const id = document.getElementById("edit-id").value;
+      const fd = new FormData(e.target);
+      try {
+        await apiFetch(`/api/role-audiences/${id}`, {
+          method: "PATCH",
+          body: {
+            juridiction: fd.get("juridiction"),
+            chambre: fd.get("chambre") || undefined,
+            procedureNumero: fd.get("procedureNumero") || undefined,
+            parties: fd.get("parties"),
+            qualiteProcedurale: fd.get("qualiteProcedurale") || undefined,
+            objetProcedure: fd.get("objetProcedure") || undefined,
+            dernierMotif: fd.get("dernierMotif") || undefined,
+            diligences: fd.get("diligences") || undefined,
+          },
+        });
+        editModal.hidden = true;
+        load();
+      } catch (err) {
+        showError(errorEl, err.message);
+      }
+    });
+
+    (async () => {
+      const me = await requireSession();
+      if (!me) return;
+      initLayout(me);
+      load();
+    })();
+  </script>
+</body>
+</html>

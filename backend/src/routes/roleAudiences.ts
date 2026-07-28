@@ -69,6 +69,55 @@ roleAudiencesRouter.get("/api/role-audiences", requireAuth, async (req, res) => 
   return res.json({ scope, debut: debut.toISOString(), fin: fin.toISOString(), audiences });
 });
 
+// "Role de la semaine" (imprimable) : affiche la semaine SUR-prochaine (et
+// non la semaine suivante, deja visible depuis un moment via le calendrier)
+// - l'idee est de laisser toute la semaine a venir a l'avocat pour preparer
+// ces audiences-la. Uniquement pertinent du jeudi au dimanche : avant, la
+// semaine sur-prochaine n'est pas encore consideree comme "a preparer des
+// maintenant" ; le lundi au mercredi, on est deja dans la semaine qui la
+// precede immediatement, donc plus vraiment en amont.
+roleAudiencesRouter.get("/api/role-audiences/semaine-sur-prochaine", requireAuth, async (req, res) => {
+  const { auth } = req;
+
+  const requestedScope = req.query.scope === "cabinet" ? "cabinet" : "mine";
+  const scope = requestedScope === "cabinet" && peutVoirTouLeCabinet(auth!.role) ? "cabinet" : "mine";
+  const accessibleAvocatIds = scope === "mine" ? await getAccessibleAvocatIds(auth!) : null;
+
+  const maintenant = new Date();
+  const jourSemaine = maintenant.getUTCDay(); // 0 = dimanche ... 6 = samedi
+  const disponible = jourSemaine === 0 || jourSemaine >= 4; // jeudi(4) a dimanche(0)
+
+  const debut = lundiDeLaSemaine(maintenant);
+  debut.setUTCDate(debut.getUTCDate() + 14);
+  const fin = new Date(debut);
+  fin.setUTCDate(fin.getUTCDate() + 5); // lundi a vendredi inclus
+
+  if (!disponible) {
+    return res.json({ disponible: false, scope, debut: debut.toISOString(), fin: fin.toISOString(), audiences: [] });
+  }
+
+  const audiences = await prisma.roleAudience.findMany({
+    where: {
+      cabinetId: auth!.cabinetId,
+      dateAudience: { gte: debut, lt: fin },
+      ...(accessibleAvocatIds ? { createdBy: { in: accessibleAvocatIds } } : {}),
+    },
+    include: {
+      dossier: { select: { numeroDossier: true, nomAffaire: true } },
+      creePar: { select: { nom: true } },
+    },
+    orderBy: { dateAudience: "asc" },
+  });
+
+  return res.json({
+    disponible: true,
+    scope,
+    debut: debut.toISOString(),
+    fin: fin.toISOString(),
+    audiences,
+  });
+});
+
 // Suggestions : dossiers dont le dernier compte-rendu annonce une
 // "prochaine audience" tombant dans la semaine consultee, et qui n'ont pas
 // encore ete ajoutes au role. On ne pre-remplit que ce qu'on sait avec
@@ -217,6 +266,12 @@ roleAudiencesRouter.post("/api/role-audiences", requireAuth, async (req, res) =>
 
 const updateSchema = z.object({
   statut: z.enum(["a_preparer", "pret", "traite"]).optional(),
+  juridiction: z.string().min(1).optional(),
+  chambre: z.string().optional(),
+  procedureNumero: z.string().optional(),
+  parties: z.string().min(1).optional(),
+  qualiteProcedurale: z.string().optional(),
+  objetProcedure: z.string().optional(),
   dernierMotif: z.string().optional(),
   diligences: z.string().optional(),
 });
