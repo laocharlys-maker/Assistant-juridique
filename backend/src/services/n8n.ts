@@ -56,13 +56,22 @@ export function webhookForAction(typeAction: ActionOutput["type_action"]): N8nWe
   // export -> envoi. Seul le compte-rendu d'audience a un template et des
   // effets de bord distincts (Calendar, Sheets).
   //
-  // Jurisprudence et Recherche juridique sont volontairement isolees sur
-  // leur propre webhook/branche n8n : leur contenu est structure en
-  // Markdown (titres, listes, tableaux) et necessite un traitement dedie
-  // pour etre converti en vraie mise en forme Google Docs - un traitement
-  // experimental qui ne doit jamais pouvoir impacter la generation des
-  // documents juridiques classiques ci-dessus en cas de bug.
+  // Jurisprudence, Recherche juridique et Resume de jurisprudence (PDF)
+  // sont volontairement isolees sur leur propre webhook/branche n8n : leur
+  // contenu est structure en Markdown (titres, listes, tableaux) et
+  // necessite un traitement dedie pour etre converti en vraie mise en
+  // forme Google Docs - un traitement qui ne doit jamais pouvoir impacter
+  // la generation des documents juridiques classiques ci-dessus en cas de
+  // bug. (La veille juridique hebdomadaire n'a pas besoin de ce traitement :
+  // c'est un email, pas un document Google Docs, deja converti proprement
+  // depuis son Markdown via la librairie "marked" - voir veilleJuridiqueEmail.ts.)
   if (typeAction === "notes") return "notes-audience";
-  if (typeAction === "jurisprudence" || typeAction === "recherche_juridique") return "recherche-juridique";
+  if (
+    typeAction === "jurisprudence" ||
+    typeAction === "recherche_juridique" ||
+    typeAction === "resume_pdf"
+  ) {
+    return "recherche-juridique";
+  }
   return "document-juridique";
 }
