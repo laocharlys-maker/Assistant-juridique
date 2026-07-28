@@ -7,6 +7,10 @@
   <link rel="icon" type="image/png" href="/favicon-256.png" />
   <link rel="stylesheet" href="/style.css" />
   <style>
+    .filters-row { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; margin-bottom: 20px; }
+    .filters-row > div { display: flex; align-items: center; gap: 8px; }
+    .filters-row label { margin: 0; font-weight: 400; }
+    .filters-row select { width: auto; margin: 0; }
     .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin-bottom: 20px; }
     .stat-tile { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
     .stat-tile .stat-value { font-size: 1.6rem; font-weight: 700; color: var(--text-strong); }
@@ -27,6 +31,19 @@
 
     <div id="error" class="error"></div>
 
+    <div class="card">
+      <div class="filters-row">
+        <div>
+          <label>Cabinet :</label>
+          <select id="filter-cabinet"><option value="">Tous les cabinets</option></select>
+        </div>
+        <div>
+          <label>Mois :</label>
+          <select id="filter-mois"></select>
+        </div>
+      </div>
+    </div>
+
     <div class="stats-grid" id="stats-grid"></div>
 
     <div class="chart-grid" id="charts-grid"></div>
@@ -40,16 +57,50 @@
       return div.innerHTML;
     }
 
+    function remplirFiltreMois() {
+      const select = document.getElementById("filter-mois");
+      const maintenant = new Date();
+      let options = "";
+      for (let i = 0; i < 12; i++) {
+        const d = new Date(maintenant.getFullYear(), maintenant.getMonth() - i, 1);
+        const label = d.toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+        const selected = i === 0 ? " selected" : "";
+        options += `<option value="${d.getMonth() + 1},${d.getFullYear()}"${selected}>${escapeHtml(label)}</option>`;
+      }
+      select.innerHTML = options;
+    }
+
+    async function remplirFiltreCabinet(keepSelectedId) {
+      const cabinets = await apiFetch("/api/admin/cabinets");
+      const select = document.getElementById("filter-cabinet");
+      select.innerHTML =
+        '<option value="">Tous les cabinets</option>' +
+        cabinets.map((c) => `<option value="${c.id}"${c.id === keepSelectedId ? " selected" : ""}>${escapeHtml(c.nom)}</option>`).join("");
+    }
+
+    function filtres() {
+      const cabinetId = document.getElementById("filter-cabinet").value;
+      const [mois, annee] = document.getElementById("filter-mois").value.split(",");
+      return { cabinetId, mois, annee };
+    }
+
     async function loadStats() {
       const box = document.getElementById("stats-grid");
+      const { cabinetId, mois, annee } = filtres();
       try {
-        const s = await apiFetch("/api/admin/stats");
+        const params = new URLSearchParams();
+        if (cabinetId) params.set("cabinetId", cabinetId);
+        params.set("mois", mois);
+        params.set("annee", annee);
+        const s = await apiFetch(`/api/admin/stats?${params.toString()}`);
         const tuiles = [
           { label: "Cabinets inscrits", value: s.totalCabinets },
           { label: "Cabinets actifs", value: s.cabinetsActifs },
           { label: "Cabinets suspendus", value: s.cabinetsSuspendus },
-          { label: "Nouveaux ce mois-ci", value: s.nouveauxCeMois },
+          { label: "Nouveaux cabinets (mois choisi)", value: s.nouveauxCabinetsMois },
           { label: "Utilisateurs au total", value: s.totalUtilisateurs },
+          { label: "Nouveaux comptes (mois choisi)", value: s.nouveauxComptesMois },
+          { label: "Documents générés (mois choisi)", value: s.documentsGeneresMois },
           { label: "Cabinets connectés (7j)", value: s.cabinetsConnectesCetteSemaine },
         ];
         box.innerHTML = tuiles
@@ -114,8 +165,11 @@
 
     async function loadEvolution() {
       const box = document.getElementById("charts-grid");
+      const { cabinetId } = filtres();
       try {
-        const data = await apiFetch("/api/admin/stats/evolution");
+        const params = new URLSearchParams();
+        if (cabinetId) params.set("cabinetId", cabinetId);
+        const data = await apiFetch(`/api/admin/stats/evolution?${params.toString()}`);
         const labels = data.map((p) => moisLabel(p.mois));
 
         const graphes = [
@@ -141,13 +195,29 @@
       }
     }
 
+    function loadAll() {
+      loadStats();
+      loadEvolution();
+    }
+
     (async () => {
       const me = await requireSession();
       if (!me) return;
       initLayout(me);
-      loadStats();
-      loadEvolution();
+      const params = new URLSearchParams(window.location.search);
+      remplirFiltreMois();
+      await remplirFiltreCabinet(params.get("cabinet") || "");
+      loadAll();
     })();
+
+    document.getElementById("filter-cabinet").addEventListener("change", (e) => {
+      const url = new URL(window.location.href);
+      if (e.target.value) url.searchParams.set("cabinet", e.target.value);
+      else url.searchParams.delete("cabinet");
+      window.history.replaceState({}, "", url);
+      loadAll();
+    });
+    document.getElementById("filter-mois").addEventListener("change", loadStats);
   </script>
 </body>
 </html>

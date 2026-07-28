@@ -55,43 +55,84 @@ adminRouter.get("/api/admin/cabinets", async (_req, res) => {
   return res.json(cabinets);
 });
 
+const statsQuerySchema = z.object({
+  cabinetId: z.string().uuid().optional(),
+  mois: z.coerce.number().int().min(1).max(12).optional(),
+  annee: z.coerce.number().int().min(2020).max(2100).optional(),
+});
+
 // Vue d'ensemble plateforme : de quoi remplir le tableau de bord de la page
-// d'administration, sans avoir a recalculer cote client.
-adminRouter.get("/api/admin/stats", async (_req, res) => {
-  const debutMois = new Date();
-  debutMois.setDate(1);
-  debutMois.setHours(0, 0, 0, 0);
+// d'administration, sans avoir a recalculer cote client. Filtrable par
+// cabinet (sinon tous cabinets confondus) et par mois calendaire (sinon le
+// mois en cours) pour les compteurs "sur la periode".
+adminRouter.get("/api/admin/stats", async (req, res) => {
+  const parsed = statsQuerySchema.safeParse(req.query);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Requête invalide" });
+  }
+  const { cabinetId, mois, annee } = parsed.data;
+
+  const maintenant = new Date();
+  const moisRef = mois ?? maintenant.getUTCMonth() + 1;
+  const anneeRef = annee ?? maintenant.getUTCFullYear();
+  const debutMoisRef = new Date(Date.UTC(anneeRef, moisRef - 1, 1));
+  const finMoisRef = new Date(Date.UTC(anneeRef, moisRef, 1));
 
   const septJoursAvant = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
-  const cabinetsWhere = { id: { not: CABINET_PLATEFORME_ID } };
+  const cabinetsWhere = cabinetId ? { id: cabinetId } : { id: { not: CABINET_PLATEFORME_ID } };
+  const usersWhere = { cabinetId: cabinetId ?? { not: CABINET_PLATEFORME_ID } };
+  const actionsWhere = { dossier: { cabinetId: cabinetId ?? { not: CABINET_PLATEFORME_ID } } };
 
-  const [totalCabinets, cabinetsActifs, nouveauxCeMois, totalUtilisateurs, cabinetsConnectesRecemment] =
-    await Promise.all([
-      prisma.cabinet.count({ where: cabinetsWhere }),
-      prisma.cabinet.count({ where: { ...cabinetsWhere, actif: true } }),
-      prisma.cabinet.count({ where: { ...cabinetsWhere, createdAt: { gte: debutMois } } }),
-      prisma.user.count({ where: { cabinetId: { not: CABINET_PLATEFORME_ID } } }),
-      prisma.user.findMany({
-        where: { cabinetId: { not: CABINET_PLATEFORME_ID }, lastLoginAt: { gte: septJoursAvant } },
-        select: { cabinetId: true },
-        distinct: ["cabinetId"],
-      }),
-    ]);
+  const [
+    totalCabinets,
+    cabinetsActifs,
+    nouveauxCabinetsMois,
+    totalUtilisateurs,
+    nouveauxComptesMois,
+    documentsGeneresMois,
+    cabinetsConnectesRecemment,
+  ] = await Promise.all([
+    prisma.cabinet.count({ where: cabinetsWhere }),
+    prisma.cabinet.count({ where: { ...cabinetsWhere, actif: true } }),
+    prisma.cabinet.count({ where: { ...cabinetsWhere, createdAt: { gte: debutMoisRef, lt: finMoisRef } } }),
+    prisma.user.count({ where: usersWhere }),
+    prisma.user.count({ where: { ...usersWhere, createdAt: { gte: debutMoisRef, lt: finMoisRef } } }),
+    prisma.action.count({ where: { ...actionsWhere, createdAt: { gte: debutMoisRef, lt: finMoisRef } } }),
+    prisma.user.findMany({
+      where: { ...usersWhere, lastLoginAt: { gte: septJoursAvant } },
+      select: { cabinetId: true },
+      distinct: ["cabinetId"],
+    }),
+  ]);
 
   return res.json({
     totalCabinets,
     cabinetsActifs,
     cabinetsSuspendus: totalCabinets - cabinetsActifs,
-    nouveauxCeMois,
+    nouveauxCabinetsMois,
     totalUtilisateurs,
+    nouveauxComptesMois,
+    documentsGeneresMois,
     cabinetsConnectesCetteSemaine: cabinetsConnectesRecemment.length,
+    periode: { mois: moisRef, annee: anneeRef },
   });
 });
 
-// Courbes d'evolution mois par mois (12 derniers mois, tous cabinets
-// confondus) - alimente les graphiques du tableau de bord plateforme.
-adminRouter.get("/api/admin/stats/evolution", async (_req, res) => {
+const evolutionQuerySchema = z.object({
+  cabinetId: z.string().uuid().optional(),
+});
+
+// Courbes d'evolution mois par mois (12 derniers mois) - alimente les
+// graphiques du tableau de bord plateforme. Filtrable par cabinet, sinon
+// tous cabinets confondus.
+adminRouter.get("/api/admin/stats/evolution", async (req, res) => {
+  const parsed = evolutionQuerySchema.safeParse(req.query);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Requête invalide" });
+  }
+  const { cabinetId } = parsed.data;
+
   const maintenant = new Date();
   const mois = Array.from({ length: 12 }, (_, i) => {
     const decalage = 11 - i;
@@ -100,16 +141,16 @@ adminRouter.get("/api/admin/stats/evolution", async (_req, res) => {
     return { debut, fin };
   });
 
-  const cabinetsWhere = { id: { not: CABINET_PLATEFORME_ID } };
+  const cabinetsWhere = cabinetId ? { id: cabinetId } : { id: { not: CABINET_PLATEFORME_ID } };
+  const usersWhere = { cabinetId: cabinetId ?? { not: CABINET_PLATEFORME_ID } };
+  const actionsWhere = { dossier: { cabinetId: cabinetId ?? { not: CABINET_PLATEFORME_ID } } };
 
   const points = await Promise.all(
     mois.map(async ({ debut, fin }) => {
       const [cabinetsInscrits, nouveauxUtilisateurs, documentsGeneres] = await Promise.all([
         prisma.cabinet.count({ where: { ...cabinetsWhere, createdAt: { gte: debut, lt: fin } } }),
-        prisma.user.count({ where: { cabinetId: { not: CABINET_PLATEFORME_ID }, createdAt: { gte: debut, lt: fin } } }),
-        prisma.action.count({
-          where: { createdAt: { gte: debut, lt: fin }, dossier: { cabinetId: { not: CABINET_PLATEFORME_ID } } },
-        }),
+        prisma.user.count({ where: { ...usersWhere, createdAt: { gte: debut, lt: fin } } }),
+        prisma.action.count({ where: { ...actionsWhere, createdAt: { gte: debut, lt: fin } } }),
       ]);
       return {
         mois: `${debut.getUTCFullYear()}-${String(debut.getUTCMonth() + 1).padStart(2, "0")}`,
