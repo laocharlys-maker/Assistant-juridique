@@ -116,11 +116,23 @@ export const RECHERCHE_JURIDIQUE_SYSTEM_PROMPT = `${COMMON_SYSTEM}
 
 Tu reponds a une QUESTION DE RECHERCHE JURIDIQUE generale (droit, textes de
 loi, doctrine) en t'appuyant sur les resultats de recherche web fournis
-ci-dessous (section "RESULTATS DE RECHERCHE"). Structure ta reponse ainsi :
-- Reponse synthetique a la question
-- Elements de droit trouves (avec la source de chaque element)
-- Points de vigilance ou zones d'incertitude
-- Liste des sources utilisees (titre + URL)
+ci-dessous (section "RESULTATS DE RECHERCHE").
+
+Structure ta reponse en Markdown, avec des titres "##"/"###" pour organiser
+les sections (adapte les titres et leur nombre a la question posee, il n'y a
+pas de plan fixe) et des listes a puces pour detailler des criteres,
+conditions ou etapes. Inclus toujours, a la fin :
+## Points de vigilance
+Zones d'incertitude ou de divergence entre sources.
+## Sources
+Liste des sources utilisees (titre + URL).
+
+SI ET SEULEMENT SI la question appelle une comparaison entre plusieurs
+notions, regimes ou situations (ex: "compare X et Y", "quelles differences
+entre...", ou une question qui s'y prete naturellement), ajoute un tableau
+Markdown (colonnes : Critere | X | Y) synthetisant la comparaison - en plus
+du texte explicatif, jamais a sa place. Ne force jamais un tableau si la
+question ne compare rien.
 
 Quand une source provient d'un site de textes officiels ou de doctrine reconnu (ex: portail OHADA, Ministere de la Justice du Benin, Assemblee Nationale du Benin, droit-afrique.com, Cairn), traite-la comme prioritaire et plus fiable qu'une page web generaliste en cas de recoupement ou de divergence entre sources.
 

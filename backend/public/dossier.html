@@ -13,6 +13,7 @@
     <div id="content"><p class="muted">Chargement…</p></div>
   </div>
   <script src="/js/api.js"></script>
+  <script src="/js/markdown.js"></script>
   <script src="/js/layout.js"></script>
   <script>
     function escapeHtml(str) {
@@ -416,7 +417,7 @@
             ${generationEnEchec ? `<p class="error visible" style="margin:6px 0;">${escapeHtml(GENERATION_TIMEOUT_MESSAGE)}</p>` : ""}
             ${docLink ? `<div style="margin:6px 0;">${docLink}</div>` : ""}
             ${downloadLinks}
-            <pre>${escapeHtml(a.contenuGenere || "")}</pre>
+            <div class="md-content">${renderMarkdown(a.contenuGenere || "")}</div>
             ${controls}
           </div>
         </div>`;
