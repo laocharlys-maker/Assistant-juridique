@@ -177,6 +177,22 @@ function buildDocxContentElements(contenu: string): (Paragraph | Table)[] {
           spacing: { after: 150 },
         })
       );
+    } else if (block.align === "right") {
+      elements.push(
+        new Paragraph({
+          children: spansToDocxRuns(block.spans),
+          alignment: AlignmentType.RIGHT,
+          spacing: { after: 150 },
+        })
+      );
+    } else if (block.indent !== undefined) {
+      elements.push(
+        new Paragraph({
+          children: spansToDocxRuns(block.spans),
+          indent: { left: block.indent },
+          spacing: { after: 100 },
+        })
+      );
     } else {
       // Paragraphe simple : conserve la detection historique des titres de
       // section en MAJUSCULES (actes classiques, pas de Markdown) - sauf si
@@ -359,7 +375,7 @@ export async function buildDocx(input: ExportInput): Promise<Buffer> {
 function renderPdfSpans(
   doc: PDFKit.PDFDocument,
   spans: TextSpan[],
-  options: { size: number; align?: "left" | "center" | "justify"; bold?: boolean },
+  options: { size: number; align?: "left" | "center" | "right" | "justify"; bold?: boolean },
   fontFamily: { regular: string; bold: string; italic: string }
 ): void {
   const nonEmpty = spans.filter((s) => s.text.length > 0);
@@ -468,6 +484,15 @@ function renderPdfContent(
     } else if (block.align === "center") {
       renderPdfSpans(doc, block.spans, { size: tailleTexte, align: "center" }, fontFamily);
       doc.moveDown(0.4);
+    } else if (block.align === "right") {
+      renderPdfSpans(doc, block.spans, { size: tailleTexte, align: "right" }, fontFamily);
+      doc.moveDown(0.4);
+    } else if (block.indent !== undefined) {
+      // Twips (unite Word, 1440 = 1 pouce) convertis en points PDF (1 pouce = 72 pt).
+      doc.x = doc.page.margins.left + (block.indent / 1440) * 72;
+      renderPdfSpans(doc, block.spans, { size: tailleTexte, align: "left" }, fontFamily);
+      doc.x = doc.page.margins.left;
+      doc.moveDown(0.3);
     } else {
       const plainText = block.spans.map((s) => s.text).join("");
       if (!block.forcePlain && block.spans.length === 1 && !block.spans[0].bold && isHeaderLine(plainText)) {

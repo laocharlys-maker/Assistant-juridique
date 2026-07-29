@@ -59,6 +59,20 @@ function plein(texte: string | undefined | false): string | false {
   return texte ? `==${texte}` : false;
 }
 
+// Aligne une ligne a droite (voir le marqueur ">" dans markdownParse.ts) -
+// ex. la ligne date/lieu en tete d'un courrier.
+function droite(texte: string | undefined | false): string | false {
+  return texte ? `>${texte}` : false;
+}
+
+// Retrait a gauche en twips (1440 = 1 pouce - voir le marqueur "::N::" dans
+// markdownParse.ts) - reproduit le positionnement en retrait (plutot que
+// centre) observe sur les blocs destinataire/signature des documents
+// Google Docs de reference.
+function retrait(twips: number, texte: string | undefined | false): string | false {
+  return texte ? `::${twips}::${texte}` : false;
+}
+
 const UNITES = [
   "zéro", "un", "deux", "trois", "quatre", "cinq", "six", "sept", "huit", "neuf",
   "dix", "onze", "douze", "treize", "quatorze", "quinze", "seize",
@@ -182,16 +196,25 @@ export function buildFormalisme(
     }
 
     case "mise_en_demeure": {
-      const destinataire = ligne(
-        s(c, "civilite_nom_destinataire") || s(c, "destinataire"),
-        s(c, "profession_destinataire")
-      );
+      // Reproduit le formalisme observe sur un document reel issu du
+      // pipeline Google Docs (comparaison XML fournie par l'utilisateur) :
+      // en-tete cabinet en gras, date alignee a droite, bloc destinataire en
+      // gras et en retrait (pas centre), signature de fin egalement en
+      // retrait.
+      const ligneDestinataire = s(c, "civilite_appel_destinataire")
+        ? `${s(c, "civilite_appel_destinataire")} ${s(c, "destinataire")},`
+        : `${s(c, "civilite_nom_destinataire") || s(c, "destinataire")},`;
       return {
         avant: bloc(
+          s(c, "nom_cabinet") && `**${s(c, "nom_cabinet")}**`,
+          s(c, "adresse_cabinet") && `**${s(c, "adresse_cabinet")}**`,
+          "**Barreau du Bénin**",
+          droite(`${ctx.ville}, le ${ctx.dateLongue}`),
           s(c, "mode_notification"),
-          "À l'attention de :",
-          destinataire,
-          s(c, "informations_destinataire"),
+          retrait(4320, "**À l'attention de :**"),
+          retrait(4320, `**${ligneDestinataire}**`),
+          s(c, "profession_destinataire") && retrait(4320, `**${s(c, "profession_destinataire")}**`),
+          s(c, "informations_destinataire") && retrait(4320, `**${s(c, "informations_destinataire")}**`),
           s(c, "objet_mise_en_demeure") && `OBJET : ${s(c, "objet_mise_en_demeure")}`,
           s(c, "civilite_appel_destinataire"),
           `J'agis par la présente en qualité de conseil de ${ctx.nomClient}${
@@ -201,8 +224,8 @@ export function buildFormalisme(
         apres: bloc(
           "Sous toutes réserves dont mon client entend se prévaloir en justice.",
           `Veuillez agréer, ${s(c, "civilite_appel_destinataire") || "Madame, Monsieur,"} l'expression de mes salutations distinguées.`,
-          s(c, "nom_avocat") && `Maître ${s(c, "nom_avocat")}`,
-          "Avocat au Barreau du Bénin"
+          s(c, "nom_avocat") && retrait(5040, `**Maître ${s(c, "nom_avocat")}**`),
+          retrait(5040, "**Avocat au Barreau du Bénin**")
         ),
       };
     }

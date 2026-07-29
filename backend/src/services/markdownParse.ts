@@ -11,7 +11,7 @@ export interface TextSpan {
 
 export type MarkdownBlock =
   | { type: "heading"; level: 1 | 2 | 3; spans: TextSpan[] }
-  | { type: "paragraph"; spans: TextSpan[]; align?: "center"; forcePlain?: boolean }
+  | { type: "paragraph"; spans: TextSpan[]; align?: "center" | "right"; indent?: number; forcePlain?: boolean }
   | { type: "bullet"; items: TextSpan[][] }
   | { type: "numbered"; items: TextSpan[][] }
   | { type: "table"; header: string[]; rows: string[][] };
@@ -113,6 +113,27 @@ export function parseMarkdownBlocks(markdown: string): MarkdownBlock[] {
     const centerMatch = line.match(/^\^\^\s?(.*)$/);
     if (centerMatch) {
       blocks.push({ type: "paragraph", spans: parseInlineSpans(centerMatch[1]), align: "center" });
+      i++;
+      continue;
+    }
+
+    // Marqueur d'alignement a droite (">texte") - reserve aux mises en forme
+    // programmatiques (ex. la ligne de date/lieu en tete d'un courrier).
+    const rightMatch = line.match(/^>\s?(.*)$/);
+    if (rightMatch) {
+      blocks.push({ type: "paragraph", spans: parseInlineSpans(rightMatch[1]), align: "right" });
+      i++;
+      continue;
+    }
+
+    // Marqueur de retrait ("::N::texte", N en twips - 1440 = 1 pouce) -
+    // reserve aux blocs de formalisme positionnes en retrait plutot que
+    // centres (ex. bloc destinataire, bloc de signature) : reproduit
+    // exactement la mise en forme observee dans les documents Google Docs
+    // de reference plutot qu'un centrage approximatif.
+    const indentMatch = line.match(/^::(\d+)::\s?(.*)$/);
+    if (indentMatch) {
+      blocks.push({ type: "paragraph", spans: parseInlineSpans(indentMatch[2]), indent: Number(indentMatch[1]) });
       i++;
       continue;
     }

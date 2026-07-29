@@ -1036,7 +1036,7 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
       // locaux (qui n'ont pas de template a balises separees).
       const redigéMED = [
         exposeDesFaitsMED,
-        `En conséquence, la présente vaut MISE EN DEMEURE, formelle et comminatoire, d'avoir à exécuter l'intégralité de vos obligations dans un délai strict de ${form.delai_jours} jours à compter de la notification du présent acte.`,
+        `En conséquence, la présente vaut **MISE EN DEMEURE**, formelle et comminatoire, d'avoir à exécuter l'intégralité de vos obligations dans un délai strict de ${form.delai_jours} jours à compter de la notification du présent acte.`,
         `À défaut d'exécution intégrale de vos obligations dans ce délai, ${dossierMED.nomClient} se verra dans l'obligation de saisir la juridiction compétente afin de solliciter :\n${consequencesMED}`,
       ].join("\n\n");
 
