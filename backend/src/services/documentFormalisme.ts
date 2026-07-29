@@ -559,22 +559,36 @@ export function buildFormalisme(
     }
 
     case "contrat": {
+      // Reproduit le formalisme observe sur le document de reference fourni
+      // par l'utilisateur ("Contrat_Correct.docx") : titre centre en gras,
+      // en-tete cabinet en gras, date NON grasse et alignee a gauche (pas
+      // a droite, contrairement aux autres types d'actes), "ENTRE LES
+      // SOUSSIGNÉS :" et "ET" en texte normal (pas de gras automatique
+      // malgre les majuscules), seuls les noms des parties en gras dans la
+      // phrase d'identification, et la signature de fin sur une seule
+      // ligne avec les deux noms en gras (approximation en deux colonnes
+      // via des espaces, faute de mise en page multi-colonnes).
+      const partie1 = s(c, "partie_1");
+      const partie2 = s(c, "partie_2");
       return {
         avant: bloc(
-          s(c, "type_contrat") || "Contrat",
-          s(c, "nom_cabinet"),
-          s(c, "adresse_cabinet"),
+          centre(`**${s(c, "type_contrat") || "Contrat"}**`),
+          s(c, "nom_cabinet") && `**${s(c, "nom_cabinet")}**`,
+          s(c, "adresse_cabinet") && `**${s(c, "adresse_cabinet")}**`,
+          "**Barreau du Bénin**",
           `${ctx.ville}, le ${ctx.dateLongue}`,
-          "ENTRE LES SOUSSIGNÉS :",
-          `${ligne(s(c, "partie_1"), s(c, "informations_partie_1"))}, ci-après dénommé « la première partie »,`,
-          "ET",
-          `${ligne(s(c, "partie_2"), s(c, "informations_partie_2"))}, ci-après dénommé « la seconde partie »,`,
-          "IL A ÉTÉ CONVENU ET ARRÊTÉ CE QUI SUIT :"
+          plein("ENTRE LES SOUSSIGNÉS :"),
+          partie1 &&
+            `${ligne(`**${partie1}**`, s(c, "informations_partie_1"))}, ci-après dénommé « la première partie »,`,
+          plein("ET"),
+          partie2 &&
+            `${ligne(`**${partie2}**`, s(c, "informations_partie_2"))}, ci-après dénommé « la seconde partie »,`
         ),
         apres: bloc(
           `Fait à ${ctx.ville}, le ${ctx.dateLongue}, en deux (02) exemplaires originaux, un pour chaque partie. Lu et approuvé`,
-          `Pour la première partie : ${s(c, "partie_1")}`,
-          `Pour la seconde partie : ${s(c, "partie_2")}`
+          "Pour la première partie                                          Pour la seconde partie",
+          "_____________________                                   _____________________",
+          `**${partie1 || ""}**${"                                                              "}**${partie2 || ""}**`
         ),
       };
     }
