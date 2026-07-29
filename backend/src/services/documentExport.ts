@@ -202,6 +202,7 @@ function buildDocxContentElements(contenu: string): (Paragraph | Table)[] {
         elements.push(
           new Paragraph({
             children: [new TextRun({ text: plainText, bold: true })],
+            alignment: AlignmentType.JUSTIFIED,
             spacing: { before: 200, after: 150 },
           })
         );
@@ -497,7 +498,7 @@ function renderPdfContent(
       const plainText = block.spans.map((s) => s.text).join("");
       if (!block.forcePlain && block.spans.length === 1 && !block.spans[0].bold && isHeaderLine(plainText)) {
         doc.moveDown(0.4);
-        renderPdfSpans(doc, block.spans, { size: tailleTexte, bold: true, align: "left" }, fontFamily);
+        renderPdfSpans(doc, block.spans, { size: tailleTexte, bold: true, align: "justify" }, fontFamily);
         doc.moveDown(0.3);
       } else {
         renderPdfSpans(doc, block.spans, { size: tailleTexte, align: "justify" }, fontFamily);

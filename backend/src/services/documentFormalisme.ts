@@ -259,9 +259,8 @@ export function buildFormalisme(
           s(c, "nom_cabinet") && `**${s(c, "nom_cabinet")}**`,
           s(c, "adresse_cabinet") && `**${s(c, "adresse_cabinet")}**`,
           "**Barreau du Bénin**",
-          plein("À"),
-          s(c, "destinataire") && `**${s(c, "destinataire")}**`,
-          s(c, "nom_juridiction") && `**${s(c, "nom_juridiction")}**`,
+          centre("À"),
+          s(c, "destinataire") && centre(`**${s(c, "destinataire")}**`),
           `**OBJET : Plainte${civileTxt ? ` ${civileTxt}` : ""}**`,
           `POUR **${nomClientPlainte}**${s(c, "profession_client") ? `, ${s(c, "profession_client")}` : ""}${
             s(c, "adresse_client") ? `, demeurant et domicilié à ${s(c, "adresse_client")}.` : "."
