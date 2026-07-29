@@ -543,11 +543,12 @@ export async function buildPdf(input: ExportInput): Promise<Buffer> {
 
     if (input.entete) {
       const usableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-      const enteteWidth = 450;
-      doc.image(input.entete.buffer, doc.page.margins.left + (usableWidth - enteteWidth) / 2, doc.y, {
-        width: enteteWidth,
-      });
-      doc.moveDown(3.5);
+      const ENTETE_W = Math.min(450, usableWidth);
+      const ENTETE_H = 121;
+      const enteteX = doc.page.margins.left + (usableWidth - ENTETE_W) / 2;
+      const enteteY = doc.y;
+      doc.image(input.entete.buffer, enteteX, enteteY, { fit: [ENTETE_W, ENTETE_H] });
+      doc.y = enteteY + ENTETE_H + 10;
     }
 
     // Quand il y a un en-tête, il porte deja le nom/l'identite du cabinet -
