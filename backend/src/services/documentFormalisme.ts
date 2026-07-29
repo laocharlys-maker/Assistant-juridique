@@ -580,13 +580,23 @@ export function buildFormalisme(
     }
 
     case "notification_date": {
+      // Meme cabinet, meme convention "PAR EXPLOIT DE COMMISSAIRE DE
+      // JUSTICE" que la Mise en demeure (formalisme verifie par XML) :
+      // en-tete cabinet en gras, date alignee a droite, bloc destinataire
+      // en gras et en retrait (pas centre), signature de fin en retrait.
+      const destinataireNotif =
+        s(c, "civilite_nom_destinataire") || s(c, "destinataire");
       return {
         avant: bloc(
+          s(c, "nom_cabinet") && `**${s(c, "nom_cabinet")}**`,
+          s(c, "adresse_cabinet") && `**${s(c, "adresse_cabinet")}**`,
+          "**Barreau du Bénin**",
+          droite(`${ctx.ville}, le ${ctx.dateLongue}`),
           s(c, "mode_notification"),
-          "À l'attention de :",
-          s(c, "civilite_nom_destinataire") || s(c, "destinataire"),
-          s(c, "adresse_destinataire"),
-          s(c, "objet") && `OBJET : ${s(c, "objet")}`,
+          destinataireNotif && retrait(4320, "**À l'attention de :**"),
+          destinataireNotif && retrait(4320, `**${destinataireNotif}**`),
+          s(c, "adresse_destinataire") && retrait(4320, `**${s(c, "adresse_destinataire")}**`),
+          s(c, "objet") && `**OBJET : ${s(c, "objet")}**`,
           s(c, "civilite_appel_destinataire"),
           `J'agis en qualité de conseil de ${ligne(
             s(c, "civilite_nom_client") || ctx.nomClient,
@@ -596,9 +606,9 @@ export function buildFormalisme(
         apres: bloc(
           "Nous vous remercions de l'attention que vous porterez à cette notification.",
           `Veuillez agréer, ${s(c, "civilite_appel_destinataire") || "Madame, Monsieur,"} l'expression de mes salutations distinguées.`,
-          s(c, "nom_avocat") && `Maître ${s(c, "nom_avocat")}`,
-          "Avocat au Barreau du Bénin",
-          "(Sceau du Cabinet)"
+          s(c, "nom_avocat") && retrait(5760, `**Maître ${s(c, "nom_avocat")}**`),
+          retrait(5760, "**Avocat au Barreau du Bénin**"),
+          retrait(5760, "(Sceau du Cabinet)")
         ),
       };
     }
