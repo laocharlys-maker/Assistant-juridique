@@ -282,6 +282,24 @@ export function buildFormalisme(
       const nomClientPlainte = s(c, "civilite_nom_client") || ctx.nomClient;
       const nomDefendeurPlainte = s(c, "civilite_nom_defendeur") || s(c, "nom_defendeur");
 
+      // Derive la civilite d'appel correcte depuis le champ destinataire (ex :
+      // "Mme la Présidente du Tribunal" → "Madame la Présidente") afin que la
+      // salutation et la formule de politesse soient cohérentes avec l'adresse.
+      function civiliteAppelMagistrat(dest: string): string {
+        const d = dest.toLowerCase();
+        const feminin =
+          d.startsWith("mme") || d.startsWith("madame") || d.includes("présidente") || d.includes("procureure");
+        if (feminin) {
+          if (d.includes("présidente")) return "Madame la Présidente";
+          if (d.includes("procureure")) return "Madame la Procureure de la République";
+          return "Madame";
+        }
+        if (d.includes("procureur")) return "Monsieur le Procureur de la République";
+        if (d.includes("président")) return "Monsieur le Président";
+        return "Monsieur le Procureur de la République";
+      }
+      const appelMagistrat = civiliteAppelMagistrat(s(c, "destinataire") || "");
+
       // Deux presentations tres differentes selon qui redige (voir le champ
       // mode_redaction dans schemas/webForms.ts) : l'avocat pour son client
       // represente (formalisme verifie sur "Plainte_CORRECTES.docx" -
@@ -297,14 +315,14 @@ export function buildFormalisme(
             `**${nomClientPlainte}**`,
             s(c, "profession_client") && `**${s(c, "profession_client")}**`,
             s(c, "adresse_client") && `**Demeurant à : ${s(c, "adresse_client")}**`,
-            plein("À"),
-            s(c, "destinataire") && `**${s(c, "destinataire")}**`,
+            centre("À"),
+            s(c, "destinataire") && centre(`**${s(c, "destinataire")}**`),
             // Pas d'espace apres "OBJET :" - reproduit tel quel le
             // formalisme observe sur le document de reference.
             `**OBJET :Plainte${civileTxt ? ` ${civileTxt} ` : " "}pour des faits de ${
               s(c, "qualification_infraction") || "..."
             }**`,
-            "Monsieur le Procureur de la République,",
+            `${appelMagistrat},`,
             `J'ai l'honneur de porter plainte entre vos mains contre le nommé **${nomDefendeurPlainte}**${
               s(c, "adresse_defendeur") ? `, demeurant à **${s(c, "adresse_defendeur")}**` : ""
             }, pour des faits de ${
@@ -313,9 +331,9 @@ export function buildFormalisme(
           ),
           apres: bloc(
             "Je me tiens à la disposition de vos services de police ou de gendarmerie pour toute audition ou confrontation nécessaire à la manifestation de la vérité.",
-            "Je vous prie d'agréer, Monsieur le Procureur de la République, l'assurance de ma très haute considération.",
+            `Je vous prie d'agréer, ${appelMagistrat}, l'assurance de ma très haute considération.`,
             retrait(5760, `**${nomClientPlainte}**`),
-            centre("[Signature]")
+            retrait(5760, "[Signature]")
           ),
         };
       }
@@ -354,12 +372,12 @@ export function buildFormalisme(
               s(c, "adresse_defendeur") ? `, demeurant à ${s(c, "adresse_defendeur")}.` : "."
             }`,
           s(c, "qualification_infraction") && `**QUALIFICATION DES FAITS : ${s(c, "qualification_infraction")}**`,
-          "Monsieur le Procureur de la République,",
+          `${appelMagistrat},`,
           `J'ai l'honneur d'intervenir par la présente en qualité de conseil de ${nomClientPlainte}, pour porter plainte entre vos mains contre ${nomDefendeurPlainte} pour les faits ci-dessus qualifiés.`
         ),
         apres: bloc(
           "Sous toutes réserves que de droit.",
-          "Veuillez agréer, Monsieur le Procureur de la République, l'expression de ma très haute considération.",
+          `Veuillez agréer, ${appelMagistrat}, l'expression de ma très haute considération.`,
           s(c, "nom_avocat") && retrait(5760, `**Maître ${s(c, "nom_avocat")}**`),
           retrait(5760, "**Avocat au Barreau du Bénin**"),
           retrait(5760, "(Sceau du Cabinet)")
