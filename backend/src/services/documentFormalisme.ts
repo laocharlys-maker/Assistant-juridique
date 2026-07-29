@@ -415,25 +415,54 @@ export function buildFormalisme(
     }
 
     case "conclusions": {
-      const pour = ligne(s(c, "qualite_client"), ctx.nomClient, s(c, "informations_client"));
-      const contre = ligne(s(c, "qualite_partie_adverse"), s(c, "nom_partie_adverse"), s(c, "informations_partie_adverse"));
+      // Reproduit le formalisme observe sur le document de reference fourni
+      // par l'utilisateur ("Conclusions_CORRECTES.docx") : titre et bloc
+      // destinataire centres, formule d'ouverture "PLAISE À...", section
+      // "I. LES PARTIES" (identite/avocat de chaque partie, seuls noms et
+      // qualites en gras), "II. PLAISE AU TRIBUNAL" (phrase d'introduction
+      // fixe), et bordereau des pieces en pied de document.
+      const nomClientConclusions = s(c, "civilite_nom_client") || ctx.nomClient;
+      const juridictionPhrase =
+        s(c, "nom_juridiction") && `${articleJuridiction(s(c, "nom_juridiction"))} ${s(c, "nom_juridiction")}`;
       return {
         avant: bloc(
-          "CONCLUSIONS",
-          `POUR : ${pour}`,
+          centre("**CONCLUSIONS**"),
+          `**Aff : ${ctx.nomAffaire}**`,
+          "**Objet : Conclusions**",
+          centre("**A**"),
+          s(c, "destinataire") && centre(`**${s(c, "destinataire")}**`),
+          espace(),
+          juridictionPhrase &&
+            `**PLAISE À MONSIEUR LE PRÉSIDENT ET MESDAMES ET MESSIEURS LES JUGES COMPOSANT ${juridictionPhrase} de ${ctx.ville}**`,
+          espace(),
+          "I. LES PARTIES",
+          "POUR :",
+          `**${nomClientConclusions}**${s(c, "informations_client") ? `, ${s(c, "informations_client")}` : ""}${
+            s(c, "qualite_client") ? `, agissant en qualité de **${s(c, "qualite_client")}**.` : "."
+          }`,
           s(c, "nom_avocat") &&
-            `Ayant pour conseil ${s(c, "nom_avocat")}, Avocat au Barreau du Bénin${
-              s(c, "adresse_cabinet") ? `, demeurant à ${s(c, "adresse_cabinet")}` : ""
+            `Ayant pour avocat : **Maître ${s(c, "nom_avocat")}**, inscrit au Barreau du Bénin${
+              s(c, "adresse_cabinet") ? `, sis à l'adresse ${s(c, "adresse_cabinet")}.` : "."
             }`,
-          contre && `CONTRE : ${contre}`,
-          s(c, "destinataire") && `Devant ${s(c, "destinataire")}`,
-          "PLAISE AU TRIBUNAL"
+          s(c, "nom_partie_adverse") && "CONTRE :",
+          s(c, "nom_partie_adverse") &&
+            `**${s(c, "nom_partie_adverse")}**${
+              s(c, "informations_partie_adverse") ? `, ${s(c, "informations_partie_adverse")}` : ""
+            }${s(c, "qualite_partie_adverse") ? `, agissant en qualité de **${s(c, "qualite_partie_adverse")}**.` : "."}`,
+          espace(),
+          "II. PLAISE AU TRIBUNAL",
+          "L'avocat soussigné a l'honneur de soumettre au Tribunal les conclusions suivantes pour le compte de son client."
         ),
         apres: bloc(
-          s(c, "piece_a_prevoir") && `Bordereau des pièces communiquées :\n${s(c, "piece_a_prevoir")}`,
-          `Fait à ${ctx.ville}, le ${ctx.dateLongue}`,
-          s(c, "nom_avocat") && `Maître ${s(c, "nom_avocat")}`,
-          "Avocat au Barreau du Bénin"
+          espace(),
+          "**Sous toutes réserves.**",
+          centre(`Fait à ${ctx.ville}, le ${ctx.dateLongue}`),
+          centre("(Signature de l'avocat)"),
+          s(c, "nom_avocat") && centre(`**Maître ${s(c, "nom_avocat")}**`),
+          espace(),
+          "IV. BORDEREAU DES PIÈCES JOINTES",
+          "(Obligatoire pour que le juge puisse vérifier les preuves)",
+          s(c, "piece_a_prevoir")
         ),
       };
     }

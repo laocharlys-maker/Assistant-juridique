@@ -165,7 +165,7 @@ Tu rediges UNIQUEMENT le contenu variable de CONCLUSIONS (ecriture de procedure 
 Structure ta reponse en EXACTEMENT huit blocs, chacun precede de son marqueur entre doubles crochets sur sa propre ligne (rien d'autre sur cette ligne), dans cet ordre. Chaque bloc doit etre une phrase ou un court paragraphe COMPLET ET AUTONOME (pas juste le fait brut recopie), car chacun s'insere separement a un endroit different du document final :
 
 [[EXPOSE_DES_FAITS]]
-Le recit chronologique des faits et de la procedure, en paragraphes ou puces commencant de preference par des formules consacrees ("Attendu que...", "Qu'il est constant que...", "C'est dans ces conditions que..."), en te basant uniquement sur le contexte et les axes d'argumentation fournis ci-dessous. Termine par une phrase indiquant que le concluant se voit contraint de saisir la juridiction.
+Le recit chronologique des faits et de la procedure, en paragraphes de style judiciaire (JAMAIS de tiret "-" ni de puce devant : chaque phrase sur sa propre ligne, separee des autres par une ligne vide) commencant de preference par des formules consacrees ("Attendu que...", "Qu'il est constant que...", "C'est dans ces conditions que..."), en te basant uniquement sur le contexte et les axes d'argumentation fournis ci-dessous. Termine par une phrase indiquant que le concluant se voit contraint de saisir la juridiction.
 
 [[FONDEMENT_JURIDIQUE]]
 Une phrase introduite par "En vertu de..." ou "Sur le fondement de..." qui cite le fondement juridique fourni ci-dessous et explique brievement son application au cas d'espece.
@@ -186,7 +186,7 @@ Si un montant de frais de procedure est fourni ci-dessous, une phrase du type "I
 Une injonction au tribunal en MAJUSCULES au debut ("JUGER que..."), fondee sur le manquement a faire juger fourni ci-dessous.
 
 [[CONDAMNATION_DEMANDEE]]
-Une ou plusieurs injonctions au tribunal en MAJUSCULES au debut ("CONDAMNER [partie adverse] a payer a [client] la somme de... a titre de dommages et interets..."), fondees sur la reparation demandee et, si fourni, les frais de procedure ci-dessous (dans ce cas une puce CONDAMNER separee "au titre des frais de procedure"). Si la condamnation aux depens est demandee, ajoute une derniere puce "CONDAMNER [partie adverse] aux entiers depens de l'instance." IMPERATIF DE MISE EN FORME : chaque puce CONDAMNER (dommages-interets, frais de procedure, depens) doit commencer sur sa PROPRE ligne, separee des autres par un saut de ligne - ne les ecris jamais a la suite dans la meme phrase ou le meme paragraphe.
+Une ou plusieurs injonctions au tribunal en MAJUSCULES au debut ("CONDAMNER [partie adverse] a payer a [client] la somme de... a titre de dommages et interets..."), fondees sur la reparation demandee et, si fourni, les frais de procedure ci-dessous (dans ce cas une ligne CONDAMNER separee "au titre des frais de procedure"). Si la condamnation aux depens est demandee, ajoute une derniere ligne "CONDAMNER [partie adverse] aux entiers depens de l'instance." IMPERATIF DE MISE EN FORME : chaque ligne CONDAMNER (dommages-interets, frais de procedure, depens) doit commencer sur sa PROPRE ligne, separee des autres par une ligne vide, JAMAIS de tiret "-" ni de puce devant - ne les ecris jamais a la suite dans la meme phrase ou le meme paragraphe.
 
 REGLE ABSOLUE : n'invente jamais un fait, un article de loi, un montant ou une demande qui ne figure pas dans les informations fournies ci-dessous. Si une information necessaire a un bloc est absente, laisse ce bloc vide plutot que d'inventer.`;
 

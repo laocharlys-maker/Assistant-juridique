@@ -806,20 +806,6 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
       const fraisProcedure = blocs.FRAIS_PROCEDURE ?? "";
       const manquementAJuger = blocs.MANQUEMENT_A_JUGER ?? "";
       const condamnationDemandee = blocs.CONDAMNATION_DEMANDEE ?? "";
-      // Utilise pour le contenu enregistre en base et les exports Word/PDF
-      // locaux (qui n'ont pas de template a balises separees) : tous les
-      // blocs mis bout a bout, avec des titres de section, forment un texte
-      // complet et coherent.
-      const redigé = [
-        exposeDesFaits,
-        ["DISCUSSION JURIDIQUE", fondementJuridique, qualificationJuridique, prejudiceSubi, reparationDemandee, fraisProcedure]
-          .filter(Boolean)
-          .join("\n\n"),
-        ["PAR CES MOTIFS", manquementAJuger, condamnationDemandee].filter(Boolean).join("\n\n"),
-      ]
-        .filter(Boolean)
-        .join("\n\n");
-
       const dossierLookup = await findOrCreateDossier({
         cabinetId: auth!.cabinetId,
         userId: auth!.userId,
@@ -856,6 +842,45 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
           ? form.pieces.map((p, i) => `${i + 1}. ${p}`).join("\n")
           : "Aucune pièce communiquée à ce stade.";
 
+      // Utilise pour le contenu enregistre en base et les exports Word/PDF
+      // locaux (qui n'ont pas de template a balises separees). "III.
+      // DISPOSITIF" / "PAR CES MOTIFS" / "VU les pièces versées aux
+      // débats ;" / "DÉCLARER... DÉBOUTER..." sont des formules fixes du
+      // formalisme des Conclusions, verifiees sur un document reel fourni
+      // par l'utilisateur - jamais generees par l'IA, jamais saisies par
+      // l'avocat.
+      const redigé = [
+        ["**1. EXPOSÉ DES FAITS ET DE LA PROCÉDURE**", exposeDesFaits].filter(Boolean).join("\n\n"),
+        espace(),
+        [
+          "**2. DISCUSSION JURIDIQUE**",
+          fondementJuridique,
+          qualificationJuridique,
+          prejudiceSubi,
+          reparationDemandee,
+          fraisProcedure,
+        ]
+          .filter(Boolean)
+          .join("\n\n"),
+        espace(),
+        [
+          "**III. DISPOSITIF (Le « Par ces motifs »)**",
+          "PAR CES MOTIFS",
+          form.nom_juridiction && `${form.nom_juridiction} est invité à :`,
+          "VU les pièces versées aux débats ;",
+          `**DÉCLARER** **${dossier.nomClient}** recevable et bien fondé en ses demandes, fins et conclusions.`,
+          form.nom_partie_adverse &&
+            `**DÉBOUTER** **${form.nom_partie_adverse}** de l'ensemble de ses demandes, fins, conclusions et prétentions contraires.`,
+          "**En conséquence :**",
+          mettreEnGrasVerbeInitial(manquementAJuger),
+          mettreEnGrasVerbeInitial(condamnationDemandee),
+        ]
+          .filter(Boolean)
+          .join("\n\n"),
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+
       extraWebhookFields = {
         expose_des_faits: exposeDesFaits,
         fondement_juridique: fondementJuridique,
@@ -876,6 +901,7 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
         // sur celui du compte qui genere le document.
         nom_avocat: form.nom_avocat || auteur?.nom || null,
         ville: form.ville ?? null,
+        nom_juridiction: form.nom_juridiction ?? null,
         destinataire:
           composeDestinataire(form.destinataire, form.nom_juridiction, form.ville, form.nom_avocat_destinataire) ??
           null,
