@@ -465,7 +465,8 @@ export function buildFormalisme(
         s(c, "nom_juridiction") && `${articleJuridiction(s(c, "nom_juridiction"))} ${s(c, "nom_juridiction")}`;
       return {
         avant: bloc(
-          centre("**CONCLUSIONS**"),
+          titre(18, "CONCLUSIONS"),
+          espace(),
           `**Aff : ${ctx.nomAffaire}**`,
           "**Objet : Conclusions**",
           centre("**A**"),
