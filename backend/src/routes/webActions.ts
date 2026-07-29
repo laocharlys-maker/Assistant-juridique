@@ -1349,7 +1349,13 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
       const redigéPlainte = [
         ["I. EXPOSÉ DES FAITS", exposeDesFaitsPlainte].filter(Boolean).join("\n\n"),
         ["II. DISCUSSION JURIDIQUE", discussionJuridiquePlainte].filter(Boolean).join("\n\n"),
-        ["PAR CES MOTIFS", demandesPlainte].filter(Boolean).join("\n\n"),
+        [
+          "PAR CES MOTIFS",
+          "Il vous plaise, Monsieur le Procureur de la République, de :",
+          demandesPlainte,
+        ]
+          .filter(Boolean)
+          .join("\n\n"),
       ]
         .filter(Boolean)
         .join("\n\n");

@@ -237,29 +237,55 @@ export function buildFormalisme(
     }
 
     case "plainte": {
+      // Reproduit le formalisme observe sur un document reel issu du
+      // pipeline Google Docs (comparaison XML fournie par l'utilisateur) :
+      // en-tete cabinet en gras, date alignee a droite, blocs POUR/CONTRE
+      // avec seuls les noms/adresses en gras (pas le texte de liaison),
+      // "QUALIFICATION DES FAITS" en ligne separee (pas ajoutee a l'objet),
+      // et la signature de fin en retrait.
       const civileTxt = s(c, "mode_redaction").includes("civile")
-        ? "avec constitution de partie civile "
+        ? "avec constitution de partie civile"
         : "";
+      const nomClientPlainte = s(c, "civilite_nom_client") || ctx.nomClient;
+      const contactClient = ligne(
+        s(c, "informations_client"),
+        s(c, "telephone_client") && `Téléphone ${s(c, "telephone_client")}`,
+        s(c, "email_client")
+      );
+      const nomDefendeurPlainte = s(c, "civilite_nom_defendeur") || s(c, "nom_defendeur");
       return {
         avant: bloc(
-          s(c, "civilite_nom_client") || ctx.nomClient,
-          s(c, "profession_client"),
-          s(c, "adresse_client") && `Demeurant à : ${s(c, "adresse_client")}`,
-          "À",
-          s(c, "destinataire") || "M. le Procureur de la République",
-          `OBJET : Plainte ${civileTxt}pour des faits de ${s(c, "qualification_infraction") || "..."}`,
+          droite(`${ctx.ville}, le ${ctx.dateLongue}`),
+          s(c, "nom_cabinet") && `**${s(c, "nom_cabinet")}**`,
+          s(c, "adresse_cabinet") && `**${s(c, "adresse_cabinet")}**`,
+          "**Barreau du Bénin**",
+          plein("À"),
+          s(c, "destinataire") && `**${s(c, "destinataire")}**`,
+          s(c, "nom_juridiction") && `**${s(c, "nom_juridiction")}**`,
+          `**OBJET : Plainte${civileTxt ? ` ${civileTxt}` : ""}**`,
+          `POUR **${nomClientPlainte}**${s(c, "profession_client") ? `, ${s(c, "profession_client")}` : ""}${
+            s(c, "adresse_client") ? `, demeurant et domicilié à ${s(c, "adresse_client")}.` : "."
+          }${contactClient ? ` ${contactClient}` : ""}`,
+          s(c, "nom_avocat") &&
+            `Ayant pour conseil **Maître ${s(c, "nom_avocat")}**, Avocat au Barreau du Bénin${
+              s(c, "adresse_cabinet")
+                ? `, dont le cabinet est situé à l'adresse **${s(c, "adresse_cabinet")}**, chez qui élection de domicile est faite pour les besoins de la présente procédure.`
+                : "."
+            }`,
+          nomDefendeurPlainte &&
+            `CONTRE : **${nomDefendeurPlainte}**${s(c, "profession_defendeur") ? `, ${s(c, "profession_defendeur")}` : ""}${
+              s(c, "adresse_defendeur") ? `, demeurant à ${s(c, "adresse_defendeur")}.` : "."
+            }`,
+          s(c, "qualification_infraction") && `**QUALIFICATION DES FAITS : ${s(c, "qualification_infraction")}**`,
           "Monsieur le Procureur de la République,",
-          `J'ai l'honneur de porter plainte entre vos mains contre le nommé ${
-            s(c, "civilite_nom_defendeur") || s(c, "nom_defendeur")
-          }${s(c, "adresse_defendeur") ? `, demeurant à ${s(c, "adresse_defendeur")}` : ""}, pour des faits de ${
-            s(c, "qualification_infraction") || "..."
-          } prévus et réprimés par le Code pénal en vigueur en République du Bénin.`
+          `J'ai l'honneur d'intervenir par la présente en qualité de conseil de ${nomClientPlainte}, pour porter plainte entre vos mains contre ${nomDefendeurPlainte} pour les faits ci-dessus qualifiés.`
         ),
         apres: bloc(
-          "Je me tiens à la disposition de vos services de police ou de gendarmerie pour toute audition ou confrontation nécessaire à la manifestation de la vérité.",
-          "Je vous prie d'agréer, Monsieur le Procureur de la République, l'assurance de ma très haute considération.",
-          s(c, "civilite_nom_client") || ctx.nomClient,
-          "[Signature de l'Avocat]"
+          "Sous toutes réserves que de droit.",
+          "Veuillez agréer, Monsieur le Procureur de la République, l'expression de ma très haute considération.",
+          s(c, "nom_avocat") && retrait(5760, `**Maître ${s(c, "nom_avocat")}**`),
+          retrait(5760, "**Avocat au Barreau du Bénin**"),
+          retrait(5760, "(Sceau du Cabinet)")
         ),
       };
     }
