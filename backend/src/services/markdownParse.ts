@@ -11,7 +11,7 @@ export interface TextSpan {
 
 export type MarkdownBlock =
   | { type: "heading"; level: 1 | 2 | 3; spans: TextSpan[] }
-  | { type: "paragraph"; spans: TextSpan[] }
+  | { type: "paragraph"; spans: TextSpan[]; align?: "center" }
   | { type: "bullet"; items: TextSpan[][] }
   | { type: "numbered"; items: TextSpan[][] }
   | { type: "table"; header: string[]; rows: string[][] };
@@ -104,6 +104,16 @@ export function parseMarkdownBlocks(markdown: string): MarkdownBlock[] {
         i++;
       }
       blocks.push({ type: "numbered", items });
+      continue;
+    }
+
+    // Marqueur de centrage ("^^texte") - reserve aux mises en forme
+    // programmatiques (voir documentFormalisme.ts, ex. le bloc destinataire
+    // d'une requete, ou la signature) : jamais produit par l'IA.
+    const centerMatch = line.match(/^\^\^\s?(.*)$/);
+    if (centerMatch) {
+      blocks.push({ type: "paragraph", spans: parseInlineSpans(centerMatch[1]), align: "center" });
+      i++;
       continue;
     }
 

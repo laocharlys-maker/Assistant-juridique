@@ -43,6 +43,13 @@ function bloc(...lignes: (string | undefined | false)[]): string {
   return lignes.filter((l): l is string => !!l && l.trim().length > 0).join("\n\n");
 }
 
+// Marque une ligne pour un rendu centre (voir le marqueur "^^" dans
+// markdownParse.ts) - jamais utilise pour le texte redige par l'IA, reserve
+// aux elements de formalisme (bloc destinataire, signature...).
+function centre(texte: string | undefined | false): string | false {
+  return texte ? `^^${texte}` : false;
+}
+
 export function buildFormalisme(
   typeAction: string,
   champsDocument: unknown,
@@ -195,9 +202,9 @@ export function buildFormalisme(
           `Fait à ${ctx.ville}, le ${ctx.dateLongue}`,
           s(c, "nom_cabinet"),
           s(c, "adresse_cabinet"),
-          "A",
-          s(c, "destinataire"),
-          s(c, "objet") && `OBJET : ${s(c, "objet")}`,
+          centre("A"),
+          centre(s(c, "destinataire")),
+          s(c, "objet") && `**OBJET : ${s(c, "objet")}**`,
           "REQUÊTE",
           "POUR :",
           `${s(c, "civilite_nom_client") || ctx.nomClient}${qualiteClient}`,
@@ -210,8 +217,8 @@ export function buildFormalisme(
         ),
         apres: bloc(
           "Sous toutes réserves généralement quelconques.",
-          s(c, "nom_avocat") && `Maître ${s(c, "nom_avocat")}`,
-          "Avocat au Barreau du Bénin",
+          centre(s(c, "nom_avocat") && `Maître ${s(c, "nom_avocat")}`),
+          centre("Avocat au Barreau du Bénin"),
           s(c, "piece_a_prevoir") && `BORDEREAU DES PIÈCES COMMUNIQUÉES\n\n${s(c, "piece_a_prevoir")}`
         ),
       };

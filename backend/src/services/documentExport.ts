@@ -169,6 +169,14 @@ function buildDocxContentElements(contenu: string): (Paragraph | Table)[] {
       // Espace apres le tableau (docx n'accepte pas deux Table consecutives
       // sans paragraphe entre les deux si un autre bloc suit immediatement).
       elements.push(new Paragraph({ text: "", spacing: { after: 100 } }));
+    } else if (block.align === "center") {
+      elements.push(
+        new Paragraph({
+          children: spansToDocxRuns(block.spans),
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 150 },
+        })
+      );
     } else {
       // Paragraphe simple : conserve la detection historique des titres de
       // section en MAJUSCULES (actes classiques, pas de Markdown).
@@ -350,7 +358,7 @@ export async function buildDocx(input: ExportInput): Promise<Buffer> {
 function renderPdfSpans(
   doc: PDFKit.PDFDocument,
   spans: TextSpan[],
-  options: { size: number; align?: "left" | "justify"; bold?: boolean },
+  options: { size: number; align?: "left" | "center" | "justify"; bold?: boolean },
   fontFamily: { regular: string; bold: string; italic: string }
 ): void {
   const nonEmpty = spans.filter((s) => s.text.length > 0);
@@ -456,6 +464,9 @@ function renderPdfContent(
       });
     } else if (block.type === "table") {
       renderPdfTable(doc, block.header, block.rows, tailleTexte, fontFamily);
+    } else if (block.align === "center") {
+      renderPdfSpans(doc, block.spans, { size: tailleTexte, align: "center" }, fontFamily);
+      doc.moveDown(0.4);
     } else {
       const plainText = block.spans.map((s) => s.text).join("");
       if (block.spans.length === 1 && !block.spans[0].bold && isHeaderLine(plainText)) {
