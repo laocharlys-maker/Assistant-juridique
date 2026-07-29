@@ -84,7 +84,7 @@ function titre(taillePt: number, texte: string | undefined | false): string | fa
 // Un paragraphe visuellement vide (espace insecable) - pour forcer un
 // espacement supplementaire entre deux lignes du formalisme sans que le
 // parseur ne l'ignore (les lignes vides sont normalement sautees).
-function espace(): string {
+export function espace(): string {
   return "​";
 }
 
@@ -477,9 +477,11 @@ export function buildFormalisme(
             }${s(c, "informations_partie_adverse") ? `, ${s(c, "informations_partie_adverse")}` : ""}${
               s(c, "qualite_partie_adverse") ? `, agissant en qualité de **${s(c, "qualite_partie_adverse")}**.` : "."
             }`,
-          s(c, "nom_avocat_partie_adverse") && `Ayant pour avocat : **${s(c, "nom_avocat_partie_adverse")}**.`
+          s(c, "nom_avocat_partie_adverse") && `Ayant pour avocat : **${s(c, "nom_avocat_partie_adverse")}**.`,
+          espace()
         ),
         apres: bloc(
+          espace(),
           "**Sous toutes réserves.**",
           centre(`Fait à ${ctx.ville}, le ${ctx.dateLongue}`),
           centre("(Signature de l'avocat)"),

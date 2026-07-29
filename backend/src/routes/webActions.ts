@@ -7,6 +7,7 @@ import { requireModule } from "../middleware/roles";
 import { getLlmProvider } from "../services/llm";
 import { callN8nWebhook, webhookForAction } from "../services/n8n";
 import { logAuditStep } from "../services/audit";
+import { espace } from "../services/documentFormalisme";
 import { webActionFormSchema } from "../schemas/webForms";
 import {
   NOTES_SYSTEM_PROMPT,
@@ -139,9 +140,15 @@ function mettreEnGrasVerbeInitial(texte: string): string {
   return texte
     .split("\n")
     .map((ligne) => {
-      const m = ligne.match(/^((?:[A-ZÀ-ÖØ-Þ][A-ZÀ-ÖØ-Þ'-]*\s+)*[A-ZÀ-ÖØ-Þ][A-ZÀ-ÖØ-Þ'-]*)\b/);
-      if (!m || m[1].length < 3 || m[1] === ligne.trim()) return ligne;
-      return `**${m[1]}**${ligne.slice(m[1].length)}`;
+      // Tolere un tiret/puce residuel en tete de ligne (le prompt demande
+      // desormais des paragraphes, mais on reste robuste si le LLM en
+      // laisse un malgre tout) : on le preserve tel quel avant le gras.
+      const prefixMatch = ligne.match(/^(\s*[-*]\s+)(.*)$/);
+      const prefixe = prefixMatch ? prefixMatch[1] : "";
+      const reste = prefixMatch ? prefixMatch[2] : ligne;
+      const m = reste.match(/^((?:[A-ZÀ-ÖØ-Þ][A-ZÀ-ÖØ-Þ'-]*\s+)*[A-ZÀ-ÖØ-Þ][A-ZÀ-ÖØ-Þ'-]*)\b/);
+      if (!m || m[1].length < 3 || m[1] === reste.trim()) return ligne;
+      return `${prefixe}**${m[1]}**${reste.slice(m[1].length)}`;
     })
     .join("\n");
 }
@@ -924,9 +931,11 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
       // sont geres par documentFormalisme.ts, pas ici.
       const redigé = [
         ["II. RAPPEL DES FAITS", rappelFaits].filter(Boolean).join("\n\n"),
+        espace(),
         ["III. DISCUSSION JURIDIQUE", fondementJuridiqueNote, qualificationJuridiqueNote, prejudiceSubiNote]
           .filter(Boolean)
           .join("\n\n"),
+        espace(),
         [
           "IV. DISPOSITIF",
           "PAR CES MOTIFS",
