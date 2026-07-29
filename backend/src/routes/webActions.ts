@@ -1732,17 +1732,38 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
       const civiliteClientOrdonnance = clientPourInfosOrdonnance?.civilite || form.civilite_client_manuel || null;
       const delaiOppositionOrdonnance = form.delai_opposition_jours ?? 15;
 
-      const demandesOrdonnance = form.demandes.map((d) => `- ${d}`).join("\n");
+      const civiliteNomDefendeurOrdonnance = form.nom_defendeur
+        ? assemblerCivilite(form.civilite_defendeur ?? null, form.nom_defendeur)
+        : null;
+
+      // Numerotee (1. 2. ...), pas a puces : c'est le formalisme observe sur
+      // le dispositif d'une ordonnance d'injonction de payer reelle.
+      const demandesOrdonnance = form.demandes.map((d, i) => `${i + 1}. ${d}`).join("\n");
       const bordereauPiecesOrdonnance =
         form.pieces && form.pieces.length > 0
           ? form.pieces.map((p, i) => `${i + 1}. ${p}`).join("\n")
           : "Aucune pièce communiquée à ce stade.";
 
       // Utilise pour le contenu enregistre en base et les exports Word/PDF
-      // locaux (qui n'ont pas de template a balises separees).
+      // locaux (qui n'ont pas de template a balises separees). "ORDONNONS
+      // à... ce qui suit", "DISONS que..." et "AVISONS le débiteur..." sont
+      // des formules fixes du dispositif d'une ordonnance d'injonction de
+      // payer, verifiees sur un document reel issu du pipeline Google Docs -
+      // jamais generees par l'IA, jamais saisies par l'avocat.
       const redigéOrdonnance = [
-        ["MOTIFS", motifsOrdonnance].filter(Boolean).join("\n\n"),
-        ["PAR CES MOTIFS", demandesOrdonnance].filter(Boolean).join("\n\n"),
+        motifsOrdonnance,
+        [
+          "PAR CES MOTIFS",
+          civiliteNomDefendeurOrdonnance &&
+            `**ORDONNONS** à **${civiliteNomDefendeurOrdonnance}**${
+              form.profession_defendeur ? `, ${form.profession_defendeur}` : ""
+            }${form.adresse_defendeur ? `, demeurant ${form.adresse_defendeur}` : ""}, ce qui suit :`,
+          demandesOrdonnance,
+          "**DISONS** que la présente ordonnance sera signifiée au débiteur par exploit de Commissaire de Justice (Huissier) à la diligence du créancier.",
+          `**AVISONS** le débiteur qu'il dispose d'un délai de ${delaiOppositionOrdonnance} jours à compter de la signification du présent acte pour former opposition au greffe du présent Tribunal, s'il entend contester la présente décision.`,
+        ]
+          .filter(Boolean)
+          .join("\n\n"),
       ]
         .filter(Boolean)
         .join("\n\n");
@@ -1764,9 +1785,7 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
         qualite_representant: form.qualite_representant ?? null,
         nom_defendeur: form.nom_defendeur ?? null,
         civilite_defendeur: form.civilite_defendeur ?? null,
-        civilite_nom_defendeur: form.nom_defendeur
-          ? assemblerCivilite(form.civilite_defendeur ?? null, form.nom_defendeur)
-          : null,
+        civilite_nom_defendeur: civiliteNomDefendeurOrdonnance,
         profession_defendeur: form.profession_defendeur ?? null,
         adresse_defendeur: form.adresse_defendeur ?? null,
         destinataire: destinataireComposeOrdonnance ?? null,

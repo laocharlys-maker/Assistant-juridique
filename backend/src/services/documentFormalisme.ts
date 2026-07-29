@@ -332,16 +332,44 @@ export function buildFormalisme(
     }
 
     case "projet_ordonnance": {
+      // Reproduit le formalisme observe sur un document reel issu du
+      // pipeline Google Docs (comparaison XML fournie par l'utilisateur) :
+      // ce n'est pas une simple lettre mais une veritable ordonnance de
+      // justice (en-tete Republique du Benin, formule "Nous, ... Vu ...
+      // Attendu que ... PAR CES MOTIFS ORDONNONS/DISONS/AVISONS"). Les
+      // brackets non remplis observes dans le document de reference
+      // ("[Prénom et NOM du Juge]", "[Numéro séquentiel]"...) sont des
+      // artefacts de balises vides cote Google Docs, jamais reproduits ici
+      // (voir la meme regle deja appliquee a la Plainte).
+      const jurdictionVille = s(c, "nom_juridiction") && `${s(c, "nom_juridiction")} de ${ctx.ville}`;
       return {
         avant: bloc(
-          "RÉPUBLIQUE DU BÉNIN",
-          s(c, "destinataire"),
-          s(c, "objet") && `OBJET : ${s(c, "objet")}`,
-          ligne(s(c, "civilite_nom_client") || ctx.nomClient, s(c, "informations_client"))
+          "**RÉPUBLIQUE DU BÉNIN**",
+          "**Fraternité – Justice – Travail**",
+          "**MINISTÈRE DE LA JUSTICE ET DE LA LÉGISLATION**",
+          jurdictionVille && `**${jurdictionVille}**`,
+          `**DOSSIER N° : ${ctx.numeroDossier}**`,
+          "**Ordonnance portant injonction de payer**",
+          `Nous, ${
+            s(c, "nom_juridiction")
+              ? `**M. le Président du ${s(c, "nom_juridiction")} de ${ctx.ville}**`
+              : "M. le Président du Tribunal"
+          }, assisté du Greffier en chef de ladite juridiction ;`,
+          `Vu la requête${s(c, "date_requete") ? ` en date du ${s(c, "date_requete")}` : ""} à nous présentée par **${
+            s(c, "civilite_nom_client") || ctx.nomClient
+          }**${s(c, "informations_client") ? `, ${s(c, "informations_client")}` : ""}${
+            s(c, "representant_legal")
+              ? `, **${s(c, "representant_legal")}**, agissant en qualité de **${s(c, "qualite_representant") || "représentant légal"}**`
+              : ""
+          }${s(c, "nom_avocat") ? `, assistée de son conseil, **Maître ${s(c, "nom_avocat")}**, Avocat au Barreau du Bénin` : ""} ;`,
+          "Vu les pièces jointes à l'appui de ladite requête ;"
         ),
         apres: bloc(
-          s(c, "delai_opposition_jours") && `Délai d'opposition : ${s(c, "delai_opposition_jours")} jours`,
-          `Fait à ${ctx.ville}, le ${ctx.dateLongue}`
+          `Fait en notre Cabinet, au Palais de Justice de ${ctx.ville}, le ${ctx.dateLongue}.`,
+          "(Sceau du Tribunal)",
+          "Le Greffier en chef",
+          s(c, "nom_juridiction") && `M. le Président du ${s(c, "nom_juridiction")} de ${ctx.ville}`,
+          s(c, "piece_a_prevoir") && `**BORDEREAU DES PIÈCES COMMUNIQUÉES**\n\n${s(c, "piece_a_prevoir")}`
         ),
       };
     }
