@@ -796,7 +796,7 @@ Tu rediges UNIQUEMENT les motifs (le corps des "Attendu que...") d'un PROJET D'O
 Structure ta reponse en EXACTEMENT un bloc, precede de son marqueur entre doubles crochets sur sa propre ligne (rien d'autre sur cette ligne) :
 
 [[MOTIFS]]
-Liste a puces de 2 a 4 points, chacun sur sa propre ligne commencant par "- Attendu que...", exposant succinctement : les faits et pieces produits par le requerant au soutien de sa demande, puis le constat que la demande remplit les conditions legales/reglementaires posees par le fondement juridique fourni (cite-le tel quel s'il est precis - n'invente jamais un texte si aucun n'est fourni). Reste bref : une ordonnance ne developpe pas une argumentation, elle constate. N'ecris jamais de paragraphes continus : chaque "Attendu que..." doit etre son propre point de la liste.
+2 a 4 paragraphes courts, chacun sur sa propre ligne commencant par "Attendu que..." (JAMAIS de tiret "-" ni de puce devant : ce sont des paragraphes de style judiciaire, pas une liste), exposant succinctement : les faits et pieces produits par le requerant au soutien de sa demande, puis le constat que la demande remplit les conditions legales/reglementaires posees par le fondement juridique fourni (cite-le tel quel s'il est precis - n'invente jamais un texte si aucun n'est fourni). Reste bref : une ordonnance ne developpe pas une argumentation, elle constate. Chaque "Attendu que..." est un paragraphe independant, separe des autres par une ligne vide.
 
 REGLE ABSOLUE : n'invente jamais un fait, une date, un montant ou un article de loi precis qui ne figure pas dans les informations fournies ci-dessous.`;
 

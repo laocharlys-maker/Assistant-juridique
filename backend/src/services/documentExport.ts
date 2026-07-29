@@ -145,6 +145,7 @@ function buildDocxContentElements(contenu: string): (Paragraph | Table)[] {
           new Paragraph({
             children: [new TextRun("• "), ...spansToDocxRuns(item)],
             indent: { left: 360 },
+            alignment: AlignmentType.JUSTIFIED,
             spacing: { after: 80 },
           })
         );
@@ -155,6 +156,7 @@ function buildDocxContentElements(contenu: string): (Paragraph | Table)[] {
           new Paragraph({
             children: [new TextRun(`${idx + 1}. `), ...spansToDocxRuns(item)],
             indent: { left: 360 },
+            alignment: AlignmentType.JUSTIFIED,
             spacing: { after: 80 },
           })
         );
@@ -484,14 +486,14 @@ function renderPdfContent(
     } else if (block.type === "bullet") {
       for (const item of block.items) {
         doc.x = doc.page.margins.left + 14;
-        renderPdfSpans(doc, [{ text: "• ", bold: false }, ...item], { size: tailleTexte, align: "left" }, fontFamily);
+        renderPdfSpans(doc, [{ text: "• ", bold: false }, ...item], { size: tailleTexte, align: "justify" }, fontFamily);
         doc.x = doc.page.margins.left;
         doc.moveDown(0.3);
       }
     } else if (block.type === "numbered") {
       block.items.forEach((item, idx) => {
         doc.x = doc.page.margins.left + 14;
-        renderPdfSpans(doc, [{ text: `${idx + 1}. `, bold: false }, ...item], { size: tailleTexte, align: "left" }, fontFamily);
+        renderPdfSpans(doc, [{ text: `${idx + 1}. `, bold: false }, ...item], { size: tailleTexte, align: "justify" }, fontFamily);
         doc.x = doc.page.margins.left;
         doc.moveDown(0.3);
       });

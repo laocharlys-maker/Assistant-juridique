@@ -12,6 +12,31 @@
 // l'IA (input.contenu) avant d'etre passe au meme moteur de rendu Word/PDF,
 // plutot que de dupliquer un chemin de rendu separe.
 
+// Genre grammatical des juridictions beninoises pour accorder correctement
+// "le/la {juridiction}" et "du/de la {juridiction}" - sans cette table, une
+// Cour d'appel (feminin) recevrait a tort l'article masculin ("du Cour
+// d'appel" au lieu de "de la Cour d'appel"). Meme table que
+// JURIDICTIONS_BENIN_GENRE dans routes/webActions.ts (composeDestinataire).
+const JURIDICTIONS_GENRE: Record<string, { article: string; possessif: string }> = {
+  "Tribunal de Première Instance": { article: "le", possessif: "du" },
+  "Tribunal de commerce": { article: "le", possessif: "du" },
+  "Tribunal de Conciliation": { article: "le", possessif: "du" },
+  "Cour d'appel": { article: "la", possessif: "de la" },
+  "Cour de Répression des Infractions Économiques et du Terrorisme": { article: "la", possessif: "de la" },
+  "Cour Suprême du Bénin": { article: "la", possessif: "de la" },
+  "Cour Constitutionnelle du Bénin": { article: "la", possessif: "de la" },
+  "Haute Cour de Justice": { article: "la", possessif: "de la" },
+  "Cour de Cassation": { article: "la", possessif: "de la" },
+};
+
+function possessifJuridiction(nomJuridiction: string): string {
+  return JURIDICTIONS_GENRE[nomJuridiction]?.possessif ?? "du";
+}
+
+function articleJuridiction(nomJuridiction: string): string {
+  return JURIDICTIONS_GENRE[nomJuridiction]?.article ?? "le";
+}
+
 export interface FormalismeContext {
   nomClient: string;
   nomAffaire: string;
@@ -185,7 +210,8 @@ export function buildFormalisme(
         }**, Avocat au Barreau du Bénin${s(c, "adresse_cabinet") ? `, y demeurant à **${s(c, "adresse_cabinet")}**` : ""},`
       );
       const juridictionPhrase =
-        s(c, "nom_chambre") || (s(c, "nom_juridiction") && `le ${s(c, "nom_juridiction")}`);
+        s(c, "nom_chambre") ||
+        (s(c, "nom_juridiction") && `${articleJuridiction(s(c, "nom_juridiction"))} ${s(c, "nom_juridiction")}`);
       const annee = anneeEnLettres(new Date().getFullYear()).toUpperCase();
       return {
         avant: bloc(
@@ -365,7 +391,7 @@ export function buildFormalisme(
           "**Ordonnance portant injonction de payer**",
           `Nous, ${
             s(c, "nom_juridiction")
-              ? `**M. le Président du ${s(c, "nom_juridiction")} de ${ctx.ville}**`
+              ? `**M. le Président ${possessifJuridiction(s(c, "nom_juridiction"))} ${s(c, "nom_juridiction")} de ${ctx.ville}**`
               : "M. le Président du Tribunal"
           }, assisté du Greffier en chef de ladite juridiction ;`,
           `Vu la requête${s(c, "date_requete") ? ` en date du ${s(c, "date_requete")}` : ""} à nous présentée par **${
@@ -381,7 +407,8 @@ export function buildFormalisme(
           `Fait en notre Cabinet, au Palais de Justice de ${ctx.ville}, le ${ctx.dateLongue}.`,
           "(Sceau du Tribunal)",
           "Le Greffier en chef",
-          s(c, "nom_juridiction") && `M. le Président du ${s(c, "nom_juridiction")} de ${ctx.ville}`,
+          s(c, "nom_juridiction") &&
+            `M. le Président ${possessifJuridiction(s(c, "nom_juridiction"))} ${s(c, "nom_juridiction")} de ${ctx.ville}`,
           s(c, "piece_a_prevoir") && `**BORDEREAU DES PIÈCES COMMUNIQUÉES**\n\n${s(c, "piece_a_prevoir")}`
         ),
       };
@@ -419,7 +446,8 @@ export function buildFormalisme(
       // partie (seuls les noms et qualites en gras), et signature de fin en
       // deux lignes en retrait (profondeurs differentes).
       const nomClientNote = s(c, "civilite_nom_client") || ctx.nomClient;
-      const juridictionPhrase = s(c, "nom_juridiction") && `le ${s(c, "nom_juridiction")}`;
+      const juridictionPhrase =
+        s(c, "nom_juridiction") && `${articleJuridiction(s(c, "nom_juridiction"))} ${s(c, "nom_juridiction")}`;
       return {
         avant: bloc(
           titre(18, "NOTE DE PLAIDOIRIE"),
