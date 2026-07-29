@@ -372,29 +372,46 @@ export function buildFormalisme(
     }
 
     case "note_plaidoirie": {
-      const pour = ligne(
-        s(c, "civilite_nom_client") || ctx.nomClient,
-        s(c, "profession_client"),
-        s(c, "informations_client")
-      );
-      const contre = ligne(
-        s(c, "nom_partie_adverse"),
-        s(c, "profession_partie_adverse"),
-        s(c, "informations_partie_adverse")
-      );
+      // Reproduit le formalisme observe sur un document reel issu du
+      // pipeline Google Docs (comparaison XML fournie par l'utilisateur) :
+      // en-tete centre (titre, destinataire), formule d'ouverture "PLAISE
+      // À...", section "I. LES PARTIES" avec identite/avocat de chaque
+      // partie (seuls les noms et qualites en gras), et signature de fin en
+      // deux lignes en retrait (profondeurs differentes).
+      const nomClientNote = s(c, "civilite_nom_client") || ctx.nomClient;
+      const juridictionPhrase = s(c, "nom_juridiction") && `le ${s(c, "nom_juridiction")}`;
       return {
         avant: bloc(
-          "NOTE DE PLAIDOIRIE",
-          `POUR : ${pour}`,
-          s(c, "nom_avocat") && `Ayant pour conseil ${s(c, "nom_avocat")}, Avocat au Barreau du Bénin`,
-          contre && `CONTRE : ${contre}`,
-          s(c, "nom_avocat_partie_adverse") && `Ayant pour conseil ${s(c, "nom_avocat_partie_adverse")}`,
-          s(c, "destinataire") && `Devant ${s(c, "destinataire")}`
+          centre("**NOTE DE PLAIDOIRIE**"),
+          `**Aff : ${ctx.nomAffaire}**`,
+          centre("**A**"),
+          s(c, "destinataire") && centre(`**${s(c, "destinataire")}**`),
+          `**RG N° ${s(c, "numero_rg") || "…"} — Audience du ${ctx.dateAudienceLongue || ctx.dateLongue}**`,
+          juridictionPhrase &&
+            `**PLAISE À MONSIEUR LE PRÉSIDENT ET MESDAMES ET MESSIEURS LES JUGES COMPOSANT ${juridictionPhrase} de ${ctx.ville}**`,
+          "I. LES PARTIES",
+          "POUR :",
+          `**${nomClientNote}**${s(c, "profession_client") ? `, ${s(c, "profession_client")}` : ""}${
+            s(c, "informations_client") ? `, ${s(c, "informations_client")}` : ""
+          }${s(c, "qualite_client") ? `, agissant en qualité de **${s(c, "qualite_client")}**.` : "."}`,
+          s(c, "nom_avocat") &&
+            `Ayant pour avocat : **Maître ${s(c, "nom_avocat")}**, inscrit au Barreau du Bénin${
+              s(c, "adresse_cabinet") ? `, sis à l'adresse ${s(c, "adresse_cabinet")}.` : "."
+            }`,
+          s(c, "nom_partie_adverse") && "CONTRE :",
+          s(c, "nom_partie_adverse") &&
+            `**${s(c, "nom_partie_adverse")}**${
+              s(c, "profession_partie_adverse") ? `, ${s(c, "profession_partie_adverse")}` : ""
+            }${s(c, "informations_partie_adverse") ? `, ${s(c, "informations_partie_adverse")}` : ""}${
+              s(c, "qualite_partie_adverse") ? `, agissant en qualité de **${s(c, "qualite_partie_adverse")}**.` : "."
+            }`,
+          s(c, "nom_avocat_partie_adverse") && `Ayant pour avocat : **${s(c, "nom_avocat_partie_adverse")}**.`
         ),
         apres: bloc(
+          "**Sous toutes réserves.**",
           `Fait à ${ctx.ville}, le ${ctx.dateLongue}`,
-          s(c, "nom_avocat") && `Maître ${s(c, "nom_avocat")}`,
-          "Avocat au Barreau du Bénin"
+          retrait(5040, "(Signature de l'avocat)"),
+          s(c, "nom_avocat") && retrait(3600, `**Maître ${s(c, "nom_avocat")}**`)
         ),
       };
     }

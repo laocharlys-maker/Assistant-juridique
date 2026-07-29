@@ -901,13 +901,23 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
       const prejudiceSubiNote = blocs.PREJUDICE_SUBI ?? "";
       const demandesNote = blocs.DEMANDES ?? "";
       // Utilise pour le contenu enregistre en base et les exports Word/PDF
-      // locaux (qui n'ont pas de template a balises separees).
+      // locaux (qui n'ont pas de template a balises separees). Les sections
+      // "I. LES PARTIES" (identite des parties) et le formalisme du
+      // dispositif ("PAR CES MOTIFS" / "Il plaira au Tribunal de...")
+      // sont geres par documentFormalisme.ts, pas ici.
       const redigé = [
-        rappelFaits,
-        ["DISCUSSION JURIDIQUE", fondementJuridiqueNote, qualificationJuridiqueNote, prejudiceSubiNote]
+        ["II. RAPPEL DES FAITS", rappelFaits].filter(Boolean).join("\n\n"),
+        ["III. DISCUSSION JURIDIQUE", fondementJuridiqueNote, qualificationJuridiqueNote, prejudiceSubiNote]
           .filter(Boolean)
           .join("\n\n"),
-        ["REPRISE DES DEMANDES", demandesNote].filter(Boolean).join("\n\n"),
+        [
+          "IV. DISPOSITIF",
+          "PAR CES MOTIFS",
+          form.nom_juridiction && `**Il plaira au ${form.nom_juridiction} de :**`,
+          demandesNote,
+        ]
+          .filter(Boolean)
+          .join("\n\n"),
       ]
         .filter(Boolean)
         .join("\n\n");
