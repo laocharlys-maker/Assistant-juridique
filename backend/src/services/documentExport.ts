@@ -99,10 +99,17 @@ const DOCX_HEADING_LEVEL = {
   3: HeadingLevel.HEADING_4,
 } as const;
 
-function spansToDocxRuns(spans: TextSpan[], extra?: { bold?: boolean }): TextRun[] {
+function spansToDocxRuns(spans: TextSpan[], extra?: { bold?: boolean; sizePt?: number }): TextRun[] {
   return spans
     .filter((s) => s.text.length > 0)
-    .map((s) => new TextRun({ text: s.text, bold: s.bold || extra?.bold }));
+    .map(
+      (s) =>
+        new TextRun({
+          text: s.text,
+          bold: s.bold || extra?.bold,
+          size: extra?.sizePt ? extra.sizePt * 2 : undefined,
+        })
+    );
 }
 
 function docxTableCell(text: string, options?: { bold?: boolean; shaded?: boolean }): TableCell {
@@ -169,6 +176,14 @@ function buildDocxContentElements(contenu: string): (Paragraph | Table)[] {
       // Espace apres le tableau (docx n'accepte pas deux Table consecutives
       // sans paragraphe entre les deux si un autre bloc suit immediatement).
       elements.push(new Paragraph({ text: "", spacing: { after: 100 } }));
+    } else if (block.titleSizePt) {
+      elements.push(
+        new Paragraph({
+          children: spansToDocxRuns(block.spans, { bold: true, sizePt: block.titleSizePt }),
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 200 },
+        })
+      );
     } else if (block.align === "center") {
       elements.push(
         new Paragraph({
@@ -482,6 +497,9 @@ function renderPdfContent(
       });
     } else if (block.type === "table") {
       renderPdfTable(doc, block.header, block.rows, tailleTexte, fontFamily);
+    } else if (block.titleSizePt) {
+      renderPdfSpans(doc, block.spans, { size: block.titleSizePt, bold: true, align: "center" }, fontFamily);
+      doc.moveDown(0.5);
     } else if (block.align === "center") {
       renderPdfSpans(doc, block.spans, { size: tailleTexte, align: "center" }, fontFamily);
       doc.moveDown(0.4);

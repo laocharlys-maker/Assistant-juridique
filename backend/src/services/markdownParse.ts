@@ -11,7 +11,14 @@ export interface TextSpan {
 
 export type MarkdownBlock =
   | { type: "heading"; level: 1 | 2 | 3; spans: TextSpan[] }
-  | { type: "paragraph"; spans: TextSpan[]; align?: "center" | "right"; indent?: number; forcePlain?: boolean }
+  | {
+      type: "paragraph";
+      spans: TextSpan[];
+      align?: "center" | "right";
+      indent?: number;
+      forcePlain?: boolean;
+      titleSizePt?: number;
+    }
   | { type: "bullet"; items: TextSpan[][] }
   | { type: "numbered"; items: TextSpan[][] }
   | { type: "table"; header: string[]; rows: string[][] };
@@ -104,6 +111,22 @@ export function parseMarkdownBlocks(markdown: string): MarkdownBlock[] {
         i++;
       }
       blocks.push({ type: "numbered", items });
+      continue;
+    }
+
+    // Marqueur de titre centre en grande taille ("TITRE:N:texte", N en
+    // points) - reserve au titre principal de certains formalismes (ex.
+    // "NOTE DE PLAIDOIRIE") qui doit ressortir visuellement, plus grand que
+    // le corps du texte.
+    const titleMatch = line.match(/^TITRE:(\d+):\s?(.*)$/);
+    if (titleMatch) {
+      blocks.push({
+        type: "paragraph",
+        spans: parseInlineSpans(titleMatch[2]),
+        align: "center",
+        titleSizePt: Number(titleMatch[1]),
+      });
+      i++;
       continue;
     }
 

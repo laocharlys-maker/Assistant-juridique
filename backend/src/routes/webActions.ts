@@ -129,6 +129,23 @@ function assemblerCivilite(civilite: string | null, nom: string): string {
   return civilite ? `${civilite} ${nom}` : nom;
 }
 
+// Met en gras le verbe (ou groupe de mots TOUT EN MAJUSCULES) qui ouvre
+// chaque ligne d'un dispositif ("CONSTATER que...", "DIRE ET JUGER que...",
+// "ORDONNER l'arret...") - jamais le reste de la phrase. Utilise pour le
+// dispositif de la Note de plaidoirie, redige par l'IA a partir des
+// demandes de l'avocat : seul ce prefixe TOUT EN MAJUSCULES, deja choisi
+// par l'avocat/l'IA comme verbe d'action, est mis en valeur.
+function mettreEnGrasVerbeInitial(texte: string): string {
+  return texte
+    .split("\n")
+    .map((ligne) => {
+      const m = ligne.match(/^((?:[A-ZÀ-ÖØ-Þ][A-ZÀ-ÖØ-Þ'-]*\s+)*[A-ZÀ-ÖØ-Þ][A-ZÀ-ÖØ-Þ'-]*)\b/);
+      if (!m || m[1].length < 3 || m[1] === ligne.trim()) return ligne;
+      return `**${m[1]}**${ligne.slice(m[1].length)}`;
+    })
+    .join("\n");
+}
+
 const CIVILITE_LONGUE: Record<string, string> = { "M.": "Monsieur", Mme: "Madame", Mlle: "Mademoiselle" };
 
 // Formule d'appel ("Monsieur," / "Madame," / "Mademoiselle,") deduite de la
@@ -914,7 +931,7 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
           "IV. DISPOSITIF",
           "PAR CES MOTIFS",
           form.nom_juridiction && `**Il plaira au ${form.nom_juridiction} de :**`,
-          demandesNote,
+          mettreEnGrasVerbeInitial(demandesNote),
         ]
           .filter(Boolean)
           .join("\n\n"),

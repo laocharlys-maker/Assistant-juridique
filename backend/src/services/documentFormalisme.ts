@@ -50,6 +50,19 @@ function centre(texte: string | undefined | false): string | false {
   return texte ? `^^${texte}` : false;
 }
 
+// Titre principal centre, en grande taille (voir le marqueur "TITRE:N:"
+// dans markdownParse.ts) - ex. "NOTE DE PLAIDOIRIE" en tete de document.
+function titre(taillePt: number, texte: string | undefined | false): string | false {
+  return texte ? `TITRE:${taillePt}:${texte}` : false;
+}
+
+// Un paragraphe visuellement vide (espace insecable) - pour forcer un
+// espacement supplementaire entre deux lignes du formalisme sans que le
+// parseur ne l'ignore (les lignes vides sont normalement sautees).
+function espace(): string {
+  return "​";
+}
+
 // Empeche le gras automatique sur une ligne TOUT EN MAJUSCULES (voir le
 // marqueur "==" dans markdownParse.ts) - certains libelles de formalisme
 // (ex. "À LA REQUÊTE DE :") doivent rester en texte normal, a l'inverse
@@ -409,13 +422,17 @@ export function buildFormalisme(
       const juridictionPhrase = s(c, "nom_juridiction") && `le ${s(c, "nom_juridiction")}`;
       return {
         avant: bloc(
-          centre("**NOTE DE PLAIDOIRIE**"),
+          titre(18, "NOTE DE PLAIDOIRIE"),
+          espace(),
           `**Aff : ${ctx.nomAffaire}**`,
           centre("**A**"),
           s(c, "destinataire") && centre(`**${s(c, "destinataire")}**`),
+          espace(),
           `**RG N° ${s(c, "numero_rg") || "…"} — Audience du ${ctx.dateAudienceLongue || ctx.dateLongue}**`,
+          espace(),
           juridictionPhrase &&
             `**PLAISE À MONSIEUR LE PRÉSIDENT ET MESDAMES ET MESSIEURS LES JUGES COMPOSANT ${juridictionPhrase} de ${ctx.ville}**`,
+          espace(),
           "I. LES PARTIES",
           "POUR :",
           `**${nomClientNote}**${s(c, "profession_client") ? `, ${s(c, "profession_client")}` : ""}${
@@ -436,9 +453,9 @@ export function buildFormalisme(
         ),
         apres: bloc(
           "**Sous toutes réserves.**",
-          `Fait à ${ctx.ville}, le ${ctx.dateLongue}`,
-          retrait(5040, "(Signature de l'avocat)"),
-          s(c, "nom_avocat") && retrait(3600, `**Maître ${s(c, "nom_avocat")}**`)
+          centre(`Fait à ${ctx.ville}, le ${ctx.dateLongue}`),
+          centre("(Signature de l'avocat)"),
+          s(c, "nom_avocat") && centre(`**Maître ${s(c, "nom_avocat")}**`)
         ),
       };
     }
