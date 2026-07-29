@@ -648,14 +648,24 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
       const qualificationJuridiqueAssignation = blocs.QUALIFICATION_JURIDIQUE ?? "";
       const prejudiceSubiAssignation = blocs.PREJUDICE_SUBI ?? "";
       // Utilise pour le contenu enregistre en base et les exports Word/PDF
-      // locaux (qui n'ont pas de template a balises separees).
+      // locaux (qui n'ont pas de template a balises separees). Le paragraphe
+      // "PAR CES MOTIFS" (Il plaise au Tribunal... DÉCLARER... CONSTATER...)
+      // est une formule fixe du formalisme d'assignation, verifiee identique
+      // sur deux documents reels distincts issus du pipeline Google Docs -
+      // jamais generee par l'IA, jamais saisie par l'avocat.
       const redigé = [
         ["I. OBJET DE LA DEMANDE", demandeClient].filter(Boolean).join("\n\n"),
         ["II. EXPOSÉ DES FAITS", exposeDesFaitsAssignation].filter(Boolean).join("\n\n"),
         ["III. DISCUSSION JURIDIQUE", fondementJuridiqueAssignation, qualificationJuridiqueAssignation, prejudiceSubiAssignation]
           .filter(Boolean)
           .join("\n\n"),
-        ["EN CONSÉQUENCE", form.demandes.map((d) => `- ${d}`).join("\n")].join("\n\n"),
+        [
+          "PAR CES MOTIFS",
+          `Il plaise au ${form.nom_juridiction || "Tribunal de Première Instance"} de ${form.ville || "Cotonou"} de :`,
+          `- **DÉCLARER** **${form.nom_client}** recevable et bien fondé en son action.`,
+          `- **CONSTATER** le non-respect par **${form.destinataire}** de ses engagements contractuels.`,
+        ].join("\n\n"),
+        ["**En conséquence :**", form.demandes.map((d) => `- ${d}`).join("\n")].join("\n\n"),
       ]
         .filter(Boolean)
         .join("\n\n");

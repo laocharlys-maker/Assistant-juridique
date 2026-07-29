@@ -50,6 +50,54 @@ function centre(texte: string | undefined | false): string | false {
   return texte ? `^^${texte}` : false;
 }
 
+// Empeche le gras automatique sur une ligne TOUT EN MAJUSCULES (voir le
+// marqueur "==" dans markdownParse.ts) - certains libelles de formalisme
+// (ex. "À LA REQUÊTE DE :") doivent rester en texte normal, a l'inverse
+// d'autres libelles similaires qui sont, eux, en gras dans le document
+// d'origine (ex. "DONNÉ ASSIGNATION À :").
+function plein(texte: string | undefined | false): string | false {
+  return texte ? `==${texte}` : false;
+}
+
+const UNITES = [
+  "zéro", "un", "deux", "trois", "quatre", "cinq", "six", "sept", "huit", "neuf",
+  "dix", "onze", "douze", "treize", "quatorze", "quinze", "seize",
+  "dix-sept", "dix-huit", "dix-neuf",
+];
+const DIZAINES = ["", "", "vingt", "trente", "quarante", "cinquante", "soixante", "soixante-dix", "quatre-vingt", "quatre-vingt-dix"];
+
+function deuxChiffresEnLettres(n: number): string {
+  if (n < 20) return UNITES[n];
+  const d = Math.floor(n / 10);
+  const u = n % 10;
+  if (d === 7 || d === 9) {
+    if (u === 1 && d === 7) return `${DIZAINES[d]} et onze`;
+    return `${DIZAINES[d]}-${UNITES[10 + u]}`;
+  }
+  if (u === 0) return d === 8 ? "quatre-vingts" : DIZAINES[d];
+  if (u === 1 && d !== 8) return `${DIZAINES[d]} et un`;
+  return `${DIZAINES[d]}-${UNITES[u]}`;
+}
+
+function centainesEnLettres(n: number): string {
+  const c = Math.floor(n / 100);
+  const reste = n % 100;
+  const partCentaine = c === 0 ? "" : c === 1 ? "cent" : `${UNITES[c]} cent${reste === 0 ? "s" : ""}`;
+  const partDizaine = reste === 0 ? "" : deuxChiffresEnLettres(reste);
+  return [partCentaine, partDizaine].filter(Boolean).join(" ");
+}
+
+// Conversion d'une annee en toutes lettres ("2026" -> "deux mille vingt-six"),
+// pour la formule notariee "L'AN DEUX MILLE VINGT-SIX" en tete d'assignation.
+function anneeEnLettres(n: number): string {
+  if (n === 0) return "zéro";
+  const milliers = Math.floor(n / 1000);
+  const reste = n % 1000;
+  const partMillier = milliers === 0 ? "" : milliers === 1 ? "mille" : `${anneeEnLettres(milliers)} mille`;
+  const partReste = reste === 0 ? "" : centainesEnLettres(reste);
+  return [partMillier, partReste].filter(Boolean).join(" ");
+}
+
 export function buildFormalisme(
   typeAction: string,
   champsDocument: unknown,
@@ -90,41 +138,46 @@ export function buildFormalisme(
     }
 
     case "assignation": {
-      const identiteClient = ligne(
-        s(c, "civilite_nom_client") || ctx.nomClient,
-        s(c, "profession_client"),
-        s(c, "informations_client"),
-        s(c, "adresse_client")
+      // Reproduit exactement le formalisme observe sur des documents reels
+      // issus du pipeline Google Docs (comparaison directe fournie par
+      // l'utilisateur) : les valeurs injectees (noms, adresses) sont en
+      // gras, la formule notariee d'ouverture et le rappel legal du
+      // defendeur aussi, mais "À LA REQUÊTE DE :" reste en texte normal.
+      const nomClient = s(c, "civilite_nom_client") || ctx.nomClient;
+      const identiteClient = bloc(
+        `**${nomClient}**${s(c, "profession_client") ? `, ${s(c, "profession_client")}` : ""}${
+          s(c, "informations_client") ? `, ${s(c, "informations_client")}` : ""
+        }${s(c, "adresse_client") ? `, demeurant à **${s(c, "adresse_client")}**` : ""}, élisant domicile au cabinet de son conseil, **${
+          s(c, "nom_avocat") || ""
+        }**, Avocat au Barreau du Bénin${s(c, "adresse_cabinet") ? `, y demeurant à **${s(c, "adresse_cabinet")}**` : ""},`
       );
-      const electionDomicile = s(c, "nom_avocat")
-        ? `, élisant domicile au cabinet de son conseil, ${s(c, "nom_avocat")}, Avocat au Barreau du Bénin${
-            s(c, "adresse_cabinet") ? `, ${s(c, "adresse_cabinet")}` : ""
-          },`
-        : ",";
-      const defendeur = s(c, "adresse_defendeur")
-        ? `${s(c, "nom_defendeur")}, demeurant à ${s(c, "adresse_defendeur")}`
-        : s(c, "nom_defendeur");
       const juridictionPhrase =
         s(c, "nom_chambre") || (s(c, "nom_juridiction") && `le ${s(c, "nom_juridiction")}`);
-      const requerant = bloc(
-        "ASSIGNATION",
-        `L'AN ${new Date().getFullYear()}, et le ${ctx.dateLongue},`,
-        "À LA REQUÊTE DE :",
-        `${identiteClient}${electionDomicile}`,
-        s(c, "nom_huissier") &&
-          `J'AI, ${s(c, "nom_huissier")}, COMMISSAIRE DE JUSTICE près le ${s(c, "nom_juridiction") || "Tribunal"} de ${
-            ctx.ville
-          }${s(c, "adresse_cabinet") ? `, y demeurant et domicilié à ${s(c, "adresse_cabinet")}` : ""} SOUSSIGNÉ :`,
-        defendeur && "DONNÉ ASSIGNATION À :",
-        defendeur,
-        juridictionPhrase &&
-          `De comparaître par-devant Monsieur le Président et les Juges composant ${juridictionPhrase} de ${ctx.ville}, siégeant en l'une des salles ordinaires des audiences dudit Tribunal.`,
-        "TRÈS IMPORTANT — AVERTISSEMENT AU DÉFENDEUR :",
-        "Conformément à la loi, vous êtes tenu de constituer un avocat dans un délai de 15 jours à compter de la date du présent acte pour vous représenter. À défaut, un jugement pourra être rendu contre vous sur les seuls éléments fournis par votre adversaire."
-      );
+      const annee = anneeEnLettres(new Date().getFullYear()).toUpperCase();
       return {
-        avant: requerant,
-        apres: bloc("SOUS TOUTES RÉSERVES", `Fait à ${ctx.ville}, le ${ctx.dateLongue}`),
+        avant: bloc(
+          centre("**ASSIGNATION**"),
+          `**L'AN ${annee}, et le ${ctx.dateLongue},**`,
+          plein("À LA REQUÊTE DE :"),
+          identiteClient,
+          s(c, "nom_huissier") &&
+            `**J'AI, ${s(c, "nom_huissier")}, COMMISSAIRE DE JUSTICE près le ${
+              s(c, "nom_juridiction") || "Tribunal"
+            } de ${ctx.ville}${
+              s(c, "adresse_cabinet") ? `, y demeurant et domicilié à ${s(c, "adresse_cabinet")}` : ""
+            } SOUSSIGNÉ :**`,
+          s(c, "nom_defendeur") && "**DONNÉ ASSIGNATION À :**",
+          s(c, "nom_defendeur") &&
+            `**${s(c, "nom_defendeur")}**${s(c, "adresse_defendeur") ? `, demeurant à **${s(c, "adresse_defendeur")}**` : ""}`,
+          s(c, "nom_defendeur") && "**OÙ ÉTANT ET PARLANT À :**",
+          s(c, "nom_defendeur") &&
+            Array.from({ length: 6 }, () => "………………………………………………………………………………………………………").join("\n\n"),
+          juridictionPhrase &&
+            `De comparaître par-devant Monsieur le Président et les Juges composant **${juridictionPhrase}** de **${ctx.ville}**, siégeant en l'une des salles ordinaires des audiences dudit Tribunal.`,
+          "**TRÈS IMPORTANT — AVERTISSEMENT AU DÉFENDEUR :**",
+          "Conformément à la loi, vous êtes tenu de constituer un avocat dans un délai de 15 jours à compter de la date du présent acte pour vous représenter. À défaut, un jugement pourra être rendu contre vous sur les seuls éléments fournis par votre adversaire."
+        ),
+        apres: bloc(plein("SOUS TOUTES RÉSERVES"), `Fait à ${ctx.ville}, le ${ctx.dateLongue}`),
       };
     }
 

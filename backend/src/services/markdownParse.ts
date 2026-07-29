@@ -11,7 +11,7 @@ export interface TextSpan {
 
 export type MarkdownBlock =
   | { type: "heading"; level: 1 | 2 | 3; spans: TextSpan[] }
-  | { type: "paragraph"; spans: TextSpan[]; align?: "center" }
+  | { type: "paragraph"; spans: TextSpan[]; align?: "center"; forcePlain?: boolean }
   | { type: "bullet"; items: TextSpan[][] }
   | { type: "numbered"; items: TextSpan[][] }
   | { type: "table"; header: string[]; rows: string[][] };
@@ -113,6 +113,18 @@ export function parseMarkdownBlocks(markdown: string): MarkdownBlock[] {
     const centerMatch = line.match(/^\^\^\s?(.*)$/);
     if (centerMatch) {
       blocks.push({ type: "paragraph", spans: parseInlineSpans(centerMatch[1]), align: "center" });
+      i++;
+      continue;
+    }
+
+    // Marqueur "texte impose" ("==texte") - force un rendu en paragraphe
+    // normal meme si la ligne est TOUT EN MAJUSCULES (qui serait sinon
+    // detectee comme un titre et mise en gras automatiquement, voir
+    // isHeaderLine dans documentExport.ts) : reserve aux libelles de
+    // formalisme qui doivent rester non gras (ex. "À LA REQUÊTE DE :").
+    const plainMatch = line.match(/^==\s?(.*)$/);
+    if (plainMatch) {
+      blocks.push({ type: "paragraph", spans: parseInlineSpans(plainMatch[1]), forcePlain: true });
       i++;
       continue;
     }

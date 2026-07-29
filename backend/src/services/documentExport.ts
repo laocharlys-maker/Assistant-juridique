@@ -179,9 +179,10 @@ function buildDocxContentElements(contenu: string): (Paragraph | Table)[] {
       );
     } else {
       // Paragraphe simple : conserve la detection historique des titres de
-      // section en MAJUSCULES (actes classiques, pas de Markdown).
+      // section en MAJUSCULES (actes classiques, pas de Markdown) - sauf si
+      // le bloc impose explicitement un rendu normal (voir "forcePlain").
       const plainText = block.spans.map((s) => s.text).join("");
-      if (block.spans.length === 1 && !block.spans[0].bold && isHeaderLine(plainText)) {
+      if (!block.forcePlain && block.spans.length === 1 && !block.spans[0].bold && isHeaderLine(plainText)) {
         elements.push(
           new Paragraph({
             children: [new TextRun({ text: plainText, bold: true })],
@@ -469,7 +470,7 @@ function renderPdfContent(
       doc.moveDown(0.4);
     } else {
       const plainText = block.spans.map((s) => s.text).join("");
-      if (block.spans.length === 1 && !block.spans[0].bold && isHeaderLine(plainText)) {
+      if (!block.forcePlain && block.spans.length === 1 && !block.spans[0].bold && isHeaderLine(plainText)) {
         doc.moveDown(0.4);
         renderPdfSpans(doc, block.spans, { size: tailleTexte, bold: true, align: "left" }, fontFamily);
         doc.moveDown(0.3);
