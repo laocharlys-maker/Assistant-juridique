@@ -1407,20 +1407,41 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
       const demandesPlainte = form.demandes.map((d) => `- ${d}`).join("\n");
 
       // Utilise pour le contenu enregistre en base et les exports Word/PDF
-      // locaux (qui n'ont pas de template a balises separees).
-      const redigéPlainte = [
-        ["I. EXPOSÉ DES FAITS", exposeDesFaitsPlainte].filter(Boolean).join("\n\n"),
-        ["II. DISCUSSION JURIDIQUE", discussionJuridiquePlainte].filter(Boolean).join("\n\n"),
-        [
-          "PAR CES MOTIFS",
-          "Il vous plaise, Monsieur le Procureur de la République, de :",
-          demandesPlainte,
-        ]
-          .filter(Boolean)
-          .join("\n\n"),
-      ]
-        .filter(Boolean)
-        .join("\n\n");
+      // locaux (qui n'ont pas de template a balises separees). Deux
+      // presentations differentes selon mode_redaction (voir
+      // documentFormalisme.ts pour le detail complet des deux formalismes,
+      // verifies chacun sur un document reel distinct) : le mode "avocat"
+      // garde ses titres "I./II." et des demandes non mises en gras : le
+      // mode "plaignant" utilise "LES FAITS :"/"FONDEMENTS :" et met en
+      // gras le verbe de chaque demande (DILIGENTER, POURSUIVRE...).
+      const redigéPlainte =
+        form.mode_redaction === "plaignant"
+          ? [
+              ["LES FAITS :", exposeDesFaitsPlainte].filter(Boolean).join("\n\n"),
+              ["FONDEMENTS :", discussionJuridiquePlainte].filter(Boolean).join("\n\n"),
+              [
+                "PAR CES MOTIFS",
+                "Il vous plaise, Monsieur le Procureur de la République, de :",
+                mettreEnGrasVerbeInitial(demandesPlainte),
+              ]
+                .filter(Boolean)
+                .join("\n\n"),
+            ]
+              .filter(Boolean)
+              .join("\n\n")
+          : [
+              ["I. EXPOSÉ DES FAITS", exposeDesFaitsPlainte].filter(Boolean).join("\n\n"),
+              ["II. DISCUSSION JURIDIQUE", discussionJuridiquePlainte].filter(Boolean).join("\n\n"),
+              [
+                "PAR CES MOTIFS",
+                "Il vous plaise, Monsieur le Procureur de la République, de :",
+                demandesPlainte,
+              ]
+                .filter(Boolean)
+                .join("\n\n"),
+            ]
+              .filter(Boolean)
+              .join("\n\n");
 
       extraWebhookFields = {
         mode_redaction: form.mode_redaction,

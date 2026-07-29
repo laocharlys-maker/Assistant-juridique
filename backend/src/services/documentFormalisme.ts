@@ -276,22 +276,61 @@ export function buildFormalisme(
     }
 
     case "plainte": {
-      // Reproduit le formalisme observe sur un document reel issu du
-      // pipeline Google Docs (comparaison XML fournie par l'utilisateur) :
-      // en-tete cabinet en gras, date alignee a droite, blocs POUR/CONTRE
-      // avec seuls les noms/adresses en gras (pas le texte de liaison),
-      // "QUALIFICATION DES FAITS" en ligne separee (pas ajoutee a l'objet),
-      // et la signature de fin en retrait.
       const civileTxt = s(c, "mode_redaction").includes("civile")
         ? "avec constitution de partie civile"
         : "";
       const nomClientPlainte = s(c, "civilite_nom_client") || ctx.nomClient;
+      const nomDefendeurPlainte = s(c, "civilite_nom_defendeur") || s(c, "nom_defendeur");
+
+      // Deux presentations tres differentes selon qui redige (voir le champ
+      // mode_redaction dans schemas/webForms.ts) : l'avocat pour son client
+      // represente (formalisme verifie sur "Plainte_CORRECTES.docx" -
+      // en-tete cabinet, blocs POUR/CONTRE avec Maitre, QUALIFICATION DES
+      // FAITS separee), ou le plaignant lui-meme, sans representation
+      // (formalisme verifie sur "Plainte_Individ.docx" - pas d'en-tete
+      // cabinet, identite du plaignant en guise d'expediteur, "LES FAITS :"
+      // / "FONDEMENTS :", demandes en liste a puces avec le verbe en gras).
+      if (s(c, "mode_redaction") === "plaignant") {
+        return {
+          avant: bloc(
+            droite(`${ctx.ville}, le ${ctx.dateLongue}`),
+            `**${nomClientPlainte}**`,
+            s(c, "profession_client") && `**${s(c, "profession_client")}**`,
+            s(c, "adresse_client") && `**Demeurant à : ${s(c, "adresse_client")}**`,
+            plein("À"),
+            s(c, "destinataire") && `**${s(c, "destinataire")}**`,
+            // Pas d'espace apres "OBJET :" - reproduit tel quel le
+            // formalisme observe sur le document de reference.
+            `**OBJET :Plainte${civileTxt ? ` ${civileTxt} ` : " "}pour des faits de ${
+              s(c, "qualification_infraction") || "..."
+            }**`,
+            "Monsieur le Procureur de la République,",
+            `J'ai l'honneur de porter plainte entre vos mains contre le nommé **${nomDefendeurPlainte}**${
+              s(c, "adresse_defendeur") ? `, demeurant à **${s(c, "adresse_defendeur")}**` : ""
+            }, pour des faits de ${
+              s(c, "qualification_infraction") || "..."
+            } prévus et réprimés par le Code pénal en vigueur en République du Bénin.`
+          ),
+          apres: bloc(
+            "Je me tiens à la disposition de vos services de police ou de gendarmerie pour toute audition ou confrontation nécessaire à la manifestation de la vérité.",
+            "Je vous prie d'agréer, Monsieur le Procureur de la République, l'assurance de ma très haute considération.",
+            retrait(5760, `**${nomClientPlainte}**`),
+            centre("[Signature]")
+          ),
+        };
+      }
+
+      // Mode "avocat" - reproduit le formalisme observe sur un document reel
+      // issu du pipeline Google Docs (comparaison XML fournie par
+      // l'utilisateur) : en-tete cabinet en gras, date alignee a droite,
+      // blocs POUR/CONTRE avec seuls les noms/adresses en gras (pas le
+      // texte de liaison), "QUALIFICATION DES FAITS" en ligne separee (pas
+      // ajoutee a l'objet), et la signature de fin en retrait.
       const contactClient = ligne(
         s(c, "informations_client"),
         s(c, "telephone_client") && `Téléphone ${s(c, "telephone_client")}`,
         s(c, "email_client")
       );
-      const nomDefendeurPlainte = s(c, "civilite_nom_defendeur") || s(c, "nom_defendeur");
       return {
         avant: bloc(
           droite(`${ctx.ville}, le ${ctx.dateLongue}`),
