@@ -130,23 +130,29 @@ export function buildFormalisme(
 
   switch (typeAction) {
     case "notes": {
+      // Reproduit le formalisme observe sur un document reel issu du
+      // pipeline Google Docs (comparaison XML fournie par l'utilisateur) :
+      // titre centre, toutes les lignes du bloc meta en gras (y compris
+      // celles dont la valeur n'est pas TOUT EN MAJUSCULES - ex. noms
+      // propres - qui echapperaient sinon a la detection automatique), et
+      // le "Fait a..."/nom de l'avocat en retrait plutot qu'aligne a gauche.
       const juridiction = ligne(s(c, "nom_juridiction"), s(c, "nom_chambre"));
       return {
         avant: bloc(
-          "COMPTE RENDU D'AUDIENCE",
-          ctx.dateAudienceLongue && `DATE DE L'AUDIENCE : ${ctx.dateAudienceLongue}`,
-          juridiction && `JURIDICTION : ${juridiction}`,
-          s(c, "nom_juge") && `PRÉSIDENT DE CHAMBRE : ${s(c, "nom_juge")}`,
-          s(c, "nom_greffier") && `GREFFIER : ${s(c, "nom_greffier")}`,
-          `AFFAIRE : ${ctx.nomAffaire}`,
-          `RÉFÉRENCE DOSSIER : ${ligne(ctx.numeroDossier, s(c, "numero_rg") && `RG n° ${s(c, "numero_rg")}`)}`,
-          s(c, "objet_litige") && `OBJET DU LITIGE : ${s(c, "objet_litige")}`
+          centre("**COMPTE RENDU D'AUDIENCE**"),
+          ctx.dateAudienceLongue && `**DATE DE L'AUDIENCE : ${ctx.dateAudienceLongue}**`,
+          juridiction && `**JURIDICTION : ${juridiction}**`,
+          s(c, "nom_juge") && `**PRÉSIDENT DE CHAMBRE : ${s(c, "nom_juge")}**`,
+          s(c, "nom_greffier") && `**GREFFIER : ${s(c, "nom_greffier")}**`,
+          `**AFFAIRE : ${ctx.nomAffaire}**`,
+          `**RÉFÉRENCE DOSSIER : ${ligne(ctx.numeroDossier, s(c, "numero_rg") && `RG n° ${s(c, "numero_rg")}`)}**`,
+          s(c, "objet_litige") && `**OBJET DU LITIGE : ${s(c, "objet_litige")}**`
         ),
         apres: bloc(
-          ctx.prochaineAudienceLongue && `Prochaine date d'audience : ${ctx.prochaineAudienceLongue}`,
-          ctx.piecesPrevoir && `Pièces à prévoir : ${ctx.piecesPrevoir}`,
-          `Fait à ${ctx.ville}, le ${ctx.dateLongue}.`,
-          s(c, "nom_avocat")
+          ctx.prochaineAudienceLongue && `**Prochaine date d'audience : ${ctx.prochaineAudienceLongue}**`,
+          ctx.piecesPrevoir && `**Pièces à prévoir : ${ctx.piecesPrevoir}**`,
+          retrait(5760, `Fait à ${ctx.ville}, le ${ctx.dateLongue}.`),
+          s(c, "nom_avocat") && retrait(5760, s(c, "nom_avocat"))
         ),
       };
     }
