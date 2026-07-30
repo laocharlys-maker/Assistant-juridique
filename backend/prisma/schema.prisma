@@ -164,6 +164,7 @@ model Huissier {
 
   cabinet Cabinet @relation(fields: [cabinetId], references: [id])
 
+  @@index([cabinetId])
   @@map("huissiers")
 }
 
@@ -221,6 +222,7 @@ model User {
   // Acces que CET avocat a accordes a des collaborateurs (aux siens).
   accesOctroyes AccesSupplementaire[] @relation("AccesAvocat")
 
+  @@index([cabinetId])
   @@map("users")
 }
 
@@ -274,6 +276,7 @@ model Client {
   cabinet  Cabinet   @relation(fields: [cabinetId], references: [id])
   dossiers Dossier[]
 
+  @@index([cabinetId])
   @@map("clients")
 }
 
@@ -295,6 +298,7 @@ model DelaiType {
   createdBy User          @relation(fields: [createdById], references: [id])
   calculs   DelaiCalcul[]
 
+  @@index([cabinetId])
   @@map("delai_types")
 }
 
@@ -312,6 +316,7 @@ model DelaiCalcul {
   dossier   Dossier?  @relation(fields: [dossierId], references: [id])
   createdBy User      @relation(fields: [createdById], references: [id])
 
+  @@index([dossierId])
   @@map("delai_calculs")
 }
 
@@ -348,6 +353,8 @@ model Dossier {
   roleAudiences RoleAudience[]
 
   @@unique([cabinetId, numeroDossier])
+  @@index([clientId])
+  @@index([archivedAt])
   @@map("dossiers")
 }
 
@@ -378,6 +385,8 @@ model RoleAudience {
   dossier Dossier? @relation(fields: [dossierId], references: [id])
   creePar User     @relation("RoleAudienceCreatedBy", fields: [createdBy], references: [id])
 
+  @@index([cabinetId])
+  @@index([dossierId])
   @@map("role_audiences")
 }
 
@@ -416,6 +425,7 @@ model Facture {
   creePar User     @relation("FactureCreatedBy", fields: [createdBy], references: [id])
 
   @@unique([cabinetId, numero])
+  @@index([dossierId])
   @@map("factures")
 }
 
@@ -463,6 +473,8 @@ model Action {
   creePar   User       @relation("ActionCreatedBy", fields: [createdBy], references: [id])
   auditLogs AuditLog[]
 
+  @@index([dossierId])
+  @@index([createdBy])
   @@map("actions")
 }
 
@@ -476,6 +488,7 @@ model AuditLog {
 
   action Action @relation(fields: [actionId], references: [id])
 
+  @@index([actionId])
   @@map("audit_logs")
 }
 
