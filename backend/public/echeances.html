@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aurore — Échéances</title>
+  <link rel="icon" type="image/png" href="/favicon-256.png" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="page">
+    <div class="page-hero">
+      <div class="eyebrow">Procédure</div>
+      <h1>Échéances</h1>
+      <p>Tous les délais calculés pour le cabinet, triés par date limite — en rouge celles à moins de 8 jours (ou déjà dépassées), en vert les autres.</p>
+    </div>
+
+    <div id="error" class="error"></div>
+
+    <div class="card">
+      <div id="echeances-list"><p class="muted">Chargement…</p></div>
+    </div>
+  </div>
+  <script src="/js/api.js"></script>
+  <script src="/js/layout.js"></script>
+  <script>
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str ?? "";
+      return div.innerHTML;
+    }
+
+    const SEUIL_URGENCE_JOURS = 8;
+
+    function joursRestants(dateLimite) {
+      const msParJour = 24 * 60 * 60 * 1000;
+      return Math.ceil((new Date(dateLimite).getTime() - Date.now()) / msParJour);
+    }
+
+    async function loadEcheances() {
+      const listEl = document.getElementById("echeances-list");
+      try {
+        const calculs = await apiFetch("/api/delais/historique");
+        if (calculs.length === 0) {
+          listEl.innerHTML = '<p class="muted">Aucun délai calculé pour l\'instant. Va sur "Délais" pour en calculer un.</p>';
+          return;
+        }
+
+        const tries = [...calculs].sort((a, b) => new Date(a.dateLimite) - new Date(b.dateLimite));
+
+        listEl.innerHTML = tries
+          .map((c) => {
+            const jours = joursRestants(c.dateLimite);
+            const urgent = jours <= SEUIL_URGENCE_JOURS;
+            const badgeClass = urgent ? "badge-echeance_proche" : "badge-a_jour";
+            const badgeLabel =
+              jours < 0
+                ? `Dépassé de ${Math.abs(jours)} j`
+                : jours === 0
+                  ? "Aujourd'hui"
+                  : `${jours} j restants`;
+            return `
+          <div class="action-item">
+            <span class="tag">${escapeHtml(c.delaiType.nom)}${c.dossier ? " · " + escapeHtml(c.dossier.numeroDossier) + " — " + escapeHtml(c.dossier.nomAffaire) : ""}</span>
+            <span class="badge ${badgeClass}">${badgeLabel}</span>
+            <div>Départ : ${formatDateLongue(c.dateDepart)} → <strong>Date limite : ${formatDateLongue(c.dateLimite)}</strong></div>
+            <p class="muted">${escapeHtml(c.delaiType.texteReference)} — calculé par ${escapeHtml(c.createdBy.nom)} le ${new Date(c.createdAt).toLocaleString("fr-FR")}${c.rappelCalendar ? " · rappel Calendar créé" : ""}</p>
+            ${c.dossier ? `<a class="secondary" href="/dossier.html?id=${c.dossier.id}" style="display:inline-block; text-decoration:none; padding:6px 12px; border-radius:6px; margin-top:6px;">Voir le dossier</a>` : ""}
+          </div>`;
+          })
+          .join("");
+      } catch (err) {
+        listEl.innerHTML = `<p class="error visible">${escapeHtml(err.message)}</p>`;
+      }
+    }
+
+    (async () => {
+      const me = await requireSession();
+      if (!me) return;
+      initLayout(me);
+      await loadEcheances();
+    })();
+  </script>
+</body>
+</html>
