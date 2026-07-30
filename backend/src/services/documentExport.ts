@@ -65,13 +65,30 @@ const formatDate = formatDateLongue;
 // Polices standard PDFKit (aucune police a embarquer) correspondant aux
 // choix proposes dans Parametres - doit rester en phase avec cette liste,
 // et avec le nom de police Word (libre, cote docx) qui porte le meme nom.
-const PDF_FONT_FAMILIES: Record<PoliceDocuments, { regular: string; bold: string; italic: string }> = {
-  "Times New Roman": { regular: "Times-Roman", bold: "Times-Bold", italic: "Times-Italic" },
-  Arial: { regular: "Helvetica", bold: "Helvetica-Bold", italic: "Helvetica-Oblique" },
-  "Courier New": { regular: "Courier", bold: "Courier-Bold", italic: "Courier-Oblique" },
+type PdfFontFamily = { regular: string; bold: string; italic: string; boldItalic: string };
+
+const PDF_FONT_FAMILIES: Record<PoliceDocuments, PdfFontFamily> = {
+  "Times New Roman": {
+    regular: "Times-Roman",
+    bold: "Times-Bold",
+    italic: "Times-Italic",
+    boldItalic: "Times-BoldItalic",
+  },
+  Arial: {
+    regular: "Helvetica",
+    bold: "Helvetica-Bold",
+    italic: "Helvetica-Oblique",
+    boldItalic: "Helvetica-BoldOblique",
+  },
+  "Courier New": {
+    regular: "Courier",
+    bold: "Courier-Bold",
+    italic: "Courier-Oblique",
+    boldItalic: "Courier-BoldOblique",
+  },
 };
 
-function pdfFontFamily(police?: string): { regular: string; bold: string; italic: string } {
+function pdfFontFamily(police?: string): PdfFontFamily {
   return PDF_FONT_FAMILIES[(police as PoliceDocuments) ?? "Times New Roman"] ?? PDF_FONT_FAMILIES["Times New Roman"];
 }
 
@@ -107,6 +124,7 @@ function spansToDocxRuns(spans: TextSpan[], extra?: { bold?: boolean; sizePt?: n
         new TextRun({
           text: s.text,
           bold: s.bold || extra?.bold,
+          italics: s.italic,
           size: extra?.sizePt ? extra.sizePt * 2 : undefined,
         })
     );
@@ -199,6 +217,14 @@ function buildDocxContentElements(contenu: string): (Paragraph | Table)[] {
         new Paragraph({
           children: spansToDocxRuns(block.spans),
           alignment: AlignmentType.RIGHT,
+          spacing: { after: 150 },
+        })
+      );
+    } else if (block.align === "left") {
+      elements.push(
+        new Paragraph({
+          children: spansToDocxRuns(block.spans),
+          alignment: AlignmentType.LEFT,
           spacing: { after: 150 },
         })
       );
@@ -394,16 +420,21 @@ function renderPdfSpans(
   doc: PDFKit.PDFDocument,
   spans: TextSpan[],
   options: { size: number; align?: "left" | "center" | "right" | "justify"; bold?: boolean },
-  fontFamily: { regular: string; bold: string; italic: string }
+  fontFamily: PdfFontFamily
 ): void {
   const nonEmpty = spans.filter((s) => s.text.length > 0);
   if (nonEmpty.length === 0) return;
-  const mixedStyle = nonEmpty.some((s) => s.bold) && nonEmpty.some((s) => !s.bold);
+  const mixedStyle =
+    (nonEmpty.some((s) => s.bold) && nonEmpty.some((s) => !s.bold)) ||
+    (nonEmpty.some((s) => s.italic) && nonEmpty.some((s) => !s.italic));
   const align = mixedStyle ? "left" : options.align ?? "left";
 
   nonEmpty.forEach((span, idx) => {
     const isLast = idx === nonEmpty.length - 1;
-    doc.font(span.bold || options.bold ? fontFamily.bold : fontFamily.regular).fontSize(options.size);
+    const isBold = span.bold || options.bold;
+    const isItalic = span.italic;
+    const font = isBold && isItalic ? fontFamily.boldItalic : isBold ? fontFamily.bold : isItalic ? fontFamily.italic : fontFamily.regular;
+    doc.font(font).fontSize(options.size);
     doc.text(span.text, { continued: !isLast, align });
   });
 }
@@ -415,7 +446,7 @@ function renderPdfTable(
   header: string[],
   rows: string[][],
   tailleTexte: number,
-  fontFamily: { regular: string; bold: string; italic: string }
+  fontFamily: PdfFontFamily
 ): void {
   const usableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
   const colWidth = usableWidth / header.length;
@@ -473,7 +504,7 @@ function renderPdfContent(
   doc: PDFKit.PDFDocument,
   contenu: string,
   tailleTexte: number,
-  fontFamily: { regular: string; bold: string; italic: string }
+  fontFamily: PdfFontFamily
 ): void {
   const blocks = parseMarkdownBlocks(contenu);
   const HEADING_SIZE = { 1: tailleTexte + 2, 2: tailleTexte + 1, 3: tailleTexte } as const;
@@ -507,6 +538,9 @@ function renderPdfContent(
       doc.moveDown(0.4);
     } else if (block.align === "right") {
       renderPdfSpans(doc, block.spans, { size: tailleTexte, align: "right" }, fontFamily);
+      doc.moveDown(0.4);
+    } else if (block.align === "left") {
+      renderPdfSpans(doc, block.spans, { size: tailleTexte, align: "left" }, fontFamily);
       doc.moveDown(0.4);
     } else if (block.indent !== undefined) {
       // Twips (unite Word, 1440 = 1 pouce) convertis en points PDF (1 pouce = 72 pt).

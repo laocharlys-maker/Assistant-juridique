@@ -19,6 +19,20 @@
       .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, "$1<em>$2</em>");
   }
 
+  // Marqueurs d'alignement (voir markdownParse.ts, moteur de rendu Word/PDF
+  // reel, et la barre d'outils de l'editeur dans dossier.html) : reproduits
+  // ici uniquement pour que l'apercu affiche le meme alignement, jamais
+  // produits par l'IA elle-meme.
+  function stripAlignMarker(line) {
+    const center = line.match(/^\^\^\s?(.*)$/);
+    if (center) return { text: center[1], align: "center" };
+    const right = line.match(/^>\s?(.*)$/);
+    if (right) return { text: right[1], align: "right" };
+    const left = line.match(/^<\s?(.*)$/);
+    if (left) return { text: left[1], align: "left" };
+    return { text: line, align: null };
+  }
+
   function isSeparatorRow(line) {
     return /^\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?$/.test(line.trim());
   }
@@ -111,6 +125,14 @@
           i++;
         }
         html += "</ol>";
+        continue;
+      }
+
+      const aligned = stripAlignMarker(line);
+      if (aligned.align) {
+        flushParagraph();
+        html += `<p style="text-align:${aligned.align};">${renderInline(escapeHtml(aligned.text.trim()))}</p>`;
+        i++;
         continue;
       }
 

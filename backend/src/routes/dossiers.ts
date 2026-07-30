@@ -168,7 +168,7 @@ dossiersRouter.get("/api/documents", requireAuth, requireModule("documents_gener
       statut: true,
       documentUrl: true,
       createdAt: true,
-      dossier: { select: { id: true, numeroDossier: true, nomAffaire: true, nomClient: true } },
+      dossier: { select: { id: true, numeroDossier: true, nomAffaire: true, nomClient: true, statut: true } },
       creePar: { select: { nom: true } },
     },
   });

@@ -7,6 +7,7 @@
 export interface TextSpan {
   text: string;
   bold: boolean;
+  italic?: boolean;
 }
 
 export type MarkdownBlock =
@@ -14,7 +15,7 @@ export type MarkdownBlock =
   | {
       type: "paragraph";
       spans: TextSpan[];
-      align?: "center" | "right";
+      align?: "left" | "center" | "right";
       indent?: number;
       forcePlain?: boolean;
       titleSizePt?: number;
@@ -23,16 +24,25 @@ export type MarkdownBlock =
   | { type: "numbered"; items: TextSpan[][] }
   | { type: "table"; header: string[]; rows: string[][] };
 
+// Gras ("**texte**") et italique ("*texte*" - un seul asterisque, meme
+// convention que l'apercu cote client, js/markdown.js) : les deux styles
+// peuvent apparaitre independamment dans un meme texte, jamais imbriques
+// l'un dans l'autre. L'alternative "**" est testee en premier dans la regex
+// pour ne jamais scinder un "**gras**" en italiques.
 function parseInlineSpans(raw: string): TextSpan[] {
   const spans: TextSpan[] = [];
   let cursor = 0;
-  const re = /\*\*(.+?)\*\*/g;
+  const re = /\*\*(.+?)\*\*|\*(.+?)\*/g;
   let match: RegExpExecArray | null;
   while ((match = re.exec(raw)) !== null) {
     if (match.index > cursor) {
       spans.push({ text: raw.slice(cursor, match.index), bold: false });
     }
-    spans.push({ text: match[1], bold: true });
+    if (match[1] !== undefined) {
+      spans.push({ text: match[1], bold: true });
+    } else {
+      spans.push({ text: match[2], bold: false, italic: true });
+    }
     cursor = re.lastIndex;
   }
   if (cursor < raw.length) {
@@ -145,6 +155,17 @@ export function parseMarkdownBlocks(markdown: string): MarkdownBlock[] {
     const rightMatch = line.match(/^>\s?(.*)$/);
     if (rightMatch) {
       blocks.push({ type: "paragraph", spans: parseInlineSpans(rightMatch[1]), align: "right" });
+      i++;
+      continue;
+    }
+
+    // Marqueur d'alignement a gauche ("<texte") - un paragraphe normal (sans
+    // marqueur) est deja justifie par defaut (voir isHeaderLine plus bas) :
+    // ce marqueur sert uniquement quand un alignement a gauche explicite est
+    // demande (ex. depuis la barre d'outils de l'editeur).
+    const leftMatch = line.match(/^<\s?(.*)$/);
+    if (leftMatch) {
+      blocks.push({ type: "paragraph", spans: parseInlineSpans(leftMatch[1]), align: "left" });
       i++;
       continue;
     }

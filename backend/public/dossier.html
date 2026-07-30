@@ -22,6 +22,123 @@
       return div.innerHTML;
     }
 
+    // Barre d'outils de l'editeur de texte (voir data-md-cmd dans le panneau
+    // d'edition) : insere/entoure la syntaxe Markdown correspondante autour
+    // de la selection courante, plutot que de demander a l'avocat de la
+    // taper lui-meme. Doit rester en phase avec markdownParse.ts (moteur de
+    // rendu Word/PDF) et js/markdown.js (apercu).
+    function mdWrapSelection(textarea, before, after) {
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const value = textarea.value;
+      const selected = value.slice(start, end);
+      const inserted = `${before}${selected}${after}`;
+      textarea.value = value.slice(0, start) + inserted + value.slice(end);
+      const cursorStart = start + before.length;
+      textarea.setSelectionRange(cursorStart, cursorStart + selected.length);
+      textarea.focus();
+      textarea.dispatchEvent(new Event("input"));
+    }
+
+    // Etend la selection courante aux lignes completes qu'elle touche (pour
+    // les commandes qui s'appliquent a des lignes entieres : titres, listes,
+    // alignement), meme si la selection ne couvre qu'une partie d'une ligne.
+    function mdSelectedLinesRange(textarea) {
+      const value = textarea.value;
+      let start = textarea.selectionStart;
+      let end = textarea.selectionEnd;
+      while (start > 0 && value[start - 1] !== "\n") start--;
+      while (end < value.length && value[end] !== "\n") end++;
+      return { start, end };
+    }
+
+    const MD_LINE_MARKERS = [/^\^\^\s?/, /^>\s?/, /^<\s?/, /^#{1,3}\s+/];
+
+    function mdStripLineMarkers(line) {
+      for (const re of MD_LINE_MARKERS) {
+        if (re.test(line)) return line.replace(re, "");
+      }
+      return line;
+    }
+
+    // Applique (ou retire, si marker est vide - "Justifier" = retour au
+    // paragraphe normal, deja justifie par defaut) un marqueur de debut de
+    // ligne a toutes les lignes de la selection - un seul marqueur par
+    // ligne, le precedent est d'abord retire.
+    function mdApplyLineMarker(textarea, marker) {
+      const { start, end } = mdSelectedLinesRange(textarea);
+      const value = textarea.value;
+      const block = value.slice(start, end);
+      const newBlock = block
+        .split("\n")
+        .map((line) => {
+          const stripped = mdStripLineMarkers(line);
+          return marker ? `${marker}${stripped}` : stripped;
+        })
+        .join("\n");
+      textarea.value = value.slice(0, start) + newBlock + value.slice(end);
+      textarea.setSelectionRange(start, start + newBlock.length);
+      textarea.focus();
+      textarea.dispatchEvent(new Event("input"));
+    }
+
+    // Bascule la selection en liste a puces - si toutes les lignes non
+    // vides sont deja des puces, les retire (toggle), sinon les ajoute.
+    function mdToggleBulletList(textarea) {
+      const { start, end } = mdSelectedLinesRange(textarea);
+      const value = textarea.value;
+      const block = value.slice(start, end);
+      const lines = block.split("\n");
+      const nonEmptyLines = lines.filter((l) => l.trim() !== "");
+      const allBulleted = nonEmptyLines.length > 0 && nonEmptyLines.every((l) => /^\s*-\s+/.test(l));
+      const newBlock = lines
+        .map((line) => {
+          if (line.trim() === "") return line;
+          if (allBulleted) return line.replace(/^\s*-\s+/, "");
+          return /^\s*-\s+/.test(line) ? line : `- ${line}`;
+        })
+        .join("\n");
+      textarea.value = value.slice(0, start) + newBlock + value.slice(end);
+      textarea.setSelectionRange(start, start + newBlock.length);
+      textarea.focus();
+      textarea.dispatchEvent(new Event("input"));
+    }
+
+    function applyMarkdownCommand(textarea, cmd) {
+      switch (cmd) {
+        case "bold":
+          mdWrapSelection(textarea, "**", "**");
+          break;
+        case "italic":
+          mdWrapSelection(textarea, "*", "*");
+          break;
+        case "h1":
+          mdApplyLineMarker(textarea, "# ");
+          break;
+        case "h2":
+          mdApplyLineMarker(textarea, "## ");
+          break;
+        case "h3":
+          mdApplyLineMarker(textarea, "### ");
+          break;
+        case "bullet":
+          mdToggleBulletList(textarea);
+          break;
+        case "align-left":
+          mdApplyLineMarker(textarea, "< ");
+          break;
+        case "align-center":
+          mdApplyLineMarker(textarea, "^^");
+          break;
+        case "align-right":
+          mdApplyLineMarker(textarea, "> ");
+          break;
+        case "align-justify":
+          mdApplyLineMarker(textarea, "");
+          break;
+      }
+    }
+
     const TYPE_LABELS = {
       notes: "Compte-rendu d'audience",
       redac: "Plaidoirie",
@@ -208,6 +325,16 @@
             const id = textarea.dataset.editTextarea;
             const preview = actionsEl.querySelector(`[data-preview="${id}"]`);
             preview.innerHTML = renderMarkdown(textarea.value);
+          });
+        });
+
+        actionsEl.querySelectorAll("[data-md-cmd]").forEach((btn) => {
+          btn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const toolbar = btn.closest("[data-md-toolbar]");
+            const id = toolbar.dataset.mdToolbar;
+            const textarea = actionsEl.querySelector(`[data-edit-textarea="${id}"]`);
+            applyMarkdownCommand(textarea, btn.dataset.mdCmd);
           });
         });
 
@@ -485,7 +612,19 @@
               <strong>Modifier le texte — ${escapeHtml(titreAction)}</strong>
               <div class="edit-panel-columns">
                 <div>
-                  <div class="muted" style="margin-bottom:4px;">Texte (Markdown : # titre, **gras**, listes, tableaux)</div>
+                  <div class="md-toolbar" data-md-toolbar="${a.id}">
+                    <button type="button" data-md-cmd="bold" title="Gras"><strong>G</strong></button>
+                    <button type="button" data-md-cmd="italic" title="Italique"><em>I</em></button>
+                    <button type="button" data-md-cmd="h1" title="Titre 1">H1</button>
+                    <button type="button" data-md-cmd="h2" title="Titre 2">H2</button>
+                    <button type="button" data-md-cmd="h3" title="Titre 3">H3</button>
+                    <button type="button" data-md-cmd="bullet" title="Liste à puces">• Liste</button>
+                    <span class="md-toolbar-sep"></span>
+                    <button type="button" data-md-cmd="align-left" title="Aligner à gauche">Gauche</button>
+                    <button type="button" data-md-cmd="align-center" title="Centrer">Centré</button>
+                    <button type="button" data-md-cmd="align-right" title="Aligner à droite">Droite</button>
+                    <button type="button" data-md-cmd="align-justify" title="Justifier">Justifier</button>
+                  </div>
                   <textarea data-edit-textarea="${a.id}">${escapeHtml(a.contenuGenere || "")}</textarea>
                 </div>
                 <div>

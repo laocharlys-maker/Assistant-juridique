@@ -130,10 +130,12 @@
               const titre = doc.nomDocument || TYPE_LABELS[doc.typeAction] || doc.typeAction;
               const date = formatDateLongue(doc.createdAt);
               const meta = `${escapeHtml(doc.dossier.numeroDossier)} — ${escapeHtml(doc.dossier.nomAffaire)} · ${date} · créé par ${escapeHtml(doc.creePar.nom)}`;
+              const badgeCloture =
+                doc.dossier.statut === "cloture" ? ' <span class="tag">Clôturé</span>' : "";
               return `
             <div class="dossier-item">
               <div>
-                <div><a href="/dossier.html?id=${doc.dossier.id}">${escapeHtml(titre)}</a></div>
+                <div><a href="/dossier.html?id=${doc.dossier.id}">${escapeHtml(titre)}</a>${badgeCloture}</div>
                 <div class="meta">${meta}</div>
               </div>
             </div>`;
