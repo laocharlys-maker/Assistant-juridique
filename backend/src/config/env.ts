@@ -16,6 +16,16 @@ const envSchema = z
     N8N_WEBHOOK_BASE_URL: z.string().optional(),
     N8N_WEBHOOK_SECRET: z.string().optional(),
 
+    // SMTP (Brevo) - envoi direct des documents par email, sans passer par
+    // n8n/Google Docs. Adresse d'expedition unique pour tous les cabinets
+    // (domaine Aurore verifie via SPF/DKIM chez Brevo) ; le nom affiche et le
+    // Reply-To varient par cabinet (voir cabinetContact.ts).
+    SMTP_HOST: z.string().optional(),
+    SMTP_PORT: z.coerce.number().optional(),
+    SMTP_USER: z.string().optional(),
+    SMTP_PASSWORD: z.string().optional(),
+    SMTP_FROM_EMAIL: z.string().optional(),
+
     // URL publique de ce backend (utilisee pour construire des liens absolus,
     // ex: l'image de signature transmise a n8n). Vide en local si non expose.
     PUBLIC_BASE_URL: z.string().optional(),
