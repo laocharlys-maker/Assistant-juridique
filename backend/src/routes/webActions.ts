@@ -601,19 +601,15 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
       };
     } else if (form.type_action === "redac") {
       const config = TEXTE_JURIDIQUE_CONFIG.redac;
-      const adresseA = composeDestinataire(
-        form.destinataire,
-        form.nom_juridiction,
-        form.ville,
-        form.nom_avocat_destinataire
-      );
+      // Pas de destinataire pour la plaidoirie : c'est le discours que
+      // l'avocat prononce lui-meme a l'audience, jamais une lettre adressee
+      // a quelqu'un d'autre.
       const redigé = await llm.redact(
         config.systemPrompt,
         buildRedacUserPrompt({
           nomAffaire: form.nom_affaire || "non précisée",
           contexte: form.contexte,
           axesArgumentation: form.axes_argumentation,
-          adresseA,
         })
       );
 

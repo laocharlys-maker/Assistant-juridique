@@ -71,7 +71,10 @@ export const redacFormSchema = z.object({
   // etre generee sans rattachement precis a un dossier numerote.
   numero_dossier: z.string().optional(),
   nom_affaire: z.string().optional(),
-  ...destinataireDocumentFields,
+  // Pas de destinataireDocumentFields ici : la plaidoirie est le discours
+  // que l'avocat prononce lui-meme a l'audience, jamais une lettre adressee
+  // a quelqu'un d'autre (contrairement a la Note de plaidoirie, deposee au
+  // dossier et formellement adressee au tribunal).
 });
 
 export const conclusionsFormSchema = z.object({
