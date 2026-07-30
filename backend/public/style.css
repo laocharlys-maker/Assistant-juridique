@@ -368,6 +368,12 @@ button.btn-sm { padding: 7px 14px; font-size: 0.82rem; margin-top: 0; }
 .tab:hover { background: var(--accent-tint); color: var(--accent-hover); box-shadow: none; }
 .tab.active { background: linear-gradient(180deg, var(--accent-300), var(--accent-hover)); color: #241705; border-color: transparent; }
 
+/* Variante rouge fixe (pas juste au survol/actif) - reservee aux acces
+   juges importants pour le cabinet (ex: Echeances) qui doivent rester
+   visibles en permanence, pas seulement quand actifs. */
+.tab.tab-danger { background: var(--danger); color: #fff; border-color: var(--danger); }
+.tab.tab-danger:hover { background: var(--danger); filter: brightness(1.1); color: #fff; }
+
 .spinner {
   display: inline-block;
   width: 14px;
