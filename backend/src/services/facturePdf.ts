@@ -33,11 +33,12 @@ export async function buildFacturePdf(input: FactureInput): Promise<Buffer> {
 
     if (input.entete) {
       const usableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-      const enteteWidth = 260;
-      doc.image(input.entete.buffer, doc.page.margins.left + (usableWidth - enteteWidth) / 2, doc.y, {
-        width: enteteWidth,
-      });
-      doc.moveDown(3.5);
+      const ENTETE_W = Math.min(260, usableWidth);
+      const ENTETE_H = 70;
+      const enteteX = doc.page.margins.left + (usableWidth - ENTETE_W) / 2;
+      const enteteY = doc.y;
+      doc.image(input.entete.buffer, enteteX, enteteY, { fit: [ENTETE_W, ENTETE_H] });
+      doc.y = enteteY + ENTETE_H + 10;
     }
 
     doc.font("Helvetica-Bold").fontSize(16).text(input.cabinetNom, { align: "center" });
