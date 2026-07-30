@@ -219,12 +219,23 @@
       }
     }
 
+    // Formule de salut adaptee a l'heure locale du navigateur (pas celle du
+    // serveur, pour rester juste quelle que soit la localisation du cabinet).
+    function formuleSalut() {
+      const heure = new Date().getHours();
+      if (heure < 6) return "Bonne nuit";
+      if (heure < 12) return "Bonjour";
+      if (heure < 14) return "Bon appétit";
+      if (heure < 19) return "Bon après-midi";
+      return "Bonsoir";
+    }
+
     (async () => {
       const me = await requireSession();
       if (!me) return;
       initLayout(me);
 
-      document.getElementById("greeting").textContent = `Bonjour, ${me.nom}`;
+      document.getElementById("greeting").textContent = `${formuleSalut()}, ${me.nom}`;
       document.getElementById("date-eyebrow").textContent = formatDateLongue(new Date());
 
       // Un collaborateur n'a pas de bascule de vue : il ne voit que le
