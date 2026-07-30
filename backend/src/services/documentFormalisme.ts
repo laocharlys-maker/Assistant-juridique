@@ -218,8 +218,8 @@ export function buildFormalisme(
       const nomClient = s(c, "civilite_nom_client") || ctx.nomClient;
       const identiteClient = bloc(
         `**${nomClient}**${s(c, "profession_client") ? `, ${s(c, "profession_client")}` : ""}${
-          s(c, "informations_client") ? `, ${s(c, "informations_client")}` : ""
-        }${s(c, "adresse_client") ? `, demeurant à **${s(c, "adresse_client")}**` : ""}, élisant domicile au cabinet de son conseil, **${
+          s(c, "nationalite_client") ? `, de nationalité ${s(c, "nationalite_client")}` : ""
+        }${s(c, "informations_client") ? `, ${s(c, "informations_client")}` : ""}${s(c, "adresse_client") ? `, demeurant à **${s(c, "adresse_client")}**` : ""}, élisant domicile au cabinet de son conseil, **${
           s(c, "nom_avocat") || ""
         }**, Avocat au Barreau du Bénin${s(c, "adresse_cabinet") ? `, y demeurant à **${s(c, "adresse_cabinet")}**` : ""},`
       );
@@ -328,6 +328,7 @@ export function buildFormalisme(
             droite(`${ctx.ville}, le ${ctx.dateLongue}`),
             `**${nomClientPlainte}**`,
             s(c, "profession_client") && `**${s(c, "profession_client")}**`,
+            s(c, "nationalite_client") && `**De nationalité ${s(c, "nationalite_client")}**`,
             s(c, "adresse_client") && `**Demeurant à : ${s(c, "adresse_client")}**`,
             centre("À"),
             s(c, "destinataire") && centre(`**${s(c, "destinataire")}**`),
@@ -338,6 +339,8 @@ export function buildFormalisme(
             }**`,
             `${appelMagistrat},`,
             `J'ai l'honneur de porter plainte entre vos mains contre le nommé **${nomDefendeurPlainte}**${
+              s(c, "nationalite_defendeur") ? `, de nationalité ${s(c, "nationalite_defendeur")}` : ""
+            }${
               s(c, "adresse_defendeur") ? `, demeurant à **${s(c, "adresse_defendeur")}**` : ""
             }, pour des faits de ${
               s(c, "qualification_infraction") || "..."
@@ -373,6 +376,8 @@ export function buildFormalisme(
           s(c, "destinataire") && centre(`**${s(c, "destinataire")}**`),
           `**OBJET : Plainte${civileTxt ? ` ${civileTxt}` : ""}**`,
           `POUR **${nomClientPlainte}**${s(c, "profession_client") ? `, ${s(c, "profession_client")}` : ""}${
+            s(c, "nationalite_client") ? `, de nationalité ${s(c, "nationalite_client")}` : ""
+          }${
             s(c, "adresse_client") ? `, demeurant et domicilié à ${s(c, "adresse_client")}.` : "."
           }${contactClient ? ` ${contactClient}` : ""}`,
           s(c, "nom_avocat") &&
@@ -383,6 +388,8 @@ export function buildFormalisme(
             }`,
           nomDefendeurPlainte &&
             `CONTRE : **${nomDefendeurPlainte}**${s(c, "profession_defendeur") ? `, ${s(c, "profession_defendeur")}` : ""}${
+              s(c, "nationalite_defendeur") ? `, de nationalité ${s(c, "nationalite_defendeur")}` : ""
+            }${
               s(c, "adresse_defendeur") ? `, demeurant à ${s(c, "adresse_defendeur")}.` : "."
             }`,
           s(c, "qualification_infraction") && `**QUALIFICATION DES FAITS : ${s(c, "qualification_infraction")}**`,
@@ -412,7 +419,8 @@ export function buildFormalisme(
         : "";
       const defendeur = ligne(
         s(c, "civilite_nom_defendeur") || s(c, "nom_defendeur"),
-        s(c, "profession_defendeur")
+        s(c, "profession_defendeur"),
+        s(c, "nationalite_defendeur") && `de nationalité ${s(c, "nationalite_defendeur")}`
       );
       return {
         avant: bloc(
@@ -429,6 +437,7 @@ export function buildFormalisme(
           "REQUÊTE",
           "POUR :",
           `${s(c, "civilite_nom_client") || ctx.nomClient}${qualiteClient}`,
+          s(c, "nationalite_client") && `De nationalité ${s(c, "nationalite_client")}`,
           s(c, "informations_client"),
           conseil,
           defendeur && "CONTRE :",
@@ -471,7 +480,9 @@ export function buildFormalisme(
           }, assisté du Greffier en chef de ladite juridiction ;`,
           `Vu la requête${s(c, "date_requete") ? ` en date du ${s(c, "date_requete")}` : ""} à nous présentée par **${
             s(c, "civilite_nom_client") || ctx.nomClient
-          }**${s(c, "informations_client") ? `, ${s(c, "informations_client")}` : ""}${
+          }**${s(c, "nationalite_client") ? `, de nationalité ${s(c, "nationalite_client")}` : ""}${
+            s(c, "informations_client") ? `, ${s(c, "informations_client")}` : ""
+          }${
             s(c, "representant_legal")
               ? `, **${s(c, "representant_legal")}**, agissant en qualité de **${s(c, "qualite_representant") || "représentant légal"}**`
               : ""
@@ -513,7 +524,9 @@ export function buildFormalisme(
           espace(),
           "I. LES PARTIES",
           "POUR :",
-          `**${nomClientConclusions}**${s(c, "informations_client") ? `, ${s(c, "informations_client")}` : ""}${
+          `**${nomClientConclusions}**${
+            s(c, "nationalite_client") ? `, de nationalité ${s(c, "nationalite_client")}` : ""
+          }${s(c, "informations_client") ? `, ${s(c, "informations_client")}` : ""}${
             s(c, "qualite_client") ? `, agissant en qualité de **${s(c, "qualite_client")}**.` : "."
           }`,
           s(c, "nom_avocat") &&
@@ -523,6 +536,8 @@ export function buildFormalisme(
           s(c, "nom_partie_adverse") && "CONTRE :",
           s(c, "nom_partie_adverse") &&
             `**${s(c, "nom_partie_adverse")}**${
+              s(c, "nationalite_partie_adverse") ? `, de nationalité ${s(c, "nationalite_partie_adverse")}` : ""
+            }${
               s(c, "informations_partie_adverse") ? `, ${s(c, "informations_partie_adverse")}` : ""
             }${s(c, "qualite_partie_adverse") ? `, agissant en qualité de **${s(c, "qualite_partie_adverse")}**.` : "."}`,
           espace(),
@@ -616,10 +631,18 @@ export function buildFormalisme(
           `${ctx.ville}, le ${ctx.dateLongue}`,
           plein("ENTRE LES SOUSSIGNÉS :"),
           partie1 &&
-            `${ligne(`**${partie1}**`, s(c, "informations_partie_1"))}, ci-après dénommé « la première partie »,`,
+            `${ligne(
+              `**${partie1}**`,
+              s(c, "nationalite_partie_1") && `de nationalité ${s(c, "nationalite_partie_1")}`,
+              s(c, "informations_partie_1")
+            )}, ci-après dénommé « la première partie »,`,
           plein("ET"),
           partie2 &&
-            `${ligne(`**${partie2}**`, s(c, "informations_partie_2"))}, ci-après dénommé « la seconde partie »,`
+            `${ligne(
+              `**${partie2}**`,
+              s(c, "nationalite_partie_2") && `de nationalité ${s(c, "nationalite_partie_2")}`,
+              s(c, "informations_partie_2")
+            )}, ci-après dénommé « la seconde partie »,`
         ),
         apres: bloc(
           `Fait à ${ctx.ville}, le ${ctx.dateLongue}, en deux (02) exemplaires originaux, un pour chaque partie. Lu et approuvé`,

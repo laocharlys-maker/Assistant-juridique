@@ -186,6 +186,8 @@
         </select>
         <label>Informations sur le client (optionnel)</label>
         <input name="informations_client" placeholder="Reprises automatiquement depuis sa fiche si déjà renseignées — sinon, précise ici (né(e) le..., demeurant à...)" />
+        <label>Nationalité du client (optionnel, personne physique uniquement)</label>
+        <input name="nationalite_client" placeholder="ex: Béninoise" />
 
         <label>Partie adverse — type (optionnel)</label>
         <select name="type_partie_adverse" id="conclusions-type-partie-adverse">
@@ -212,6 +214,8 @@
 
         <label>Informations sur la partie adverse (optionnel)</label>
         <input name="informations_partie_adverse" placeholder="ex: adresse, RCCM, autres précisions utiles" />
+        <label>Nationalité de la partie adverse (optionnel, personne physique uniquement)</label>
+        <input name="nationalite_partie_adverse" placeholder="ex: Béninoise" />
         <label>Qualité de la partie adverse (optionnel)</label>
         <select name="qualite_partie_adverse">
           <option value="">— Non précisé —</option>
@@ -441,6 +445,8 @@
         <div id="assignation-profession-client-wrap">
           <label>Profession du client (optionnel)</label>
           <input name="profession_client" placeholder="ex: Commerçant" />
+          <label>Nationalité du client (optionnel)</label>
+          <input name="nationalite_client" placeholder="ex: Béninoise" />
         </div>
         <label>Informations sur le client (optionnel)</label>
         <input name="informations_client" placeholder="Reprises automatiquement depuis sa fiche si déjà renseignées — sinon, précise ici (né(e) le..., n° pièce d'identité, situation matrimoniale...)" />
@@ -575,6 +581,8 @@
         <div id="plainte-profession-client-wrap">
           <label>Profession du client (optionnel)</label>
           <input name="profession_client" placeholder="ex: Commerçant" />
+          <label>Nationalité du client (optionnel)</label>
+          <input name="nationalite_client" placeholder="ex: Béninoise" />
         </div>
         <label>Informations sur le client (optionnel)</label>
         <input name="informations_client" placeholder="Reprises automatiquement depuis sa fiche si déjà renseignées — sinon, précise ici (né(e) le..., n° pièce d'identité, situation matrimoniale...)" />
@@ -605,6 +613,8 @@
         <div id="plainte-profession-defendeur-wrap">
           <label>Profession du mis en cause (optionnel)</label>
           <input name="profession_defendeur" placeholder="ex: Commerçant" />
+          <label>Nationalité du mis en cause (optionnel)</label>
+          <input name="nationalite_defendeur" placeholder="ex: Béninoise" />
         </div>
         <label>Adresse du mis en cause (optionnel)</label>
         <input name="adresse_defendeur" placeholder="ex: Quartier Fidjrossè, Cotonou" />
@@ -700,6 +710,8 @@
           <div id="contrat-informations-partie-1-wrap">
             <label id="contrat-informations-partie-1-label">État civil (optionnel)</label>
             <input name="informations_partie_1" placeholder="ex: né(e) le..., demeurant à..." />
+            <label>Nationalité (optionnel, personne physique uniquement)</label>
+            <input name="nationalite_partie_1" placeholder="ex: Béninoise" />
           </div>
 
           <h3>Partie 2</h3>
@@ -713,6 +725,8 @@
           <div id="contrat-informations-partie-2-wrap">
             <label id="contrat-informations-partie-2-label">État civil (optionnel)</label>
             <input name="informations_partie_2" placeholder="ex: né(e) le..., demeurant à..." />
+            <label>Nationalité (optionnel, personne physique uniquement)</label>
+            <input name="nationalite_partie_2" placeholder="ex: Béninoise" />
           </div>
 
           <h3>Objet et conditions</h3>
@@ -880,6 +894,8 @@
         <input name="nom_client" placeholder="Laisse vide si le dossier existe déjà" />
         <label>Informations sur le client (optionnel)<span class="field-hint" title="État civil pour une personne physique, ou forme juridique/capital/siège social/RCCM pour une entreprise.">?</span></label>
         <input name="informations_client" placeholder="ex: SARL au capital de 5 000 000 FCFA, dont le siège social est à Cotonou, RCCM RB/COT/24 B 1234" />
+        <label>Nationalité du client (optionnel, personne physique uniquement)</label>
+        <input name="nationalite_client" placeholder="ex: Béninoise" />
         <div id="requete-representant-wrap" style="display:none;">
           <label>Représentant légal (optionnel)<span class="field-hint" title="Uniquement si le client est une personne morale agissant par son représentant légal (ex: Directeur Général, Gérant).">?</span></label>
           <input name="representant_legal" placeholder="ex: Monsieur AGONTINDE Corneille" />
@@ -907,6 +923,8 @@
         <div id="requete-profession-defendeur-wrap">
           <label>Profession (optionnel)</label>
           <input name="profession_defendeur" placeholder="ex: Commerçant" />
+          <label>Nationalité (optionnel)</label>
+          <input name="nationalite_defendeur" placeholder="ex: Béninoise" />
         </div>
         <label>Adresse (optionnel)</label>
         <input name="adresse_defendeur" placeholder="ex: Quartier Cadjèhoun, Cotonou" />
@@ -977,6 +995,8 @@
         <input name="nom_client" placeholder="Laisse vide si le dossier existe déjà" />
         <label>Informations sur le client (optionnel)<span class="field-hint" title="État civil pour une personne physique, ou forme juridique/capital/siège social/RCCM pour une entreprise.">?</span></label>
         <input name="informations_client" placeholder="ex: SARL au capital de 5 000 000 FCFA, dont le siège social est à Cotonou, RCCM RB/COT/24 B 1234" />
+        <label>Nationalité du client (optionnel, personne physique uniquement)</label>
+        <input name="nationalite_client" placeholder="ex: Béninoise" />
         <div id="projet_ordonnance-representant-wrap" style="display:none;">
           <label>Représentant légal (optionnel)<span class="field-hint" title="Uniquement si le client est une personne morale agissant par son représentant légal (ex: Directeur Général, Gérant).">?</span></label>
           <input name="representant_legal" placeholder="ex: Monsieur AGONTINDE Corneille" />
@@ -1004,6 +1024,8 @@
         <div id="projet_ordonnance-profession-defendeur-wrap">
           <label>Profession (optionnel)</label>
           <input name="profession_defendeur" placeholder="ex: Commerçant" />
+          <label>Nationalité (optionnel)</label>
+          <input name="nationalite_defendeur" placeholder="ex: Béninoise" />
         </div>
         <label>Adresse (optionnel)</label>
         <input name="adresse_defendeur" placeholder="ex: Quartier Cadjèhoun, Cotonou" />
@@ -1888,8 +1910,10 @@
         axes_argumentation: listValues("axes-list-conclusions"),
         qualite_client: fd.get("qualite_client") || undefined,
         informations_client: fd.get("informations_client") || undefined,
+        nationalite_client: fd.get("nationalite_client") || undefined,
         nom_partie_adverse: nomPartieAdverse,
         informations_partie_adverse: fd.get("informations_partie_adverse") || undefined,
+        nationalite_partie_adverse: fd.get("nationalite_partie_adverse") || undefined,
         qualite_partie_adverse: fd.get("qualite_partie_adverse") || undefined,
         fondement_juridique: fd.get("fondement_juridique") || undefined,
         qualification_juridique: fd.get("qualification_juridique") || undefined,
@@ -1961,6 +1985,7 @@
         profession_client: fd.get("profession_client") || undefined,
         civilite_client_manuel: fd.get("civilite_client_manuel") || undefined,
         informations_client: fd.get("informations_client") || undefined,
+        nationalite_client: fd.get("nationalite_client") || undefined,
         adresse_client_manuel: fd.get("adresse_client_manuel") || undefined,
         demande_client: fd.get("demande_client") || undefined,
         contexte: fd.get("contexte"),
@@ -2009,6 +2034,7 @@
         nom_client: fd.get("nom_client") || undefined,
         civilite_client_manuel: fd.get("civilite_client_manuel") || undefined,
         profession_client: fd.get("profession_client") || undefined,
+        nationalite_client: fd.get("nationalite_client") || undefined,
         informations_client: fd.get("informations_client") || undefined,
         adresse_client_manuel: fd.get("adresse_client_manuel") || undefined,
         telephone_client_manuel: fd.get("telephone_client_manuel") || undefined,
@@ -2016,6 +2042,7 @@
         nom_defendeur: fd.get("nom_defendeur"),
         civilite_defendeur: fd.get("civilite_defendeur") || undefined,
         profession_defendeur: fd.get("profession_defendeur") || undefined,
+        nationalite_defendeur: fd.get("nationalite_defendeur") || undefined,
         adresse_defendeur: fd.get("adresse_defendeur") || undefined,
         destinataire: fd.get("destinataire") || undefined,
         nom_avocat: fd.get("nom_avocat") || undefined,
@@ -2051,9 +2078,11 @@
         partie_1: fd.get("partie_1") || undefined,
         type_partie_1: fd.get("type_partie_1") || undefined,
         informations_partie_1: fd.get("informations_partie_1") || undefined,
+        nationalite_partie_1: fd.get("nationalite_partie_1") || undefined,
         partie_2: fd.get("partie_2") || undefined,
         type_partie_2: fd.get("type_partie_2") || undefined,
         informations_partie_2: fd.get("informations_partie_2") || undefined,
+        nationalite_partie_2: fd.get("nationalite_partie_2") || undefined,
         objet: fd.get("objet") || undefined,
         obligations: fd.get("obligations") || undefined,
         duree: fd.get("duree") || undefined,
@@ -2115,11 +2144,13 @@
         nom_client: fd.get("nom_client") || undefined,
         civilite_client_manuel: fd.get("civilite_client_manuel") || undefined,
         informations_client: fd.get("informations_client") || undefined,
+        nationalite_client: fd.get("nationalite_client") || undefined,
         representant_legal: fd.get("representant_legal") || undefined,
         qualite_representant: fd.get("qualite_representant") || undefined,
         nom_defendeur: fd.get("nom_defendeur") || undefined,
         civilite_defendeur: fd.get("civilite_defendeur") || undefined,
         profession_defendeur: fd.get("profession_defendeur") || undefined,
+        nationalite_defendeur: fd.get("nationalite_defendeur") || undefined,
         adresse_defendeur: fd.get("adresse_defendeur") || undefined,
         destinataire: fd.get("destinataire") || undefined,
         nom_juridiction: fd.get("nom_juridiction") || undefined,
@@ -2157,11 +2188,13 @@
         nom_client: fd.get("nom_client") || undefined,
         civilite_client_manuel: fd.get("civilite_client_manuel") || undefined,
         informations_client: fd.get("informations_client") || undefined,
+        nationalite_client: fd.get("nationalite_client") || undefined,
         representant_legal: fd.get("representant_legal") || undefined,
         qualite_representant: fd.get("qualite_representant") || undefined,
         nom_defendeur: fd.get("nom_defendeur") || undefined,
         civilite_defendeur: fd.get("civilite_defendeur") || undefined,
         profession_defendeur: fd.get("profession_defendeur") || undefined,
+        nationalite_defendeur: fd.get("nationalite_defendeur") || undefined,
         adresse_defendeur: fd.get("adresse_defendeur") || undefined,
         destinataire: fd.get("destinataire") || undefined,
         nom_juridiction: fd.get("nom_juridiction") || undefined,

@@ -93,9 +93,13 @@ export const conclusionsFormSchema = z.object({
   // presentes sur sa fiche, ce champ n'est qu'un secours si elles n'y sont
   // pas encore.
   informations_client: z.string().optional(),
+  // Nationalite du client/de la partie adverse (personne physique
+  // uniquement, sans objet pour une personne morale - laisser vide).
+  nationalite_client: z.string().optional(),
   nom_partie_adverse: z.string().optional(),
   informations_partie_adverse: z.string().optional(),
   qualite_partie_adverse: z.enum(QUALITE_PROCEDURALE).optional(),
+  nationalite_partie_adverse: z.string().optional(),
   // 2. Discussion juridique - jamais devinee par l'IA si absente.
   fondement_juridique: z.string().optional(),
   qualification_juridique: z.string().optional(),
@@ -175,6 +179,9 @@ export const assignationFormSchema = z.object({
   // Civilite du client (personne physique uniquement) - normalement deja
   // sur sa fiche, ce champ n'est qu'un secours si elle n'y est pas encore.
   civilite_client_manuel: z.enum(["M.", "Mme", "Mlle"]).optional(),
+  // Nationalite du client (personne physique uniquement, sans objet pour
+  // une personne morale - laisser vide dans ce cas).
+  nationalite_client: z.string().optional(),
   // Objet synthetique de la demande ("...pour le voir condamner au ...").
   demande_client: z.string().optional(),
   // Discussion juridique - jamais devinee par l'IA si absente.
@@ -279,6 +286,9 @@ export const plainteFormSchema = z.object({
   civilite_client_manuel: z.enum(["M.", "Mme", "Mlle"]).optional(),
   informations_client: z.string().optional(),
   adresse_client_manuel: z.string().optional(),
+  // Nationalite du plaignant/du mis en cause (personne physique uniquement,
+  // sans objet pour une personne morale - laisser vide dans ce cas).
+  nationalite_client: z.string().optional(),
   // Utilises seulement en mode "plaignant" (en-tete a ses propres
   // coordonnees) - sans effet en mode "avocat".
   telephone_client_manuel: z.string().optional(),
@@ -288,6 +298,7 @@ export const plainteFormSchema = z.object({
   civilite_defendeur: z.enum(["M.", "Mme", "Mlle"]).optional(),
   profession_defendeur: z.string().optional(),
   adresse_defendeur: z.string().optional(),
+  nationalite_defendeur: z.string().optional(),
   // Civilite/qualite du destinataire (ex: "M. le Procureur de la Republique
   // pres"), composee avec la juridiction et la ville par le backend pour
   // former l'adresse complete du courrier. Facultatif.
@@ -324,9 +335,13 @@ export const contratFormSchema = z.object({
   // Personne physique (etat civil) ou morale (RCCM/IFU) - jamais devine.
   type_partie_1: z.enum(["physique", "morale"]).optional(),
   informations_partie_1: z.string().optional(),
+  // Nationalite (personne physique uniquement, sans objet si type_partie
+  // est "morale" - laisser vide dans ce cas).
+  nationalite_partie_1: z.string().optional(),
   partie_2: z.string().optional(),
   type_partie_2: z.enum(["physique", "morale"]).optional(),
   informations_partie_2: z.string().optional(),
+  nationalite_partie_2: z.string().optional(),
   objet: z.string().optional(),
   obligations: z.string().optional(),
   duree: z.string().optional(),
@@ -403,6 +418,9 @@ export const requeteFormSchema = z.object({
   nom_client: z.string().min(1).optional(),
   civilite_client_manuel: z.enum(["M.", "Mme", "Mlle"]).optional(),
   informations_client: z.string().optional(),
+  // Nationalite du requerant/du requis (personne physique uniquement, sans
+  // objet pour une personne morale - laisser vide dans ce cas).
+  nationalite_client: z.string().optional(),
   // Uniquement si le requerant est une personne morale agissant par son
   // representant legal (ex: "son Directeur General, Monsieur X").
   representant_legal: z.string().optional(),
@@ -413,6 +431,7 @@ export const requeteFormSchema = z.object({
   civilite_defendeur: z.enum(["M.", "Mme", "Mlle"]).optional(),
   profession_defendeur: z.string().optional(),
   adresse_defendeur: z.string().optional(),
+  nationalite_defendeur: z.string().optional(),
   // Civilite du destinataire, composee avec la juridiction et la ville par
   // le backend pour former l'adresse complete du courrier. Facultatif.
   destinataire: z.string().optional(),
@@ -444,6 +463,9 @@ export const projetOrdonnanceFormSchema = z.object({
   nom_client: z.string().min(1).optional(),
   civilite_client_manuel: z.enum(["M.", "Mme", "Mlle"]).optional(),
   informations_client: z.string().optional(),
+  // Nationalite du requerant/du requis (personne physique uniquement, sans
+  // objet pour une personne morale - laisser vide dans ce cas).
+  nationalite_client: z.string().optional(),
   representant_legal: z.string().optional(),
   qualite_representant: z.string().optional(),
   // Le requis (partie adverse, debiteur) - optionnel.
@@ -451,6 +473,7 @@ export const projetOrdonnanceFormSchema = z.object({
   civilite_defendeur: z.enum(["M.", "Mme", "Mlle"]).optional(),
   profession_defendeur: z.string().optional(),
   adresse_defendeur: z.string().optional(),
+  nationalite_defendeur: z.string().optional(),
   // Juridiction/juge qui rend l'ordonnance (le meme que le destinataire de
   // la Requete d'origine).
   destinataire: z.string().optional(),
