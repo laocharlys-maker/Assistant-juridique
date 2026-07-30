@@ -68,6 +68,20 @@ function bloc(...lignes: (string | undefined | false)[]): string {
   return lignes.filter((l): l is string => !!l && l.trim().length > 0).join("\n\n");
 }
 
+// Rend une liste de pieces (stockee en base sous forme d'une seule chaine
+// separee par des virgules - voir "pieces_prevoir" dans webActions.ts) en
+// liste a puces Markdown (voir le marqueur "- " dans markdownParse.ts),
+// plutot que bout a bout sur une seule ligne.
+function listePieces(label: string, piecesJointes: string | undefined): string | false {
+  if (!piecesJointes) return false;
+  const items = piecesJointes
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (items.length === 0) return false;
+  return `**${label} :**\n${items.map((item) => `- ${item}`).join("\n")}`;
+}
+
 // Marque une ligne pour un rendu centre (voir le marqueur "^^" dans
 // markdownParse.ts) - jamais utilise pour le texte redige par l'IA, reserve
 // aux elements de formalisme (bloc destinataire, signature...).
@@ -188,7 +202,7 @@ export function buildFormalisme(
         ),
         apres: bloc(
           ctx.prochaineAudienceLongue && `**Prochaine date d'audience : ${ctx.prochaineAudienceLongue}**`,
-          ctx.piecesPrevoir && `**Pièces à prévoir : ${ctx.piecesPrevoir}**`,
+          listePieces("Pièces à prévoir", ctx.piecesPrevoir),
           retrait(5760, `Fait à ${ctx.ville}, le ${ctx.dateLongue}.`),
           s(c, "nom_avocat") && retrait(5760, s(c, "nom_avocat"))
         ),
