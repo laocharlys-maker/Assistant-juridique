@@ -416,12 +416,16 @@ export function buildFormalisme(
       );
       return {
         avant: bloc(
-          `Fait à ${ctx.ville}, le ${ctx.dateLongue}`,
+          droite(`Fait à ${ctx.ville}, le ${ctx.dateLongue}`),
+          espace(),
           s(c, "nom_cabinet"),
-          s(c, "adresse_cabinet"),
+          s(c, "adresse_cabinet") && `**${s(c, "adresse_cabinet")}**`,
+          espace(),
           centre("A"),
           centre(s(c, "destinataire")),
+          espace(),
           s(c, "objet") && `**OBJET : ${s(c, "objet")}**`,
+          espace(),
           "REQUÊTE",
           "POUR :",
           `${s(c, "civilite_nom_client") || ctx.nomClient}${qualiteClient}`,

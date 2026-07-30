@@ -153,6 +153,26 @@ function mettreEnGrasVerbeInitial(texte: string): string {
     .join("\n");
 }
 
+// Meme principe que mettreEnGrasVerbeInitial, mais pour un texte saisi
+// directement par l'avocat (pas reecrit par l'IA en majuscules) : le premier
+// mot de chaque ligne (le verbe d'action - "Enjoindre", "Payer", "Interdire"...)
+// est mis en majuscules et en gras, quelle que soit la casse d'origine.
+// Utilise pour le dispositif "PAR CES MOTIFS" de la Requete.
+function majusculerPremierVerbe(texte: string): string {
+  return texte
+    .split("\n")
+    .map((ligne) => {
+      const prefixMatch = ligne.match(/^(\s*[-*]\s+)(.*)$/);
+      const prefixe = prefixMatch ? prefixMatch[1] : "";
+      const reste = prefixMatch ? prefixMatch[2] : ligne;
+      const m = reste.match(/^(\S+)/);
+      if (!m) return ligne;
+      const verbe = m[1];
+      return `${prefixe}**${verbe.toUpperCase()}**${reste.slice(verbe.length)}`;
+    })
+    .join("\n");
+}
+
 const CIVILITE_LONGUE: Record<string, string> = { "M.": "Monsieur", Mme: "Madame", Mlle: "Mademoiselle" };
 
 // Formule d'appel ("Monsieur," / "Madame," / "Mademoiselle,") deduite de la
@@ -1696,7 +1716,7 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
       };
       const civiliteAppelRequete = `${CIVILITE_APPEL_REQUETE[form.destinataire ?? ""] || "Monsieur le Président"},`;
 
-      const demandesRequete = form.demandes.map((d) => `- ${d}`).join("\n");
+      const demandesRequete = majusculerPremierVerbe(form.demandes.map((d) => `- ${d}`).join("\n"));
       const bordereauPiecesRequete =
         form.pieces && form.pieces.length > 0
           ? form.pieces.map((p, i) => `${i + 1}. ${p}`).join("\n")
