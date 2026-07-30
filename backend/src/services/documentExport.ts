@@ -494,6 +494,11 @@ function renderPdfTable(
   for (const row of rows) {
     drawRow(row, false, false);
   }
+  // doc.text() avec des coordonnees explicites (voir drawRow) laisse doc.x
+  // positionne sur la derniere cellule dessinee, pas sur la marge de page -
+  // sans ce reset, tout le contenu qui suit le tableau se retrouve rendu
+  // dans l'etroite colonne restante a droite au lieu de la pleine largeur.
+  doc.x = left;
   doc.moveDown(0.8);
 }
 
