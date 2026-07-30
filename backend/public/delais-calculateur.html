@@ -125,6 +125,13 @@
         document.getElementById("manage-types-link").style.display = "inline-block";
       }
       await Promise.all([loadTypes(), loadDossiers(), loadHistory()]);
+
+      const preselect = new URLSearchParams(window.location.search).get("dossierId");
+      if (preselect) {
+        dossierSelect.value = preselect;
+        calcPanel.classList.add("open");
+        toggleCalcBtn.textContent = "Réduire";
+      }
     })();
 
     document.getElementById("manage-types-link").addEventListener("click", () => {

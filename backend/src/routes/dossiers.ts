@@ -173,7 +173,17 @@ dossiersRouter.get("/api/documents", requireAuth, requireModule("documents_gener
     },
   });
 
-  return res.json({ scope, vue, documents });
+  // Etiquette "echeance proche" (delai calcule sous 7 jours pour le
+  // dossier) - meme calcul que sur la liste des dossiers, pour que
+  // "Documents generes" alerte aussi sans avoir a rouvrir chaque dossier.
+  const dossierIds = [...new Set(documents.map((d) => d.dossier.id))];
+  const tags = await computeStatutTags(dossierIds);
+  const documentsAvecTag = documents.map((d) => ({
+    ...d,
+    dossier: { ...d.dossier, statutTag: d.dossier.statut === "cloture" ? "cloture" : tags.get(d.dossier.id) || "a_jour" },
+  }));
+
+  return res.json({ scope, vue, documents: documentsAvecTag });
 });
 
 dossiersRouter.get("/api/dossiers/:id", requireAuth, async (req, res) => {

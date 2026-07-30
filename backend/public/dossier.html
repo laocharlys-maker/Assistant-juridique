@@ -263,12 +263,18 @@
                     me.role === "titulaire" || me.role === "avocat"
                       ? `<a class="secondary" href="/factures.html?dossierId=${dossier.id}" style="display:inline-block; text-decoration:none; padding:6px 12px; border-radius:6px; margin-left:8px;">Facturer ce dossier</a>`
                       : ""
-                  }`
+                  }
+                  <a class="secondary" href="/delais-calculateur.html?dossierId=${dossier.id}" style="display:inline-block; text-decoration:none; padding:6px 12px; border-radius:6px; margin-left:8px;">Calculer un délai</a>`
             }
           </div>
+          <div id="delais-section"></div>
           <h2>Historique (${dossier.actions.length})</h2>
           <div id="actions-list"></div>
         `;
+
+        if (!currentDossierEstRecherche) {
+          loadDelaisDossier(id);
+        }
 
         const clotureBtn = document.getElementById("toggle-cloture-btn");
         if (clotureBtn) {
@@ -462,6 +468,49 @@
       echeance_proche: "échéance proche",
       cloture: "clôturé",
     };
+
+    // Affiche les délais de procédure calculés et rattachés à ce dossier -
+    // module payant, peut être désactivé pour le cabinet (403) : dans ce
+    // cas on masque simplement la section plutôt que d'afficher une erreur.
+    async function loadDelaisDossier(dossierId) {
+      const section = document.getElementById("delais-section");
+      if (!section) return;
+      let calculs;
+      try {
+        calculs = await apiFetch(`/api/delais/historique?dossierId=${dossierId}`);
+      } catch {
+        return;
+      }
+      if (calculs.length === 0) {
+        section.innerHTML = `
+          <div class="card">
+            <h2 style="margin-top:0;">Délais</h2>
+            <p class="muted">Aucun délai calculé pour ce dossier pour l'instant.</p>
+          </div>`;
+        return;
+      }
+      const now = Date.now();
+      const lignes = calculs
+        .map((c) => {
+          const enRetard = new Date(c.dateLimite).getTime() < now;
+          const badge = enRetard
+            ? '<span class="badge badge-echeance_proche">Dépassé</span>'
+            : '<span class="badge badge-a_jour">À venir</span>';
+          return `
+          <div class="action-item">
+            <span class="tag">${escapeHtml(c.delaiType.nom)}${c.rappelCalendar ? " · rappel Calendar créé" : ""}</span>
+            ${badge}
+            <div>Départ : ${formatDateLongue(c.dateDepart)} → <strong>Date limite : ${formatDateLongue(c.dateLimite)}</strong></div>
+            <p class="muted">${escapeHtml(c.delaiType.texteReference)} — calculé par ${escapeHtml(c.createdBy.nom)} le ${new Date(c.createdAt).toLocaleString("fr-FR")}</p>
+          </div>`;
+        })
+        .join("");
+      section.innerHTML = `
+        <div class="card">
+          <h2 style="margin-top:0;">Délais (${calculs.length})</h2>
+          ${lignes}
+        </div>`;
+    }
 
     function renderAction(a) {
       const generationEnEchec =
