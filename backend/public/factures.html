@@ -87,6 +87,19 @@
 
     let allDossiers = [];
     let allClients = [];
+    let currentFactures = [];
+
+    // Retrouve l'email enregistre du client d'une facture - via le dossier
+    // lie s'il en a un (relation directe Client), sinon par correspondance
+    // de nom sur la fiche client (meme logique que dossiersDuClientNom,
+    // pour couvrir les factures sans dossier associe).
+    function resolveClientEmail(facture) {
+      if (facture.dossier?.client?.email) return facture.dossier.client.email;
+      const nom = (facture.clientNom || facture.dossier?.nomClient || "").trim().toLowerCase();
+      if (!nom) return null;
+      const client = allClients.find((c) => c.nom.trim().toLowerCase() === nom);
+      return client?.email || null;
+    }
 
     function renderDossierOptions(dossiers) {
       dossierSelect.innerHTML =
@@ -169,7 +182,9 @@
     });
 
     async function envoyerFacture(id) {
-      const email = prompt("Email du destinataire :");
+      const facture = currentFactures.find((f) => f.id === id);
+      const emailConnu = facture ? resolveClientEmail(facture) : null;
+      const email = prompt("Email du destinataire :", emailConnu || "");
       if (!email) return;
       try {
         await apiFetch(`/api/factures/${id}/envoyer`, { method: "POST", body: { email } });
@@ -191,6 +206,7 @@
     async function loadFactures() {
       try {
         const factures = await apiFetch("/api/factures");
+        currentFactures = factures;
         if (factures.length === 0) {
           listEl.innerHTML = '<p class="muted">Aucune facture pour l\'instant.</p>';
           return;
