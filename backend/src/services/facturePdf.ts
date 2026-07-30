@@ -41,8 +41,13 @@ export async function buildFacturePdf(input: FactureInput): Promise<Buffer> {
       doc.y = enteteY + ENTETE_H + 10;
     }
 
-    doc.font("Helvetica-Bold").fontSize(16).text(input.cabinetNom, { align: "center" });
-    doc.moveDown(0.3);
+    // Quand un en-tête (logo) est configuré, il porte déjà l'identité du
+    // cabinet - répéter le nom en dessous ferait doublon (voir le même
+    // principe dans documentExport.ts pour les documents juridiques).
+    if (!input.entete) {
+      doc.font("Helvetica-Bold").fontSize(16).text(input.cabinetNom, { align: "center" });
+      doc.moveDown(0.3);
+    }
     doc.font("Helvetica-Bold").fontSize(13).text(input.estProforma ? "FACTURE PROFORMA" : "FACTURE", { align: "center" });
     doc.moveDown(1);
 
