@@ -693,6 +693,7 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
       // est une formule fixe du formalisme d'assignation, verifiee identique
       // sur deux documents reels distincts issus du pipeline Google Docs -
       // jamais generee par l'IA, jamais saisie par l'avocat.
+      const demandesAssignation = majusculerPremierVerbe(form.demandes.map((d) => `- ${d}`).join("\n"));
       const redigé = [
         ["I. OBJET DE LA DEMANDE", demandeClient].filter(Boolean).join("\n\n"),
         ["II. EXPOSÉ DES FAITS", exposeDesFaitsAssignation].filter(Boolean).join("\n\n"),
@@ -705,7 +706,7 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
           `- **DÉCLARER** **${form.nom_client}** recevable et bien fondé en son action.`,
           `- **CONSTATER** le non-respect par **${form.destinataire}** de ses engagements contractuels.`,
         ].join("\n\n"),
-        ["**En conséquence :**", form.demandes.map((d) => `- ${d}`).join("\n")].join("\n\n"),
+        ["**En conséquence :**", demandesAssignation].join("\n\n"),
       ]
         .filter(Boolean)
         .join("\n\n");
@@ -756,7 +757,7 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
         fondement_juridique: fondementJuridiqueAssignation,
         qualification_juridique: qualificationJuridiqueAssignation,
         prejudice_subi: prejudiceSubiAssignation,
-        demandes: form.demandes.map((d) => `- ${d}`).join("\n"),
+        demandes: demandesAssignation,
         nom_defendeur: form.destinataire,
         nom_avocat: form.nom_avocat,
         nom_huissier: form.nom_huissier,
