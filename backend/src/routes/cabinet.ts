@@ -196,16 +196,38 @@ cabinetRouter.post("/api/cabinet/entete", requireAuth, requireAdmin, async (req,
   }
 
   await fs.mkdir(ENTETE_UPLOAD_DIR, { recursive: true });
-  const filename = `${req.auth!.cabinetId}.${ext === "jpeg" ? "jpg" : "png"}`;
+  // Nom de fichier unique par upload (pas juste par cabinet) : sinon l'URL
+  // ne change jamais d'un remplacement a l'autre, et le cache navigateur
+  // (Cache-Control: max-age=300 sur /uploads, voir app.ts) continue
+  // d'afficher l'ancienne image malgre le remplacement du fichier sur disque.
+  const filename = `${req.auth!.cabinetId}-${Date.now()}.${ext === "jpeg" ? "jpg" : "png"}`;
   await fs.writeFile(path.join(ENTETE_UPLOAD_DIR, filename), buffer);
+
+  const ancienCabinet = await prisma.cabinet.findUnique({
+    where: { id: req.auth!.cabinetId },
+    select: { enteteUrl: true },
+  });
 
   const enteteUrl = `/uploads/entetes/${filename}`;
   await prisma.cabinet.update({ where: { id: req.auth!.cabinetId }, data: { enteteUrl } });
+
+  if (ancienCabinet?.enteteUrl) {
+    const ancienChemin = path.join(ENTETE_UPLOAD_DIR, path.basename(ancienCabinet.enteteUrl));
+    await fs.unlink(ancienChemin).catch(() => {});
+  }
 
   return res.json({ enteteUrl });
 });
 
 cabinetRouter.delete("/api/cabinet/entete", requireAuth, requireAdmin, async (req, res) => {
+  const ancienCabinet = await prisma.cabinet.findUnique({
+    where: { id: req.auth!.cabinetId },
+    select: { enteteUrl: true },
+  });
   await prisma.cabinet.update({ where: { id: req.auth!.cabinetId }, data: { enteteUrl: null } });
+  if (ancienCabinet?.enteteUrl) {
+    const chemin = path.join(ENTETE_UPLOAD_DIR, path.basename(ancienCabinet.enteteUrl));
+    await fs.unlink(chemin).catch(() => {});
+  }
   return res.json({ ok: true });
 });
