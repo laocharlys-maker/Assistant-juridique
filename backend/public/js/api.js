@@ -12,7 +12,14 @@ async function apiFetch(path, options = {}) {
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
     const message = data.error || `Erreur ${response.status}`;
-    throw new Error(message);
+    const error = new Error(message);
+    // Conserve le statut HTTP et le corps de reponse (ex: licenceEtat sur un
+    // 403 de licence, voir middleware/requireLicence.ts) - additif, ne
+    // change rien pour les appelants existants qui n'utilisent que
+    // err.message.
+    error.status = response.status;
+    error.body = data;
+    throw error;
   }
   return data;
 }
@@ -20,8 +27,12 @@ async function apiFetch(path, options = {}) {
 async function requireSession() {
   try {
     return await apiFetch("/api/auth/me");
-  } catch {
-    window.location.href = "/login.html";
+  } catch (err) {
+    // Une licence invalide/expiree bloque /api/auth/me comme le reste de
+    // l'API (voir middleware/requireLicence.ts) - dans ce cas, rediriger
+    // vers l'ecran de connexion serait une impasse (le login lui-meme est
+    // bloque). Seul l'ecran d'activation permet de sortir de cet etat.
+    window.location.href = err && err.body && err.body.licenceEtat ? "/licence.html" : "/login.html";
     return null;
   }
 }

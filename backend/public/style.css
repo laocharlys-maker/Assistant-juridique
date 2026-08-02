@@ -939,3 +939,78 @@ h5.md-heading { font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0
 .md-table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
 .md-table th, .md-table td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; vertical-align: top; }
 .md-table th { background: var(--panel-alt); color: var(--text-strong); font-weight: 700; }
+
+/* ---------- Licence (Lot 3) ---------- */
+.licence-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 20px;
+  background: var(--warning-tint);
+  color: var(--warning);
+  border-bottom: 1px solid var(--warning);
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+.licence-banner a, .licence-banner button.link-btn {
+  color: inherit;
+  text-decoration: underline;
+  font-weight: 700;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-size: inherit;
+}
+
+.licence-screen {
+  max-width: 560px;
+  margin: 6vh auto 0;
+}
+.licence-screen .card { text-align: left; }
+.licence-screen h1 { text-align: center; }
+.licence-screen .muted { text-align: center; }
+
+.licence-dropzone {
+  border: 2px dashed var(--border);
+  border-radius: 12px;
+  padding: 28px 16px;
+  text-align: center;
+  color: var(--muted);
+  margin: 18px 0;
+  transition: border-color 0.14s ease, background 0.14s ease;
+  cursor: pointer;
+}
+.licence-dropzone.dragover {
+  border-color: var(--accent);
+  background: var(--accent-tint);
+  color: var(--text);
+}
+.licence-dropzone input[type="file"] { display: none; }
+.licence-dropzone-filename { margin-top: 8px; font-weight: 600; color: var(--text-strong); }
+
+.licence-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 18px 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.licence-divider::before, .licence-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.licence-status-box {
+  padding: 12px 14px;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  margin-bottom: 16px;
+}
+.licence-status-box.grace { background: var(--warning-tint); color: var(--warning); border: 1px solid var(--warning); }
+.licence-status-box.bloquee { background: var(--danger-tint); color: var(--danger); border: 1px solid var(--danger); }

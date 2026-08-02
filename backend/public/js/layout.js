@@ -183,4 +183,25 @@ function initLayout(me) {
     await apiFetch("/api/auth/logout", { method: "POST" });
     window.location.href = "/login.html";
   });
+
+  // Bandeau d'expiration imminente (Lot 3) : si initLayout() a pu s'executer,
+  // la licence est forcement "valide" ou "grace" (sinon /api/auth/me aurait
+  // deja ete bloque par requireLicence.ts et requireSession() aurait
+  // redirige vers /licence.html avant meme d'appeler initLayout) - seul le
+  // cas "grace" a besoin d'un bandeau ici.
+  checkLicenceBanner(main, topbar);
+}
+
+async function checkLicenceBanner(main, topbar) {
+  try {
+    const status = await apiFetch("/api/licence/status");
+    if (status.etat !== "grace") return;
+    const banner = document.createElement("div");
+    banner.className = "licence-banner";
+    banner.innerHTML = `<span>${status.messageUtilisateur}</span><a href="/licence.html">Activer une nouvelle licence</a>`;
+    main.insertBefore(banner, topbar.nextSibling);
+  } catch {
+    // Echec silencieux : ne doit jamais empecher l'affichage normal de la
+    // page (ex: API temporairement indisponible).
+  }
 }

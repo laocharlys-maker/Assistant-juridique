@@ -47,6 +47,10 @@ CREATE TABLE "cabinets" (
     "limite_documents_cabinet_par_mois" INTEGER,
     "limite_comptes" INTEGER,
     "essai_expire_le" TIMESTAMP(3),
+    "licence_id" TEXT,
+    "licence_mode_verification" TEXT,
+    "licence_date_expiration" TIMESTAMP(3),
+    "empreinte_machine_autorisee" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "cabinets_pkey" PRIMARY KEY ("id")

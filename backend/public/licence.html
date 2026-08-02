@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aurore — Licence</title>
+  <link rel="icon" type="image/png" href="/favicon-256.png" />
+  <link rel="stylesheet" href="/style.css" />
+  <style>
+    body {
+      background-image:
+        radial-gradient(ellipse 900px 500px at 15% -10%, var(--bg-grad-1), transparent 60%),
+        radial-gradient(ellipse 700px 500px at 100% 10%, var(--bg-grad-2), transparent 55%);
+      background-repeat: no-repeat;
+      min-height: 100vh;
+    }
+  </style>
+</head>
+<body>
+  <div class="page licence-screen">
+    <div style="text-align:center; margin-bottom:8px;">
+      <img src="/logo-aurore-login.png" alt="Aurore" style="max-width:180px;" onerror="this.style.display='none'" />
+      <h1 style="margin-top:8px; margin-bottom:0;">Licence Aurore</h1>
+    </div>
+
+    <div id="status-box"></div>
+    <div id="check-now-wrap" style="text-align:center; margin-bottom:18px; display:none;">
+      <button type="button" id="check-now-btn" class="secondary">Vérifier maintenant</button>
+    </div>
+
+    <div class="card" id="activation-card">
+      <h2 style="margin-top:0;">Activer votre licence</h2>
+      <p class="muted">Glissez-déposez le fichier <code>.lic</code> fourni par AzoMedIA, ou collez le code d'activation reçu.</p>
+
+      <div id="error" class="error"></div>
+      <div id="success" class="error" style="background: var(--accent-tint); color: var(--accent-hover); border-color: var(--accent);"></div>
+
+      <div class="licence-dropzone" id="dropzone">
+        <div id="dropzone-label">Cliquez ici ou déposez votre fichier <strong>.lic</strong></div>
+        <div class="licence-dropzone-filename" id="dropzone-filename"></div>
+        <input type="file" id="file-input" accept=".lic,application/json" />
+      </div>
+
+      <div class="licence-divider">ou</div>
+
+      <label for="code-input">Coller un code d'activation</label>
+      <textarea id="code-input" rows="4" placeholder="Collez ici le code fourni par AzoMedIA"></textarea>
+
+      <button type="button" id="activate-btn" style="margin-top:14px; width:100%;">Activer la licence</button>
+    </div>
+
+    <div class="card" id="active-card" style="display:none;">
+      <h2 style="margin-top:0;">Licence active</h2>
+      <p id="active-message" class="muted"></p>
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <a href="/login.html" class="secondary" style="display:inline-flex; align-items:center; padding:0 16px; border-radius:10px; text-decoration:none;">Aller à Aurore</a>
+      </div>
+      <p class="muted" style="margin-top:14px; font-size:0.85rem;">Pour activer une autre licence sur ce poste, utilisez le formulaire ci-dessous.</p>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/licence.js"></script>
+</body>
+</html>

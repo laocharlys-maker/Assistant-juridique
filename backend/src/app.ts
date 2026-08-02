@@ -21,7 +21,9 @@ import { auditLogsRouter } from "./routes/auditLogs";
 import { roleAudiencesRouter } from "./routes/roleAudiences";
 import { huissiersRouter } from "./routes/huissiers";
 import { adminRouter } from "./routes/admin";
+import { licenceRouter } from "./routes/licence";
 import { globalApiLimiter } from "./middleware/rateLimit";
+import { requireLicence } from "./middleware/requireLicence";
 
 export const app = express();
 
@@ -39,6 +41,12 @@ app.use(express.json({ limit: "15mb" }));
 app.use("/api", globalApiLimiter);
 app.use(cookieParser());
 app.use(healthRouter);
+app.use(licenceRouter);
+// A partir d'ici, toute route /api/* (sauf /api/licence/* et /health, deja
+// servies ci-dessus) est bloquee si la licence locale est invalide/expiree
+// au-dela de la periode de grace - voir middleware/requireLicence.ts et
+// README-LOT3.md.
+app.use(requireLicence);
 app.use(actionsRouter);
 app.use(authRouter);
 app.use(dossiersRouter);

@@ -53,6 +53,7 @@ async function main() {
       { runVeillePourTousLesCabinets },
       { runRetentionJobs },
       { runRoleSemaineRecapPourTousLesCabinets },
+      { runPhoneHomeCheck },
     ] = await Promise.all([
       import("./config/env"),
       import("./app"),
@@ -61,6 +62,7 @@ async function main() {
       import("./services/veilleJuridique"),
       import("./services/retention"),
       import("./services/roleSemaineRecap"),
+      import("./security/licenceManager"),
     ]);
 
     const server = app.listen(env.PORT, env.HOST, () => {
@@ -108,6 +110,24 @@ async function main() {
       // quelques secondes.
       setTimeout(() => process.exit(0), 15000).unref();
     }
+
+    // Phone-home licence (Lot 3) : verification au demarrage puis chaque
+    // dimanche a 5h (n'effectue reellement un appel reseau qu'en mode
+    // "auto" - voir runPhoneHomeCheck, qui reste un no-op silencieux en
+    // mode "manuel" ou en l'absence de toute licence). Jamais bloquant :
+    // une erreur ici est journalisee, jamais propagee.
+    runPhoneHomeCheck().catch((error) => {
+      console.error("Erreur lors de la verification de licence au demarrage :", error);
+    });
+    cron.schedule(
+      "0 5 * * 0",
+      () => {
+        runPhoneHomeCheck().catch((error) => {
+          console.error("Erreur lors de la verification hebdomadaire de licence :", error);
+        });
+      },
+      { timezone: "Africa/Porto-Novo" }
+    );
 
     process.on("SIGINT", () => void gracefulShutdown("SIGINT"));
     process.on("SIGTERM", () => void gracefulShutdown("SIGTERM"));
