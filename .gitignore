@@ -10,3 +10,7 @@ backend/dist-sea/
 src-tauri/target/
 src-tauri/binaries/
 src-tauri/gen/
+
+# Postgres portable (Lot 2) - binaires telecharges/compiles au build,
+# jamais commis (voir backend/scripts/download-postgres-binaries.js)
+backend/vendor/
