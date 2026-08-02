@@ -1,0 +1,45 @@
+AURORE - CONTRAT DE LICENCE UTILISATEUR FINAL (CLUF)
+Edite par AzoMedIA - support : azomedia20@gmail.com
+
+En installant et en utilisant le logiciel Aurore, vous acceptez les
+conditions suivantes.
+
+1. OBJET
+Aurore est un logiciel d'assistance juridique destine aux cabinets
+d'avocats, fourni sous forme d'une licence d'utilisation non exclusive et
+non transferable, valable pour le nombre de postes et la duree indiques
+sur votre fichier de licence.
+
+2. LICENCE D'UTILISATION
+L'utilisation du logiciel requiert l'activation d'un fichier de licence
+(.lic) fourni par AzoMedIA, lie a l'ordinateur sur lequel il est installe.
+Ce fichier ne doit etre ni copie, ni transfere, ni utilise sur un poste
+non autorise.
+
+3. DONNEES DU CABINET
+Toutes les donnees saisies dans Aurore (dossiers, clients, documents)
+restent la propriete exclusive du cabinet utilisateur. Aurore les stocke
+localement sur le poste (ou le serveur reseau du cabinet, selon le mode
+choisi), avec chiffrement des champs sensibles au repos. AzoMedIA n'a pas
+acces a distance a ces donnees.
+
+4. LIMITATION DE RESPONSABILITE
+Aurore assiste la redaction de documents juridiques mais ne remplace pas
+le jugement professionnel de l'avocat. Chaque document genere doit etre
+relu et valide avant envoi ou depot. AzoMedIA ne saurait etre tenu
+responsable d'une erreur ou d'une omission dans un document produit par
+le logiciel.
+
+5. MISES A JOUR
+Le logiciel peut vous proposer des mises a jour. Aucune mise a jour n'est
+installee sans votre confirmation explicite.
+
+6. DESINSTALLATION
+La desinstallation vous laisse le choix explicite de conserver ou de
+supprimer les donnees du cabinet stockees localement.
+
+7. SUPPORT
+Pour toute question ou assistance : azomedia20@gmail.com
+
+En cliquant sur "J'accepte" ou en poursuivant l'installation, vous
+confirmez avoir lu et accepte les termes ci-dessus.

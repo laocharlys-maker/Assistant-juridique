@@ -24,7 +24,12 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["nsis"],
+    "publisher": "AzoMedIA",
+    "copyright": "© 2026 AzoMedIA",
+    "category": "Business",
+    "shortDescription": "Assistant juridique pour cabinets d'avocats",
+    "longDescription": "Aurore aide les cabinets d'avocats a rediger leurs actes juridiques, suivre leurs dossiers et leurs echeances. Installation locale, donnees chiffrees, aucune dependance a un serveur distant.",
     "icon": [
       "icons/icon.ico",
       "icons/32x32.png",
@@ -39,6 +44,32 @@
       "../backend/dist-sea/.env": ".env",
       "../backend/dist-sea/postgres": "postgres",
       "../backend/dist-sea/prisma": "prisma"
+    },
+    "licenseFile": "../installer/LICENSE-EULA.txt",
+    "windows": {
+      "nsis": {
+        "license": "../installer/LICENSE-EULA.txt",
+        "languages": ["French"],
+        "displayLanguageSelector": false,
+        "installMode": "currentUser",
+        "installerIcon": "icons/icon.ico",
+        "compression": "lzma",
+        "hooks": "../installer/nsis/installer-hooks.nsh"
+      },
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper",
+        "silent": true
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "active": true,
+      "endpoints": [
+        "https://updates.aurore-app.bj/{{target}}/{{arch}}/{{current_version}}"
+      ],
+      "dialog": false,
+      "pubkey": "REMPLACER_PAR_LA_VRAIE_CLE_PUBLIQUE_ED25519_DE_MISE_A_JOUR"
     }
   }
 }
