@@ -4,3 +4,9 @@ dist/
 *.log
 .DS_Store
 backend/public/uploads/
+
+# Packaging Lot 1 (Tauri sidecar + Node SEA)
+backend/dist-sea/
+src-tauri/target/
+src-tauri/binaries/
+src-tauri/gen/

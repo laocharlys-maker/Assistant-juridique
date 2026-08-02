@@ -5,6 +5,10 @@ const envSchema = z
   .object({
     DATABASE_URL: z.string().min(1, "DATABASE_URL est requis (voir .env.example)"),
     PORT: z.coerce.number().default(3000),
+    // "0.0.0.0" par defaut pour ne pas casser le deploiement VPS existant
+    // (reverse proxy Traefik). Le sidecar Tauri (packaging desktop) force
+    // explicitement HOST=127.0.0.1 pour n'exposer le backend qu'en local.
+    HOST: z.string().default("0.0.0.0"),
     NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
 
     LLM_PROVIDER: z.enum(["gemini", "anthropic", "groq"]).default("gemini"),
