@@ -16,9 +16,9 @@ import cron from "node-cron";
  * ./lib/prisma des le chargement du module, transitivement). D'ou les
  * `await import(...)` ci-dessous plutot que des `import` en tete de fichier.
  *
- * En mode "externe" (VPS actuel), DATABASE_URL provient de .env comme avant
- * le Lot 2 - comportement inchange, bootstrapPortableDatabase() n'est meme
- * pas importe.
+ * En mode "externe"/"reseau" (VPS actuel, ou serveur LAN du Lot 6),
+ * DATABASE_URL provient de .env comme avant le Lot 2 - comportement
+ * inchange, bootstrapPortableDatabase() n'est meme pas importe.
  */
 async function main() {
   const databaseMode = (process.env.DATABASE_MODE || "externe").toLowerCase();
@@ -65,9 +65,49 @@ async function main() {
       import("./security/licenceManager"),
     ]);
 
-    const server = app.listen(env.PORT, env.HOST, () => {
-      console.log(`Aurore backend demarre sur ${env.HOST}:${env.PORT} (${env.NODE_ENV})`);
-    });
+    // Lot 6 : en mode desktop (DATABASE_MODE=portable, sidecar Tauri ou
+    // service NSSM), le binding reseau est decide par la config locale
+    // "standalone"/"reseau" (config/deploymentMode.ts), PAS par env.HOST -
+    // celui-ci reste a 127.0.0.1 par defaut/force par Tauri aujourd'hui,
+    // mais ce serait fragile de s'y fier pour une decision de securite
+    // ("bind sur toutes les interfaces ou non") : on la recalcule
+    // explicitement ici, avec un repli sur "standalone" (127.0.0.1)
+    // systematique si la config est absente/corrompue - jamais 0.0.0.0 par
+    // defaut. Le mode "externe" (VPS actuel, Traefik devant) est
+    // entierement inchange : env.HOST comme avant ce lot.
+    let server: import("node:http").Server | import("node:https").Server;
+    let stopMdns: (() => void) | null = null;
+
+    if (databaseMode === "portable") {
+      const { effectiveDeploymentMode } = await import("./config/deploymentMode");
+      const deploymentMode = effectiveDeploymentMode();
+
+      if (deploymentMode === "reseau") {
+        console.log(
+          "[demarrage] mode serveur reseau (Lot 6) : bind 0.0.0.0, HTTPS avec certificat local auto-signe."
+        );
+        const [{ default: https }, { ensureLocalTlsCertificate }, { advertiseAuroreLocal }] = await Promise.all([
+          import("node:https"),
+          import("./security/localTlsCertificate"),
+          import("./network/mdnsAdvertise"),
+        ]);
+        const tlsCertificate = await ensureLocalTlsCertificate();
+        server = https.createServer({ key: tlsCertificate.key, cert: tlsCertificate.cert }, app);
+        server.listen(env.PORT, "0.0.0.0", () => {
+          console.log(`Aurore backend demarre en mode reseau sur 0.0.0.0:${env.PORT} (HTTPS, ${env.NODE_ENV}).`);
+        });
+        const mdns = advertiseAuroreLocal(env.PORT);
+        stopMdns = mdns?.stop ?? null;
+      } else {
+        server = app.listen(env.PORT, "127.0.0.1", () => {
+          console.log(`Aurore backend demarre sur 127.0.0.1:${env.PORT} (${env.NODE_ENV}) - poste unique.`);
+        });
+      }
+    } else {
+      server = app.listen(env.PORT, env.HOST, () => {
+        console.log(`Aurore backend demarre sur ${env.HOST}:${env.PORT} (${env.NODE_ENV})`);
+      });
+    }
 
     if (databaseMode === "portable") {
       const { schedulePortableBackups } = await import("./database/backupScheduler");
@@ -86,6 +126,13 @@ async function main() {
       if (shuttingDown) return;
       shuttingDown = true;
       console.log(`Arret du backend demande (${reason})...`);
+      if (stopMdns) {
+        try {
+          stopMdns();
+        } catch (error) {
+          console.error("Erreur lors de l'arret de la publication mDNS :", error);
+        }
+      }
       server.close(async (closeErr) => {
         if (closeErr) {
           console.error("Erreur lors de la fermeture du serveur HTTP :", closeErr);

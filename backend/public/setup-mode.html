@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aurore — Configuration initiale</title>
+  <link rel="icon" type="image/png" href="/favicon-256.png" />
+  <link rel="stylesheet" href="/style.css" />
+  <style>
+    body {
+      background-image:
+        radial-gradient(ellipse 900px 500px at 15% -10%, var(--bg-grad-1), transparent 60%),
+        radial-gradient(ellipse 700px 500px at 100% 10%, var(--bg-grad-2), transparent 55%);
+      background-repeat: no-repeat;
+      min-height: 100vh;
+    }
+    .mode-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 20px 0; }
+    @media (max-width: 720px) { .mode-choices { grid-template-columns: 1fr; } }
+    .mode-card {
+      text-align: left;
+      cursor: pointer;
+      border: 2px solid var(--border);
+      border-radius: 14px;
+      padding: 20px;
+      background: var(--panel);
+      transition: border-color 0.14s ease, box-shadow 0.14s ease;
+    }
+    .mode-card:hover { border-color: var(--accent); box-shadow: var(--shadow-sm); }
+    .mode-card.selected { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-tint); }
+    .mode-card h3 { margin: 0 0 6px; }
+    .mode-card p { margin: 0; font-size: 0.88rem; color: var(--muted); }
+    .mode-card ul { margin: 10px 0 0; padding-left: 18px; font-size: 0.85rem; color: var(--text); }
+    .mode-card ul li { margin-bottom: 4px; }
+  </style>
+</head>
+<body>
+  <div class="page licence-screen" style="max-width: 680px;">
+    <div style="text-align:center; margin-bottom:8px;">
+      <img src="/logo-aurore-login.png" alt="Aurore" style="max-width:180px;" onerror="this.style.display='none'" />
+      <h1 style="margin-top:8px; margin-bottom:0;">Configuration initiale</h1>
+      <p class="muted">Comment ce poste va-t-il être utilisé ?</p>
+    </div>
+
+    <div id="error" class="error"></div>
+
+    <div class="card" id="connection-info-card" style="display:none;">
+      <h2 style="margin-top:0;">Informations de connexion</h2>
+      <p class="muted">À communiquer aux autres postes du cabinet pour qu'ils rejoignent Aurore.</p>
+      <table style="margin-top:10px;">
+        <tr><th style="text-align:left; padding:4px 12px 4px 0;">Adresse (nom d'hôte)</th><td><code id="info-hostname"></code></td></tr>
+        <tr><th style="text-align:left; padding:4px 12px 4px 0;">Adresse (IP directe)</th><td><code id="info-ip"></code></td></tr>
+        <tr><th style="text-align:left; padding:4px 12px 4px 0;">Port</th><td><code id="info-port"></code></td></tr>
+      </table>
+      <p class="muted" style="font-size:0.85rem; margin-top:10px;">
+        Utiliser l'adresse par nom d'hôte en priorité (fonctionne même si
+        l'IP change) ; l'adresse IP directe reste une solution de secours si
+        le réseau du cabinet bloque la résolution mDNS. Voir
+        <code>README-LOT6.md</code>.
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="mode-choices">
+        <div class="mode-card" id="card-standalone" data-mode="standalone">
+          <h3>Poste unique</h3>
+          <p>Aurore fonctionne uniquement sur cet ordinateur.</p>
+          <ul>
+            <li>Aucun accès depuis un autre poste</li>
+            <li>Aucune configuration réseau nécessaire</li>
+            <li>Recommandé par défaut</li>
+          </ul>
+        </div>
+        <div class="mode-card" id="card-reseau" data-mode="reseau">
+          <h3>Serveur réseau</h3>
+          <p>Ce poste sert Aurore aux autres ordinateurs du cabinet.</p>
+          <ul>
+            <li>Les autres postes se connectent via leur navigateur</li>
+            <li>Nécessite une configuration réseau (pare-feu)</li>
+            <li>Voir <code>README-LOT6.md</code> pour la procédure complète</li>
+          </ul>
+        </div>
+      </div>
+
+      <div id="warning-reseau" class="licence-status-box grace" style="display:none;">
+        En mode réseau, l'application sera accessible par tous les postes de
+        votre réseau local (Wi-Fi/câblé du cabinet). Assurez-vous que ce
+        réseau est privé et sécurisé.
+      </div>
+
+      <button type="button" id="confirm-btn" style="width:100%; margin-top:16px;" disabled>
+        Confirmer
+      </button>
+    </div>
+
+    <div class="card" id="done-card" style="display:none;">
+      <h2 style="margin-top:0;">Configuration enregistrée</h2>
+      <p id="done-message"></p>
+      <p class="muted">Veuillez fermer puis rouvrir Aurore pour appliquer ce changement.</p>
+      <div id="reseau-next-steps" style="display:none;">
+        <p class="muted" style="margin-top:16px;">
+          Étapes suivantes pour le mode réseau (voir <code>README-LOT6.md</code>) :
+        </p>
+        <ul class="muted" style="font-size:0.88rem;">
+          <li>Exécuter <code>installer/firewall-rule.ps1</code> sur ce poste (ouvre le port sur le profil réseau privé uniquement)</li>
+          <li>Redémarrer Aurore : le certificat HTTPS local sera généré automatiquement</li>
+          <li>Importer le certificat sur chaque poste client (voir <code>installer/import-cert-instructions.md</code>)</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/setup-mode.js"></script>
+</body>
+</html>
