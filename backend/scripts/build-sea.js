@@ -444,6 +444,14 @@ function copyCompanionFiles() {
 
   copyDir(path.join(ROOT, "public"), path.join(OUT, "public"));
 
+  // package.json (Lot 8) : uniquement pour son champ "version", lu par
+  // security/licenceManager.ts (phone-home) et routes/appInfo.ts (ecran
+  // "A propos") via appRoot() - jamais copie jusqu'ici, ces deux lectures
+  // echouaient donc silencieusement dans le binaire empaquete (repli sur
+  // "0.0.0-inconnue"). Jamais les scripts/dependances (sans interet et
+  // potentiellement verbeux une fois empaquete).
+  fs.copyFileSync(path.join(ROOT, "package.json"), path.join(OUT, "package.json"));
+
   // Lot 2 (Postgres portable) : binaires prepares par
   // `npm run postgres:download-binaries` (voir scripts/download-postgres-binaries.js,
   // non commis - backend/vendor/ est gitignore) et script de schema genere

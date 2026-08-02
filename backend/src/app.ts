@@ -23,6 +23,7 @@ import { huissiersRouter } from "./routes/huissiers";
 import { adminRouter } from "./routes/admin";
 import { licenceRouter } from "./routes/licence";
 import { networkInfoRouter } from "./routes/networkInfo";
+import { appInfoRouter } from "./routes/appInfo";
 import { globalApiLimiter } from "./middleware/rateLimit";
 import { requireLicence } from "./middleware/requireLicence";
 
@@ -48,6 +49,9 @@ app.use(licenceRouter);
 // de deploiement) et pour que les postes clients du reseau puissent lire
 // l'IP/le nom d'hote du serveur.
 app.use(networkInfoRouter);
+// Lot 8 : "A propos" (numero de version) - meme raisonnement que
+// network-info ci-dessus, information publique/non sensible.
+app.use(appInfoRouter);
 // A partir d'ici, toute route /api/* (sauf /api/licence/*, /api/network-info*
 // et /health, deja servies ci-dessus) est bloquee si la licence locale est
 // invalide/expiree au-dela de la periode de grace - voir
