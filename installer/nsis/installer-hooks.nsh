@@ -51,3 +51,48 @@
   ; Rien de special requis avant la copie des fichiers - conserve pour
   ; completude/coherence avec les autres macros de hook Tauri.
 !macroend
+
+; ============================================================================
+; Desinstallation (Lot 8) : choix explicite conserver/supprimer les donnees.
+;
+; L'installeur NSIS demande deja, par defaut, "Voulez-vous vraiment
+; desinstaller Aurore ?" AVANT que ce hook ne s'execute - la question
+; ci-dessous concerne UNIQUEMENT les donnees du cabinet (base de donnees
+; portable, cle de chiffrement, licence, sauvegardes - tout ce qui vit dans
+; $APPDATA\Aurore, jamais dans $INSTDIR qui ne contient que le programme
+; lui-meme). Deux confirmations bien distinctes, jamais fusionnees, et
+; JAMAIS de suppression de donnees sans un second "Oui" explicite - voir
+; README-LOT8.md et le prompt de ce lot ("ne jamais supprimer la base de
+; donnees sans confirmation explicite et distincte").
+; ============================================================================
+
+!macro NSIS_HOOK_PREUNINSTALL
+  MessageBox MB_YESNO|MB_ICONQUESTION \
+    "Voulez-vous conserver les données de votre cabinet (dossiers, clients, documents générés) pour une éventuelle réinstallation future ?$\r$\n$\r$\nOui = conserver ces données sur ce disque (recommandé)$\r$\nNon = tout supprimer définitivement" \
+    IDYES aurore_keep_data
+
+  ; Deuxieme confirmation, distincte et plus explicite - jamais de
+  ; suppression sur un simple "Non" a la question ci-dessus, qui pourrait
+  ; etre un clic hâtif. Le "Non" par defaut ci-dessous conserve les
+  ; donnees si l'utilisateur hesite ou ferme la boite par erreur.
+  MessageBox MB_YESNO|MB_ICONEXCLAMATION|MB_DEFBUTTON2 \
+    "ATTENTION : ceci supprimera DÉFINITIVEMENT tous les dossiers, clients et documents enregistrés dans Aurore sur cet ordinateur. Cette action est IRRÉVERSIBLE.$\r$\n$\r$\nConfirmez-vous la suppression complète des données ?" \
+    IDYES aurore_delete_data
+  Goto aurore_keep_data
+
+  aurore_delete_data:
+    RMDir /r "$APPDATA\Aurore"
+    DetailPrint "Donnees Aurore (base, cle de chiffrement, licence, sauvegardes) supprimees de $APPDATA\Aurore."
+    Goto aurore_data_choice_done
+
+  aurore_keep_data:
+    DetailPrint "Donnees Aurore conservees dans $APPDATA\Aurore (reinstallation future possible)."
+
+  aurore_data_choice_done:
+!macroend
+
+!macro NSIS_HOOK_POSTUNINSTALL
+  ; Rien d'autre a faire ici : le choix conserver/supprimer est deja
+  ; traite dans NSIS_HOOK_PREUNINSTALL, avant la suppression des fichiers
+  ; du programme lui-meme.
+!macroend
