@@ -143,6 +143,18 @@ model Cabinet {
   // la connexion est bloquee comme une suspension, jusqu'a ce que la
   // plateforme fixe une nouvelle date future.
   essaiExpireLe                       DateTime? @map("essai_expire_le")
+  // Lot 3 : miroir en base de la licence locale installee sur le poste de
+  // ce cabinet (source de verite reelle = %APPDATA%/Aurore/licence.lic,
+  // voir server/src/security/licenceManager.ts) - sert uniquement a la
+  // visibilite admin/support, jamais a la decision d'acces elle-meme, qui
+  // reste toujours evaluee localement a partir du fichier. licenceId est un
+  // identifiant derive localement (pas un champ du fichier de licence
+  // signe), empreinteMachineAutorisee est deja un hash SHA-256 (jamais
+  // l'identifiant materiel brut).
+  licenceId                           String?   @map("licence_id")
+  licenceModeVerification             String?   @map("licence_mode_verification")
+  licenceDateExpiration               DateTime? @map("licence_date_expiration")
+  empreinteMachineAutorisee           String?   @map("empreinte_machine_autorisee")
   createdAt                           DateTime  @default(now()) @map("created_at")
 
   users         User[]
