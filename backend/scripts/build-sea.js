@@ -302,9 +302,32 @@ function copyDir(src, dest) {
 }
 
 function copyCompanionFiles() {
-  log("Copie des fichiers compagnons (public/, .env, node_modules partiel)");
+  log("Copie des fichiers compagnons (public/, .env, node_modules partiel, postgres portable)");
 
   copyDir(path.join(ROOT, "public"), path.join(OUT, "public"));
+
+  // Lot 2 (Postgres portable) : binaires prepares par
+  // `npm run postgres:download-binaries` (voir scripts/download-postgres-binaries.js,
+  // non commis - backend/vendor/ est gitignore) et script de schema genere
+  // par `npm run prisma:portable-sql`. Absents en mode DATABASE_MODE=externe
+  // (VPS, comportement du Lot 1 inchange) : on les copie s'ils existent,
+  // sans faire echouer le build sinon (l'app peut toujours tourner en mode
+  // externe sans ces fichiers).
+  const vendorPostgresDir = path.join(ROOT, "vendor", "postgres");
+  if (fs.existsSync(vendorPostgresDir)) {
+    copyDir(vendorPostgresDir, path.join(OUT, "postgres"));
+  } else {
+    console.warn(
+      "[build-sea] backend/vendor/postgres absent (lance `npm run postgres:download-binaries` au prealable) - " +
+        "DATABASE_MODE=portable ne fonctionnera pas dans ce binaire, DATABASE_MODE=externe reste inchange."
+    );
+  }
+
+  const portableSchemaSql = path.join(ROOT, "prisma", "portable-init.sql");
+  if (fs.existsSync(portableSchemaSql)) {
+    fs.mkdirSync(path.join(OUT, "prisma"), { recursive: true });
+    fs.copyFileSync(portableSchemaSql, path.join(OUT, "prisma", "portable-init.sql"));
+  }
 
   const envFile = path.join(ROOT, ".env");
   if (fs.existsSync(envFile)) {
