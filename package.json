@@ -1,0 +1,16 @@
+{
+  "name": "aurore-desktop-shell",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Coquille desktop Tauri pour Aurore (Lot 1 : sidecar Node SEA + packaging).",
+  "scripts": {
+    "backend:build": "npm --prefix backend run build:sea",
+    "sidecar:prepare": "node scripts/prepare-sidecar.js",
+    "tauri": "tauri",
+    "tauri:dev": "npm run backend:build && npm run sidecar:prepare && tauri dev",
+    "tauri:build": "npm run backend:build && npm run sidecar:prepare && tauri build"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}

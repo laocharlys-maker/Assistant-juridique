@@ -1,0 +1,15 @@
+[package]
+name = "aurore-desktop"
+version = "0.1.0"
+description = "Coquille desktop Tauri pour Aurore : lance le backend Express/TS empaquete en executable Node SEA comme sidecar et affiche son interface dans une webview."
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-shell = "2"
+# Client HTTP synchrone minimal (pas de runtime async a gerer) pour le
+# health-check du sidecar avant d'afficher l'interface reelle.
+ureq = "2"
