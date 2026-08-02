@@ -6,7 +6,12 @@ generator client {
 datasource db {
   provider   = "postgresql"
   url        = env("DATABASE_URL")
-  extensions = [vector]
+  // pgcrypto (Lot 2bis) : disponible sur l'instance pour un usage futur
+  // eventuel (rotation de cle, primitives cryptographiques cote SQL) - le
+  // chiffrement au repos des champs sensibles ci-dessous est fait cote
+  // application (Node, AES-256-GCM) et non via pgcrypto. Voir
+  // README-LOT2BIS.md pour le choix (a) vs (b).
+  extensions = [vector, pgcrypto]
 }
 
 enum UserRole {
@@ -239,12 +244,17 @@ model AccesSupplementaire {
   @@map("acces_supplementaires")
 }
 
+// Champs marques [chiffre-au-repos] : chiffres/dechiffres de facon
+// transparente par l'extension Prisma security/prismaEncryption.ts (Lot
+// 2bis, AES-256-GCM cote application) - stockage inchange (String/Json?),
+// jamais utilises dans un WHERE ou un ORDER BY cote SQL. Voir
+// README-LOT2BIS.md.
 model Client {
   id        String   @id @default(uuid())
   cabinetId String   @map("cabinet_id")
-  nom       String
-  email     String?
-  telephone String?
+  nom       String // [chiffre-au-repos]
+  email     String? // [chiffre-au-repos]
+  telephone String? // [chiffre-au-repos]
   notes     String?
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -263,11 +273,11 @@ model Client {
   // Numero de piece d'identite (CNI, passeport...) - utilise notamment dans
   // les actes d'huissier (assignation) qui doivent identifier precisement
   // le demandeur.
-  numeroPieceIdentite   String?   @map("numero_piece_identite")
-  quartierResidence     String?   @map("quartier_residence")
-  rue                   String?
-  autrePrecision        String?   @map("autre_precision")
-  maison                String?
+  numeroPieceIdentite   String?   @map("numero_piece_identite") // [chiffre-au-repos]
+  quartierResidence     String?   @map("quartier_residence") // [chiffre-au-repos]
+  rue                   String? // [chiffre-au-repos]
+  autrePrecision        String?   @map("autre_precision") // [chiffre-au-repos]
+  maison                String? // [chiffre-au-repos]
   situationMatrimoniale String?   @map("situation_matrimoniale")
   fonction              String?
   entreprise            String?
@@ -434,7 +444,7 @@ model Action {
   dossierId             String       @map("dossier_id")
   typeAction            TypeAction   @map("type_action")
   canal                 Canal
-  contenuGenere         String?      @map("contenu_genere")
+  contenuGenere         String?      @map("contenu_genere") // [chiffre-au-repos]
   dateAudience          DateTime?    @map("date_audience")
   prochaineAudience     DateTime?    @map("prochaine_audience")
   piecesPrevoir         String?      @map("pieces_prevoir")
@@ -460,7 +470,7 @@ model Action {
   // meme formalisme juridique dans les exports Word/PDF locaux (voir
   // documentFormalisme.ts). Absent pour les types de documents sans
   // formalisme specifique (recherche, traduction, resume...).
-  champsDocument        Json?        @map("champs_document")
+  champsDocument        Json?        @map("champs_document") // [chiffre-au-repos]
   // Nom "humain" du document genere (ex: "Assignation_KODJO Marcelline
   // contre AGBODJAN Serge") - distingue chaque document du meme type par
   // les noms des parties, utilise pour le titre du Google Doc (n8n) et pour
