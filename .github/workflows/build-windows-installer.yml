@@ -1,0 +1,82 @@
+name: Build installeur Windows Aurore
+
+# Se declenche automatiquement a chaque push sur lot8-installeur-final, et
+# peut aussi etre lance manuellement depuis l'onglet "Actions" de GitHub
+# (bouton "Run workflow") sans avoir besoin d'un nouveau commit - voir
+# README-LOT8.md pour la marche a suivre pas-a-pas, sans ligne de commande.
+on:
+  push:
+    branches:
+      - lot8-installeur-final
+  workflow_dispatch: {}
+
+jobs:
+  build-windows-installer:
+    name: Compiler l'installeur .exe
+    runs-on: windows-latest
+
+    steps:
+      - name: Recuperer le code
+        uses: actions/checkout@v4
+
+      - name: Installer Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Installer Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      # Conserve le cache Cargo (dependances Rust deja compilees) entre les
+      # executions - accelere fortement les compilations suivantes (la
+      # toute premiere reste lente, c'est normal).
+      - name: Mettre en cache les dependances Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "src-tauri -> target"
+
+      - name: Installer le CLI Tauri + dependances de la coquille desktop
+        run: npm install
+
+      - name: Installer les dependances du backend
+        working-directory: backend
+        run: npm ci
+
+      # Backend compile, obfusque (Lot 7) et empaquete en executable Node
+      # SEA (Lot 1) - voir backend/scripts/build-sea.js. N'inclut PAS
+      # encore les binaires PostgreSQL portables (npm run
+      # postgres:download-binaries, Lot 2) : cette premiere version du
+      # pipeline se concentre sur la chaine de compilation demandee
+      # explicitement (build:sea + tauri build) - voir la note "Limite
+      # connue" dans README-LOT8.md pour la suite prevue.
+      - name: Compiler le backend (build:sea, avec obfuscation)
+        working-directory: backend
+        run: npm run build:sea
+
+      # Copie l'executable backend vers src-tauri/binaries/ (convention de
+      # nommage des sidecars Tauri), puis compile et empaquette
+      # l'installeur NSIS complet - voir package.json (racine),
+      # script "tauri:build".
+      - name: Preparer le sidecar et compiler l'installeur NSIS
+        run: npm run sidecar:prepare && npx tauri build
+
+      - name: Lire le numero de version (pour le nom du fichier telecharge)
+        id: version
+        shell: pwsh
+        run: |
+          $json = Get-Content -Raw -Path "src-tauri/tauri.conf.json" | ConvertFrom-Json
+          $version = $json.version
+          $date = Get-Date -Format "yyyy-MM-dd"
+          Write-Output "version=$version" >> $env:GITHUB_OUTPUT
+          Write-Output "date=$date" >> $env:GITHUB_OUTPUT
+
+      # Rend le fichier .exe telechargeable depuis l'onglet "Actions" de
+      # GitHub (voir README-LOT8.md pour la procedure de telechargement,
+      # sans ligne de commande). Conserve 30 jours par defaut.
+      - name: Publier l'installeur en telechargement
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aurore-Installeur-Windows-v${{ steps.version.outputs.version }}-${{ steps.version.outputs.date }}
+          path: src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: error
+          retention-days: 30
