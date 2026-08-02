@@ -60,6 +60,11 @@ enum StatutAction {
   en_attente_validation
   valide
   envoye
+  // Lot 5 : echec fail-safe de la pseudonymisation (token orphelin detecte
+  // apres reponse du LLM, ou toute anomalie equivalente) - jamais confondu
+  // avec "brouillon", pour que le cabinet distingue clairement un document
+  // qui n'a jamais ete genere avec succes. Voir README-LOT5.md.
+  echec_generation
 }
 
 enum UniteDelai {
@@ -483,6 +488,12 @@ model Action {
   // documentFormalisme.ts). Absent pour les types de documents sans
   // formalisme specifique (recherche, traduction, resume...).
   champsDocument        Json?        @map("champs_document") // [chiffre-au-repos]
+  // Lot 5 : true si ce document a ete genere via le module de
+  // pseudonymisation (server/src/security/anonymizer.ts) avant l'appel LLM
+  // - false pour les types d'actes qui n'envoient aucune donnee
+  // identifiante au LLM (assignation, conclusions...) ou generes avant ce
+  // lot. Purement informatif/tracabilite, n'influence aucune logique.
+  donneesPseudonymisees Boolean      @default(false) @map("donnees_pseudonymisees")
   // Nom "humain" du document genere (ex: "Assignation_KODJO Marcelline
   // contre AGBODJAN Serge") - distingue chaque document du meme type par
   // les noms des parties, utilise pour le titre du Google Doc (n8n) et pour

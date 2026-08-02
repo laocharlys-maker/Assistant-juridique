@@ -17,7 +17,7 @@ CREATE TYPE "TypeAction" AS ENUM ('notes', 'redac', 'jurisprudence', 'recherche_
 CREATE TYPE "StatutExecution" AS ENUM ('succes', 'erreur');
 
 -- CreateEnum
-CREATE TYPE "StatutAction" AS ENUM ('brouillon', 'en_attente_validation', 'valide', 'envoye');
+CREATE TYPE "StatutAction" AS ENUM ('brouillon', 'en_attente_validation', 'valide', 'envoye', 'echec_generation');
 
 -- CreateEnum
 CREATE TYPE "UniteDelai" AS ENUM ('jours', 'mois');
@@ -241,6 +241,7 @@ CREATE TABLE "actions" (
     "envoye_at" TIMESTAMP(3),
     "champs_formulaire" JSONB,
     "champs_document" JSONB,
+    "donnees_pseudonymisees" BOOLEAN NOT NULL DEFAULT false,
     "nom_document" TEXT,
     "created_by" TEXT NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,

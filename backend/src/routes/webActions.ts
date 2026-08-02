@@ -9,6 +9,8 @@ import { callN8nWebhook, webhookForAction } from "../services/n8n";
 import { logAuditStep } from "../services/audit";
 import { espace } from "../services/documentFormalisme";
 import { webActionFormSchema } from "../schemas/webForms";
+import { redigerAvecPseudonymisation, type ChampIdentifiantInput } from "../security/anonymizer";
+import { OrphanTokenError } from "../security/deanonymizer";
 import {
   NOTES_SYSTEM_PROMPT,
   NOTES_STRATEGIE_SUGGESTION_SYSTEM_PROMPT,
@@ -518,11 +520,29 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
     // plus du contenu ActionOutput standard (ex: nom du defendeur et
     // juridiction pour une assignation).
     let extraWebhookFields: Record<string, unknown> = {};
+    // Lot 5 : true seulement si la branche empruntee ci-dessous a
+    // effectivement tokenise au moins une donnee identifiante avant l'appel
+    // LLM (voir security/anonymizer.ts) - reste false pour les types
+    // d'actes qui n'envoient aucune identite au LLM (assignation,
+    // conclusions, note de plaidoirie - voir README-LOT5.md) ou les
+    // recherches/traductions/veilles.
+    let donneesPseudonymisees = false;
 
     if (form.type_action === "notes") {
-      const redigé = await llm.redact(
-        NOTES_SYSTEM_PROMPT,
-        buildNotesUserPrompt({
+      // Lot 5 : nomJuge/nomGreffier/nomPartieAdverse et le nom du client
+      // sont les seuls champs identifiants envoyes au LLM pour ce type
+      // d'acte (voir README-LOT5.md) - jamais le contexte narratif
+      // (rappelProcedure/deroulementDebats/decision), qui n'est pas
+      // tokenise (pas de detection heuristique dans du texte libre).
+      const champsIdentifiantsNotes: ChampIdentifiantInput[] = [
+        { champ: "nomClient", role: "PARTIE", valeur: form.nom_client },
+        { champ: "nomPartieAdverse", role: "PARTIE", valeur: form.nom_partie_adverse },
+        { champ: "nomJuge", role: "JUGE", valeur: form.nom_juge },
+        { champ: "nomGreffier", role: "GREFFIER", valeur: form.nom_greffier },
+      ];
+      const { texteFinal: redigé, donneesPseudonymisees: dpNotes } = await redigerAvecPseudonymisation({
+        champsIdentifiants: champsIdentifiantsNotes,
+        promptTexte: buildNotesUserPrompt({
           numeroDossier: form.numero_dossier,
           nomAffaire: form.nom_affaire,
           nomClient: form.nom_client,
@@ -539,8 +559,11 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
           strategieSuite: form.strategie_suite,
           prochaineAudience: form.prochaine_audience,
           piecesPrevoir: form.pieces_prevoir,
-        })
-      );
+        }),
+        redact: (p) => llm.redact(NOTES_SYSTEM_PROMPT, p),
+        typeActionLog: "notes",
+      });
+      donneesPseudonymisees = dpNotes;
 
       const dossier = await prisma.dossier.upsert({
         where: {
@@ -1064,9 +1087,14 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
         argumentaire: redigé,
       };
     } else if (form.type_action === "mise_en_demeure") {
-      const exposeDesFaitsMED = await llm.redact(
-        MISE_EN_DEMEURE_SYSTEM_PROMPT,
-        buildMiseEnDemeureUserPrompt({
+      // Lot 5 : seul le destinataire (partie adverse) est une donnee
+      // identifiante envoyee au LLM pour ce type d'acte.
+      const champsIdentifiantsMED: ChampIdentifiantInput[] = [
+        { champ: "destinataire", role: "PARTIE", valeur: form.destinataire },
+      ];
+      const { texteFinal: exposeDesFaitsMED, donneesPseudonymisees: dpMED } = await redigerAvecPseudonymisation({
+        champsIdentifiants: champsIdentifiantsMED,
+        promptTexte: buildMiseEnDemeureUserPrompt({
           nomAffaire: form.nom_affaire,
           destinataire: form.destinataire,
           contexte: form.contexte,
@@ -1074,8 +1102,11 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
           descriptionObligation: form.description_obligation,
           dateEcheancePrevue: form.date_echeance_prevue,
           montantEngage: form.montant_engage,
-        })
-      );
+        }),
+        redact: (p) => llm.redact(MISE_EN_DEMEURE_SYSTEM_PROMPT, p),
+        typeActionLog: "mise_en_demeure",
+      });
+      donneesPseudonymisees = dpMED;
 
       const dossierLookupMED = await findOrCreateDossier({
         cabinetId: auth!.cabinetId,
@@ -1363,9 +1394,14 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
         argumentaire: traduit,
       };
     } else if (form.type_action === "plainte") {
-      const redigeBrutPlainte = await llm.redact(
-        PLAINTE_SYSTEM_PROMPT,
-        buildPlainteUserPrompt({
+      // Lot 5 : seul le nom du mis en cause (defendeur) est une donnee
+      // identifiante envoyee au LLM pour ce type d'acte.
+      const champsIdentifiantsPlainte: ChampIdentifiantInput[] = [
+        { champ: "nomDefendeur", role: "PARTIE", valeur: form.nom_defendeur },
+      ];
+      const { texteFinal: redigeBrutPlainte, donneesPseudonymisees: dpPlainte } = await redigerAvecPseudonymisation({
+        champsIdentifiants: champsIdentifiantsPlainte,
+        promptTexte: buildPlainteUserPrompt({
           nomAffaire: form.nom_affaire || "non précisée",
           nomDefendeur: form.nom_defendeur,
           contexte: form.contexte,
@@ -1374,8 +1410,11 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
           descriptionAccord: form.description_accord,
           montantEngage: form.montant_engage,
           fondementJuridique: form.fondement_juridique,
-        })
-      );
+        }),
+        redact: (p) => llm.redact(PLAINTE_SYSTEM_PROMPT, p),
+        typeActionLog: "plainte",
+      });
+      donneesPseudonymisees = dpPlainte;
 
       const blocsPlainte = decouperBlocsMarques(redigeBrutPlainte, ["EXPOSE_DES_FAITS", "DISCUSSION_JURIDIQUE"]);
       const exposeDesFaitsPlainte = blocsPlainte.EXPOSE_DES_FAITS ?? "";
@@ -1510,9 +1549,17 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
         argumentaire: redigéPlainte,
       };
     } else if (form.type_action === "contrat") {
-      const redigeBrutContrat = await llm.redact(
-        CONTRAT_SYSTEM_PROMPT,
-        buildContratUserPrompt({
+      // Lot 5 : les deux parties et leurs informations d'etat civil/RCCM-IFU
+      // sont les donnees identifiantes envoyees au LLM pour ce type d'acte.
+      const champsIdentifiantsContrat: ChampIdentifiantInput[] = [
+        { champ: "partie1", role: "PARTIE", valeur: form.partie_1 },
+        { champ: "partie2", role: "PARTIE", valeur: form.partie_2 },
+        { champ: "informationsPartie1", role: "IDENTIFIANT", valeur: form.informations_partie_1 },
+        { champ: "informationsPartie2", role: "IDENTIFIANT", valeur: form.informations_partie_2 },
+      ];
+      const { texteFinal: redigeBrutContrat, donneesPseudonymisees: dpContrat } = await redigerAvecPseudonymisation({
+        champsIdentifiants: champsIdentifiantsContrat,
+        promptTexte: buildContratUserPrompt({
           typeContrat: form.type_contrat ?? "non précisé",
           contexte: form.contexte,
           partie1: form.partie_1 ?? "non précisé",
@@ -1534,8 +1581,11 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
           estAvenant: form.est_avenant ?? false,
           referenceContratInitial: form.reference_contrat_initial,
           objetAvenant: form.objet_avenant,
-        })
-      );
+        }),
+        redact: (p) => llm.redact(CONTRAT_SYSTEM_PROMPT, p),
+        typeActionLog: "contrat",
+      });
+      donneesPseudonymisees = dpContrat;
 
       const redigé =
         form.clause_force_majeure && !form.est_avenant
@@ -1594,9 +1644,14 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
       };
       const objetNotif = form.objet || OBJETS_PAR_DEFAUT[form.type_notification];
 
-      const redigé = await llm.redact(
-        NOTIFICATION_DATE_SYSTEM_PROMPT,
-        buildNotificationDateUserPrompt({
+      // Lot 5 : seul le destinataire est une donnee identifiante envoyee au
+      // LLM pour ce type d'acte.
+      const champsIdentifiantsNotif: ChampIdentifiantInput[] = [
+        { champ: "destinataire", role: "PARTIE", valeur: form.destinataire },
+      ];
+      const { texteFinal: redigé, donneesPseudonymisees: dpNotif } = await redigerAvecPseudonymisation({
+        champsIdentifiants: champsIdentifiantsNotif,
+        promptTexte: buildNotificationDateUserPrompt({
           nomAffaire: form.nom_affaire || "non précisée",
           destinataire: form.destinataire,
           objet: objetNotif,
@@ -1614,8 +1669,11 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
           instructionsCloture: form.instructions_cloture,
           contexte: form.contexte,
           precisions: form.precisions,
-        })
-      );
+        }),
+        redact: (p) => llm.redact(NOTIFICATION_DATE_SYSTEM_PROMPT, p),
+        typeActionLog: "notification_date",
+      });
+      donneesPseudonymisees = dpNotif;
 
       const dossierLookupNotif = await findOrCreateDossier({
         cabinetId: auth!.cabinetId,
@@ -1679,17 +1737,28 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
       };
     } else if (form.type_action === "requete") {
       const destinataireComposeRequete = composeDestinataire(form.destinataire, form.nom_juridiction, form.ville);
-      const redigeBrutRequete = await llm.redact(
-        REQUETE_SYSTEM_PROMPT,
-        buildRequeteUserPrompt({
+      // Lot 5 : le destinataire compose (peut contenir un nom de
+      // confrere/partie via le cas "Maître" de composeDestinataire, pas
+      // seulement une formule institutionnelle) est tokenise par
+      // precaution - sans effet si c'est une formule institutionnelle,
+      // protecteur si c'est un nom reel.
+      const champsIdentifiantsRequete: ChampIdentifiantInput[] = [
+        { champ: "destinataire", role: "PARTIE", valeur: destinataireComposeRequete },
+      ];
+      const { texteFinal: redigeBrutRequete, donneesPseudonymisees: dpRequete } = await redigerAvecPseudonymisation({
+        champsIdentifiants: champsIdentifiantsRequete,
+        promptTexte: buildRequeteUserPrompt({
           nomAffaire: form.nom_affaire,
           destinataire: destinataireComposeRequete,
           objet: form.objet,
           contexte: form.contexte,
           fondementJuridique: form.fondement_juridique,
           montantEngage: form.montant_engage,
-        })
-      );
+        }),
+        redact: (p) => llm.redact(REQUETE_SYSTEM_PROMPT, p),
+        typeActionLog: "requete",
+      });
+      donneesPseudonymisees = dpRequete;
 
       const blocsRequete = decouperBlocsMarques(redigeBrutRequete, ["EXPOSE_DES_FAITS", "DISCUSSION_JURIDIQUE"]);
       const exposeDesFaitsRequete = blocsRequete.EXPOSE_DES_FAITS ?? "";
@@ -1793,17 +1862,24 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
       };
     } else {
       const destinataireComposeOrdonnance = composeDestinataire(form.destinataire, form.nom_juridiction, form.ville);
-      const redigeBrutOrdonnance = await llm.redact(
-        PROJET_ORDONNANCE_SYSTEM_PROMPT,
-        buildProjetOrdonnanceUserPrompt({
+      // Lot 5 : meme precaution que pour la Requete (voir plus haut).
+      const champsIdentifiantsOrdonnance: ChampIdentifiantInput[] = [
+        { champ: "destinataire", role: "PARTIE", valeur: destinataireComposeOrdonnance },
+      ];
+      const { texteFinal: redigeBrutOrdonnance, donneesPseudonymisees: dpOrdonnance } = await redigerAvecPseudonymisation({
+        champsIdentifiants: champsIdentifiantsOrdonnance,
+        promptTexte: buildProjetOrdonnanceUserPrompt({
           nomAffaire: form.nom_affaire,
           destinataire: destinataireComposeOrdonnance,
           objet: form.objet,
           contexte: form.contexte,
           fondementJuridique: form.fondement_juridique,
           montantEngage: form.montant_engage,
-        })
-      );
+        }),
+        redact: (p) => llm.redact(PROJET_ORDONNANCE_SYSTEM_PROMPT, p),
+        typeActionLog: "projet_ordonnance",
+      });
+      donneesPseudonymisees = dpOrdonnance;
 
       const blocsOrdonnance = decouperBlocsMarques(redigeBrutOrdonnance, ["MOTIFS"]);
       const motifsOrdonnance = blocsOrdonnance.MOTIFS ?? "";
@@ -1938,6 +2014,7 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
         // documentFormalisme.ts).
         champsDocument: extraWebhookFields as object,
         nomDocument,
+        donneesPseudonymisees,
         createdBy: auth!.userId,
       },
     });
@@ -1967,6 +2044,53 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
       n8nDispatched: n8nResult.ok,
     });
   } catch (error) {
+    if (error instanceof OrphanTokenError) {
+      // Fail-safe pseudonymisation (Lot 5) : AUCUN retry automatique (un
+      // seul appel LLM a deja ete effectue, jamais reessaye ici), et
+      // AUCUN contenu (ni en clair ni avec token visible) n'est persiste.
+      // On journalise uniquement des metadonnees non sensibles (jamais le
+      // prompt ni les valeurs reelles), et on trace l'echec sur une ligne
+      // Action dediee (statut "echec_generation", contenuGenere null) pour
+      // que le cabinet la retrouve dans son historique plutot que de voir
+      // la generation disparaitre silencieusement.
+      console.error(
+        `[pseudonymisation] Anomalie de securite lors de la generation (type=${form.type_action}, horodatage=${new Date().toISOString()}) - document non produit.`
+      );
+      // TypeScript ne peut pas savoir statiquement, a ce point du catch,
+      // que OrphanTokenError ne peut provenir que des branches qui
+      // possedent bien ces trois champs (voir redigerAvecPseudonymisation,
+      // jamais appelee pour jurisprudence/recherche_juridique/etc.) - accès
+      // defensif via un type partiel plutot qu'un cast vers le type union
+      // complet.
+      const formPourDossier = form as { numero_dossier?: string; nom_affaire?: string; nom_client?: string };
+      try {
+        const lookupEchec = await findOrCreateDossier({
+          cabinetId: auth!.cabinetId,
+          userId: auth!.userId,
+          numeroDossier: formPourDossier.numero_dossier,
+          nomAffaire: formPourDossier.nom_affaire,
+          nomClient: formPourDossier.nom_client,
+        });
+        if (lookupEchec.ok) {
+          await prisma.action.create({
+            data: {
+              dossierId: lookupEchec.dossier.id,
+              typeAction: form.type_action,
+              canal: "web",
+              statut: "echec_generation",
+              contenuGenere: null,
+              champsFormulaire: form as object,
+              createdBy: auth!.userId,
+            },
+          });
+        }
+      } catch (persistError) {
+        console.error("[pseudonymisation] impossible d'enregistrer la trace d'echec en base", persistError);
+      }
+      return res.status(422).json({
+        error: "Anomalie de sécurité détectée lors de la génération — document non produit.",
+      });
+    }
     console.error("Erreur inattendue sur /api/actions/web", error);
     return res.status(500).json({ error: "Erreur interne" });
   }
