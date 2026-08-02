@@ -10,6 +10,19 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = [] }
 tauri-plugin-shell = "2"
+# Auto-update (Lot 8) : plugin officiel Tauri. Configure en mode "dialog"
+# (voir tauri.conf.json, plugins.updater.dialog=true) - Tauri affiche
+# lui-meme une boite de dialogue native de confirmation avant tout
+# telechargement/application, ce qui satisfait "jamais de mise a jour
+# silencieuse" sans code JS personnalise dont la disponibilite ne peut pas
+# etre verifiee dans cet environnement (la fenetre affiche une page web
+# distante http://127.0.0.1:3000, pas les assets empaquetes par Tauri -
+# voir README-LOT8.md).
+tauri-plugin-updater = "2"
+# Boite de dialogue native pour demander confirmation avant toute mise a
+# jour (voir main.rs check_for_updates) - choisi plutot qu'une UI web
+# personnalisee pour la meme raison que ci-dessus.
+tauri-plugin-dialog = "2"
 # Client HTTP synchrone minimal (pas de runtime async a gerer) pour le
 # health-check du sidecar avant d'afficher l'interface reelle.
 ureq = "2"

@@ -15,6 +15,8 @@ use tauri_plugin_shell::process::CommandChild;
 use tauri_plugin_shell::process::CommandEvent;
 use tauri_plugin_shell::ShellExt;
 
+mod updater;
+
 /// Nom declare dans `bundle.externalBin` de tauri.conf.json (sans le
 /// suffixe de target triple, ajoute automatiquement par Tauri).
 const SIDECAR_NAME: &str = "aurore-backend";
@@ -44,6 +46,8 @@ fn app_url() -> String {
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_dialog::init())
         .manage(SidecarState(Mutex::new(None)))
         .setup(|app| {
             let handle = app.handle().clone();
@@ -112,6 +116,7 @@ fn main() {
                 .get_webview_window("main")
                 .expect("fenetre principale 'main' introuvable");
 
+            let handle_for_updater = handle.clone();
             std::thread::spawn(move || {
                 let health_url = health_url();
                 println!("[aurore] attente du health-check ({health_url})...");
@@ -123,6 +128,11 @@ fn main() {
                             );
                             let script = format!("window.location.replace({:?});", app_url());
                             let _ = window.eval(&script);
+                            // Verification de mise a jour (Lot 8) : lancee une
+                            // fois l'application reellement utilisable, jamais
+                            // avant - ne bloque jamais le demarrage normal (voir
+                            // updater.rs, entierement non-bloquant/best-effort).
+                            updater::check_for_updates(handle_for_updater);
                             return;
                         }
                         Ok(response) => {

@@ -74,7 +74,6 @@
       "endpoints": [
         "https://updates.aurore-app.bj/{{target}}/{{arch}}/{{current_version}}"
       ],
-      "dialog": false,
       "pubkey": "REMPLACER_PAR_LA_VRAIE_CLE_PUBLIQUE_ED25519_DE_MISE_A_JOUR"
     }
   }
