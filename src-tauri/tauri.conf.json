@@ -55,13 +55,12 @@
     "licenseFile": "../installer/LICENSE-EULA.txt",
     "windows": {
       "nsis": {
-        "license": "../installer/LICENSE-EULA.txt",
         "languages": ["French"],
         "displayLanguageSelector": false,
         "installMode": "currentUser",
         "installerIcon": "icons/icon.ico",
         "compression": "lzma",
-        "hooks": "../installer/nsis/installer-hooks.nsh"
+        "installerHooks": "../installer/nsis/installer-hooks.nsh"
       },
       "webviewInstallMode": {
         "type": "downloadBootstrapper",
