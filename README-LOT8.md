@@ -20,14 +20,88 @@ developpement. Consequence directe pour ce lot :
 | `docs-utilisateur/` | Redige integralement ; les captures d'ecran sont **des emplacements marques `[Capture d'ecran : ...]`**, a remplacer une fois un vrai installeur existe pour les prendre |
 | Test sur VM Windows vierge (snapshot avant/apres) | **Non fait** - aucun acces VM dans cet environnement |
 | Test utilisateur non-developpeur du parcours d'installation complet | **Non fait pour la partie installeur .exe** (n'existe pas encore) ; **fait** pour la partie web (bienvenue -> mode -> licence -> connexion), avec vous, lot par lot, depuis le debut de ce projet |
+| `.github/workflows/build-windows-installer.yml` | Syntaxe YAML **verifiee** (js-yaml) ; **jamais execute reellement** au moment de la redaction - premiere execution reelle a faire par vous depuis GitHub (voir section dediee ci-dessous) |
 
 En clair : tout le **code** demande par ce lot est ecrit, en suivant
 precisement les conventions Tauri v2/NSIS connues. Ce qui necessite une
 compilation reelle (le fichier `.exe` lui-meme) ne peut pas etre produit
-ni teste ici. La premiere compilation reelle devra se faire sur une
-machine avec Rust + Tauri CLI installes (voir "Procedure de build"
-ci-dessous), suivie imperativement du test sur VM vierge demande par le
-prompt de ce lot.
+ni teste ici. C'est exactement pour resoudre ce point qu'un pipeline
+GitHub Actions a ete ajoute (voir section suivante) : la compilation
+reelle se fait sur une machine Windows fournie par GitHub, sans rien
+installer sur votre propre ordinateur.
+
+## Compiler l'installeur automatiquement (GitHub Actions, sans rien installer)
+
+Un robot GitHub ("workflow") compile desormais le vrai fichier `.exe` a
+votre place, sur une machine Windows temporaire fournie par GitHub. Vous
+n'avez ni Rust, ni le CLI Tauri, ni aucun logiciel a installer vous-meme.
+
+**Important** : ce workflow (`.github/workflows/build-windows-installer.yml`)
+a ete ecrit et sa syntaxe verifiee, mais n'a encore jamais ete execute
+reellement sur GitHub au moment de la redaction de ce document (il faut
+qu'il tourne au moins une fois pour le confirmer). Voir "En cas d'echec"
+ci-dessous - c'est normal qu'un premier essai serve a reperer d'eventuels
+ajustements.
+
+### Déclencher la compilation (depuis votre navigateur, aucune ligne de commande)
+
+1. Allez sur la page du projet sur GitHub :
+   `https://github.com/laocharlys-maker/Assistant-juridique`
+2. Cliquez sur l'onglet **"Actions"** en haut de la page.
+3. Dans la liste a gauche, cliquez sur **"Build installeur Windows Aurore"**.
+4. Cliquez sur le bouton **"Run workflow"** (a droite, au-dessus de la
+   liste des executions passees).
+5. Une petite fenetre s'ouvre : verifiez que la branche selectionnee est
+   bien **`lot8-installeur-final`**, puis cliquez sur le bouton vert
+   **"Run workflow"**.
+
+`[Capture d'ecran : bouton "Run workflow" sur GitHub]`
+
+Une nouvelle ligne apparait en haut de la liste, avec un rond jaune
+clignotant (en cours). Vous pouvez fermer la page et revenir plus tard —
+rien a faire pendant ce temps.
+
+**Note** : la compilation se declenche aussi automatiquement a chaque
+nouvel envoi de code sur la branche `lot8-installeur-final` - vous n'avez
+alors rien a declencher vous-meme.
+
+### Temps d'attente a prevoir
+
+Environ **15 a 25 minutes** pour un premier lancement (tout doit etre
+telecharge/installe sur la machine temporaire de GitHub : Node.js, Rust,
+le CLI Tauri, NSIS...). Les lancements suivants sont generalement plus
+rapides (10 a 15 minutes), une partie des elements etant reutilisee d'une
+fois sur l'autre.
+
+### Télécharger le fichier .exe une fois terminé
+
+1. Retournez sur l'onglet **"Actions"**, cliquez sur l'execution terminee
+   (rond **vert** = reussi).
+2. Tout en bas de la page qui s'ouvre, une section **"Artifacts"** liste
+   un fichier nomme quelque chose comme
+   `Aurore-Installeur-Windows-v0.1.0-2026-08-15`.
+3. Cliquez dessus pour le telecharger (un fichier `.zip` contenant le
+   vrai `.exe` a l'interieur).
+
+`[Capture d'ecran : section "Artifacts" avec le fichier a telecharger]`
+
+Ce fichier reste disponible au telechargement pendant 30 jours.
+
+### En cas d'échec (rond rouge ❌)
+
+**Ne cherchez pas à corriger vous-même** — contentez-vous de récupérer le
+message d'erreur pour me le transmettre :
+
+1. Cliquez sur l'execution en echec (rond rouge) dans l'onglet "Actions".
+2. Cliquez sur l'etape qui a un symbole rouge dans la liste a gauche de la
+   page (par exemple "Compiler le backend" ou "Preparer le sidecar et
+   compiler l'installeur NSIS").
+3. Le texte qui s'affiche contient le detail de l'erreur — utilisez le
+   bouton de copie (icone presse-papier) en haut de ce bloc de texte, ou
+   faites une capture d'ecran complete.
+4. Envoyez-moi ce texte ou cette capture, avec le nom de l'etape concernee.
+
+`[Capture d'ecran : etape en echec avec le detail de l'erreur affiche]`
 
 ## Parcours web teste (le seul testable ici)
 
@@ -131,7 +205,16 @@ numero apparaisse dans le nom du fichier installeur ET dans l'ecran
 
 Liste explicite, pour ne rien oublier au premier vrai build :
 
-- [ ] Compiler sur une machine avec Rust + Tauri CLI installes
+- [ ] Declencher le workflow GitHub Actions au moins une fois et corriger
+      les eventuels echecs (voir ci-dessus - premiere execution reelle
+      jamais faite au moment de la redaction de ce document)
+- [ ] Ajouter au workflow le telechargement/compilation des binaires
+      PostgreSQL portables (`npm run postgres:download-binaries`,
+      necessite Visual Studio Build Tools pour pgvector - deja installes
+      par defaut sur les machines `windows-latest` de GitHub, contrairement
+      a cet environnement de developpement) : sans cette etape,
+      l'installeur produit actuellement par le workflow n'a pas de base de
+      donnees locale fonctionnelle (DATABASE_MODE=portable echouera)
 - [ ] Generer la vraie paire de cles de signature updater, remplacer le
       placeholder dans `tauri.conf.json`
 - [ ] Heberger un vrai endpoint de mise a jour a l'URL configuree
