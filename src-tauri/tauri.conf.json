@@ -43,7 +43,13 @@
       "../backend/dist-sea/node_modules": "node_modules",
       "../backend/dist-sea/.env": ".env",
       "../backend/dist-sea/postgres": "postgres",
-      "../backend/dist-sea/prisma": "prisma"
+      "../backend/dist-sea/prisma": "prisma",
+      "../installer/README-BITLOCKER.md": "README-BITLOCKER.md",
+      "../installer/import-cert-instructions.md": "import-cert-instructions.md",
+      "../installer/firewall-rule.ps1": "firewall-rule.ps1",
+      "../installer/enable-bitlocker.ps1": "enable-bitlocker.ps1",
+      "../installer/aurore-service-install.ps1": "aurore-service-install.ps1",
+      "../docs-utilisateur": "docs-utilisateur"
     },
     "licenseFile": "../installer/LICENSE-EULA.txt",
     "windows": {
