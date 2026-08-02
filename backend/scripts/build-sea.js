@@ -20,12 +20,27 @@ const path = require("node:path");
 const fs = require("node:fs");
 const { execFileSync } = require("node:child_process");
 const esbuild = require("esbuild");
+const JavaScriptObfuscator = require("javascript-obfuscator");
+const obfuscatorConfig = require("../obfuscator.config.js");
 
 const ROOT = path.join(__dirname, "..");
 const DIST = path.join(ROOT, "dist");
 const OUT = path.join(ROOT, "dist-sea");
+// Copie de travail de dist/ (code Aurore uniquement, ~0.6 Mo) sur laquelle
+// le shim SEA (__dirname/require des paquets externes, voir plus bas) puis
+// l'obfuscation (Lot 7) sont appliques AVANT le bundling esbuild - jamais
+// dist/ directement, qui doit rester le code source pur (utilise tel quel
+// par `npm start` en mode VPS/externe, sans obfuscation). Recreee a chaque
+// build.
+const WORK_DIR = path.join(ROOT, "dist-sea-obf-src");
+// Jamais livre avec le binaire client (voir tauri.conf.json bundle.resources,
+// qui ne reference que dist-sea/) - copie lisible (shimmee mais NON
+// obfusquee) du code Aurore, conservee uniquement en local pour deboguer un
+// crash de production a partir d'un rapport d'erreur (Lot 7, voir
+// README-LOT7.md "Deboguer un crash en production").
+const DEBUG_OUT = path.join(ROOT, "dist-sea-debug");
 const SEA_CONFIG = path.join(ROOT, "sea-config.json");
-const SEA_PATHS_FILE = path.join(DIST, "lib", "seaPaths.js");
+const SEA_PATHS_FILE = path.join(WORK_DIR, "lib", "seaPaths.js");
 
 // Dependances qui font des lectures disque relatives a leur propre
 // __dirname au runtime (fonts, moteur natif...) : on ne peut pas les
@@ -92,9 +107,15 @@ function escapeRegExp(text) {
  * chaque paquet de EXTERNAL_PACKAGES_WITH_ASSETS, le require("pkg") d'origine
  * en require(appRoot() + "/node_modules/pkg"), calcule au runtime.
  *
- * Applique via un plugin esbuild (onLoad) plutot qu'en pre-passe sur
- * disque : le fichier source compile (dist/) reste intact, seule la copie
- * chargee par esbuild pour le bundling est transformee.
+ * Applique en PRE-PASSE directement sur les fichiers de WORK_DIR (Lot 7),
+ * plutot qu'a l'interieur du plugin esbuild comme avant ce lot : ce
+ * remplacement de texte doit imperativement s'executer AVANT l'obfuscation
+ * (voir obfuscateWorkDir) - une fois les chaines litterales "@prisma/client"
+ * eventuellement deplacees dans le tableau de chaines de l'obfuscateur, ce
+ * regex ne les retrouverait plus. Le require(...) genere par ce shim
+ * lui-meme (__aurore_require(...)) reste lui parfaitement obfuscable sans
+ * probleme ensuite : sa valeur est resolue a l'execution, pas par un regex
+ * de build.
  */
 function shimFileSource(filePath, source) {
   if (filePath === SEA_PATHS_FILE) {
@@ -112,7 +133,7 @@ function shimFileSource(filePath, source) {
 
   let transformed = source;
   const fileDir = path.dirname(filePath);
-  const relDir = path.relative(DIST, fileDir).split(path.sep).join("/");
+  const relDir = path.relative(WORK_DIR, fileDir).split(path.sep).join("/");
   let seaPathsSpecifier = path
     .relative(fileDir, SEA_PATHS_FILE)
     .split(path.sep)
@@ -148,38 +169,155 @@ function shimFileSource(filePath, source) {
   return shimDecls + transformed;
 }
 
+function listJsFiles(dir) {
+  const files = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) files.push(...listJsFiles(full));
+    else if (entry.isFile() && entry.name.endsWith(".js")) files.push(full);
+  }
+  return files;
+}
+
 /**
- * Plugin esbuild : applique shimFileSource() a chaque fichier de dist/ au
- * moment ou esbuild le charge pour le bundling - dist/ lui-meme n'est
- * jamais modifie sur disque (reste le code source clair utilise tel quel
- * par `npm start` en mode VPS/externe).
+ * Prepare WORK_DIR (Lot 7) : copie de dist/ (code Aurore uniquement, jamais
+ * les node_modules vendus - voir README-LOT7.md "Pourquoi ne pas obfusquer
+ * le bundle complet") sur laquelle sont appliques, dans l'ordre, le shim SEA
+ * (__dirname/require des paquets externes - voir shimFileSource) PUIS
+ * l'obfuscation. dist/ lui-meme n'est jamais modifie (reste le code source
+ * clair utilise tel quel par `npm start` en mode VPS/externe).
  */
-function nativeDepsShimPlugin() {
-  return {
-    name: "aurore-sea-native-deps-shim",
-    setup(build) {
-      build.onLoad({ filter: /\.js$/ }, (args) => {
-        if (!args.path.startsWith(DIST)) return null;
-        const source = fs.readFileSync(args.path, "utf8");
-        const transformed = shimFileSource(args.path, source);
-        if (transformed === null) return null;
-        return { contents: transformed, loader: "js" };
-      });
-    },
+function prepareWorkDir() {
+  log("Preparation de la copie de travail (dist/ -> dist-sea-obf-src/)");
+  fs.rmSync(WORK_DIR, { recursive: true, force: true });
+  fs.cpSync(DIST, WORK_DIR, { recursive: true });
+
+  fs.mkdirSync(DEBUG_OUT, { recursive: true });
+
+  for (const filePath of listJsFiles(WORK_DIR)) {
+    const source = fs.readFileSync(filePath, "utf8");
+    const shimmed = shimFileSource(filePath, source);
+    if (shimmed !== null) {
+      fs.writeFileSync(filePath, shimmed);
+    }
+  }
+
+  // Copie de reference, lisible (shimmee mais pas encore obfusquee) -
+  // conservee pour deboguer un crash de production (voir plus bas et
+  // README-LOT7.md), avant que l'etape suivante ne renomme les
+  // identifiants/deplace les chaines litterales.
+  fs.rmSync(path.join(DEBUG_OUT, "dist-shimmed"), { recursive: true, force: true });
+  fs.cpSync(WORK_DIR, path.join(DEBUG_OUT, "dist-shimmed"), { recursive: true });
+}
+
+/**
+ * Decouvre, dans TOUT le code de WORK_DIR (deja shimme, avant obfuscation),
+ * l'ensemble exact des chaines litterales utilisees comme specificateur
+ * direct d'un import()/require() - ex: "./config/env", "dotenv/config",
+ * "node:crypto". Ces chaines doivent survivre l'obfuscation SANS etre
+ * deplacees dans le tableau de chaines (stringArray) : esbuild a besoin de
+ * les voir telles quelles, en clair, au moment du bundling pour resoudre et
+ * inliner correctement chaque module - voir obfuscateWorkDir et
+ * README-LOT7.md pour le bug concret que ceci corrige (ERR_UNKNOWN_BUILTIN_MODULE
+ * a l'execution du binaire final).
+ *
+ * Extraction directe du code reellement present (regex sur require()/import())
+ * plutot qu'une regle devinee (ex: "commence par ./") : garantit une
+ * couverture complete et exacte, y compris pour les specificateurs de
+ * paquets tiers non relatifs (comme "dotenv/config"), sans dependre d'un
+ * motif suppose.
+ */
+function discoverModuleSpecifiers(workDir) {
+  const specifiers = new Set();
+  const pattern = /\b(?:require|import)\(\s*(["'])((?:(?!\1).)+)\1\s*\)/g;
+  for (const filePath of listJsFiles(workDir)) {
+    const source = fs.readFileSync(filePath, "utf8");
+    let match;
+    while ((match = pattern.exec(source))) {
+      specifiers.add(match[2]);
+    }
+  }
+  return [...specifiers];
+}
+
+/**
+ * Obfusque chaque fichier de WORK_DIR INDIVIDUELLEMENT (Lot 7) - jamais le
+ * bundle complet apres coup (voir README-LOT7.md "Obfuscation - ajustements
+ * empiriques") : le code Aurore lui-meme ne pese qu'environ 0.6 Mo une fois
+ * compile, contre pres de 17 Mo pour le bundle final une fois toutes les
+ * dependances (SDK Anthropic/Gemini, docx, mammoth...) incluses - obfusquer
+ * ce bundle complet fait sortir javascript-obfuscator en "heap out of
+ * memory" meme avec des reglages moderes. Obfusquer fichier par fichier
+ * AVANT le bundling esbuild reste parfaitement valide (chaque module
+ * CommonJS est deja isole - les references inter-fichiers passent par
+ * require()/module.exports, jamais par un identifiant renomme) et evite le
+ * probleme entierement, en plus d'etre nettement plus rapide.
+ *
+ * Desactivable pour un cycle de developpement rapide via
+ * AURORE_SKIP_OBFUSCATION=1 (jamais en production - le script
+ * d'installation/CI ne doit jamais definir cette variable).
+ */
+function obfuscateWorkDir() {
+  if (process.env.AURORE_SKIP_OBFUSCATION === "1") {
+    log(
+      "Obfuscation SAUTEE (AURORE_SKIP_OBFUSCATION=1) - code laisse lisible, a ne JAMAIS utiliser pour une version livree a un cabinet."
+    );
+    return;
+  }
+
+  log("Obfuscation du code Aurore (javascript-obfuscator, fichier par fichier)");
+  const t0 = Date.now();
+  const files = listJsFiles(WORK_DIR);
+  let totalOriginalBytes = 0;
+  let totalObfuscatedBytes = 0;
+
+  const moduleSpecifiers = discoverModuleSpecifiers(WORK_DIR);
+  const configWithReservedSpecifiers = {
+    ...obfuscatorConfig,
+    reservedStrings: [
+      ...(obfuscatorConfig.reservedStrings || []),
+      ...moduleSpecifiers.map((specifier) => `^${escapeRegExp(specifier)}$`),
+    ],
   };
+  console.log(`[build-sea] ${moduleSpecifiers.length} specificateur(s) d'import/require proteges de l'obfuscation (voir README-LOT7.md).`);
+
+  for (const filePath of files) {
+    const source = fs.readFileSync(filePath, "utf8");
+    totalOriginalBytes += Buffer.byteLength(source);
+    const result = JavaScriptObfuscator.obfuscate(source, configWithReservedSpecifiers);
+    const obfuscated = result.getObfuscatedCode();
+    fs.writeFileSync(filePath, obfuscated);
+    totalObfuscatedBytes += Buffer.byteLength(obfuscated);
+
+    const sourceMap = result.getSourceMap();
+    if (sourceMap) {
+      const relPath = path.relative(WORK_DIR, filePath);
+      const mapPath = path.join(DEBUG_OUT, "obfuscated-maps", `${relPath}.map`);
+      fs.mkdirSync(path.dirname(mapPath), { recursive: true });
+      fs.writeFileSync(mapPath, sourceMap);
+    }
+  }
+
+  const durationMs = Date.now() - t0;
+  console.log(
+    `[build-sea] ${files.length} fichier(s) obfusque(s) en ${(durationMs / 1000).toFixed(1)}s ` +
+      `(${(totalOriginalBytes / 1024).toFixed(0)} Ko -> ${(totalObfuscatedBytes / 1024).toFixed(0)} Ko).`
+  );
+  console.log(
+    `[build-sea] Copie lisible (shimmee, non obfusquee) + source maps par fichier conservees dans ${DEBUG_OUT} (jamais livrees au client).`
+  );
 }
 
 async function bundle() {
-  log("Bundle esbuild (dist/index.js -> dist-sea/bundle.cjs)");
+  log("Bundle esbuild (dist-sea-obf-src/index.js -> dist-sea/bundle.cjs)");
   const result = await esbuild.build({
-    entryPoints: [path.join(DIST, "index.js")],
+    entryPoints: [path.join(WORK_DIR, "index.js")],
     outfile: path.join(OUT, "bundle.cjs"),
     bundle: true,
     platform: "node",
     format: "cjs",
     target: "node20",
     external: [...EXTERNAL_PACKAGES_WITH_ASSETS],
-    plugins: [nativeDepsShimPlugin()],
     logLevel: "warning",
     metafile: false,
   });
@@ -319,7 +457,7 @@ function copyCompanionFiles() {
   } else {
     console.warn(
       "[build-sea] backend/vendor/postgres absent (lance `npm run postgres:download-binaries` au prealable) - " +
-        "DATABASE_MODE=portable ne fonctionnera pas dans ce binaire, DATABASE_MODE=externe reste inchange."
+        "DATABASE_MODE=portable ne fonctionnera pas dans ce binaire, DATABASE_MODE=externe/reseau restent inchanges."
     );
   }
 
@@ -420,6 +558,8 @@ async function main() {
   rmOutDirWithRetry();
   fs.mkdirSync(OUT, { recursive: true });
 
+  prepareWorkDir();
+  obfuscateWorkDir();
   await bundle();
   generateSeaBlob();
   const exePath = copyNodeBinary();

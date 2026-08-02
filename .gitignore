@@ -11,6 +11,13 @@ src-tauri/target/
 src-tauri/binaries/
 src-tauri/gen/
 
+# Obfuscation (Lot 7) - copie de travail (shim + obfuscation) et copie non
+# obfusquee + source maps conservees uniquement en local pour deboguer un
+# crash de production, jamais livrees avec le binaire client (voir
+# scripts/build-sea.js).
+backend/dist-sea-obf-src/
+backend/dist-sea-debug/
+
 # Postgres portable (Lot 2) - binaires telecharges/compiles au build,
 # jamais commis (voir backend/scripts/download-postgres-binaries.js)
 backend/vendor/
