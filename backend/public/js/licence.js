@@ -121,10 +121,21 @@ activateBtn.addEventListener("click", async () => {
 });
 
 checkNowBtn?.addEventListener("click", async () => {
+  hideError(errorEl);
+  successEl.classList.remove("visible");
   checkNowBtn.disabled = true;
   checkNowBtn.textContent = "Vérification…";
   try {
-    const { status } = await apiFetch("/api/licence/check-now", { method: "POST" });
+    const { result, status } = await apiFetch("/api/licence/check-now", { method: "POST" });
+    // result.ok distingue "verifie, tout va bien" de "rien a signaler" (mode
+    // manuel, ou service en ligne pas encore configure - voir
+    // security/licenceManager.ts runPhoneHomeCheck) - dans les deux cas le
+    // message doit rester visible, jamais un clic sans aucun retour.
+    if (result.ok) {
+      showError(successEl, result.message);
+    } else {
+      showError(errorEl, result.message);
+    }
     renderStatus(status);
   } catch (err) {
     showError(errorEl, err.message);
