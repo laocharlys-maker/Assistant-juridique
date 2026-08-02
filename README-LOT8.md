@@ -67,11 +67,12 @@ alors rien a declencher vous-meme.
 
 ### Temps d'attente a prevoir
 
-Environ **15 a 25 minutes** pour un premier lancement (tout doit etre
+Environ **20 a 30 minutes** pour un premier lancement (tout doit etre
 telecharge/installe sur la machine temporaire de GitHub : Node.js, Rust,
-le CLI Tauri, NSIS...). Les lancements suivants sont generalement plus
-rapides (10 a 15 minutes), une partie des elements etant reutilisee d'une
-fois sur l'autre.
+le CLI Tauri, NSIS, les binaires PostgreSQL portables, et la compilation
+de pgvector depuis ses sources...). Les lancements suivants sont
+generalement plus rapides (12 a 18 minutes), une partie des elements
+etant reutilisee d'une fois sur l'autre (cache Cargo notamment).
 
 ### Télécharger le fichier .exe une fois terminé
 
@@ -102,6 +103,25 @@ message d'erreur pour me le transmettre :
 4. Envoyez-moi ce texte ou cette capture, avec le nom de l'etape concernee.
 
 `[Capture d'ecran : etape en echec avec le detail de l'erreur affiche]`
+
+### Historique des echecs corriges
+
+Cette CI n'ayant jamais pu etre executee dans l'environnement de
+developpement (pas de Windows/Rust/NSIS ici), deux echecs reels ont ete
+rencontres et corriges a partir des messages d'erreur transmis :
+
+1. **`bundle > windows > nsis` invalide** (etape "Preparer le sidecar et
+   compiler l'installeur NSIS") - deux champs de `tauri.conf.json`
+   n'existaient pas dans le schema Tauri v2 reel (`license` sous `nsis`,
+   qui n'existe qu'au niveau `bundle.licenseFile` ; `hooks` renomme
+   `installerHooks`). Corrige et revalide contre le schema JSON officiel
+   (`schema.tauri.app/config/2`) avant de repousser.
+2. **`resource path ..\backend\dist-sea\postgres` introuvable** (meme
+   etape) - `npm run postgres:download-binaries` (Lot 2) n'etait pas
+   execute dans le workflow avant `build:sea`, qui est le moment ou ce
+   dossier est copie vers `dist-sea/postgres`. Ajoute comme etape dediee,
+   avec l'activation prealable de l'environnement MSVC (nmake, necessaire
+   a la compilation de pgvector) - voir liste des etapes ci-dessus.
 
 ## Parcours web teste (le seul testable ici)
 
@@ -205,16 +225,17 @@ numero apparaisse dans le nom du fichier installeur ET dans l'ecran
 
 Liste explicite, pour ne rien oublier au premier vrai build :
 
-- [ ] Declencher le workflow GitHub Actions au moins une fois et corriger
-      les eventuels echecs (voir ci-dessus - premiere execution reelle
-      jamais faite au moment de la redaction de ce document)
-- [ ] Ajouter au workflow le telechargement/compilation des binaires
-      PostgreSQL portables (`npm run postgres:download-binaries`,
-      necessite Visual Studio Build Tools pour pgvector - deja installes
-      par defaut sur les machines `windows-latest` de GitHub, contrairement
-      a cet environnement de developpement) : sans cette etape,
-      l'installeur produit actuellement par le workflow n'a pas de base de
-      donnees locale fonctionnelle (DATABASE_MODE=portable echouera)
+- [x] Declencher le workflow GitHub Actions au moins une fois et corriger
+      les eventuels echecs - deux allers-retours reels ont ete necessaires
+      et sont documentes ci-dessous ("Historique des echecs corriges")
+- [x] Ajouter au workflow le telechargement/compilation des binaires
+      PostgreSQL portables (`npm run postgres:download-binaries`, avant
+      `build:sea` - voir etape "Telecharger les binaires PostgreSQL
+      portables" du workflow). Necessite nmake/cl.exe sur le PATH pour
+      compiler pgvector (aucun binaire precompile officiel) : ajoute via
+      l'action `ilammy/msvc-dev-cmd`, qui active l'installation Visual
+      Studio deja presente sur les runners `windows-latest` sans rien
+      installer de plus.
 - [ ] Generer la vraie paire de cles de signature updater, remplacer le
       placeholder dans `tauri.conf.json`
 - [ ] Heberger un vrai endpoint de mise a jour a l'URL configuree

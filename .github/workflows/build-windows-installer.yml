@@ -42,13 +42,27 @@ jobs:
         working-directory: backend
         run: npm ci
 
-      # Backend compile, obfusque (Lot 7) et empaquete en executable Node
-      # SEA (Lot 1) - voir backend/scripts/build-sea.js. N'inclut PAS
-      # encore les binaires PostgreSQL portables (npm run
-      # postgres:download-binaries, Lot 2) : cette premiere version du
-      # pipeline se concentre sur la chaine de compilation demandee
-      # explicitement (build:sea + tauri build) - voir la note "Limite
-      # connue" dans README-LOT8.md pour la suite prevue.
+      # nmake/cl.exe ne sont pas sur le PATH par defaut sur un runner
+      # windows-latest (Visual Studio est installe mais pas "active" dans
+      # le shell courant) - necessaire pour compiler pgvector a l'etape
+      # suivante (scripts/download-postgres-binaries.js -> compilePgvector,
+      # voir README-LOT2.md "Contournement pgvector"). Action tierce tres
+      # utilisee (ilammy/msvc-dev-cmd), se contente d'appeler le
+      # vcvarsall.bat deja present sur la machine, n'installe rien.
+      - name: Activer l'environnement de compilation MSVC (pour pgvector)
+        uses: ilammy/msvc-dev-cmd@v1
+
+      # Binaires PostgreSQL 16 portables + compilation de pgvector depuis
+      # les sources (aucun binaire precompile officiel pour Windows) -
+      # AVANT build:sea, qui copie backend/vendor/postgres/ vers
+      # dist-sea/postgres/ s'il existe a ce moment-la (sinon il l'ignore
+      # silencieusement avec un avertissement - c'etait exactement le
+      # trou constate ici : dist-sea/postgres jamais cree dans ce
+      # pipeline CI). Voir scripts/download-postgres-binaries.js.
+      - name: Telecharger les binaires PostgreSQL portables (+ compiler pgvector)
+        working-directory: backend
+        run: npm run postgres:download-binaries
+
       - name: Compiler le backend (build:sea, avec obfuscation)
         working-directory: backend
         run: npm run build:sea
