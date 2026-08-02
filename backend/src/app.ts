@@ -22,6 +22,7 @@ import { roleAudiencesRouter } from "./routes/roleAudiences";
 import { huissiersRouter } from "./routes/huissiers";
 import { adminRouter } from "./routes/admin";
 import { licenceRouter } from "./routes/licence";
+import { networkInfoRouter } from "./routes/networkInfo";
 import { globalApiLimiter } from "./middleware/rateLimit";
 import { requireLicence } from "./middleware/requireLicence";
 
@@ -42,10 +43,15 @@ app.use("/api", globalApiLimiter);
 app.use(cookieParser());
 app.use(healthRouter);
 app.use(licenceRouter);
-// A partir d'ici, toute route /api/* (sauf /api/licence/* et /health, deja
-// servies ci-dessus) est bloquee si la licence locale est invalide/expiree
-// au-dela de la periode de grace - voir middleware/requireLicence.ts et
-// README-LOT3.md.
+// Lot 6 : toujours accessible, comme /api/licence/* - necessaire avant
+// meme l'activation de licence (ecran de premier lancement, choix du mode
+// de deploiement) et pour que les postes clients du reseau puissent lire
+// l'IP/le nom d'hote du serveur.
+app.use(networkInfoRouter);
+// A partir d'ici, toute route /api/* (sauf /api/licence/*, /api/network-info*
+// et /health, deja servies ci-dessus) est bloquee si la licence locale est
+// invalide/expiree au-dela de la periode de grace - voir
+// middleware/requireLicence.ts et README-LOT3.md.
 app.use(requireLicence);
 app.use(actionsRouter);
 app.use(authRouter);

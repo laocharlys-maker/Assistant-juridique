@@ -62,3 +62,23 @@ function markRequiredFields() {
   });
 }
 document.addEventListener("DOMContentLoaded", markRequiredFields);
+
+// Ecran de premier lancement (Lot 6) : si le mode de deploiement
+// (poste unique / serveur reseau) n'a jamais ete choisi, redirige vers
+// setup-mode.html - avant meme l'ecran de licence, sur TOUTE page qui
+// charge ce script (donc sans avoir a instrumenter chaque page une par
+// une). /api/network-info reste toujours accessible (voir
+// middleware/requireLicence.ts), y compris sans licence ni session.
+(async () => {
+  if (window.location.pathname.startsWith("/setup-mode")) return;
+  try {
+    const info = await apiFetch("/api/network-info");
+    if (!info.setupComplete) {
+      window.location.href = "/setup-mode.html";
+    }
+  } catch {
+    // /api/network-info ne devrait normalement jamais echouer (route
+    // publique) - en cas de souci reseau/serveur, ne bloque pas la page :
+    // requireSession()/l'ecran de licence prennent le relais normalement.
+  }
+})();
