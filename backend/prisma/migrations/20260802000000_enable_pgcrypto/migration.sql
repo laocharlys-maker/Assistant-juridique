@@ -1,0 +1,30 @@
+-- Lot 2bis : active l'extension pgcrypto sur l'instance PostgreSQL.
+--
+-- IMPORTANT - ce projet n'utilise PAS le flux "prisma migrate deploy" avec
+-- un historique de migrations suivi (aucun dossier prisma/migrations/
+-- n'existait avant ce fichier ; le schema est applique via `prisma db push`
+-- pour les modes externe/reseau, et via prisma/portable-init.sql -
+-- regenere automatiquement depuis schema.prisma, voir `npm run
+-- prisma:portable-sql` - pour le mode portable). Ce fichier est donc fourni
+-- comme le livrable SQL demande pour ce lot, PAS comme le premier maillon
+-- d'une chaine `prisma migrate deploy` : l'executer directement (ci-dessous)
+-- plutot que via `prisma migrate deploy`, qui tenterait de recreer tout le
+-- schema depuis zero faute d'historique anterieur enregistre.
+--
+-- A quoi sert pgcrypto ici : le chiffrement au repos des champs sensibles
+-- (Client.nom/email/telephone/numeroPieceIdentite/quartierResidence/rue/
+-- autrePrecision/maison, Action.contenuGenere/champsDocument) est fait cote
+-- application (Node, AES-256-GCM - voir server/src/security/
+-- encryptionAtRest.ts), PAS via pgcrypto. Voir README-LOT2BIS.md pour la
+-- justification du choix (a) pgcrypto vs (b) chiffrement applicatif.
+-- pgcrypto est neanmoins active des maintenant pour rester disponible sans
+-- friction si un usage futur en a besoin (ex: primitives cryptographiques
+-- cote SQL pour un outillage de rotation de cle).
+--
+-- Application manuelle (mode externe/reseau - VPS ou serveur LAN) :
+--   psql "$DATABASE_URL" -f prisma/migrations/20260802000000_enable_pgcrypto/migration.sql
+-- Mode portable : deja inclus automatiquement dans prisma/portable-init.sql
+-- (regenere depuis schema.prisma, qui declare `extensions = [vector,
+-- pgcrypto]` dans son datasource) - aucune action manuelle necessaire.
+
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
