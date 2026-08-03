@@ -70,8 +70,8 @@
         <p class="muted" id="result-meta"></p>
         <div id="result-text" class="md-content"></div>
         <div id="result-downloads" style="display:none; margin-bottom:12px;">
-          <a id="result-word-link" href="#" target="_blank" style="margin-right:12px;">Télécharger en Word</a>
-          <a id="result-pdf-link" href="#" target="_blank">Télécharger en PDF</a>
+          <a id="result-word-link" href="#" style="margin-right:12px;">Télécharger en Word</a>
+          <a id="result-pdf-link" href="#">Télécharger en PDF</a>
         </div>
         <button type="button" class="secondary" id="reset-form-btn">Nouvelle génération</button>
       </div>
@@ -1762,6 +1762,26 @@
     const resultPdfLink = document.getElementById("result-pdf-link");
     const resetFormBtn = document.getElementById("reset-form-btn");
 
+    // downloadFile() (voir js/api.js) plutot qu'un simple lien href+target
+    // "_blank" - sans effet dans la webview desktop (voir le commentaire
+    // detaille dans api.js). L'URL reelle est stockee en attribut de
+    // donnees (jamais dans href, pour ne jamais declencher de navigation
+    // native meme sans JS) et resolue au clic.
+    function bindDownloadLink(linkEl, fallbackFilename) {
+      linkEl.addEventListener("click", async (event) => {
+        event.preventDefault();
+        const url = linkEl.dataset.url;
+        if (!url) return;
+        try {
+          await downloadFile(url, fallbackFilename);
+        } catch (err) {
+          showError(errorEl, err.message);
+        }
+      });
+    }
+    bindDownloadLink(resultWordLink, "document.docx");
+    bindDownloadLink(resultPdfLink, "document.pdf");
+
     let lastSubmitButton = null;
 
     function setButtonLoading(submitButton, loading) {
@@ -1783,11 +1803,11 @@
         const res = await apiFetch("/api/actions/web", { method: "POST", body: { type_action: type, ...payload } });
         resultMetaEl.textContent = res.n8nDispatched
           ? "Texte généré. Le document Google Docs se prépare — il apparaîtra sur la fiche du dossier dans quelques instants, avec un bouton pour le valider et l'envoyer au client."
-          : "Texte généré, mais la génération du document a échoué — vérifie la configuration.";
+          : "Texte généré. Télécharge le document ci-dessous (Word ou PDF).";
         resultTextEl.innerHTML = renderMarkdown(res.contenu);
         if (res.actionId) {
-          resultWordLink.href = `/api/actions/${res.actionId}/word`;
-          resultPdfLink.href = `/api/actions/${res.actionId}/pdf`;
+          resultWordLink.dataset.url = `/api/actions/${res.actionId}/word`;
+          resultPdfLink.dataset.url = `/api/actions/${res.actionId}/pdf`;
           resultDownloadsEl.style.display = "block";
         } else {
           resultDownloadsEl.style.display = "none";

@@ -56,7 +56,7 @@
               <div class="meta">${STATUT_FACTURE_LABELS[f.statut] || f.statut}${f.envoyeAt ? ` · envoyée le ${new Date(f.envoyeAt).toLocaleDateString("fr-FR")} à ${escapeHtml(f.destinataireEmail || "")}` : ""}</div>
             </div>
             <div style="display:flex; gap:6px; flex-wrap:wrap;">
-              <a class="secondary btn-sm" href="/api/admin/factures/${f.id}/pdf" target="_blank" style="text-decoration:none;">PDF</a>
+              <a class="secondary btn-sm" href="#" data-pdf-abonnement="${f.id}" data-numero="${escapeHtml(f.numero)}" style="text-decoration:none;">PDF</a>
               <button type="button" class="secondary btn-sm" data-envoyer-abonnement="${f.id}">Envoyer par email</button>
               ${f.statut !== "payee" ? `<button type="button" class="ghost btn-sm" data-marquer-payee="${f.id}">Marquer payée</button>` : ""}
             </div>
@@ -81,6 +81,19 @@
             try {
               await apiFetch(`/api/admin/factures/${btn.dataset.marquerPayee}`, { method: "PATCH", body: { statut: "payee" } });
               renderFacturesList(cabinetId, listEl);
+            } catch (err) {
+              showError(document.getElementById("error"), err.message);
+            }
+          });
+        });
+        // downloadFile() (voir js/api.js) plutot qu'un href+target="_blank" -
+        // sans effet dans la webview desktop (voir le commentaire detaille
+        // dans api.js).
+        listEl.querySelectorAll("[data-pdf-abonnement]").forEach((link) => {
+          link.addEventListener("click", async (event) => {
+            event.preventDefault();
+            try {
+              await downloadFile(`/api/admin/factures/${link.dataset.pdfAbonnement}/pdf`, `${link.dataset.numero}.pdf`);
             } catch (err) {
               showError(document.getElementById("error"), err.message);
             }

@@ -224,7 +224,7 @@
             <p><strong>${f.appliquerTva ? `${formatMontant(f.montant)} HT — ${formatMontant(montantTtc)} TTC (TVA 18%)` : formatMontant(f.montant)}</strong>${f.dateEcheance ? ` — échéance ${formatDate(f.dateEcheance)}` : ""}</p>
             <p class="muted">Émise le ${formatDate(f.dateEmission)} par ${escapeHtml(f.creePar?.nom || "-")}${f.envoyeAt ? ` · envoyée le ${formatDate(f.envoyeAt)}${f.destinataireEmail ? " à " + escapeHtml(f.destinataireEmail) : ""}` : ""}${f.payeeAt ? ` · payée le ${formatDate(f.payeeAt)}` : ""}</p>
             <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
-              <a class="secondary" href="/api/factures/${f.id}/pdf" target="_blank" style="text-decoration:none; margin:0;">Télécharger le PDF</a>
+              <a class="secondary" href="#" data-pdf="${f.id}" data-numero="${escapeHtml(f.numero)}" style="text-decoration:none; margin:0;">Télécharger le PDF</a>
               <button type="button" class="secondary" style="margin:0;" data-envoyer="${f.id}">Envoyer par email</button>
               ${f.statut !== "payee" ? `<button type="button" class="secondary" style="margin:0;" data-payee="${f.id}">Marquer payée</button>` : ""}
             </div>
@@ -237,6 +237,19 @@
         });
         listEl.querySelectorAll("[data-payee]").forEach((btn) => {
           btn.addEventListener("click", () => marquerPayee(btn.dataset.payee));
+        });
+        // downloadFile() (voir js/api.js) plutot qu'un href+target="_blank" -
+        // sans effet dans la webview desktop (voir le commentaire detaille
+        // dans api.js).
+        listEl.querySelectorAll("[data-pdf]").forEach((link) => {
+          link.addEventListener("click", async (event) => {
+            event.preventDefault();
+            try {
+              await downloadFile(`/api/factures/${link.dataset.pdf}/pdf`, `${link.dataset.numero}.pdf`);
+            } catch (err) {
+              showError(errorEl, err.message);
+            }
+          });
         });
       } catch (err) {
         listEl.innerHTML = `<p class="error visible">${escapeHtml(err.message)}</p>`;

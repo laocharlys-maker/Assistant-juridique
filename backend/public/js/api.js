@@ -1,3 +1,40 @@
+/**
+ * Telecharge un fichier binaire (Word/PDF...) genere par une route API
+ * authentifiee. JAMAIS via un simple `<a href target="_blank">` : dans la
+ * webview desktop (Tauri), l'ouverture d'une "nouvelle fenetre" declenchee
+ * par target="_blank" n'a aucun gestionnaire enregistre cote Rust
+ * (src-tauri/src/main.rs n'ecoute que CloseRequested) - le clic ne produit
+ * alors STRICTEMENT AUCUN EFFET, de facon totalement silencieuse (aucune
+ * requete HTTP emise, aucune erreur visible, rien dans les logs) - constate
+ * concretement sur les telechargements Word/PDF de "Nouvelle action" et de
+ * "Jurisprudence". fetch() + Blob + `<a download>` declenche a la place la
+ * boite de dialogue native "Enregistrer sous" du systeme d'exploitation,
+ * sans jamais passer par un mecanisme de nouvelle fenetre - fonctionne
+ * identiquement dans un navigateur classique et dans la webview desktop.
+ */
+async function downloadFile(url, fallbackFilename) {
+  const response = await fetch(url, { credentials: "include" });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    const error = new Error(data.error || `Erreur ${response.status}`);
+    error.status = response.status;
+    error.body = data;
+    throw error;
+  }
+  const disposition = response.headers.get("Content-Disposition") || "";
+  const match = disposition.match(/filename="?([^";]+)"?/);
+  const filename = match ? match[1] : fallbackFilename;
+  const blob = await response.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = objectUrl;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(objectUrl);
+}
+
 async function apiFetch(path, options = {}) {
   const response = await fetch(path, {
     ...options,
