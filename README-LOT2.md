@@ -78,10 +78,13 @@ cette procédure au moment du build de l'installeur :
 installé) : la compilation elle-même. Tout le reste du pipeline
 (téléchargement, cache, extraction, exclusions, détection MSVC) a été
 exécuté pour de vrai — seule l'étape `nmake` n'a pas pu aller à son terme
-ici. **À faire avant mise en production** : lancer
-`npm run postgres:download-binaries` sur une machine Windows avec Visual
-Studio Build Tools installé, et vérifier que `vector.dll` apparaît bien
-dans `backend/vendor/postgres/win-x64/lib/`.
+ici.
+
+**Mise à jour (Lot 8)** : testé pour de vrai sur un runner `windows-latest`
+(GitHub Actions, Visual Studio Build Tools déjà installés par défaut) puis
+sur une vraie installation via l'installeur NSIS produit. Un vrai bug a été
+découvert à cette occasion (fichiers SQL de l'extension jamais copiés) - voir
+"Bugs découverts et corrigés" ci-dessous, point d).
 
 ## Architecture
 
@@ -225,9 +228,10 @@ monté.
 
 ## Bugs découverts et corrigés pendant ce lot (empiriquement)
 
-Trois problèmes réels, non anticipés par la documentation Node/Postgres
+Quatre problèmes réels, non anticipés par la documentation Node/Postgres
 consultée au préalable, découverts en faisant tourner le vrai binaire (pas
-seulement en le codant) :
+seulement en le codant) - le quatrième (point d) plus tard, lors du tout
+premier test d'installation reelle au Lot 8 :
 
 ### a) `pg_ctl start` bloquait indéfiniment Node
 
@@ -273,6 +277,31 @@ même, un échec **après** le démarrage de Postgres (n'importe laquelle des
 étapes suivantes) déclenche désormais `stopPortableDatabase()` avant de
 quitter — sans ce filet, un `postgres.exe` restait orphelin en arrière-plan
 (vérifié en réel via `tasklist`).
+
+### d) Fichiers SQL de pgvector jamais copiés (bug de packaging, decouvert au Lot 8)
+
+Rencontre au tout premier vrai test d'installation (Lot 8, machine
+Windows reelle) : `CREATE EXTENSION vector` echouait avec
+`extension "vector" has no installation script nor update path for
+version "0.8.0"`. Cause : `vector.control` vit a la racine du depot
+pgvector, mais **tous les scripts SQL vivent dans le sous-dossier `sql/`,
+jamais a la racine** - y compris `sql/vector--0.8.0.sql` lui-meme, qui
+n'est pas un fichier statique du depot mais **genere par la compilation**
+(regle `DATA_built` de `Makefile.win`, verifiee directement contre le
+fichier officiel). La boucle de copie de
+`download-postgres-binaries.js` ne lisait que la racine du depot
+(`fs.readdirSync(cacheRepoDir)`) : elle trouvait bien `vector.control`
+(qui declare `default_version = 0.8.0`), mais **aucun** fichier `.sql`
+(tous dans `sql/`, jamais trouves) - l'extension s'installait donc avec
+une version declaree mais sans aucun script pour l'installer.
+**Correction** : la boucle lit desormais explicitement le sous-dossier
+`sql/` du depot pour tous les scripts `vector--*.sql` (le script
+d'installation genere ET les scripts de migration incrementale), et le
+script echoue maintenant explicitement (au lieu de continuer
+silencieusement) si le script d'installation attendu
+(`vector--<AURORE_PGVECTOR_TAG>.sql`) n'est pas present a la fin - meme
+philosophie que les autres echecs explicites de ce module (voir plus
+haut, "echoue avec un message explicite").
 
 ## Limites connues / suite
 
