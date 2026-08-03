@@ -162,7 +162,38 @@ Lot 6 - non re-teste integralement ici, seule la nouvelle branche de code
 (affichage du message de redemarrage au lieu du bouton "Continuer") a ete
 relue attentivement.
 
+## En cas d'ecran "Démarrage d'Aurore..." bloque
+
+Si l'application installee reste bloquee sur cet ecran sans jamais
+afficher l'interface, le fichier suivant contient le detail technique
+(cree/complete automatiquement a chaque tentative de demarrage, depuis
+que ce fichier existe - voir "Decisions techniques notables" ci-dessous) :
+
+```
+%APPDATA%\Aurore\logs\aurore-shell.log
+```
+
+Ouvrable avec le Bloc-notes Windows (tapez ce chemin dans la barre
+d'adresse de l'Explorateur, ou Win+R). Une boite de dialogue d'erreur
+s'affiche desormais aussi automatiquement apres environ 30 secondes
+d'attente infructueuse, rappelant ce chemin.
+
 ## Decisions techniques notables
+
+### Journal de diagnostic du demarrage (`aurore-shell.log`)
+
+La coquille Tauri (`main.rs`) est compilee avec `windows_subsystem =
+"windows"` en version release (pas de console) : les `println!`/
+`eprintln!` habituels ne sont visibles nulle part une fois l'app
+installee - un premier vrai test d'installation (voir plus haut) l'a
+confirme concretement (ecran de chargement bloque indefiniment, sidecar
+absent du Gestionnaire des taches, aucun moyen de savoir pourquoi).
+Corrige en ajoutant `log_line()` (ecriture best-effort, ne fait jamais
+planter l'app) qui duplique vers `%APPDATA%\Aurore\logs\aurore-shell.log`
+: la resolution du dossier de ressources, le lancement du sidecar (succes
+ou echec), tout son stdout/stderr relaye, et le resultat du health-check
+(y compris son eventuel timeout, desormais aussi signale par une boite de
+dialogue native - voir section ci-dessus).
 
 ### Auto-update gere entierement cote Rust, pas via l'API JS du plugin
 
