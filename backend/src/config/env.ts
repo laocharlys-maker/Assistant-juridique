@@ -37,29 +37,17 @@ const envSchema = z
     SESSION_SECRET: z
       .string()
       .min(16, "SESSION_SECRET doit faire au moins 16 caracteres (voir .env.example)"),
-  })
-  .superRefine((values, ctx) => {
-    if (values.LLM_PROVIDER === "gemini" && !values.GEMINI_API_KEY) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["GEMINI_API_KEY"],
-        message: "GEMINI_API_KEY est requis quand LLM_PROVIDER=gemini",
-      });
-    }
-    if (values.LLM_PROVIDER === "anthropic" && !values.ANTHROPIC_API_KEY) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["ANTHROPIC_API_KEY"],
-        message: "ANTHROPIC_API_KEY est requis quand LLM_PROVIDER=anthropic",
-      });
-    }
-    if (values.LLM_PROVIDER === "groq" && !values.GROQ_API_KEY) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["GROQ_API_KEY"],
-        message: "GROQ_API_KEY est requis quand LLM_PROVIDER=groq",
-      });
-    }
   });
+// Pas de superRefine imposant la cle du LLM_PROVIDER actif : ce serait
+// redondant avec la garde deja presente dans chaque fabrique de provider
+// (createGeminiProvider/createGroqProvider/createAnthropicProvider dans
+// services/llm/*.ts, qui levent "XXX_API_KEY manquant" au moment ou une
+// fonctionnalite IA est reellement utilisee) - et surtout, une validation
+// ici ferait planter TOUT le demarrage de l'app pour une cle manquante,
+// ce qui est disproportionne (Lot 8 : l'installeur ne peut livrer aucune
+// cle API, jamais commise/partagee entre cabinets - voir README-LOT8.md).
+// Un cabinet sans cle configuree peut donc ouvrir l'app et utiliser tout
+// ce qui ne depend pas de l'IA ; seules les actions IA echouent, avec un
+// message clair.
 
 export const env = envSchema.parse(process.env);

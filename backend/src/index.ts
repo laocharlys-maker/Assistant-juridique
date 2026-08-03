@@ -32,6 +32,17 @@ async function main() {
     process.env.DATABASE_URL = portableDb.databaseUrl;
     stopPortableDatabase = portableDb.stop;
     console.log(`[demarrage] Postgres portable pret sur ${portableDb.host}:${portableDb.port}/${portableDb.database}.`);
+
+    // Lot 8 : l'installeur ne peut pas livrer de .env contenant un
+    // SESSION_SECRET (secret qui serait alors partage par toutes les
+    // installations, jamais commis nulle part) - genere/recharge un secret
+    // propre a ce poste si absent, AVANT que config/env ne le valide
+    // ci-dessous. Mode "externe" (VPS) inchange : SESSION_SECRET y reste
+    // fourni par .env comme avant ce lot.
+    if (!process.env.SESSION_SECRET) {
+      const { loadOrCreateSessionSecret } = await import("./security/sessionSecretStore");
+      process.env.SESSION_SECRET = loadOrCreateSessionSecret();
+    }
   } else {
     console.log(`[demarrage] DATABASE_MODE=${databaseMode} : DATABASE_URL fournie via .env, inchangee (mode Lot 1).`);
   }

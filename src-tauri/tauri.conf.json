@@ -41,7 +41,6 @@
     "resources": {
       "../backend/dist-sea/public": "public",
       "../backend/dist-sea/node_modules": "node_modules",
-      "../backend/dist-sea/.env": ".env",
       "../backend/dist-sea/package.json": "package.json",
       "../backend/dist-sea/postgres": "postgres",
       "../backend/dist-sea/prisma": "prisma",
