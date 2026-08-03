@@ -1,10 +1,11 @@
-import { Router } from "express";
+import { Router, Response } from "express";
 import { z } from "zod";
 import pdfParse from "pdf-parse";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
 import { requireModule } from "../middleware/roles";
-import { getLlmProvider } from "../services/llm";
+import { getLlmProvider, LlmProvider } from "../services/llm";
+import { MissingConfigurationError } from "../lib/configurationError";
 import { callN8nWebhook, webhookForAction } from "../services/n8n";
 import { logAuditStep } from "../services/audit";
 import { espace } from "../services/documentFormalisme";
@@ -403,6 +404,31 @@ function composeDestinataire(
   return `${civilite} ${connecteur} ${juridiction}${ville ? ` de ${ville}` : ""}`;
 }
 
+/**
+ * getLlmProvider() leve une MissingConfigurationError (cle API du
+ * fournisseur actif absente) de facon synchrone, AVANT tout traitement -
+ * jamais rattrapee automatiquement par Express (pas de gestion native des
+ * rejets de promesse d'un handler async en Express 4), donc chaque route
+ * qui l'appelle doit le faire via ce wrapper plutot que directement.
+ * Renvoie null (et a deja envoye la reponse 503) en cas de configuration
+ * manquante ; propage toute autre erreur (vraiment inattendue, jamais
+ * documentee comme degradation attendue).
+ */
+function getLlmProviderSafe(res: Response): LlmProvider | null {
+  try {
+    return getLlmProvider();
+  } catch (error) {
+    if (error instanceof MissingConfigurationError) {
+      console.error("[llm] fournisseur IA non configure :", error.message);
+      res.status(503).json({
+        error: "La génération de documents par IA n'est pas configurée sur ce poste (clé API manquante). Contactez le support AzoMedIA.",
+      });
+      return null;
+    }
+    throw error;
+  }
+}
+
 const suggererStrategieSchema = z.object({
   nom_affaire: z.string().min(1),
   rappel_procedure: z.string().optional(),
@@ -423,17 +449,23 @@ webActionsRouter.post(
     if (!parsed.success) {
       return res.status(400).json({ error: "Requête invalide", details: parsed.error.issues });
     }
-    const llm = getLlmProvider();
-    const suggestion = await llm.redact(
-      NOTES_STRATEGIE_SUGGESTION_SYSTEM_PROMPT,
-      buildNotesStrategieSuggestionUserPrompt({
-        nomAffaire: parsed.data.nom_affaire,
-        rappelProcedure: parsed.data.rappel_procedure,
-        deroulementDebats: parsed.data.deroulement_debats,
-        decision: parsed.data.decision,
-      })
-    );
-    return res.json({ suggestion });
+    const llm = getLlmProviderSafe(res);
+    if (!llm) return;
+    try {
+      const suggestion = await llm.redact(
+        NOTES_STRATEGIE_SUGGESTION_SYSTEM_PROMPT,
+        buildNotesStrategieSuggestionUserPrompt({
+          nomAffaire: parsed.data.nom_affaire,
+          rappelProcedure: parsed.data.rappel_procedure,
+          deroulementDebats: parsed.data.deroulement_debats,
+          decision: parsed.data.decision,
+        })
+      );
+      return res.json({ suggestion });
+    } catch (error) {
+      console.error("Erreur suggestion de strategie :", error);
+      return res.status(502).json({ error: "Échec de la suggestion IA, réessaie dans un instant" });
+    }
   }
 );
 
@@ -444,7 +476,8 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
   }
   const form = parsed.data;
   const { auth } = req;
-  const llm = getLlmProvider();
+  const llm = getLlmProviderSafe(res);
+  if (!llm) return;
 
   const debutMois = new Date();
   debutMois.setDate(1);

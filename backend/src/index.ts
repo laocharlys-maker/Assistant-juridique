@@ -13,6 +13,7 @@ import {
   BUNDLED_SMTP_PASSWORD,
   BUNDLED_SMTP_FROM_EMAIL,
 } from "./config/bundledExternalServiceKeys";
+import { MissingConfigurationError } from "./lib/configurationError";
 
 /**
  * Point d'entree. Structure en fonction async (plutot que des imports
@@ -51,6 +52,20 @@ async function main() {
     if (!process.env.SESSION_SECRET) {
       const { loadOrCreateSessionSecret } = await import("./security/sessionSecretStore");
       process.env.SESSION_SECRET = loadOrCreateSessionSecret();
+    }
+
+    // LLM_PROVIDER=groq (decision AzoMedIA, deja utilise sur le SaaS
+    // existant) : sans ce forçage, rien ne le positionnait jamais dans
+    // l'environnement du binaire empaquete (aucun .env livre - voir plus
+    // bas), donc le defaut Zod ("gemini", config/env.ts) s'appliquait
+    // silencieusement a la place - cause racine reelle du crash "Mise en
+    // demeure" (et de tout autre type d'acte) : getLlmProvider() tentait
+    // Gemini, sans cle, dans un chemin non protege par un try/catch local
+    // (voir routes/webActions.ts). Pas un secret (juste un choix de
+    // fournisseur) : positionne directement, sans passer par le mecanisme
+    // GitHub Secrets des identifiants ci-dessous.
+    if (!process.env.LLM_PROVIDER) {
+      process.env.LLM_PROVIDER = "groq";
     }
 
     // Identifiants de services externes partages AzoMedIA (LLM Groq/Gemini,
@@ -105,6 +120,24 @@ async function main() {
   let uncaughtHandled = false;
   function handleFatalError(kind: string, error: unknown): void {
     if (uncaughtHandled) return; // Evite une boucle si l'arret lui-meme echoue bruyamment.
+    // Une MissingConfigurationError (cle API absente - voir
+    // lib/configurationError.ts) est une degradation attendue et deja
+    // documentee ailleurs dans le code (jurisprudence, embeddings, envoi
+    // d'email...), jamais une panne reelle : si elle arrive malgre tout
+    // jusqu'ici (un futur appel oublie sans le wrapper local, voir
+    // getLlmProviderSafe dans routes/webActions.ts), le bon geste est de
+    // journaliser et laisser le process VIVANT - la requete en cours reste
+    // sans reponse (le client verra un echec reseau ponctuel), mais arreter
+    // TOUTE l'application pour une simple fonctionnalite non configuree
+    // serait disproportionne. Reserve l'arret complet (avec nettoyage
+    // Postgres) aux erreurs vraiment inattendues.
+    if (error instanceof MissingConfigurationError) {
+      console.error(
+        `[fatal] ${kind} non rattrapee mais reconnue comme configuration manquante - process conserve en vie :`,
+        error.message
+      );
+      return;
+    }
     uncaughtHandled = true;
     console.error(`[fatal] ${kind} non rattrapee - arret du process apres nettoyage :`, error);
     const cleanup = stopPortableDatabase ? stopPortableDatabase() : Promise.resolve();
@@ -280,9 +313,20 @@ async function main() {
     cron.schedule(
       "0 7 * * 1",
       () => {
-        runVeillePourTousLesCabinets(getLlmProvider()).catch((error) => {
-          console.error("Erreur lors de l'execution de la veille juridique hebdomadaire :", error);
-        });
+        // getLlmProvider() peut lever une MissingConfigurationError de
+        // facon SYNCHRONE (cle API absente) - AVANT meme que
+        // runVeillePourTousLesCabinets(...) ne soit appelee, donc avant que
+        // le .catch() ci-dessous existe. Sans ce try/catch local, une telle
+        // erreur echapperait a ce .catch() et remonterait comme exception
+        // non rattrapee depuis ce callback cron (voir le meme probleme
+        // corrige dans routes/webActions.ts, getLlmProviderSafe).
+        try {
+          runVeillePourTousLesCabinets(getLlmProvider()).catch((error) => {
+            console.error("Erreur lors de l'execution de la veille juridique hebdomadaire :", error);
+          });
+        } catch (error) {
+          console.error("Veille juridique hebdomadaire ignoree (fournisseur IA non configure) :", error);
+        }
       },
       { timezone: "Africa/Porto-Novo" }
     );

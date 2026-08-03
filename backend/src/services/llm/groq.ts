@@ -3,6 +3,7 @@ import { actionOutputSchema, ActionOutput } from "../../schemas/action";
 import { LEGAL_ASSISTANT_SYSTEM_PROMPT, buildUserPrompt } from "../../prompts/legalAssistant";
 import { LlmProvider, LlmOutputError } from "./types";
 import { withTransientRetry } from "../../lib/retry";
+import { MissingConfigurationError } from "../../lib/configurationError";
 
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 const GROQ_MODEL = "llama-3.3-70b-versatile";
@@ -123,7 +124,7 @@ export class GroqProvider implements LlmProvider {
 
 export function createGroqProvider(): GroqProvider {
   if (!env.GROQ_API_KEY) {
-    throw new Error("GROQ_API_KEY manquant");
+    throw new MissingConfigurationError("GROQ_API_KEY manquant");
   }
   return new GroqProvider(env.GROQ_API_KEY);
 }
