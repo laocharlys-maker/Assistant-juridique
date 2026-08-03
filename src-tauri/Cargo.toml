@@ -9,6 +9,15 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = [] }
+# Requis explicitement (pas seulement en dependance transitive de tauri) :
+# la macro tauri::generate_context!() (voir main.rs, fn main) genere du
+# code qui reference serde_json/serde par chemin qualifie, ce qui exige
+# qu'ils soient declares comme dependances directes de CE crate - piege
+# classique de Tauri v2, absent du Cargo.toml jusqu'ici car aucune commande
+# #[tauri::command] (qui aurait, elle, force cette dependance a etre
+# ajoutee plus tot) n'existe dans ce projet.
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 tauri-plugin-shell = "2"
 # Auto-update (Lot 8) : plugin officiel Tauri, pilote entierement depuis
 # Rust (voir main.rs/updater.rs) plutot que via l'API JS du plugin - la
