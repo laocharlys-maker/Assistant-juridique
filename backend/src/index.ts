@@ -4,6 +4,15 @@
 // le commentaire au-dessus de main().
 import "dotenv/config";
 import cron from "node-cron";
+import {
+  BUNDLED_GEMINI_API_KEY,
+  BUNDLED_GROQ_API_KEY,
+  BUNDLED_TAVILY_API_KEY,
+  BUNDLED_SMTP_HOST,
+  BUNDLED_SMTP_USER,
+  BUNDLED_SMTP_PASSWORD,
+  BUNDLED_SMTP_FROM_EMAIL,
+} from "./config/bundledExternalServiceKeys";
 
 /**
  * Point d'entree. Structure en fonction async (plutot que des imports
@@ -42,6 +51,39 @@ async function main() {
     if (!process.env.SESSION_SECRET) {
       const { loadOrCreateSessionSecret } = await import("./security/sessionSecretStore");
       process.env.SESSION_SECRET = loadOrCreateSessionSecret();
+    }
+
+    // Identifiants de services externes partages AzoMedIA (LLM Groq/Gemini,
+    // recherche web Tavily, envoi d'email SMTP/Brevo - decision Option A,
+    // voir README-LOT8.md et config/bundledExternalServiceKeys.ts) : meme
+    // principe que SESSION_SECRET juste au-dessus - ne comble QUE ce qu'un
+    // .env n'a pas deja fourni, jamais un ecrasement. En pratique ce fichier
+    // reste un placeholder vide (undefined) partout sauf dans le binaire
+    // produit par le workflow CI, qui le reecrit juste avant le build a
+    // partir des GitHub Secrets - voir
+    // .github/workflows/build-windows-installer.yml. Volontairement PAS
+    // pour N8N_WEBHOOK_BASE_URL/PUBLIC_BASE_URL (n8n) : hors perimetre du
+    // Lot 8, confirme - la degradation silencieuse existante reste voulue.
+    if (!process.env.GEMINI_API_KEY && BUNDLED_GEMINI_API_KEY) {
+      process.env.GEMINI_API_KEY = BUNDLED_GEMINI_API_KEY;
+    }
+    if (!process.env.GROQ_API_KEY && BUNDLED_GROQ_API_KEY) {
+      process.env.GROQ_API_KEY = BUNDLED_GROQ_API_KEY;
+    }
+    if (!process.env.TAVILY_API_KEY && BUNDLED_TAVILY_API_KEY) {
+      process.env.TAVILY_API_KEY = BUNDLED_TAVILY_API_KEY;
+    }
+    if (!process.env.SMTP_HOST && BUNDLED_SMTP_HOST) {
+      process.env.SMTP_HOST = BUNDLED_SMTP_HOST;
+    }
+    if (!process.env.SMTP_USER && BUNDLED_SMTP_USER) {
+      process.env.SMTP_USER = BUNDLED_SMTP_USER;
+    }
+    if (!process.env.SMTP_PASSWORD && BUNDLED_SMTP_PASSWORD) {
+      process.env.SMTP_PASSWORD = BUNDLED_SMTP_PASSWORD;
+    }
+    if (!process.env.SMTP_FROM_EMAIL && BUNDLED_SMTP_FROM_EMAIL) {
+      process.env.SMTP_FROM_EMAIL = BUNDLED_SMTP_FROM_EMAIL;
     }
   } else {
     console.log(`[demarrage] DATABASE_MODE=${databaseMode} : DATABASE_URL fournie via .env, inchangee (mode Lot 1).`);
