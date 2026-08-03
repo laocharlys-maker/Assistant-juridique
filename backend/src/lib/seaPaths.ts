@@ -42,6 +42,25 @@ function stripWindowsExtendedLengthPrefix(rawPath: string): string {
 }
 
 /**
+ * Detecte si ce code tourne empaquete dans un executable Node SEA (voir
+ * scripts/build-sea.js), plutot qu'en mode normal (npm run dev / npm start).
+ * Extrait ici (au lieu de duplique) car utilise a la fois par appRoot()
+ * ci-dessous et par config/env.ts (pour forcer NODE_ENV=production dans le
+ * binaire empaquete, peu importe ce qu'un .env local aurait pu positionner
+ * au moment du build - voir env.ts).
+ */
+export function isSea(): boolean {
+  try {
+    // node:sea est disponible a partir de Node 20.12 / 21.7 (experimental).
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const sea = require("node:sea");
+    return typeof sea.isSea === "function" && sea.isSea();
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Racine "application" utilisee pour resoudre les chemins vers les fichiers
  * statiques (public/, uploads/) et les dependances natives (Prisma).
  *
@@ -63,17 +82,7 @@ export function appRoot(): string {
     return stripWindowsExtendedLengthPrefix(process.env.AURORE_APP_ROOT);
   }
 
-  let isSea = false;
-  try {
-    // node:sea est disponible a partir de Node 20.12 / 21.7 (experimental).
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const sea = require("node:sea");
-    isSea = typeof sea.isSea === "function" && sea.isSea();
-  } catch {
-    isSea = false;
-  }
-
-  if (isSea) {
+  if (isSea()) {
     return stripWindowsExtendedLengthPrefix(path.dirname(process.execPath));
   }
 

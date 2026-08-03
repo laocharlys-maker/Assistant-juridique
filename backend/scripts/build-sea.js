@@ -148,8 +148,21 @@ function shimFileSource(filePath, source) {
 
   if (needsDirnameShim) {
     transformed = transformed.replace(/\b__dirname\b/g, "__aurore_dirname");
-    shimDecls +=
-      `const __aurore_dirname = ${appRootExpr}` + (relDir ? ` + ${JSON.stringify(path.sep + relDir)};\n` : ";\n");
+    // BUG REEL CORRIGE ICI (constate : express.static() pointait vers un
+    // dossier public/ inexistant une fois empaquete -> "Cannot GET /" alors
+    // que le serveur demarrait normalement) : __dirname pointait a l'origine
+    // vers dist/<relDir> (WORK_DIR est une copie de dist/, un niveau
+    // intermediaire entre la racine du backend et le fichier). Ce niveau
+    // "dist" disparait entierement une fois empaquete - appRoot() designe
+    // directement la racine deployee, qui contient public/, node_modules/...
+    // comme enfants IMMEDIATS (voir seaPaths.ts), pas un equivalent de
+    // dist/. Sans le segment de compensation "__aurore_dist" ci-dessous
+    // (qui n'a besoin d'exister nulle part sur le disque - path.join()/".."
+    // est de la pure manipulation de chaine), chaque `path.join(__dirname,
+    // "..", ...)` du code d'origine remontait d'un niveau de trop une fois
+    // dans le binaire SEA.
+    const aurorDirnameSuffix = path.sep + "__aurore_dist" + (relDir ? path.sep + relDir : "");
+    shimDecls += `const __aurore_dirname = ${appRootExpr} + ${JSON.stringify(aurorDirnameSuffix)};\n`;
   }
 
   if (needsExternalRequireShim) {

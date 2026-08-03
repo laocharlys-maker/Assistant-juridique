@@ -1,5 +1,22 @@
 import "dotenv/config";
 import { z } from "zod";
+import { isSea } from "../lib/seaPaths";
+
+// Le binaire empaquete (Node SEA, voir scripts/build-sea.js) est TOUJOURS un
+// build de production, quel que soit l'environnement de la machine qui l'a
+// compile - contrairement a `npm run dev`/`npm start`, "mode developpement"
+// n'a aucun sens pour un .exe installe chez un cabinet. Sans ce forçage,
+// NODE_ENV retombe sur le defaut Zod ci-dessous ("development") des que rien
+// ne le positionne explicitement dans l'environnement du sidecar Tauri (voir
+// src-tauri/src/main.rs, qui ne le fait pas) - ou pire, reprend par erreur la
+// valeur d'un .env de developpement local copie a cote de l'executable lors
+// d'un build fait a la main (voir copyCompanionFiles dans build-sea.js).
+// Applique APRES `dotenv/config` ci-dessus (qui a deja charge un eventuel
+// .env dans process.env) pour ecraser inconditionnellement toute valeur
+// venue de cette source, jamais avant.
+if (isSea()) {
+  process.env.NODE_ENV = "production";
+}
 
 const envSchema = z
   .object({
