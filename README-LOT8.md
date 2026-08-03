@@ -107,7 +107,7 @@ message d'erreur pour me le transmettre :
 ### Historique des echecs corriges
 
 Cette CI n'ayant jamais pu etre executee dans l'environnement de
-developpement (pas de Windows/Rust/NSIS ici), deux echecs reels ont ete
+developpement (pas de Windows/Rust/NSIS ici), trois echecs reels ont ete
 rencontres et corriges a partir des messages d'erreur transmis :
 
 1. **`bundle > windows > nsis` invalide** (etape "Preparer le sidecar et
@@ -122,6 +122,20 @@ rencontres et corriges a partir des messages d'erreur transmis :
    dossier est copie vers `dist-sea/postgres`. Ajoute comme etape dediee,
    avec l'activation prealable de l'environnement MSVC (nmake, necessaire
    a la compilation de pgvector) - voir liste des etapes ci-dessus.
+3. **`resource path ..\backend\dist-sea\.env` introuvable** (meme etape) -
+   ce fichier contient des secrets, donc jamais commis (`.gitignore`),
+   forcement absent sur la machine CI. Retire de `tauri.conf.json` plutot
+   que remplace par un `.env.example` : verifie que le sidecar Tauri
+   (`main.rs`) fixe deja `HOST`/`PORT`/`DATABASE_MODE`/`AURORE_APP_ROOT`
+   directement, sans passer par `.env`. Corrige a la source les deux
+   variables qui, elles, en dependaient reellement au demarrage :
+   `SESSION_SECRET` est desormais genere automatiquement par installation
+   (`security/sessionSecretStore.ts`, meme principe que la cle de
+   chiffrement du Lot 2bis) ; la cle API du fournisseur IA actif n'est
+   plus verifiee de facon bloquante au demarrage (une garde equivalente
+   existait deja au moment de l'utilisation reelle dans
+   `services/llm/*.ts`) - **question ouverte, non tranchee ici**, voir
+   "Cle API IA de production" dans la checklist ci-dessous.
 
 ## Parcours web teste (le seul testable ici)
 
@@ -236,6 +250,16 @@ Liste explicite, pour ne rien oublier au premier vrai build :
       l'action `ilammy/msvc-dev-cmd`, qui active l'installation Visual
       Studio deja presente sur les runners `windows-latest` sans rien
       installer de plus.
+- [ ] **Cle API IA de production** (decision non tranchee) : sans elle,
+      l'app demarre et fonctionne normalement mais toute action IA
+      (extraction, redaction, recherche jurisprudence) echoue avec
+      "XXX_API_KEY manquant". Deux options, a trancher avec AzoMedIA :
+      (a) une cle partagee par tous les cabinets, ajoutee comme secret
+      chiffre GitHub (`Settings > Secrets and variables > Actions`) et
+      injectee dans `.env` par une etape du workflow avant `build:sea` ;
+      (b) une saisie par cabinet (nouvel ecran de configuration, plus gros
+      chantier - aucune UI de ce type n'existe aujourd'hui). Voir
+      "Historique des echecs corriges" ci-dessus pour le contexte.
 - [ ] Generer la vraie paire de cles de signature updater, remplacer le
       placeholder dans `tauri.conf.json`
 - [ ] Heberger un vrai endpoint de mise a jour a l'URL configuree
