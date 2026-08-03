@@ -509,7 +509,16 @@ async function syncCabinetLicenceFields(status: LicenceStatus): Promise<void> {
     // l'appelant ne s'en sert pas - meme logique que index.ts (Lot 2) pour
     // ne charger Prisma qu'une fois DATABASE_URL disponible.
     const { prisma } = await import("../lib/prisma");
-    await prisma.cabinet.update({
+    // updateMany (jamais update) : le cabinet peut legitimement ne pas
+    // encore exister en base (tout premier demarrage, licence activee AVANT
+    // la creation du compte titulaire - c'est meme le parcours normal, voir
+    // welcome-setup.html) - ce n'est pas une erreur mais un etat attendu et
+    // frequent (reevalue a CHAQUE requete protegee, voir requireLicence),
+    // donc pas quelque chose a signaler bruyamment ni a traiter par
+    // exception a chaque fois. update() levait "Record to update not
+    // found" dans ce cas tout a fait normal ; updateMany() se contente de
+    // ne rien faire (count: 0), sans jamais lever.
+    const result = await prisma.cabinet.updateMany({
       where: { id: status.payload.cabinetId },
       data: {
         licenceId: status.licenceId,
@@ -518,11 +527,16 @@ async function syncCabinetLicenceFields(status: LicenceStatus): Promise<void> {
         empreinteMachineAutorisee: status.payload.empreinteMachine,
       },
     });
+    if (result.count === 0) {
+      console.log(
+        `[licence] cabinet ${status.payload.cabinetId} introuvable en base pour l'instant (miroir non synchronise, reessaiera a la prochaine requete) - normal avant la creation du compte titulaire.`
+      );
+    }
   } catch (error) {
-    // Le cabinet peut ne pas encore exister en base (tout premier
-    // demarrage, avant meme la creation du compte titulaire) - non
-    // bloquant, ce miroir DB est un confort de visibilite, jamais requis
-    // pour que la licence fonctionne.
+    // Erreur DB reelle (connexion perdue...) cette fois, pas une simple
+    // absence de cabinet (voir updateMany ci-dessus) - non bloquant : ce
+    // miroir DB est un confort de visibilite, jamais requis pour que la
+    // licence fonctionne.
     console.warn(
       "[licence] synchronisation des champs Cabinet impossible (ignoree) :",
       error instanceof Error ? error.message : error

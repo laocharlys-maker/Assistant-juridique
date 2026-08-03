@@ -47,6 +47,36 @@ async function main() {
     console.log(`[demarrage] DATABASE_MODE=${databaseMode} : DATABASE_URL fournie via .env, inchangee (mode Lot 1).`);
   }
 
+  // Filet de securite final : toute exception non rattrapee ailleurs (ex:
+  // un futur appel oublie sans try/catch dans une route) ne doit JAMAIS
+  // laisser Postgres portable tourner en arriere-plan une fois le process
+  // Node mort - constate concretement : pg_ctl start demarre postgres.exe
+  // comme process DETACHE du cycle de vie de Node (necessaire pour que les
+  // processus auxiliaires - checkpointer, bgwriter... - survivent, voir
+  // postgresPortable.ts), donc un crash brutal ici le laisse actif,
+  // bloquant tout redemarrage suivant ("another postmaster may be running")
+  // jusqu'a l'arrivee du contournement ajoute dans postgresPortable.ts
+  // (isAlreadyReachable) - mieux vaut cependant ne jamais en arriver la.
+  // process.exit() y met volontairement fin depuis ici plutot que de
+  // laisser Node crasher tout seul (qui aurait le meme effet sur Postgres,
+  // en pire : aucun log clair, aucune tentative d'arret propre).
+  let uncaughtHandled = false;
+  function handleFatalError(kind: string, error: unknown): void {
+    if (uncaughtHandled) return; // Evite une boucle si l'arret lui-meme echoue bruyamment.
+    uncaughtHandled = true;
+    console.error(`[fatal] ${kind} non rattrapee - arret du process apres nettoyage :`, error);
+    const cleanup = stopPortableDatabase ? stopPortableDatabase() : Promise.resolve();
+    // Timeout de securite : ne jamais rester bloque indefiniment sur l'arret
+    // de Postgres si quelque chose tourne deja mal - un process qui ne quitte
+    // jamais est pire qu'un arret de Postgres non confirme (voir
+    // stopPortablePostgres, qui journalise deja son propre echec).
+    Promise.race([cleanup.catch(() => undefined), new Promise((resolve) => setTimeout(resolve, 10000))]).finally(
+      () => process.exit(1)
+    );
+  }
+  process.on("uncaughtException", (error) => handleFatalError("exception", error));
+  process.on("unhandledRejection", (error) => handleFatalError("rejet de promesse", error));
+
   // Tout ce qui suit (chargement d'./app et de ses dependances, ecoute HTTP)
   // est enveloppe dans un try/catch : si Postgres portable a deja demarre
   // (stopPortableDatabase non nul) et qu'une etape ulterieure echoue - ex:

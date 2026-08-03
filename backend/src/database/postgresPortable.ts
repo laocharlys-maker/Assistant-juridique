@@ -62,9 +62,118 @@ export async function waitUntilReady(
   );
 }
 
+function postmasterPidPath(dataDir: string): string {
+  return path.join(dataDir, "postmaster.pid");
+}
+
+interface PostmasterLock {
+  pid: number;
+  /** null si illisible/absente - voir le format postmaster.pid de Postgres (ligne 4). */
+  port: number | null;
+}
+
+/**
+ * Lit postmaster.pid tel qu'ecrit par Postgres lui-meme (ligne 1 : PID,
+ * ligne 4 : port d'ecoute - voir la fonction homonyme cote serveur,
+ * src/backend/utils/init/miscinit.c). Ancre volontairement TOUTE decision
+ * de reutilisation/nettoyage sur ce fichier specifique au data directory
+ * cible, jamais sur une simple verification "quelque chose repond sur ce
+ * host:port" (voir le piège ci-dessous) : le port portable (5433 par
+ * defaut) est partage par convention entre toutes les instances Aurore de
+ * la machine - une verification par pg_isready sur host:port aurait pu
+ * trouver une AUTRE instance (une installation differente, un test
+ * precedent laisse actif) et conclure a tort "notre cluster est deja pret",
+ * avec des identifiants qui ne correspondent pas du tout - constate
+ * concretement en testant ce correctif : CREATE ROLE echouait juste apres
+ * avec "password authentication failed", la nouvelle instance venant d'etre
+ * initialisee avec de nouveaux identifiants pendant qu'une AUTRE instance
+ * (deja active sur le meme port) repondait au pg_isready.
+ */
+function readPostmasterLock(dataDir: string): PostmasterLock | null {
+  let raw: string;
+  try {
+    raw = fs.readFileSync(postmasterPidPath(dataDir), "utf8");
+  } catch {
+    return null;
+  }
+  const lines = raw.split(/\r?\n/);
+  const pid = Number(lines[0]?.trim());
+  if (!Number.isInteger(pid) || pid <= 0) {
+    console.warn(`[postgres-portable] ${postmasterPidPath(dataDir)} present mais illisible (PID non numerique).`);
+    return null;
+  }
+  const port = Number(lines[3]?.trim());
+  return { pid, port: Number.isInteger(port) ? port : null };
+}
+
+function isPidAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0); // Ne tue rien (signal 0) - leve seulement si le PID n'existe pas.
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Dernieres lignes du log Postgres, incluses dans le message d'erreur pour
+ * un diagnostic immediat (voir echec du demarrage ci-dessous) sans devoir
+ * ouvrir un second fichier a la main. */
+function tailLogFile(logFile: string, maxLines = 20): string {
+  try {
+    const lines = fs.readFileSync(logFile, "utf8").split(/\r?\n/).filter(Boolean);
+    return lines.slice(-maxLines).join("\n");
+  } catch {
+    return "(log illisible ou absent)";
+  }
+}
+
 export async function startPortablePostgres(instance: PortablePostgresInstance): Promise<void> {
   fs.mkdirSync(path.dirname(instance.logFile), { recursive: true });
   console.log(`[postgres-portable] demarrage du cluster (${instance.host}:${instance.port}, data=${instance.dataDir})...`);
+
+  const lock = readPostmasterLock(instance.dataDir);
+  if (lock) {
+    if (isPidAlive(lock.pid) && (lock.port === null || lock.port === instance.port)) {
+      // Le process backend precedent a probablement plante (exception non
+      // rattrapee, crash Windows...) SANS passer par stopPortablePostgres :
+      // pg_ctl start demarre postgres.exe comme process DETACHE du cycle de
+      // vie de Node (voir le commentaire plus bas sur execFileSync/stdio
+      // "ignore" - necessaire pour que les processus auxiliaires
+      // checkpointer/bgwriter/walwriter survivent), donc il continue de
+      // tourner en arriere-plan meme apres la mort du process Node qui l'a
+      // lance. Rappeler pg_ctl start dessus echouerait normalement ("another
+      // postmaster may be running") - ce n'est pas une erreur, notre PROPRE
+      // cluster (confirme par le PID et le port de CE data directory, pas
+      // une simple reponse sur le port) est deja pret, il suffit de le
+      // reutiliser tel quel.
+      console.log(
+        `[postgres-portable] deja demarre (PID ${lock.pid}, probablement laisse actif par un arret non propre du process precedent) - reutilise tel quel.`
+      );
+      await waitUntilReady(instance);
+      console.log("[postgres-portable] pret.");
+      return;
+    }
+    if (!isPidAlive(lock.pid)) {
+      // Verrou perime : le PID enregistre ne correspond plus a aucun
+      // process actif (arret non propre plus radical - crash machine,
+      // panne electrique - jamais observe empiriquement mais possible en
+      // theorie). Sans ce nettoyage, pg_ctl start refuserait indefiniment
+      // de demarrer alors qu'aucun Postgres ne tourne reellement, avec pour
+      // seul recours un geste manuel (voir README-LOT2.md).
+      console.warn(
+        `[postgres-portable] verrou perime (${postmasterPidPath(instance.dataDir)}, PID ${lock.pid} inexistant) - suppression avant nouvelle tentative de demarrage.`
+      );
+      fs.rmSync(postmasterPidPath(instance.dataDir), { force: true });
+    } else {
+      // PID vivant mais port enregistre different de celui attendu - cas
+      // limite jamais observe, on n'y touche pas (ne jamais risquer une
+      // double instance sur le meme data directory) et on laisse pg_ctl
+      // start echouer plus bas avec son message habituel.
+      console.warn(
+        `[postgres-portable] ${postmasterPidPath(instance.dataDir)} present (PID ${lock.pid} actif) mais port enregistre (${lock.port}) different de celui attendu (${instance.port}) - situation inattendue, tentative de demarrage normale quand meme.`
+      );
+    }
+  }
 
   try {
     // execFileSync avec stdio "ignore" - PAS execFile/execFileAsync - est
@@ -89,9 +198,8 @@ export async function startPortablePostgres(instance: PortablePostgresInstance):
     );
   } catch (error) {
     throw new Error(
-      `[postgres-portable] echec du demarrage (voir ${instance.logFile} pour le detail) : ${
-        error instanceof Error ? error.message : error
-      }`
+      `[postgres-portable] echec du demarrage : ${error instanceof Error ? error.message : error}\n` +
+        `--- dernieres lignes de ${instance.logFile} ---\n${tailLogFile(instance.logFile)}`
     );
   }
 
