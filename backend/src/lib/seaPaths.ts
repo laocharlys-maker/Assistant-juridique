@@ -1,5 +1,46 @@
 import path from "node:path";
 
+const WINDOWS_EXTENDED_LENGTH_PREFIX = "\\\\?\\";
+const WINDOWS_EXTENDED_LENGTH_UNC_PREFIX = "\\\\?\\UNC\\";
+
+/**
+ * Windows uniquement : `resource_dir()` de Tauri (AURORE_APP_ROOT, positionne
+ * dans src-tauri/src/main.rs) peut renvoyer un chemin "verbatim" prefixe
+ * \\?\ (ou \\?\UNC\ pour un partage reseau) - le mecanisme natif Windows
+ * pour depasser MAX_PATH (260 caracteres). Ce prefixe exige que TOUT le
+ * chemin reste en antislashs litteraux : la moindre manipulation en aval qui
+ * introduit des slashs normaux (concatenation de sous-chemin avec "/",
+ * path.dirname() applique plusieurs fois par la resolution de module Node...)
+ * le corrompt silencieusement.
+ *
+ * Deux symptomes reels distincts de cette meme cause racine ont ete
+ * rencontres : l'initialisation de Postgres portable (initdb.exe casse le
+ * prefixe en interne en canonicalisant son propre chemin, \\?\ devient //?/,
+ * voir stripWindowsExtendedLengthPrefix dans database/portablePaths.ts,
+ * corrige separement avant la decouverte de cette cause commune) et le
+ * require() dynamique de pdfkit genere par le shim SEA (voir shimFileSource
+ * dans scripts/build-sea.js) : la concatenation `appRoot() + "/node_modules/
+ * aurore-sea-shim.js"` corrompait le prefixe jusqu'a ce que la resolution de
+ * module de Node finisse par lstat() la racine du disque ("C:") et echoue
+ * avec EISDIR.
+ *
+ * On nettoie donc ici, a la source unique de appRoot() (au lieu de dupliquer
+ * ce nettoyage dans chaque consommateur) - tout le reste du code peut
+ * continuer a traiter la valeur de appRoot() comme un chemin Windows normal.
+ */
+function stripWindowsExtendedLengthPrefix(rawPath: string): string {
+  if (process.platform !== "win32") {
+    return rawPath;
+  }
+  if (rawPath.startsWith(WINDOWS_EXTENDED_LENGTH_UNC_PREFIX)) {
+    return "\\\\" + rawPath.slice(WINDOWS_EXTENDED_LENGTH_UNC_PREFIX.length);
+  }
+  if (rawPath.startsWith(WINDOWS_EXTENDED_LENGTH_PREFIX)) {
+    return rawPath.slice(WINDOWS_EXTENDED_LENGTH_PREFIX.length);
+  }
+  return rawPath;
+}
+
 /**
  * Racine "application" utilisee pour resoudre les chemins vers les fichiers
  * statiques (public/, uploads/) et les dependances natives (Prisma).
@@ -19,7 +60,7 @@ import path from "node:path";
  */
 export function appRoot(): string {
   if (process.env.AURORE_APP_ROOT) {
-    return process.env.AURORE_APP_ROOT;
+    return stripWindowsExtendedLengthPrefix(process.env.AURORE_APP_ROOT);
   }
 
   let isSea = false;
@@ -33,7 +74,7 @@ export function appRoot(): string {
   }
 
   if (isSea) {
-    return path.dirname(process.execPath);
+    return stripWindowsExtendedLengthPrefix(path.dirname(process.execPath));
   }
 
   // Mode normal (tsx watch, ou node dist/index.js) : ce fichier compile vit
