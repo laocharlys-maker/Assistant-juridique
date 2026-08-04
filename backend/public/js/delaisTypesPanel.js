@@ -16,30 +16,33 @@
 function delaisTypesPanelHtml() {
   return `
     <div class="card">
-      <h2>Ajouter un type de délai</h2>
-      <form data-types-create-form>
-        <label>Nom (ex: Délai d'appel)</label>
-        <input name="nom" required />
-        <label>Nombre</label>
-        <input name="nombreUnites" type="number" min="1" required />
-        <label>Unité</label>
-        <select name="unite" required>
-          <option value="jours">Jours</option>
-          <option value="mois">Mois</option>
-        </select>
-        <label style="display:flex; align-items:center; gap:8px; font-weight:400;">
-          <input type="checkbox" name="joursOuvresUniquement" style="width:auto;" checked />
-          Reporter au prochain jour ouvré si l'échéance tombe un week-end
-        </label>
-        <label>Texte de loi de référence</label>
-        <input name="texteReference" required placeholder="ex: Code de procédure civile béninois, art. XX" />
-        <button type="submit">Ajouter au référentiel</button>
-      </form>
-    </div>
-
-    <div class="card">
-      <h2>Délais du référentiel</h2>
-      <div data-types-error class="error"></div>
+      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:8px;">
+        <h2 style="margin:0;">Délais du référentiel</h2>
+        <button type="button" data-toggle-add-type>+ Ajouter un type de délai</button>
+      </div>
+      <div class="collapse-panel" data-add-type-panel>
+        <div class="collapse-panel-inner">
+          <form data-types-create-form>
+            <label>Nom (ex: Délai d'appel)</label>
+            <input name="nom" required />
+            <label>Nombre</label>
+            <input name="nombreUnites" type="number" min="1" required />
+            <label>Unité</label>
+            <select name="unite" required>
+              <option value="jours">Jours</option>
+              <option value="mois">Mois</option>
+            </select>
+            <label style="display:flex; align-items:center; gap:8px; font-weight:400;">
+              <input type="checkbox" name="joursOuvresUniquement" style="width:auto;" checked />
+              Reporter au prochain jour ouvré si l'échéance tombe un week-end
+            </label>
+            <label>Texte de loi de référence</label>
+            <input name="texteReference" required placeholder="ex: Code de procédure civile béninois, art. XX" />
+            <button type="submit">Ajouter au référentiel</button>
+          </form>
+        </div>
+      </div>
+      <div data-types-error class="error" style="margin-top:8px;"></div>
       <div data-types-list><p class="muted">Chargement…</p></div>
     </div>`;
 }
@@ -48,6 +51,13 @@ function initDelaisTypesPanel(container) {
   const listEl = container.querySelector("[data-types-list]");
   const errorEl = container.querySelector("[data-types-error]");
   const formEl = container.querySelector("[data-types-create-form]");
+  const addPanel = container.querySelector("[data-add-type-panel]");
+  const toggleAddBtn = container.querySelector("[data-toggle-add-type]");
+
+  toggleAddBtn.addEventListener("click", () => {
+    addPanel.classList.toggle("open");
+    toggleAddBtn.textContent = addPanel.classList.contains("open") ? "Réduire" : "+ Ajouter un type de délai";
+  });
 
   function escapeHtml(str) {
     const div = document.createElement("div");
@@ -112,6 +122,8 @@ function initDelaisTypesPanel(container) {
         },
       });
       formEl.reset();
+      addPanel.classList.remove("open");
+      toggleAddBtn.textContent = "+ Ajouter un type de délai";
       loadTypes();
     } catch (err) {
       showError(errorEl, err.message);
