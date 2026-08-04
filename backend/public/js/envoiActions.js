@@ -72,7 +72,17 @@ function renderEnvoiControls(action, context) {
   if (action.statut === "envoye") {
     return `<p class="muted" style="margin-top:8px;">Envoyé à ${escapeHtml(action.destinataireEmail || "")} le ${action.envoyeAt ? new Date(action.envoyeAt).toLocaleString("fr-FR") : ""}</p>`;
   }
-  if (action.statut !== "valide") return "";
+  if (action.statut !== "valide") {
+    // Indication explicite plutot qu'un formulaire d'envoi qui disparait
+    // silencieusement : sans ca, un document non valide n'affiche RIEN ici,
+    // ce qui a ete pris a tort pour un bug d'affichage ("aucun bouton
+    // d'envoi") alors que c'est le comportement voulu (l'envoi n'est
+    // propose qu'une fois le document valide par un avocat/titulaire, voir
+    // ENVOI_CONFIG plus haut) - deja le cas sur la fiche dossier, juste
+    // jamais explique sur cette page de liste.
+    const lienDossier = action.dossier?.id ? `/dossier.html?id=${action.dossier.id}` : null;
+    return `<p class="muted" style="margin-top:8px;">Pas encore validé — l'envoi sera possible une fois le document validé${lienDossier ? ` (<a href="${lienDossier}">voir la fiche dossier</a>)` : ""}.</p>`;
+  }
 
   const estCollaborateur = me && me.role === "collaborateur";
   const boutonsEnvoi = [];

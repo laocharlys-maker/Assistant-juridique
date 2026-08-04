@@ -1,4 +1,50 @@
 /**
+ * Message temporaire bien visible en haut de l'ecran, sans dependance a une
+ * page en particulier (styles inline, s'auto-detruit) - utilise pour
+ * confirmer un telechargement (voir downloadFile ci-dessous) : sans ca,
+ * rien a l'ecran n'indique qu'un clic a fonctionne (le fichier part
+ * directement dans le dossier Telechargements, hors de vue), ce qui laisse
+ * un utilisateur non technique legitimement penser que le clic n'a rien
+ * fait.
+ */
+function showToast(message) {
+  const toast = document.createElement("div");
+  toast.textContent = `✅ ${message}`;
+  // En haut de l'ecran (pas en bas) et 5s (pas 3s) : un premier essai en
+  // bas/court s'est revele trop discret pour etre remarque de facon fiable
+  // (confirme present dans le DOM lors d'un test automatise, mais pas
+  // remarque par un vrai utilisateur pendant un test manuel) - plus grand,
+  // plus long, couleur de succes, en haut ou le regard revient naturellement
+  // apres un clic.
+  toast.style.cssText = [
+    "position:fixed",
+    "left:50%",
+    "top:24px",
+    "transform:translateX(-50%)",
+    "background:#166534",
+    "color:#fff",
+    "padding:14px 24px",
+    "border-radius:10px",
+    "font-size:1rem",
+    "font-weight:600",
+    "box-shadow:0 6px 20px rgba(0,0,0,0.3)",
+    "z-index:99999",
+    "opacity:0",
+    "transition:opacity 0.2s ease",
+    "max-width:min(90vw, 480px)",
+    "text-align:center",
+  ].join(";");
+  document.body.appendChild(toast);
+  requestAnimationFrame(() => {
+    toast.style.opacity = "1";
+  });
+  setTimeout(() => {
+    toast.style.opacity = "0";
+    setTimeout(() => toast.remove(), 250);
+  }, 5000);
+}
+
+/**
  * Telecharge un fichier binaire (Word/PDF...) genere par une route API
  * authentifiee. JAMAIS via un simple `<a href target="_blank">` : dans la
  * webview desktop (Tauri), l'ouverture d'une "nouvelle fenetre" declenchee
@@ -12,42 +58,6 @@
  * sans jamais passer par un mecanisme de nouvelle fenetre - fonctionne
  * identiquement dans un navigateur classique et dans la webview desktop.
  */
-/**
- * Petit message temporaire en bas de l'ecran, sans dependance a une page en
- * particulier (styles inline, s'auto-detruit) - utilise pour confirmer un
- * telechargement (voir downloadFile ci-dessous) : sans ca, rien a l'ecran
- * n'indique qu'un clic a fonctionne (le fichier part directement dans le
- * dossier Telechargements, hors de vue), ce qui laisse un utilisateur non
- * technique legitimement penser que le clic n'a rien fait.
- */
-function showToast(message) {
-  const toast = document.createElement("div");
-  toast.textContent = message;
-  toast.style.cssText = [
-    "position:fixed",
-    "left:50%",
-    "bottom:28px",
-    "transform:translateX(-50%)",
-    "background:#1f2933",
-    "color:#fff",
-    "padding:10px 18px",
-    "border-radius:8px",
-    "font-size:0.9rem",
-    "box-shadow:0 4px 16px rgba(0,0,0,0.25)",
-    "z-index:9999",
-    "opacity:0",
-    "transition:opacity 0.2s ease",
-  ].join(";");
-  document.body.appendChild(toast);
-  requestAnimationFrame(() => {
-    toast.style.opacity = "1";
-  });
-  setTimeout(() => {
-    toast.style.opacity = "0";
-    setTimeout(() => toast.remove(), 250);
-  }, 3000);
-}
-
 async function downloadFile(url, fallbackFilename) {
   const response = await fetch(url, { credentials: "include" });
   if (!response.ok) {

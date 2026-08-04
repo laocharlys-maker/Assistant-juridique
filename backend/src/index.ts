@@ -54,15 +54,6 @@ async function main() {
       process.env.SESSION_SECRET = loadOrCreateSessionSecret();
     }
 
-    // Invalide toute session existante a CHAQUE demarrage de l'app desktop -
-    // voir resetServerSessionEpoch() (services/auth.ts) pour le detail et le
-    // raisonnement de securite. Sans effet en mode VPS/externe (jamais
-    // appelee dans cette branche).
-    {
-      const { resetServerSessionEpoch } = await import("./services/auth");
-      resetServerSessionEpoch();
-    }
-
     // LLM_PROVIDER=groq (decision AzoMedIA, deja utilise sur le SaaS
     // existant) : sans ce forçage, rien ne le positionnait jamais dans
     // l'environnement du binaire empaquete (aucun .env livre - voir plus
@@ -108,6 +99,34 @@ async function main() {
     }
     if (!process.env.SMTP_FROM_EMAIL && BUNDLED_SMTP_FROM_EMAIL) {
       process.env.SMTP_FROM_EMAIL = BUNDLED_SMTP_FROM_EMAIL;
+    }
+
+    // Invalide toute session existante a CHAQUE demarrage de l'app desktop -
+    // voir resetServerSessionEpoch() (services/auth.ts) pour le detail et le
+    // raisonnement de securite. Sans effet en mode VPS/externe (jamais
+    // appelee dans cette branche).
+    //
+    // ORDRE CRITIQUE - place ICI, en tout DERNIER dans ce bloc, APRES que
+    // process.env soit entierement rempli (SESSION_SECRET, LLM_PROVIDER,
+    // toutes les cles bundlees ci-dessus) : ce await import(...) charge
+    // services/auth.ts, qui importe statiquement config/env.ts, lequel
+    // execute envSchema.parse(process.env) au chargement du module - UNE
+    // SEULE FOIS pour toute la duree du process (cache des modules Node).
+    // Place plus tot (comme dans une version precedente de ce fichier), cet
+    // import declenchait ce parsing PREMATUREMENT, AVANT que LLM_PROVIDER=
+    // groq et les cles bundlees ne soient poses sur process.env - l'objet
+    // `env` fige alors LLM_PROVIDER sur son defaut Zod ("gemini") et les
+    // cles API sur `undefined` pour tout le reste de l'execution (tous les
+    // fichiers import{ env } from "../config/env" partagent la MEME
+    // instance mise en cache), quoi qu'on assigne a process.env ensuite.
+    // Regression reelle constatee : "La generation de documents par IA
+    // n'est pas configuree..." sur TOUS les types d'actes, alors que
+    // GROQ_API_KEY etait bien injectee au build. Voir aussi
+    // services/llm/index.ts (getLlmProvider) et routes/webActions.ts
+    // (getLlmProviderSafe), qui lisent tous cette meme instance de `env`.
+    {
+      const { resetServerSessionEpoch } = await import("./services/auth");
+      resetServerSessionEpoch();
     }
   } else {
     console.log(`[demarrage] DATABASE_MODE=${databaseMode} : DATABASE_URL fournie via .env, inchangee (mode Lot 1).`);
