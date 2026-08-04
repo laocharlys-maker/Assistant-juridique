@@ -451,17 +451,24 @@
       en_attente_validation: "Prêt — à valider",
       valide: "Validé",
       envoye: "Envoyé au client",
+      echec_generation: "Échec de la génération",
     };
 
-    // Au-dela de ce delai sans callback n8n (document Google Docs jamais
-    // pret), on considere que la generation a probablement echoue plutot
-    // que de laisser "Génération en cours…" indefiniment - le
-    // telechargement Word/PDF local reste de toute facon disponible
-    // independamment de n8n (voir contenuGenere, deja enregistre a la
-    // creation de l'action).
-    const GENERATION_TIMEOUT_MS = 3 * 60 * 1000;
-    const GENERATION_TIMEOUT_MESSAGE =
-      "La génération semble avoir échoué. Patientez et relancez dans 2 minutes. Si l'erreur persiste, contactez le support.";
+    // Le seul vrai etat d'echec est "echec_generation" (voir Lot 5 :
+    // jeton orphelin de pseudonymisation ou anomalie equivalente detectee
+    // apres reponse du LLM - README-LOT5.md, actionsCallback.ts). Ancien
+    // comportement fautif corrige ici : un delai ecoule depuis la creation
+    // (Date.now() - createdAt > 3 min) etait auparavant utilise comme
+    // heuristique de "generation probablement echouee" pour le statut
+    // "brouillon" sans document Google Docs (n8n) associe - or en poste
+    // unique/desktop, n8n n'est jamais configure et "brouillon" sans
+    // documentUrl est desormais transitoire (voir webActions.ts, la
+    // generation est synchrone et fait avancer le statut directement a
+    // "en_attente_validation" une fois prete) : ce message s'affichait
+    // donc a tort sur TOUS les documents generes avec succes des qu'ils
+    // depassaient 3 minutes, meme parfaitement reussis.
+    const GENERATION_ECHEC_MESSAGE =
+      "La génération de ce document a échoué. Aucun contenu n'a été produit — relancez la génération depuis « Nouvelle action ». Si l'erreur persiste, contactez le support.";
 
     const STATUT_TAG_LABELS = {
       a_jour: "à jour",
@@ -513,9 +520,17 @@
     }
 
     function renderAction(a) {
-      const generationEnEchec =
-        a.statut === "brouillon" && !a.documentUrl && Date.now() - new Date(a.createdAt).getTime() > GENERATION_TIMEOUT_MS;
-      const statutLabel = generationEnEchec ? "Échec probable de la génération" : STATUT_LABELS[a.statut] || a.statut;
+      const generationEnEchec = a.statut === "echec_generation";
+      // Un document reste a tort au statut "brouillon" pour toute action
+      // creee avant ce correctif (voir webActions.ts : le statut n'avancait
+      // pas sans callback n8n, jamais recu en poste unique/desktop) alors
+      // que son contenu est deja pret (contenuGenere rempli, pas de
+      // document Google Docs (n8n) en attente) - traite ici comme
+      // equivalent a "en_attente_validation" (badge + bouton de validation)
+      // pour ne pas laisser ces documents deja generes bloques.
+      const pretAValider =
+        a.statut === "en_attente_validation" || (a.statut === "brouillon" && a.contenuGenere && !a.documentUrl);
+      const statutLabel = pretAValider ? STATUT_LABELS.en_attente_validation : STATUT_LABELS[a.statut] || a.statut;
       const docLink = a.documentUrl
         ? `<a href="${escapeHtml(a.documentUrl)}" target="_blank" rel="noopener">Ouvrir / modifier le document</a>`
         : "";
@@ -580,7 +595,7 @@
       const envoiConfig = envoiConfigFor(a.typeAction);
 
       let controls = "";
-      if (a.statut === "en_attente_validation" && !currentDossierEstRecherche) {
+      if (pretAValider && !currentDossierEstRecherche) {
         const hintEnvoi = envoiConfig
           ? `<p class="muted" style="margin-top:8px;">L'envoi sera possible une fois l'action validée.</p>`
           : "";
@@ -591,7 +606,7 @@
             <button type="button" class="secondary" data-valider="${a.id}">Marquer comme validé</button>
           </div>
           ${hintEnvoi}`;
-      } else if (envoiConfig && (a.statut === "valide" || (a.statut === "en_attente_validation" && currentDossierEstRecherche))) {
+      } else if (envoiConfig && (a.statut === "valide" || (pretAValider && currentDossierEstRecherche))) {
         // Un collaborateur ne peut jamais envoyer un document directement a
         // un client : il ne peut le transmettre qu'a un membre du cabinet
         // (son avocat responsable ou un autre membre), pour relecture/envoi.
@@ -649,11 +664,11 @@
       return `
         <div class="accordion-item">
           <button type="button" class="accordion-header" data-accordion-toggle>
-            <span class="tag">${escapeHtml(titreAction)} · ${escapeHtml(statutLabel)}</span>
+            <span class="tag">${escapeHtml(titreAction)} <span class="badge badge-action-${a.statut}">${escapeHtml(statutLabel)}</span></span>
             <div><strong>Réalisé par ${escapeHtml(a.creePar.nom)}</strong> — ${new Date(a.createdAt).toLocaleString("fr-FR")}</div>
           </button>
           <div class="accordion-body">
-            ${generationEnEchec ? `<p class="error visible" style="margin:6px 0;">${escapeHtml(GENERATION_TIMEOUT_MESSAGE)}</p>` : ""}
+            ${generationEnEchec ? `<p class="error visible" style="margin:6px 0;">${escapeHtml(GENERATION_ECHEC_MESSAGE)}</p>` : ""}
             ${docLink || editTexteBtn ? `<div style="margin:6px 0;">${docLink}${editTexteBtn}</div>` : ""}
             ${downloadLinks}
             <div class="md-content" data-content-view="${a.id}">${renderMarkdown(a.contenuGenere || "")}</div>

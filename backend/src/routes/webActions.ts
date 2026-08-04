@@ -2070,6 +2070,28 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
       n8nResult.error
     );
 
+    // Sans n8n actif (N8N_WEBHOOK_BASE_URL non configure - le cas de tout
+    // poste unique/desktop), le webhook de callback qui fait normalement
+    // avancer le statut brouillon -> en_attente_validation (voir
+    // POST /api/actions/document-callback dans actionsCallback.ts) ne sera
+    // JAMAIS appele : le contenu est pourtant deja pret (contenuGenere
+    // rempli ci-dessus, generation synchrone via le LLM) - sans cette
+    // avancee explicite, l'action restait bloquee indefiniment au statut
+    // "brouillon", qui n'a de sens que le temps d'attendre n8n. Consequence
+    // concrete observee : aucun bouton "Marquer comme valide" ne s'affiche
+    // jamais (reserve au statut en_attente_validation, voir dossier.html),
+    // et au-dela de 3 minutes le document se voit a tort etiquete "echec de
+    // generation" (heuristique de dossier.html qui suppose que "brouillon"
+    // = en attente du callback n8n). Quand n8n EST configure et a repondu
+    // avec succes (mode reseau), on laisse le comportement d'origine
+    // inchange : le statut n'avance qu'a la reception du vrai callback.
+    if (!n8nResult.ok) {
+      await prisma.action.update({
+        where: { id: savedAction.id },
+        data: { statut: "en_attente_validation" },
+      });
+    }
+
     return res.status(201).json({
       dossierId,
       actionId: savedAction.id,
