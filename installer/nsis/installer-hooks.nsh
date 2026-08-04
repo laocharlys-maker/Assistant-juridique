@@ -48,8 +48,26 @@
 !macroend
 
 !macro NSIS_HOOK_PREINSTALL
-  ; Rien de special requis avant la copie des fichiers - conserve pour
-  ; completude/coherence avec les autres macros de hook Tauri.
+  ; Ferme toute instance d'Aurore deja en cours d'execution (fenetre
+  ; principale + sidecar backend) AVANT la copie des fichiers : sans ca,
+  ; Windows garde verrouilles les DLL/binaires charges en memoire par le
+  ; process en cours (ex: node_modules\.prisma\client\query_engine-windows.dll.node,
+  ; charge par aurore-backend.exe tant qu'il tourne) et l'installeur echoue
+  ; avec "Erreur lors de l'ouverture du fichier en ecriture" - constate en
+  ; reinstallant/mettant a jour par-dessus une installation deja active
+  ; (mise a jour manuelle, ou app pas completement fermee avant de relancer
+  ; l'installeur). taskkill sur un process absent echoue silencieusement
+  ; (code de sortie non nul, jamais remonte a l'utilisateur) - operation
+  ; delibereement best-effort, jamais bloquante si Aurore n'etait pas lance.
+  DetailPrint "Fermeture d'une eventuelle instance d'Aurore deja en cours..."
+  nsExec::ExecToLog 'taskkill /F /IM aurore-backend.exe /T'
+  Pop $0
+  nsExec::ExecToLog 'taskkill /F /IM Aurore.exe /T'
+  Pop $0
+  ; Laisse Windows liberer les handles de fichiers juste apres la
+  ; terminaison des process - sans cette pause, la copie peut demarrer
+  ; avant que le verrou ne soit reellement leve.
+  Sleep 1000
 !macroend
 
 ; ============================================================================
@@ -67,6 +85,15 @@
 ; ============================================================================
 
 !macro NSIS_HOOK_PREUNINSTALL
+  ; Meme raisonnement qu'au PREINSTALL ci-dessus : evite un echec de
+  ; suppression de fichier verrouille si Aurore tourne encore au moment de
+  ; la desinstallation.
+  nsExec::ExecToLog 'taskkill /F /IM aurore-backend.exe /T'
+  Pop $0
+  nsExec::ExecToLog 'taskkill /F /IM Aurore.exe /T'
+  Pop $0
+  Sleep 1000
+
   MessageBox MB_YESNO|MB_ICONQUESTION \
     "Voulez-vous conserver les données de votre cabinet (dossiers, clients, documents générés) pour une éventuelle réinstallation future ?$\r$\n$\r$\nOui = conserver ces données sur ce disque (recommandé)$\r$\nNon = tout supprimer définitivement" \
     IDYES aurore_keep_data
