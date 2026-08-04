@@ -9,7 +9,7 @@
 </head>
 <body>
   <div class="page">
-    <p><a href="/dashboard.html" id="back-link">&larr; Retour aux dossiers</a></p>
+    <p><a href="/dashboard.html" id="back-link">&larr; Retour</a></p>
     <div id="content"><p class="muted">Chargement…</p></div>
   </div>
   <script src="/js/api.js"></script>
@@ -418,6 +418,8 @@
           // applique tout de suite ce réglage initial aux liens de
           // téléchargement, sans attendre un changement manuel.
           update();
+          bindDownloadLink(document.getElementById(`word-link-${a.id}`), "document.docx");
+          bindDownloadLink(document.getElementById(`pdf-link-${a.id}`), "document.pdf");
 
           const emailInput = document.getElementById(`email-${a.id}`);
           const envoyerMoiBtn = actionsEl.querySelector(`[data-envoyer-moi="${a.id}"]`);
@@ -552,8 +554,8 @@
       const downloadLinks = a.contenuGenere
         ? `<div style="margin:6px 0;" class="muted">
             <div>
-              <a href="/api/actions/${a.id}/word" id="word-link-${a.id}">Télécharger en Word</a> ·
-              <a href="/api/actions/${a.id}/pdf" id="pdf-link-${a.id}">Télécharger en PDF</a>
+              <a href="#" data-url="/api/actions/${a.id}/word" id="word-link-${a.id}">Télécharger en Word</a> ·
+              <a href="#" data-url="/api/actions/${a.id}/pdf" id="pdf-link-${a.id}">Télécharger en PDF</a>
             </div>
             ${
               cabinetHasEntete
@@ -709,8 +711,28 @@
       const query = params.toString() ? `?${params.toString()}` : "";
       const wordLink = document.getElementById(`word-link-${actionId}`);
       const pdfLink = document.getElementById(`pdf-link-${actionId}`);
-      if (wordLink) wordLink.href = `/api/actions/${actionId}/word${query}`;
-      if (pdfLink) pdfLink.href = `/api/actions/${actionId}/pdf${query}`;
+      if (wordLink) wordLink.dataset.url = `/api/actions/${actionId}/word${query}`;
+      if (pdfLink) pdfLink.dataset.url = `/api/actions/${actionId}/pdf${query}`;
+    }
+
+    // downloadFile() (voir js/api.js) plutot qu'une navigation classique -
+    // confirme par un message visible (toast) a CHAQUE telechargement, pas
+    // seulement au premier (les liens etaient jusqu'ici de simples <a href>,
+    // sans aucune confirmation visuelle apres le premier document genere).
+    function bindDownloadLink(linkEl, fallbackFilename) {
+      if (!linkEl || linkEl.dataset.downloadBound) return;
+      linkEl.dataset.downloadBound = "1";
+      linkEl.addEventListener("click", async (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const url = linkEl.dataset.url;
+        if (!url) return;
+        try {
+          await downloadFile(url, fallbackFilename);
+        } catch (err) {
+          alert(err.message);
+        }
+      });
     }
 
     async function validerAction(actionId) {

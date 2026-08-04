@@ -333,6 +333,14 @@
             loadSuggestions();
           });
         });
+        // Un avocat (titulaire ou non) voit par defaut les audiences de
+        // TOUT le cabinet, pas seulement les siennes - la vue "Mes
+        // audiences" reste disponible via l'onglet pour qui veut filtrer.
+        // Auparavant "mine" par defaut (repli du backend en l'absence de
+        // ?scope=), ce qui cachait a tort les audiences des collegues a un
+        // avocat non-admin tant qu'il n'avait pas clique sur "Tout le
+        // cabinet".
+        activeScope = "cabinet";
       }
 
       loadDossiersForDatalist();
