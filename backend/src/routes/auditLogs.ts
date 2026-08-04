@@ -18,8 +18,8 @@ const querySchema = z.object({
 });
 
 // Journal d'audit du cabinet : chaque etape technique (extraction IA,
-// declenchement n8n...) d'une action, avec son statut. Reserve a l'admin -
-// c'est un outil de suivi/securite, pas une donnee metier courante.
+// redaction IA, envoi email...) d'une action, avec son statut. Reserve a
+// l'admin - c'est un outil de suivi/securite, pas une donnee metier courante.
 auditLogsRouter.get("/api/audit-logs", requireAuth, requireAdmin, async (req, res) => {
   const parsed = querySchema.safeParse(req.query);
   if (!parsed.success) {

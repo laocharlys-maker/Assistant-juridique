@@ -1,5 +1,5 @@
 import { prisma } from "../lib/prisma";
-import { callN8nWebhook } from "./n8n";
+import { sendEmail } from "./mailer";
 import { buildRoleSemaineRecapEmailHtml } from "./roleSemaineRecapEmail";
 import { formatDateLongue } from "../utils/dateFormat";
 import { resolveCabinetEmailIdentite } from "./cabinetContact";
@@ -56,13 +56,12 @@ export async function runRoleSemaineRecapPourCabinet(cabinetId: string): Promise
       destinataireNom: destinataire.nom,
       audiences,
     });
-    await callN8nWebhook("role-semaine-recap", {
-      cabinetNom: cabinet.nom,
-      periode,
-      contenuHtml,
+    await sendEmail({
       destinataireEmail: destinataire.email,
-      destinataireNom: destinataire.nom,
+      cabinetNom: cabinet.nom,
       replyToEmail,
+      subject: `Rôle de la semaine du ${periode}`,
+      html: contenuHtml,
     });
   }
 }

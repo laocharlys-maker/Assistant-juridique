@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
-import { callN8nWebhook } from "../services/n8n";
+import { sendEmail } from "../services/mailer";
 import { resolveCabinetEmailIdentite } from "../services/cabinetContact";
 
 export const clientsRouter = Router();
@@ -121,10 +121,10 @@ const envoyerEmailSchema = z.object({
   pieceJointeNom: z.string().optional(),
 });
 
-// Envoie un email libre (objet + message) a un client depuis sa fiche.
-// Ne passe jamais par le serveur de mail directement : delegue a n8n
-// (meme principe que le reste de l'app - le backend prepare les donnees,
-// n8n s'occupe de l'envoi effectif).
+// Envoie un email libre (objet + message) a un client depuis sa fiche,
+// directement via Brevo/Nodemailer (meme transporteur que le reste de
+// l'app - voir services/mailer.ts). Auparavant delegue a n8n ; retire avec
+// le reste de la dependance n8n (voir README-LOT8TER.md).
 clientsRouter.post("/api/clients/:id/envoyer-email", requireAuth, async (req, res) => {
   const parsed = envoyerEmailSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -141,21 +141,33 @@ clientsRouter.post("/api/clients/:id/envoyer-email", requireAuth, async (req, re
     return res.status(400).json({ error: "Ce client n'a pas d'adresse email enregistrée" });
   }
 
-  const auteur = await prisma.user.findUnique({ where: { id: req.auth!.userId } });
   const { cabinetNom, replyToEmail } = await resolveCabinetEmailIdentite(req.auth!.cabinetId);
 
-  const n8nResult = await callN8nWebhook("envoyer-email-client", {
+  let attachments: { filename: string; content: Buffer; contentType: string }[] | undefined;
+  if (parsed.data.pieceJointeDataUrl) {
+    const match = parsed.data.pieceJointeDataUrl.match(/^data:([^;]+);base64,(.+)$/);
+    if (match) {
+      attachments = [
+        {
+          filename: parsed.data.pieceJointeNom || "piece-jointe",
+          content: Buffer.from(match[2], "base64"),
+          contentType: match[1],
+        },
+      ];
+    }
+  }
+
+  const mailResult = await sendEmail({
     destinataireEmail: client.email,
-    destinataireNom: client.nom,
-    objet: parsed.data.objet,
-    message: parsed.data.message,
-    pieceJointeDataUrl: parsed.data.pieceJointeDataUrl ?? null,
-    pieceJointeNom: parsed.data.pieceJointeNom ?? null,
-    envoyeParNom: auteur?.nom ?? null,
-    envoyeParEmail: auteur?.email ?? null,
     cabinetNom,
     replyToEmail,
+    subject: parsed.data.objet,
+    text: parsed.data.message,
+    attachments,
   });
 
-  return res.json({ ok: true, n8nDispatched: n8nResult.ok });
+  if (!mailResult.ok) {
+    return res.status(502).json({ error: "Échec de l'envoi de l'email", detail: mailResult.error });
+  }
+  return res.json({ ok: true });
 });

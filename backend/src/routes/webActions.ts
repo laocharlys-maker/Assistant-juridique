@@ -6,7 +6,6 @@ import { requireAuth } from "../middleware/requireAuth";
 import { requireModule } from "../middleware/roles";
 import { getLlmProvider, LlmProvider } from "../services/llm";
 import { MissingConfigurationError } from "../lib/configurationError";
-import { callN8nWebhook, webhookForAction } from "../services/n8n";
 import { logAuditStep } from "../services/audit";
 import { espace } from "../services/documentFormalisme";
 import { webActionFormSchema } from "../schemas/webForms";
@@ -49,7 +48,6 @@ import { searchWeb, formatWebSearchContext, WebSearchResult } from "../services/
 import { summarizeLongText } from "../services/resumePdf";
 import { translateText, extractTextFromDocument } from "../services/traduction";
 import { aiActionsLimiter } from "../middleware/rateLimit";
-import { env } from "../config/env";
 import { formatDateLongue } from "../utils/dateFormat";
 import { computeNomDocument } from "../utils/documentNaming";
 import { WebActionForm } from "../schemas/webForms";
@@ -533,25 +531,14 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
     }
   }
 
-  // En-tete du cabinet (logo/bandeau), insere automatiquement par n8n en
-  // haut du Google Doc a chaque generation - inutile de cocher quoi que ce
-  // soit, contrairement a l'insertion dans les exports Word/PDF telecharges
-  // qui reste, elle, optionnelle (case a cocher).
-  const cabinetPourEntete = await prisma.cabinet.findUnique({
-    where: { id: auth!.cabinetId },
-    select: { enteteUrl: true },
-  });
-  const enteteUrl =
-    cabinetPourEntete?.enteteUrl && env.PUBLIC_BASE_URL
-      ? `${env.PUBLIC_BASE_URL.replace(/\/$/, "")}${cabinetPourEntete.enteteUrl}`
-      : null;
-
   try {
     let dossierId: string;
     let action: ActionOutput;
-    // Champs additionnels specifiques a certains types, transmis a n8n en
-    // plus du contenu ActionOutput standard (ex: nom du defendeur et
-    // juridiction pour une assignation).
+    // Champs additionnels specifiques a certains types d'actes (ex: nom du
+    // defendeur et juridiction pour une assignation), en plus du contenu
+    // ActionOutput standard - persistes sur Action.champsDocument pour que
+    // les exports Word/PDF locaux reconstruisent le formalisme complet
+    // (voir documentFormalisme.ts).
     let extraWebhookFields: Record<string, unknown> = {};
     // Lot 5 : true seulement si la branche empruntee ci-dessous a
     // effectivement tokenise au moins une donnee identifiante avant l'appel
@@ -2033,6 +2020,12 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
         dossierId,
         typeAction: action.type_action,
         canal: "web",
+        // La generation est synchrone (LLM deja appele ci-dessus) : le
+        // document est complet des sa creation, jamais un brouillon en
+        // attente d'un traitement externe (voir README-LOT8TER.md - l'ancien
+        // circuit n8n qui generait un document Google Docs est retire ; le
+        // statut avancait auparavant a la reception de son callback).
+        statut: "en_attente_validation",
         contenuGenere: action.synthese ?? action.argumentaire,
         dateAudience: action.date_audience ? new Date(action.date_audience) : null,
         prochaineAudience: action.prochaine_audience ? new Date(action.prochaine_audience) : null,
@@ -2040,11 +2033,9 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
         // Conserve les champs saisis pour permettre de pre-remplir n'importe
         // quel autre formulaire plus tard a partir de cet acte.
         champsFormulaire: form as object,
-        // Conserve les champs deja composes/resolus envoyes a n8n (identite
-        // des parties, huissier, greffier, juge, civilites, adresses...) -
-        // permet aux exports Word/PDF locaux de reconstruire le meme
-        // formalisme juridique que le document Google Docs (voir
-        // documentFormalisme.ts).
+        // Identite des parties, huissier, greffier, juge, civilites,
+        // adresses... : permet aux exports Word/PDF locaux de reconstruire
+        // le formalisme juridique complet (voir documentFormalisme.ts).
         champsDocument: extraWebhookFields as object,
         nomDocument,
         donneesPseudonymisees,
@@ -2054,49 +2045,10 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
 
     await logAuditStep(savedAction.id, "redaction_ia", "succes", action.categorie_texte);
 
-    const n8nResult = await callN8nWebhook(webhookForAction(action.type_action), {
-      ...action,
-      dossierId,
-      actionId: savedAction.id,
-      enteteUrl,
-      nom_document: nomDocument,
-      ...extraWebhookFields,
-    });
-
-    await logAuditStep(
-      savedAction.id,
-      "declenchement_n8n",
-      n8nResult.ok ? "succes" : "erreur",
-      n8nResult.error
-    );
-
-    // Sans n8n actif (N8N_WEBHOOK_BASE_URL non configure - le cas de tout
-    // poste unique/desktop), le webhook de callback qui fait normalement
-    // avancer le statut brouillon -> en_attente_validation (voir
-    // POST /api/actions/document-callback dans actionsCallback.ts) ne sera
-    // JAMAIS appele : le contenu est pourtant deja pret (contenuGenere
-    // rempli ci-dessus, generation synchrone via le LLM) - sans cette
-    // avancee explicite, l'action restait bloquee indefiniment au statut
-    // "brouillon", qui n'a de sens que le temps d'attendre n8n. Consequence
-    // concrete observee : aucun bouton "Marquer comme valide" ne s'affiche
-    // jamais (reserve au statut en_attente_validation, voir dossier.html),
-    // et au-dela de 3 minutes le document se voit a tort etiquete "echec de
-    // generation" (heuristique de dossier.html qui suppose que "brouillon"
-    // = en attente du callback n8n). Quand n8n EST configure et a repondu
-    // avec succes (mode reseau), on laisse le comportement d'origine
-    // inchange : le statut n'avance qu'a la reception du vrai callback.
-    if (!n8nResult.ok) {
-      await prisma.action.update({
-        where: { id: savedAction.id },
-        data: { statut: "en_attente_validation" },
-      });
-    }
-
     return res.status(201).json({
       dossierId,
       actionId: savedAction.id,
       contenu: action.synthese ?? action.argumentaire,
-      n8nDispatched: n8nResult.ok,
     });
   } catch (error) {
     if (error instanceof OrphanTokenError) {

@@ -2,7 +2,6 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
-import { env } from "../config/env";
 import { logAuditStep } from "../services/audit";
 import { resolveCabinetEmailIdentite } from "../services/cabinetContact";
 import { sendDocumentEmail } from "../services/mailer";
@@ -11,40 +10,6 @@ import { loadExportInput, resolveSignature, resolveEntete } from "./documentExpo
 import { TYPE_LABELS, slugify } from "../utils/documentNaming";
 
 export const actionsCallbackRouter = Router();
-
-const callbackSchema = z.object({
-  actionId: z.string().uuid(),
-  documentUrl: z.string().url(),
-  documentId: z.string().min(1),
-});
-
-// Appele par n8n une fois le document Google Docs genere. Pas d'authentification
-// utilisateur (c'est n8n qui appelle), mais verification d'un secret partage.
-actionsCallbackRouter.post("/api/actions/document-callback", async (req, res) => {
-  if (env.N8N_WEBHOOK_SECRET && req.headers["x-webhook-secret"] !== env.N8N_WEBHOOK_SECRET) {
-    return res.status(401).json({ error: "Secret invalide" });
-  }
-
-  const parsed = callbackSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: "Requête invalide", details: parsed.error.issues });
-  }
-  const { actionId, documentUrl, documentId } = parsed.data;
-
-  const action = await prisma.action.findUnique({ where: { id: actionId } });
-  if (!action) {
-    return res.status(404).json({ error: "Action introuvable" });
-  }
-
-  await prisma.action.update({
-    where: { id: actionId },
-    data: { documentUrl, documentId, statut: "en_attente_validation" },
-  });
-
-  await logAuditStep(actionId, "document_pret", "succes", documentUrl);
-
-  return res.json({ ok: true });
-});
 
 const envoyerSchema = z.object({
   email: z.string().email(),
@@ -80,8 +45,7 @@ actionsCallbackRouter.post("/api/actions/:id/envoyer", requireAuth, async (req, 
     }
   }
   // Envoi direct du PDF genere localement (formalisme complet - voir
-  // documentFormalisme.ts) par email via Brevo/Nodemailer, sans passer par
-  // n8n ni Google Docs.
+  // documentFormalisme.ts) par email via Brevo/Nodemailer.
   const loaded = await loadExportInput(action.id, req.auth!.cabinetId);
   if (!loaded) {
     return res.status(409).json({ error: "Le document n'est pas encore prêt" });
@@ -167,10 +131,9 @@ const updateContenuSchema = z.object({
   contenu: z.string().min(1),
 });
 
-// Correction du texte genere directement dans Aurore (alternative au lien
-// "Ouvrir / modifier le document" qui pointe vers Google Docs) - alimente
-// ensuite les exports Word/PDF ET, une fois ce circuit devenu la source de
-// verite pour l'envoi, l'email envoye au client. Autorise a quiconque peut
+// Correction du texte genere directement dans Aurore - alimente ensuite les
+// exports Word/PDF ET, une fois ce circuit devenu la source de verite pour
+// l'envoi, l'email envoye au client. Autorise a quiconque peut
 // deja generer des documents (y compris un collaborateur sur ses propres
 // brouillons) - seule la validation reste reservee aux avocats/titulaire.
 actionsCallbackRouter.patch("/api/actions/:id/contenu", requireAuth, async (req, res) => {

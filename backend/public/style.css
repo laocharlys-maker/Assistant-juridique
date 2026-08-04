@@ -874,7 +874,7 @@ header.app-topbar {
   .role-month-cell-date::before { content: "Le "; }
 }
 
-/* ---------- Editeur de texte plein ecran (correction d'un document genere, alternative a Google Docs) ---------- */
+/* ---------- Editeur de texte plein ecran (correction d'un document genere) ---------- */
 .edit-panel[hidden] { display: none; }
 .edit-panel:not([hidden]) {
   position: fixed;

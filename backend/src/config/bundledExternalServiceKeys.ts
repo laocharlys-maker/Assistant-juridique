@@ -19,10 +19,6 @@
  * En developpement local ou pour un build VPS, ce fichier reste tel quel
  * (undefined) : aucun effet, comportement identique a avant l'ajout de ce
  * mecanisme.
- *
- * Volontairement PAS pour N8N_WEBHOOK_BASE_URL/PUBLIC_BASE_URL (n8n) : hors
- * perimetre du Lot 8, confirme - la degradation silencieuse existante
- * ({ok:false, ...}) reste le comportement voulu en mode desktop.
  */
 export const BUNDLED_GEMINI_API_KEY: string | undefined = undefined;
 export const BUNDLED_GROQ_API_KEY: string | undefined = undefined;

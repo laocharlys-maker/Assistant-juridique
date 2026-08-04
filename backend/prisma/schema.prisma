@@ -335,6 +335,10 @@ model DelaiCalcul {
   dossierId      String?  @map("dossier_id")
   dateDepart     DateTime @map("date_depart")
   dateLimite     DateTime @map("date_limite")
+  // Orpheline (Lot 8ter) : le rappel Google Calendar qui l'alimentait est
+  // retire du produit (remplace par la page "Echeances", deja presente dans
+  // l'app) - toujours false desormais. Conservee sans migration de
+  // suppression, non necessaire (voir README-LOT8TER.md).
   rappelCalendar Boolean  @default(false) @map("rappel_calendar")
   createdById    String   @map("created_by_id")
   createdAt      DateTime @default(now()) @map("created_at")
@@ -471,6 +475,10 @@ model Action {
   ignorerSuggestionRole Boolean      @default(false) @map("ignorer_suggestion_role")
   // Statut de validation/envoi (remplace l'envoi automatique par mail).
   statut                StatutAction @default(brouillon)
+  // Orphelines (Lot 8ter) : alimentees par l'ancien callback de generation
+  // du document Google Docs (n8n), retire du produit - l'export Word/PDF
+  // natif suffit. Toujours null desormais. Conservees sans migration de
+  // suppression, non necessaire (voir README-LOT8TER.md).
   documentUrl           String?      @map("document_url")
   documentId            String?      @map("document_id")
   destinataireEmail     String?      @map("destinataire_email")

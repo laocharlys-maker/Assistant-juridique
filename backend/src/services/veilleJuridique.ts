@@ -1,7 +1,7 @@
 import { prisma } from "../lib/prisma";
 import { LlmProvider } from "./llm/types";
 import { searchWeb, formatWebSearchContext } from "./tavily";
-import { callN8nWebhook } from "./n8n";
+import { sendEmail } from "./mailer";
 import { logAuditStep } from "./audit";
 import { splitSujets, periodeLabel } from "./veilleJuridiqueUtils";
 import { buildVeilleEmailHtml } from "./veilleJuridiqueEmail";
@@ -73,22 +73,18 @@ export async function runVeilleForCabinet(cabinetId: string, llm: LlmProvider): 
       destinataireNom: destinataire.nom,
       digestMarkdown: digest,
     });
-    const n8nResult = await callN8nWebhook("veille-juridique", {
-      actionId: action.id,
-      dossierId: dossier.id,
-      cabinetNom: cabinet.nom,
-      periode,
-      contenu: digest,
-      contenuHtml,
+    const mailResult = await sendEmail({
       destinataireEmail: destinataire.email,
-      destinataireNom: destinataire.nom,
+      cabinetNom: cabinet.nom,
       replyToEmail,
+      subject: `Veille juridique - ${cabinet.nom} - ${periode}`,
+      html: contenuHtml,
     });
     await logAuditStep(
       action.id,
       "envoi_email",
-      n8nResult.ok ? "succes" : "erreur",
-      n8nResult.ok ? destinataire.email : n8nResult.error
+      mailResult.ok ? "succes" : "erreur",
+      mailResult.ok ? destinataire.email : mailResult.error
     );
   }
 }

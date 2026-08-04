@@ -31,11 +31,10 @@ export function slugify(text: string): string {
     .toLowerCase();
 }
 
-// Nom "humain" du document genere (utilise comme titre du Google Doc cote
-// n8n, et comme base du nom de fichier pour les exports Word/PDF locaux une
-// fois passe par slugify) - distingue chaque document par les noms des
-// parties plutot que par le seul type ("Assignation"), qui etait identique
-// pour tous les documents d'un meme type.
+// Nom "humain" du document genere (base du nom de fichier pour les exports
+// Word/PDF locaux une fois passe par slugify) - distingue chaque document
+// par les noms des parties plutot que par le seul type ("Assignation"), qui
+// etait identique pour tous les documents d'un meme type.
 export function computeNomDocument(facts: {
   typeAction: string;
   nomClient: string | null;

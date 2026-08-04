@@ -76,9 +76,7 @@ async function main() {
     // reste un placeholder vide (undefined) partout sauf dans le binaire
     // produit par le workflow CI, qui le reecrit juste avant le build a
     // partir des GitHub Secrets - voir
-    // .github/workflows/build-windows-installer.yml. Volontairement PAS
-    // pour N8N_WEBHOOK_BASE_URL/PUBLIC_BASE_URL (n8n) : hors perimetre du
-    // Lot 8, confirme - la degradation silencieuse existante reste voulue.
+    // .github/workflows/build-windows-installer.yml.
     if (!process.env.GEMINI_API_KEY && BUNDLED_GEMINI_API_KEY) {
       process.env.GEMINI_API_KEY = BUNDLED_GEMINI_API_KEY;
     }

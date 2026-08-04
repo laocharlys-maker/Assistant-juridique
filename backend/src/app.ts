@@ -3,7 +3,6 @@ import express from "express";
 import cookieParser from "cookie-parser";
 import compression from "compression";
 import { healthRouter } from "./routes/health";
-import { actionsRouter } from "./routes/actions";
 import { authRouter } from "./routes/auth";
 import { dossiersRouter } from "./routes/dossiers";
 import { webActionsRouter } from "./routes/webActions";
@@ -57,7 +56,6 @@ app.use(appInfoRouter);
 // invalide/expiree au-dela de la periode de grace - voir
 // middleware/requireLicence.ts et README-LOT3.md.
 app.use(requireLicence);
-app.use(actionsRouter);
 app.use(authRouter);
 app.use(dossiersRouter);
 app.use(webActionsRouter);

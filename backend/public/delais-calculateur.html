@@ -49,10 +49,6 @@
             <select name="dossierId" id="dossier-select">
               <option value="">— aucun —</option>
             </select>
-            <label style="display:flex; align-items:center; gap:8px; font-weight:400;">
-              <input type="checkbox" name="creerRappelCalendar" style="width:auto;" />
-              Créer un rappel dans Google Calendar
-            </label>
             <button type="submit">Calculer</button>
           </form>
 
@@ -130,7 +126,7 @@
           .map(
             (c) => `
           <div class="action-item">
-            <span class="tag">${escapeHtml(c.delaiType.nom)}${c.dossier ? " · " + escapeHtml(c.dossier.numeroDossier) : ""}${c.rappelCalendar ? " · rappel Calendar créé" : ""}</span>
+            <span class="tag">${escapeHtml(c.delaiType.nom)}${c.dossier ? " · " + escapeHtml(c.dossier.numeroDossier) : ""}</span>
             <div>Départ : ${formatDate(c.dateDepart)} → <strong>Date limite : ${formatDate(c.dateLimite)}</strong></div>
             <p class="muted">Calculé par ${escapeHtml(c.createdBy.nom)} le ${new Date(c.createdAt).toLocaleString("fr-FR")}</p>
           </div>`
@@ -200,14 +196,12 @@
             delaiTypeId: fd.get("delaiTypeId"),
             dateDepart: fd.get("dateDepart"),
             dossierId: fd.get("dossierId") || undefined,
-            creerRappelCalendar: fd.get("creerRappelCalendar") === "on",
           },
         });
         resultEl.innerHTML = `
           <h2>Date limite</h2>
           <p style="font-size:1.4em;"><strong>${formatDate(calcul.dateLimite)}</strong></p>
           <p class="muted">${escapeHtml(calcul.delaiType.nom)} — ${escapeHtml(calcul.delaiType.texteReference)}</p>
-          ${calcul.rappelCalendar ? '<p class="muted">Rappel créé dans Google Calendar.</p>' : ""}
         `;
         resultEl.style.display = "block";
         loadHistory();
