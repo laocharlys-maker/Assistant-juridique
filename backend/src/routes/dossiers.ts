@@ -168,6 +168,12 @@ dossiersRouter.get("/api/documents", requireAuth, requireModule("documents_gener
       statut: true,
       documentUrl: true,
       createdAt: true,
+      // destinataireEmail/envoyeAt : necessaires pour que "Documents
+      // generes" (dashboard.html) puisse afficher les memes controles
+      // d'envoi (et le rappel "Envoye a ... le ...") que la fiche dossier -
+      // voir public/js/envoiActions.js.
+      destinataireEmail: true,
+      envoyeAt: true,
       dossier: { select: { id: true, numeroDossier: true, nomAffaire: true, nomClient: true, statut: true } },
       creePar: { select: { nom: true } },
     },

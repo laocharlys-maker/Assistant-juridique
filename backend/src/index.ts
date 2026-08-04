@@ -54,6 +54,15 @@ async function main() {
       process.env.SESSION_SECRET = loadOrCreateSessionSecret();
     }
 
+    // Invalide toute session existante a CHAQUE demarrage de l'app desktop -
+    // voir resetServerSessionEpoch() (services/auth.ts) pour le detail et le
+    // raisonnement de securite. Sans effet en mode VPS/externe (jamais
+    // appelee dans cette branche).
+    {
+      const { resetServerSessionEpoch } = await import("./services/auth");
+      resetServerSessionEpoch();
+    }
+
     // LLM_PROVIDER=groq (decision AzoMedIA, deja utilise sur le SaaS
     // existant) : sans ce forçage, rien ne le positionnait jamais dans
     // l'environnement du binaire empaquete (aucun .env livre - voir plus

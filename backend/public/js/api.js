@@ -12,6 +12,42 @@
  * sans jamais passer par un mecanisme de nouvelle fenetre - fonctionne
  * identiquement dans un navigateur classique et dans la webview desktop.
  */
+/**
+ * Petit message temporaire en bas de l'ecran, sans dependance a une page en
+ * particulier (styles inline, s'auto-detruit) - utilise pour confirmer un
+ * telechargement (voir downloadFile ci-dessous) : sans ca, rien a l'ecran
+ * n'indique qu'un clic a fonctionne (le fichier part directement dans le
+ * dossier Telechargements, hors de vue), ce qui laisse un utilisateur non
+ * technique legitimement penser que le clic n'a rien fait.
+ */
+function showToast(message) {
+  const toast = document.createElement("div");
+  toast.textContent = message;
+  toast.style.cssText = [
+    "position:fixed",
+    "left:50%",
+    "bottom:28px",
+    "transform:translateX(-50%)",
+    "background:#1f2933",
+    "color:#fff",
+    "padding:10px 18px",
+    "border-radius:8px",
+    "font-size:0.9rem",
+    "box-shadow:0 4px 16px rgba(0,0,0,0.25)",
+    "z-index:9999",
+    "opacity:0",
+    "transition:opacity 0.2s ease",
+  ].join(";");
+  document.body.appendChild(toast);
+  requestAnimationFrame(() => {
+    toast.style.opacity = "1";
+  });
+  setTimeout(() => {
+    toast.style.opacity = "0";
+    setTimeout(() => toast.remove(), 250);
+  }, 3000);
+}
+
 async function downloadFile(url, fallbackFilename) {
   const response = await fetch(url, { credentials: "include" });
   if (!response.ok) {
@@ -33,6 +69,7 @@ async function downloadFile(url, fallbackFilename) {
   link.click();
   link.remove();
   URL.revokeObjectURL(objectUrl);
+  showToast(`Téléchargement lancé : ${filename} — voir votre dossier Téléchargements.`);
 }
 
 async function apiFetch(path, options = {}) {
@@ -48,7 +85,24 @@ async function apiFetch(path, options = {}) {
 
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const message = data.error || `Erreur ${response.status}`;
+    // Une erreur de validation de formulaire (zod, voir schemas/*.ts cote
+    // backend) renvoie toujours le meme message generique ("Formulaire
+    // invalide") au niveau superieur, avec le detail exploitable (quel
+    // champ, pourquoi) dans `details` - jamais affiche jusqu'ici, laissant
+    // l'utilisateur sans aucune indication sur ce qui doit etre corrige
+    // (constate concretement : "Le contenu doit etre suffisamment
+    // detaille..." reste invisible, seul "Formulaire invalide" s'affiche).
+    // Corrige ici, au point d'entree unique de tous les appels API, plutot
+    // que formulaire par formulaire.
+    let message = data.error || `Erreur ${response.status}`;
+    if (Array.isArray(data.details) && data.details.length > 0) {
+      const detailMessages = data.details
+        .map((d) => (d && typeof d.message === "string" ? d.message : null))
+        .filter(Boolean);
+      if (detailMessages.length > 0) {
+        message = detailMessages.join(" ");
+      }
+    }
     const error = new Error(message);
     // Conserve le statut HTTP et le corps de reponse (ex: licenceEtat sur un
     // 403 de licence, voir middleware/requireLicence.ts) - additif, ne

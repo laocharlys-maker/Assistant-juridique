@@ -16,18 +16,19 @@
     </div>
 
     <div id="error" class="error"></div>
-    <div id="empty-warning" class="error" style="display:none;">Aucun délai n'est encore défini dans le référentiel du cabinet. Demande à l'administrateur d'en ajouter via "Gérer les délais".</div>
+    <div id="empty-warning" class="error" style="display:none;">Aucun délai n'est encore défini dans le référentiel du cabinet. Demande à l'administrateur d'en ajouter via "Gérer les types de délais".</div>
 
     <div class="card">
       <div style="display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:8px;">
-        <h2 style="margin:0;">Historique des délais</h2>
+        <h2 style="margin:0;">Historique des délais calculés</h2>
         <span class="muted" id="history-count"></span>
       </div>
+      <p class="muted" style="margin-top:-4px;">Chaque délai calculé ci-dessous à partir d'un type de délai (voir "Gérer les types de délais") apparaît ici. Créer ou supprimer un type ne crée pas de calcul.</p>
       <div id="history-list"><p class="muted">Chargement…</p></div>
     </div>
 
     <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom: 4px;">
-      <button type="button" class="secondary" id="manage-types-link" style="display:none;">Gérer les délais</button>
+      <button type="button" class="secondary" id="manage-types-link" style="display:none;">Gérer les types de délais</button>
       <button type="button" id="toggle-calc-btn">+ Calculer un délai</button>
     </div>
 
