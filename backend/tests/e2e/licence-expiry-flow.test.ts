@@ -41,7 +41,7 @@ describe.skipIf(!pgAvailable)("e2e licence : valide -> grace -> bloquee", () => 
     process.env.PORT = "0";
     process.env.LICENCE_GRACE_JOURS = "14";
     delete process.env.DATABASE_MODE;
-    delete process.env.LICENCE_BYPASS;
+    process.env.LICENCE_BYPASS = "false"; // valeur explicite (pas delete) : survit a un rechargement dotenv declenche par l.import de app.ts
 
     const { app } = await import("../../src/app");
     const { prisma: prismaClient } = await import("../../src/lib/prisma");
