@@ -18,9 +18,13 @@ Tous testés et validés manuellement avec l'utilisateur, à leur époque :
 | 6 | Mode serveur réseau (multi-poste) | `0941a04` |
 | 7 | Obfuscation, durcissement sécurité, tests e2e | `b69757c` |
 
-### ⚠️ Lot 4 — jamais commencé
+### ⏳ Lot 4 — code écrit et testé en local, déploiement en attente d'accès Cloudflare
 
-**Service Cloudflare Workers de vérification de licence en ligne** ("phone-home"). Le Lot 3 a été construit pour l'appeler (`LICENCE_PHONE_HOME_URL` dans `.env.example`, mode "auto" vs "manuel" dans `licenceManager.ts`), mais l'endpoint réel n'existe pas — le phone-home échoue silencieusement (comportement toléré/documenté, voir README-LOT3.md). Personne n'a commencé ce lot. À faire un jour, hors du champ du Lot 8 actuel.
+**Service Cloudflare Workers de vérification de licence en ligne** ("phone-home"). Le Lot 3 a été construit pour l'appeler (`LICENCE_PHONE_HOME_URL` dans `.env.example`, mode "auto" vs "manuel" dans `licenceManager.ts`).
+
+Dépôt séparé `aurore-licence-service` (`c:\Users\HP\Documents\aurore-licence-service`, hors de ce dépôt — côté AzoMedIA, pas côté cabinet), commit initial `731d1ac` : Cloudflare Workers (Hono) + D1, signature Ed25519 via Web Crypto natif, dashboard admin (créer un cabinet, générer/révoquer une licence), route `/phone-home` publique rate-limitée. Testé réellement en local (`wrangler dev` + D1 local réel) : génération de licence, révocation propagée au phone-home suivant, rejet propre d'un payload avec un champ métier injecté, auth admin bloquant tout accès sans identifiants. **Interopérabilité vérifiée avec le vrai code du dépôt principal** : une licence signée par le Worker a été vérifiée avec succès par `verifyLicenceSignature()` (`licenceManager.ts`, Lot 3) sans aucune modification.
+
+**Reste bloqué sur des identifiants que je n'ai pas** : `wrangler deploy` vers un vrai compte Cloudflare (créer le compte/la base D1 distante, poser les secrets `PRIVATE_KEY_PEM`/`ADMIN_USERNAME`/`ADMIN_PASSWORD`), puis générer la vraie paire de clés Ed25519 de production (`node scripts/generate-keypair.js`) et coller la clé publique dans `backend/src/config/licencePublicKey.ts` à la place du placeholder de test. Procédure complète dans `aurore-licence-service/README.md`.
 
 ### En cours : `lot8-installeur-final` (pas encore fusionné)
 
@@ -80,8 +84,8 @@ Tout le code Rust/Tauri/NSIS de ce projet n'avait **jamais été compilé ni ins
   Détaillé dans `README-LOT8.md`.
 - **Clé publique de mise à jour (updater)** : `tauri.conf.json` contient un placeholder littéral (`REMPLACER_PAR_LA_VRAIE_CLE_PUBLIQUE_ED25519_DE_MISE_A_JOUR`). Nécessite `tauri signer generate` (CLI Tauri, indisponible dans cet environnement) — à faire sur une machine avec le CLI avant toute distribution réelle.
 - **Endpoint de mise à jour réel** (`https://updates.aurore-app.bj/...`) : actuellement fictif, rien n'est hébergé à cette adresse.
-- **Clé publique de licence de test (Lot 3)** : à remplacer par la vraie clé de production une fois le Lot 4 disponible.
-- **Lot 4 lui-même** (voir section 1) : pas commencé, pas de date prévue.
+- **Clé publique de licence de test (Lot 3)** : à remplacer par la vraie clé de production une fois le Lot 4 déployé (génération de la clé bloquée sur le déploiement Cloudflare, voir section 1).
+- **Lot 4 lui-même** (voir section 1) : code écrit et testé en local, déploiement bloqué sur des identifiants Cloudflare que je n'ai pas.
 
 ## Pour reprendre le travail
 
