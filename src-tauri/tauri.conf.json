@@ -25,6 +25,7 @@
   "bundle": {
     "active": true,
     "targets": ["nsis"],
+    "createUpdaterArtifacts": true,
     "publisher": "AzoMedIA",
     "copyright": "© 2026 AzoMedIA",
     "category": "Business",
