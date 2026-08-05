@@ -14,6 +14,11 @@ jobs:
   build-windows-installer:
     name: Compiler l'installeur .exe
     runs-on: windows-latest
+    # contents: write requis pour publier/mettre a jour la release GitHub
+    # (installeur + signature + manifeste de mise a jour, voir etape
+    # "Publier la release GitHub" plus bas).
+    permissions:
+      contents: write
 
     steps:
       - name: Recuperer le code
@@ -124,8 +129,15 @@ jobs:
       # Copie l'executable backend vers src-tauri/binaries/ (convention de
       # nommage des sidecars Tauri), puis compile et empaquette
       # l'installeur NSIS complet - voir package.json (racine),
-      # script "tauri:build".
+      # script "tauri:build". TAURI_SIGNING_PRIVATE_KEY(_PASSWORD) presents
+      # -> `tauri build` signe automatiquement l'installeur produit (fichier
+      # .sig genere a cote), necessaire a l'auto-update (tauri-plugin-updater
+      # verifie cette signature avec la cle publique de tauri.conf.json
+      # avant d'appliquer toute mise a jour).
       - name: Preparer le sidecar et compiler l'installeur NSIS
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: npm run sidecar:prepare && npx tauri build
 
       - name: Lire le numero de version (pour le nom du fichier telecharge)
@@ -148,3 +160,59 @@ jobs:
           path: src-tauri/target/release/bundle/nsis/*.exe
           if-no-files-found: error
           retention-days: 30
+
+      # Manifeste consomme par tauri-plugin-updater (voir tauri.conf.json,
+      # plugins.updater.endpoints) : sans lui, l'auto-update ne peut jamais
+      # savoir qu'une nouvelle version existe. Uniquement si la cle de
+      # signature updater est configuree (secrets ci-dessus) - sinon
+      # aucune signature n'a ete produite, un manifeste sans signature
+      # valide serait trompeur (l'updater le rejetterait de toute facon a
+      # la verification).
+      - name: Generer le manifeste de mise a jour (latest.json)
+        if: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+        id: manifest
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Path "src-tauri/target/release/bundle/nsis" -Filter "*.exe" | Select-Object -First 1
+          $sigPath = "$($exe.FullName).sig"
+          if (-not (Test-Path $sigPath)) {
+            Write-Error "Fichier de signature introuvable ($sigPath) - TAURI_SIGNING_PRIVATE_KEY est-elle bien configuree ?"
+            exit 1
+          }
+          $signature = Get-Content -Raw -Path $sigPath
+          $pubDate = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+          $manifest = [ordered]@{
+            version   = "v${{ steps.version.outputs.version }}"
+            notes     = "Voir l'historique des changements sur GitHub."
+            pub_date  = $pubDate
+            platforms = [ordered]@{
+              "windows-x86_64" = [ordered]@{
+                signature = $signature.Trim()
+                url       = "https://github.com/${{ github.repository }}/releases/download/v${{ steps.version.outputs.version }}/$($exe.Name)"
+              }
+            }
+          }
+          $manifest | ConvertTo-Json -Depth 5 | Set-Content -Path latest.json -Encoding utf8
+          Write-Output "exe_name=$($exe.Name)" >> $env:GITHUB_OUTPUT
+
+      # Publie (ou met a jour) une release GitHub taguee avec la version
+      # courante, contenant l'installeur signe + son manifeste - c'est
+      # cette release qui sert de source pour l'auto-update
+      # (endpoint "releases/latest/download/latest.json" dans
+      # tauri.conf.json, toujours stable quelle que soit la version en
+      # cours). Reexecuter ce workflow sur la MEME version ecrase les
+      # assets de la release existante (--clobber) plutot que d'echouer.
+      - name: Publier la release GitHub (installeur + signature + manifeste de mise a jour)
+        if: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "v${{ steps.version.outputs.version }}"
+          $exePath = (Get-ChildItem -Path "src-tauri/target/release/bundle/nsis" -Filter "*.exe" | Select-Object -First 1).FullName
+          $sigPath = "$exePath.sig"
+          $exists = gh release view $tag --repo "${{ github.repository }}" 2>$null
+          if (-not $exists) {
+            gh release create $tag --repo "${{ github.repository }}" --title $tag --notes "Build automatique - voir l'historique des commits pour le detail."
+          }
+          gh release upload $tag $exePath $sigPath latest.json --repo "${{ github.repository }}" --clobber
