@@ -11,6 +11,15 @@
  * jamais a signer) : l'embarquer en dur dans le code source de
  * l'application n'est pas un probleme de securite, contrairement a une cle
  * privee.
+ *
+ * Ce fichier n'a AUCUN mecanisme de bascule (pas de lecture de
+ * process.env, pas de branche conditionnelle) : les deux constantes
+ * ci-dessous sont exactement ce qui est verifie, dans tous les contextes
+ * d'execution reels (dev, VPS, binaire desktop packagé). Les tests
+ * (Vitest) substituent ce module en memoire, dans leur propre processus
+ * uniquement, sans jamais modifier ce fichier - voir tests/setup.ts pour
+ * le detail et la garantie que ce mecanisme de test ne peut pas atteindre
+ * le binaire livre.
  */
 export const LICENCE_PUBLIC_KEY_PEM = `-----BEGIN PUBLIC KEY-----
 MCowBQYDK2VwAyEA5mMXx03SGFcjFSdJp5+TsjkFZBHTajq7fC5qCY0aHA8=
