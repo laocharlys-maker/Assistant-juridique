@@ -25,7 +25,7 @@ de bienvenue vous propose deux choix :
 - **Poste unique** — à ne PAS choisir dans ce cas.
 - **Serveur réseau** — c'est celui-ci qu'il faut choisir.
 
-`[Capture d'écran : écran de choix avec "Serveur réseau" sélectionné]`
+![Écran de choix avec "Serveur réseau" sélectionné](images/choix-mode-reseau.png)
 
 Un message vous rappelle que les autres ordinateurs du réseau pourront
 alors accéder à Aurore — assurez-vous que votre réseau Wi-Fi/câblé est

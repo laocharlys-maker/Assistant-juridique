@@ -38,7 +38,7 @@ précis.
 |---|---|
 | Config bundle NSIS dans `tauri.conf.json` | ✅ Fait — validé par un build CI réel réussi (Rust + Tauri + NSIS) |
 | Écran de bienvenue post-installation (bienvenue → choix du mode → activation licence) | ✅ Fait — parcours testé de bout en bout en conditions réelles (voir README-LOT8.md) |
-| Désinstalleur avec choix explicite conserver/supprimer les données | ✅ Fait (`installer/nsis/installer-hooks.nsh`, `NSIS_HOOK_PREUNINSTALL`) — ⚠️ À vérifier : le choix conserver/supprimer lui-même n'a pas de confirmation de test réel documentée dans cette conversation, seul le correctif du fichier verrouillé (Lot 8ter) a été validé par un build CI réussi |
+| Désinstalleur avec choix explicite conserver/supprimer les données | ✅ Fait et testé réellement (2026-08-05) — désinstallation puis réinstallation effectuées sur la vraie installation (`C:\Users\HP\AppData\Local\Aurore`) avec l'option "conserver les données" : `%APPDATA%\Aurore` bien préservé pendant la désinstallation, dossiers/clients confirmés intacts après réinstallation. Branche "supprimer" non testée en conditions réelles (délibérément, pour ne pas risquer de vraies données) mais son code est identique à celui déjà relu (`NSIS_HOOK_PREUNINSTALL`) |
 | Auto-update avec confirmation native obligatoire (`updater.rs`, tout en Rust) | ✅ Écrit (vérification en arrière-plan, boîte de dialogue native avant tout téléchargement) — clé publique réelle et endpoint désormais opérationnels (voir section 4, résolu le 2026-08-05) ; manifeste + signature vérifiés accessibles en conditions réelles — ⚠️ reste à tester : le déclenchement effectif d'une mise à jour par une app déjà installée (nécessite deux versions distinctes, jamais encore le cas) |
 | Documentation utilisateur (`docs-utilisateur/`, 5 guides sans jargon) | ✅ Fait — ⚠️ Captures d'écran encore des emplacements marqués `[Capture d'écran : ...]` dans 01, 02, 03 et 05 |
 
@@ -47,7 +47,7 @@ précis.
 | Critère | Statut |
 |---|---|
 | Confirmation utilisateur que l'app installée démarre normalement (double-clic, pas ligne de commande) | ✅ Fait — confirmé implicitement par les nombreux cycles de test réel menés depuis (installation, connexion, génération de documents, etc.) |
-| Test du parcours de désinstallation (conservation ET suppression des données) | ⚠️ À vérifier — jamais explicitement confirmé dans cette conversation |
+| Test du parcours de désinstallation (conservation ET suppression des données) | ✅ Fait pour "conserver" (2026-08-05, testé en conditions réelles) — ⚠️ "supprimer" non testé en conditions réelles (choix délibéré pour ne pas risquer de vraies données) |
 | Voir liste "À faire avant toute distribution réelle" (README-LOT8.md) | Voir section 4 ci-dessous |
 | Fusionner dans `claude/aurore-solution-improvement-rqcjqt` une fois validé | ⏳ En attente de votre validation (PR #1 ouverte, prête, aucun conflit) |
 

@@ -17,7 +17,7 @@ après le choix du mode d'utilisation (voir `01-installation.md`).
 Si vous devez y revenir plus tard, tapez cette adresse dans la barre
 d'Aurore : `http://127.0.0.1:3000/licence.html`
 
-`[Capture d'écran : écran "Licence Aurore" avec la zone de dépôt de fichier]`
+![Écran "Licence Aurore" avec la zone de dépôt de fichier](images/licence-depot-fichier.png)
 
 ## Étape 2 — Déposer le fichier de licence
 
@@ -31,7 +31,7 @@ Deux façons de faire, au choix :
 
 Le nom du fichier s'affiche une fois sélectionné.
 
-`[Capture d'écran : fichier .lic déposé, nom affiché]`
+![Fichier .lic déposé, nom affiché](images/licence-fichier-depose.png)
 
 ## Étape 3 — Activer
 
@@ -42,7 +42,7 @@ Cliquez sur le bouton **"Activer la licence"**.
 - Si un message rouge apparaît, voir la section "En cas de problème"
   ci-dessous.
 
-`[Capture d'écran : message de confirmation "Licence activée avec succès"]`
+![Confirmation "Licence active"](images/licence-activee.png)
 
 ## Étape 4 — Se connecter
 
@@ -50,6 +50,8 @@ Une fois la licence activée, cliquez sur **"Aller à Aurore"**. Vous
 arrivez sur la page de connexion, avec l'email et le mot de passe qui
 vous ont été communiqués par AzoMedIA (ou par le titulaire de votre
 cabinet, s'il a créé votre compte).
+
+![Écran de connexion](images/ecran-connexion.png)
 
 ## En cas de problème
 

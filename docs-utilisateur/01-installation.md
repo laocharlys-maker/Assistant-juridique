@@ -68,7 +68,7 @@ dernières étapes avant de pouvoir travailler :
    doivent utiliser Aurore).
 2. Activer votre licence (voir le guide `02-activation-licence.md`).
 
-`[Capture d'écran : écran de bienvenue Aurore]`
+![Écran de bienvenue Aurore](images/ecran-bienvenue.png)
 
 ---
 
