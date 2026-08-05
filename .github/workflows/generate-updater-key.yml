@@ -1,14 +1,16 @@
 name: Generer la cle de signature updater (usage ponctuel)
 
 # Usage unique (ou tres rare, en cas de rotation de cle) : genere la paire
-# de cles Ed25519/minisign attendue par tauri-plugin-updater. La cle
-# publique est sans risque a afficher (elle ne sert qu'a VERIFIER une
-# signature, jamais a en produire une) - imprimee directement dans le
-# resume du job. La cle privee, elle, ne doit JAMAIS apparaitre en clair
-# dans les logs : elle est deposee comme artefact GitHub (acces reserve
-# aux collaborateurs du depot, retention 1 jour) a recuperer manuellement
-# puis a stocker soi-meme comme secret GitHub
-# (TAURI_SIGNING_PRIVATE_KEY) avant que l'artefact n'expire.
+# de cles Ed25519/minisign attendue par tauri-plugin-updater, protegee par
+# un mot de passe genere aleatoirement (le CLI Tauri exige une valeur non
+# vide pour --password, voir historique de ce fichier). La cle publique
+# est sans risque a afficher (elle ne sert qu'a VERIFIER une signature,
+# jamais a en produire une) - imprimee directement dans le resume du job.
+# La cle privee ET son mot de passe, eux, ne doivent JAMAIS apparaitre en
+# clair dans les logs : deposes comme artefact GitHub (acces reserve aux
+# collaborateurs du depot, retention 1 jour) a recuperer manuellement puis
+# a stocker soi-meme comme secrets GitHub (TAURI_SIGNING_PRIVATE_KEY et
+# TAURI_SIGNING_PRIVATE_KEY_PASSWORD) avant que l'artefact n'expire.
 on:
   workflow_dispatch: {}
 
@@ -28,10 +30,12 @@ jobs:
       - name: Installer le CLI Tauri
         run: npm install
 
-      - name: Generer la paire de cles (sans mot de passe - deja chiffree au repos par GitHub Secrets)
+      - name: Generer la paire de cles
         shell: pwsh
         run: |
-          npx tauri signer generate -w updater-private.key -p "" --force
+          $password = [System.Guid]::NewGuid().ToString("N") + [System.Guid]::NewGuid().ToString("N")
+          npx tauri signer generate -w updater-private.key -p $password --force
+          Set-Content -Path updater-private-key-password.txt -Value $password -NoNewline -Encoding utf8
 
       - name: Afficher la cle PUBLIQUE (sans risque - ne sert qu'a verifier)
         shell: pwsh
@@ -41,9 +45,11 @@ jobs:
           Write-Output $pub
           "### Cle publique updater`n``````n$pub`n```````n" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
 
-      - name: Deposer la cle PRIVEE comme artefact (jamais dans les logs)
+      - name: Deposer la cle PRIVEE + son mot de passe comme artefact (jamais dans les logs)
         uses: actions/upload-artifact@v4
         with:
           name: updater-private-key
-          path: updater-private.key
+          path: |
+            updater-private.key
+            updater-private-key-password.txt
           retention-days: 1
