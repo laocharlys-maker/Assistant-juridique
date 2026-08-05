@@ -39,7 +39,7 @@ précis.
 | Config bundle NSIS dans `tauri.conf.json` | ✅ Fait — validé par un build CI réel réussi (Rust + Tauri + NSIS) |
 | Écran de bienvenue post-installation (bienvenue → choix du mode → activation licence) | ✅ Fait — parcours testé de bout en bout en conditions réelles (voir README-LOT8.md) |
 | Désinstalleur avec choix explicite conserver/supprimer les données | ✅ Fait (`installer/nsis/installer-hooks.nsh`, `NSIS_HOOK_PREUNINSTALL`) — ⚠️ À vérifier : le choix conserver/supprimer lui-même n'a pas de confirmation de test réel documentée dans cette conversation, seul le correctif du fichier verrouillé (Lot 8ter) a été validé par un build CI réussi |
-| Auto-update avec confirmation native obligatoire (`updater.rs`, tout en Rust) | ✅ Écrit, logique conforme (vérification en arrière-plan, boîte de dialogue native avant tout téléchargement) — ⚠️ Non fonctionnellement testable : clé publique et endpoint encore des placeholders (voir section 4) |
+| Auto-update avec confirmation native obligatoire (`updater.rs`, tout en Rust) | ✅ Écrit (vérification en arrière-plan, boîte de dialogue native avant tout téléchargement) — clé publique réelle et endpoint désormais opérationnels (voir section 4, résolu le 2026-08-05) ; manifeste + signature vérifiés accessibles en conditions réelles — ⚠️ reste à tester : le déclenchement effectif d'une mise à jour par une app déjà installée (nécessite deux versions distinctes, jamais encore le cas) |
 | Documentation utilisateur (`docs-utilisateur/`, 5 guides sans jargon) | ✅ Fait — ⚠️ Captures d'écran encore des emplacements marqués `[Capture d'écran : ...]` dans 01, 02, 03 et 05 |
 
 ## 3. Reste à faire avant de fusionner (liste `STATUS.md`, 2026-08-03)
@@ -58,8 +58,8 @@ précis.
 | Déclencher le workflow GitHub Actions au moins une fois et corriger les échecs | ✅ Fait — de nombreux builds CI réussis tout au long des Lots 8/8bis/8ter |
 | Ajouter le téléchargement/compilation des binaires PostgreSQL portables au workflow | ✅ Fait — étape dédiée présente et fonctionnelle |
 | **Clé API IA de production** | ✅ Fait — décision tranchée (option a : secrets GitHub partagés). `GROQ_API_KEY` (génération de texte), `TAVILY_API_KEY` (recherche web), `SMTP_HOST`/`SMTP_USER`/`SMTP_PASSWORD` (Brevo) et **`GEMINI_API_KEY`** (embeddings RAG jurisprudence, ajoutée le 2026-08-04) sont tous configurés et confirmés injectés en CI (`GEMINI_API_KEY injectee : True`) |
-| Générer la vraie paire de clés de signature updater, remplacer le placeholder | ❌ Manquant — `tauri.conf.json` contient toujours `REMPLACER_PAR_LA_VRAIE_CLE_PUBLIQUE_ED25519_DE_MISE_A_JOUR` |
-| Héberger un vrai endpoint de mise à jour | ❌ Manquant — `https://updates.aurore-app.bj/...` reste fictif, rien n'y est hébergé |
+| Générer la vraie paire de clés de signature updater, remplacer le placeholder | ✅ Fait (2026-08-05) — générée via un workflow CI ponctuel (`generate-updater-key.yml`, le CLI Tauri n'est disponible que là) ; clé privée + mot de passe stockés en secrets GitHub (`TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, jamais passés en clair dans un log, artefact de transfert supprimé après récupération) ; clé publique câblée dans `tauri.conf.json` |
+| Héberger un vrai endpoint de mise à jour | ✅ Fait (2026-08-05) — hébergé directement via GitHub Releases (`releases/latest/download/latest.json`), pas d'infrastructure séparée à maintenir. `build-windows-installer.yml` signe désormais l'installeur (`bundle.createUpdaterArtifacts: true`) et publie/actualise automatiquement la release taguée à chaque build réussi. Validé de bout en bout : release `v0.1.0` réelle, manifeste vérifié accessible avec signature correspondante |
 | Tester l'installeur sur une VM Windows vierge (snapshot avant/après) | ❌ Manquant — aucun accès VM dans l'environnement de développement ; les tests réels ont été faits sur le poste de travail habituel, pas une machine vierge |
 | Faire tester le parcours complet par une personne n'ayant pas participé au développement | ⚠️ À vérifier — selon la définition retenue : vous avez testé le parcours de bout en bout à chaque lot, mais vous avez aussi participé aux décisions produit tout du long |
 | Prendre les vraies captures d'écran pour `docs-utilisateur/` | ❌ Manquant — emplacements toujours marqués `[Capture d'écran : ...]` |
@@ -85,15 +85,14 @@ livré dans cette même branche :
 
 ## 6. Résumé — ce qui bloque encore une distribution réelle
 
-Cinq points, tous indépendants du code applicatif lui-même :
+~~Clé de signature updater~~ et ~~endpoint de mise à jour réel~~ résolus
+le 2026-08-05 (voir section 4). Trois points restent, tous indépendants
+du code applicatif lui-même :
 
-1. Clé de signature updater (placeholder) → génération à faire sur une
-   machine avec le CLI Tauri.
-2. Endpoint de mise à jour réel → hébergement à mettre en place.
-3. Test sur VM Windows vierge → nécessite un accès VM.
-4. Vraies captures d'écran → à prendre une fois un installeur final entre
+1. Test sur VM Windows vierge → nécessite un accès VM.
+2. Vraies captures d'écran → à prendre une fois un installeur final entre
    les mains.
-5. Clé de licence de production → bloqué sur le Lot 4 (non commencé).
+3. Clé de licence de production → bloqué sur le Lot 4 (non commencé).
 
 Aucun de ces points ne concerne le code fusionné dans cette PR — ce sont
 des étapes opérationnelles à mener séparément, avant une vraie mise à
