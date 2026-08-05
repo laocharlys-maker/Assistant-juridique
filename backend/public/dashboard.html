@@ -32,11 +32,13 @@
   </div>
   <script src="/js/api.js"></script>
   <script src="/js/layout.js"></script>
+  <script src="/js/envoiActions.js"></script>
   <script>
     let currentScope = "mine";
     let currentVue = "dossiers";
     let currentUserRole = null;
     let currentDocuments = [];
+    let envoiContext = null;
 
     // Libelle affiche pour chaque type de document dans la "Vue par type" -
     // memes intitules que le reste de l'appli (nouvelle-action.html,
@@ -136,11 +138,13 @@
                 doc.dossier.statutTag === "echeance_proche"
                   ? ' <span class="badge badge-echeance_proche">Échéance proche</span>'
                   : "";
+              const envoiControls = envoiContext ? renderEnvoiControls(doc, envoiContext) : "";
               return `
             <div class="dossier-item">
               <div>
                 <div><a href="/dossier.html?id=${doc.dossier.id}">${escapeHtml(titre)}</a>${badgeCloture}${badgeEcheance}</div>
                 <div class="meta">${meta}</div>
+                ${envoiControls}
               </div>
             </div>`;
             })
@@ -160,6 +164,10 @@
           header.closest(".accordion-item").classList.toggle("open");
         });
       });
+
+      if (envoiContext) {
+        bindEnvoiHandlers(listEl, envoiContext, () => loadListe());
+      }
     }
 
     function applyDossiersSearch() {
@@ -190,6 +198,9 @@
       document.getElementById("greeting").textContent = `Bienvenue ${me.nom}`;
 
       currentUserRole = me.role;
+      // Charge une seule fois (jamais filtre par dossier, voir
+      // js/envoiActions.js) plutot qu'a chaque rendu de la liste.
+      envoiContext = await loadEnvoiContext(me);
 
       if (me.role === "titulaire" || me.role === "avocat" || me.role === "collaborateur") {
         document.querySelectorAll("#scope-tabs .tab").forEach((btn) => {

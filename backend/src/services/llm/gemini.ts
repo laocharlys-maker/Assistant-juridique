@@ -4,6 +4,7 @@ import { actionOutputSchema, actionOutputJsonSchema, ActionOutput } from "../../
 import { LEGAL_ASSISTANT_SYSTEM_PROMPT, buildUserPrompt } from "../../prompts/legalAssistant";
 import { LlmProvider, LlmOutputError } from "./types";
 import { withTransientRetry } from "../../lib/retry";
+import { MissingConfigurationError } from "../../lib/configurationError";
 
 export class GeminiProvider implements LlmProvider {
   private client: GoogleGenerativeAI;
@@ -61,7 +62,7 @@ export class GeminiProvider implements LlmProvider {
 
 export function createGeminiProvider(): GeminiProvider {
   if (!env.GEMINI_API_KEY) {
-    throw new Error("GEMINI_API_KEY manquant");
+    throw new MissingConfigurationError("GEMINI_API_KEY manquant");
   }
   return new GeminiProvider(env.GEMINI_API_KEY);
 }

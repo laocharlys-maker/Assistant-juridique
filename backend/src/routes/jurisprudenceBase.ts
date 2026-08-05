@@ -5,6 +5,7 @@ import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
 import { requireModule } from "../middleware/roles";
 import { embedText, toVectorLiteral } from "../services/embeddings";
+import { MissingConfigurationError } from "../lib/configurationError";
 
 export const jurisprudenceBaseRouter = Router();
 
@@ -64,6 +65,16 @@ jurisprudenceBaseRouter.post("/api/jurisprudence-base", requireAuth, async (req,
 
     return res.status(201).json({ id });
   } catch (error) {
+    // MissingConfigurationError (cle Gemini absente - embedText() en a
+    // besoin quel que soit LLM_PROVIDER, voir embeddings.ts) distingue du
+    // reste : message clair plutot que noye dans "echec de l'indexation",
+    // qui laissait a tort penser a un probleme reseau/Postgres ponctuel.
+    if (error instanceof MissingConfigurationError) {
+      console.error("[jurisprudence] indexation impossible, configuration manquante :", error.message);
+      return res.status(503).json({
+        error: "L'indexation de jurisprudence n'est pas configurée sur ce poste (clé API manquante). Contactez le support AzoMedIA.",
+      });
+    }
     console.error("Erreur ajout jurisprudence :", error);
     return res.status(502).json({ error: "Échec de l'indexation (voir logs serveur)" });
   }

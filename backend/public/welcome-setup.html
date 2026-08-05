@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aurore — Bienvenue</title>
+  <link rel="icon" type="image/png" href="/favicon-256.png" />
+  <link rel="stylesheet" href="/style.css" />
+  <style>
+    body {
+      background-image:
+        radial-gradient(ellipse 900px 500px at 15% -10%, var(--bg-grad-1), transparent 60%),
+        radial-gradient(ellipse 700px 500px at 100% 10%, var(--bg-grad-2), transparent 55%);
+      background-repeat: no-repeat;
+      min-height: 100vh;
+    }
+    .welcome-steps { list-style: none; padding: 0; margin: 20px 0; counter-reset: welcome-step; }
+    .welcome-steps li {
+      counter-increment: welcome-step;
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 10px 0;
+    }
+    .welcome-steps li::before {
+      content: counter(welcome-step);
+      flex-shrink: 0;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--accent-tint);
+      color: var(--accent-hover);
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.9rem;
+    }
+    .welcome-support {
+      text-align: center;
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-top: 18px;
+    }
+    .welcome-support a { color: var(--accent-hover); font-weight: 600; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div class="page licence-screen">
+    <div style="text-align:center; margin-bottom:8px;">
+      <img src="/logo-aurore-login.png" alt="Aurore" style="max-width:180px;" onerror="this.style.display='none'" />
+      <h1 style="margin-top:8px; margin-bottom:0;">Bienvenue dans Aurore</h1>
+      <p class="muted">Votre assistant juridique est presque prêt. Encore quelques étapes simples.</p>
+    </div>
+
+    <div class="card">
+      <ul class="welcome-steps">
+        <li>
+          <div>
+            <strong>Choisir comment cet ordinateur sera utilisé</strong>
+            <p class="muted" style="margin:2px 0 0; text-align:left;">Seul, ou pour partager Aurore avec d'autres postes du cabinet.</p>
+          </div>
+        </li>
+        <li>
+          <div>
+            <strong>Activer votre licence</strong>
+            <p class="muted" style="margin:2px 0 0; text-align:left;">Le fichier <code>.lic</code> reçu par AzoMedIA lors de votre commande.</p>
+          </div>
+        </li>
+        <li>
+          <div>
+            <strong>Vous connecter</strong>
+            <p class="muted" style="margin:2px 0 0; text-align:left;">Avec le compte créé pour votre cabinet.</p>
+          </div>
+        </li>
+      </ul>
+
+      <button type="button" id="start-btn" style="width:100%; margin-top:8px;">Commencer</button>
+    </div>
+
+    <p class="welcome-support">
+      Besoin d'aide à tout moment ? Écrivez à AzoMedIA :
+      <a href="mailto:azomedia20@gmail.com">azomedia20@gmail.com</a>
+    </p>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/welcome-setup.js"></script>
+</body>
+</html>

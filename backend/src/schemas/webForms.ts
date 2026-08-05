@@ -278,7 +278,7 @@ export const plainteFormSchema = z.object({
   // Deux presentations tres differentes selon qui redige : l'avocat pour
   // son client (represente), ou le plaignant lui-meme (l'avocat n'a fait
   // qu'assister a la redaction, sans representation). Pilote le choix du
-  // template Google Docs cote n8n (deux modeles distincts).
+  // formalisme applique au document local (voir documentFormalisme.ts).
   mode_redaction: z.enum(["avocat", "plaignant"]),
   // Le plaignant (client) - infos civiles, memes principes que
   // l'Assignation (DB-first, secours manuel si absent de sa fiche).

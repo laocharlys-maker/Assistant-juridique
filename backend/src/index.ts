@@ -4,6 +4,16 @@
 // le commentaire au-dessus de main().
 import "dotenv/config";
 import cron from "node-cron";
+import {
+  BUNDLED_GEMINI_API_KEY,
+  BUNDLED_GROQ_API_KEY,
+  BUNDLED_TAVILY_API_KEY,
+  BUNDLED_SMTP_HOST,
+  BUNDLED_SMTP_USER,
+  BUNDLED_SMTP_PASSWORD,
+  BUNDLED_SMTP_FROM_EMAIL,
+} from "./config/bundledExternalServiceKeys";
+import { MissingConfigurationError } from "./lib/configurationError";
 
 /**
  * Point d'entree. Structure en fonction async (plutot que des imports
@@ -32,9 +42,141 @@ async function main() {
     process.env.DATABASE_URL = portableDb.databaseUrl;
     stopPortableDatabase = portableDb.stop;
     console.log(`[demarrage] Postgres portable pret sur ${portableDb.host}:${portableDb.port}/${portableDb.database}.`);
+
+    // Lot 8 : l'installeur ne peut pas livrer de .env contenant un
+    // SESSION_SECRET (secret qui serait alors partage par toutes les
+    // installations, jamais commis nulle part) - genere/recharge un secret
+    // propre a ce poste si absent, AVANT que config/env ne le valide
+    // ci-dessous. Mode "externe" (VPS) inchange : SESSION_SECRET y reste
+    // fourni par .env comme avant ce lot.
+    if (!process.env.SESSION_SECRET) {
+      const { loadOrCreateSessionSecret } = await import("./security/sessionSecretStore");
+      process.env.SESSION_SECRET = loadOrCreateSessionSecret();
+    }
+
+    // LLM_PROVIDER=groq (decision AzoMedIA, deja utilise sur le SaaS
+    // existant) : sans ce forçage, rien ne le positionnait jamais dans
+    // l'environnement du binaire empaquete (aucun .env livre - voir plus
+    // bas), donc le defaut Zod ("gemini", config/env.ts) s'appliquait
+    // silencieusement a la place - cause racine reelle du crash "Mise en
+    // demeure" (et de tout autre type d'acte) : getLlmProvider() tentait
+    // Gemini, sans cle, dans un chemin non protege par un try/catch local
+    // (voir routes/webActions.ts). Pas un secret (juste un choix de
+    // fournisseur) : positionne directement, sans passer par le mecanisme
+    // GitHub Secrets des identifiants ci-dessous.
+    if (!process.env.LLM_PROVIDER) {
+      process.env.LLM_PROVIDER = "groq";
+    }
+
+    // Identifiants de services externes partages AzoMedIA (LLM Groq/Gemini,
+    // recherche web Tavily, envoi d'email SMTP/Brevo - decision Option A,
+    // voir README-LOT8.md et config/bundledExternalServiceKeys.ts) : meme
+    // principe que SESSION_SECRET juste au-dessus - ne comble QUE ce qu'un
+    // .env n'a pas deja fourni, jamais un ecrasement. En pratique ce fichier
+    // reste un placeholder vide (undefined) partout sauf dans le binaire
+    // produit par le workflow CI, qui le reecrit juste avant le build a
+    // partir des GitHub Secrets - voir
+    // .github/workflows/build-windows-installer.yml.
+    if (!process.env.GEMINI_API_KEY && BUNDLED_GEMINI_API_KEY) {
+      process.env.GEMINI_API_KEY = BUNDLED_GEMINI_API_KEY;
+    }
+    if (!process.env.GROQ_API_KEY && BUNDLED_GROQ_API_KEY) {
+      process.env.GROQ_API_KEY = BUNDLED_GROQ_API_KEY;
+    }
+    if (!process.env.TAVILY_API_KEY && BUNDLED_TAVILY_API_KEY) {
+      process.env.TAVILY_API_KEY = BUNDLED_TAVILY_API_KEY;
+    }
+    if (!process.env.SMTP_HOST && BUNDLED_SMTP_HOST) {
+      process.env.SMTP_HOST = BUNDLED_SMTP_HOST;
+    }
+    if (!process.env.SMTP_USER && BUNDLED_SMTP_USER) {
+      process.env.SMTP_USER = BUNDLED_SMTP_USER;
+    }
+    if (!process.env.SMTP_PASSWORD && BUNDLED_SMTP_PASSWORD) {
+      process.env.SMTP_PASSWORD = BUNDLED_SMTP_PASSWORD;
+    }
+    if (!process.env.SMTP_FROM_EMAIL && BUNDLED_SMTP_FROM_EMAIL) {
+      process.env.SMTP_FROM_EMAIL = BUNDLED_SMTP_FROM_EMAIL;
+    }
+
+    // Invalide toute session existante a CHAQUE demarrage de l'app desktop -
+    // voir resetServerSessionEpoch() (services/auth.ts) pour le detail et le
+    // raisonnement de securite. Sans effet en mode VPS/externe (jamais
+    // appelee dans cette branche).
+    //
+    // ORDRE CRITIQUE - place ICI, en tout DERNIER dans ce bloc, APRES que
+    // process.env soit entierement rempli (SESSION_SECRET, LLM_PROVIDER,
+    // toutes les cles bundlees ci-dessus) : ce await import(...) charge
+    // services/auth.ts, qui importe statiquement config/env.ts, lequel
+    // execute envSchema.parse(process.env) au chargement du module - UNE
+    // SEULE FOIS pour toute la duree du process (cache des modules Node).
+    // Place plus tot (comme dans une version precedente de ce fichier), cet
+    // import declenchait ce parsing PREMATUREMENT, AVANT que LLM_PROVIDER=
+    // groq et les cles bundlees ne soient poses sur process.env - l'objet
+    // `env` fige alors LLM_PROVIDER sur son defaut Zod ("gemini") et les
+    // cles API sur `undefined` pour tout le reste de l'execution (tous les
+    // fichiers import{ env } from "../config/env" partagent la MEME
+    // instance mise en cache), quoi qu'on assigne a process.env ensuite.
+    // Regression reelle constatee : "La generation de documents par IA
+    // n'est pas configuree..." sur TOUS les types d'actes, alors que
+    // GROQ_API_KEY etait bien injectee au build. Voir aussi
+    // services/llm/index.ts (getLlmProvider) et routes/webActions.ts
+    // (getLlmProviderSafe), qui lisent tous cette meme instance de `env`.
+    {
+      const { resetServerSessionEpoch } = await import("./services/auth");
+      resetServerSessionEpoch();
+    }
   } else {
     console.log(`[demarrage] DATABASE_MODE=${databaseMode} : DATABASE_URL fournie via .env, inchangee (mode Lot 1).`);
   }
+
+  // Filet de securite final : toute exception non rattrapee ailleurs (ex:
+  // un futur appel oublie sans try/catch dans une route) ne doit JAMAIS
+  // laisser Postgres portable tourner en arriere-plan une fois le process
+  // Node mort - constate concretement : pg_ctl start demarre postgres.exe
+  // comme process DETACHE du cycle de vie de Node (necessaire pour que les
+  // processus auxiliaires - checkpointer, bgwriter... - survivent, voir
+  // postgresPortable.ts), donc un crash brutal ici le laisse actif,
+  // bloquant tout redemarrage suivant ("another postmaster may be running")
+  // jusqu'a l'arrivee du contournement ajoute dans postgresPortable.ts
+  // (isAlreadyReachable) - mieux vaut cependant ne jamais en arriver la.
+  // process.exit() y met volontairement fin depuis ici plutot que de
+  // laisser Node crasher tout seul (qui aurait le meme effet sur Postgres,
+  // en pire : aucun log clair, aucune tentative d'arret propre).
+  let uncaughtHandled = false;
+  function handleFatalError(kind: string, error: unknown): void {
+    if (uncaughtHandled) return; // Evite une boucle si l'arret lui-meme echoue bruyamment.
+    // Une MissingConfigurationError (cle API absente - voir
+    // lib/configurationError.ts) est une degradation attendue et deja
+    // documentee ailleurs dans le code (jurisprudence, embeddings, envoi
+    // d'email...), jamais une panne reelle : si elle arrive malgre tout
+    // jusqu'ici (un futur appel oublie sans le wrapper local, voir
+    // getLlmProviderSafe dans routes/webActions.ts), le bon geste est de
+    // journaliser et laisser le process VIVANT - la requete en cours reste
+    // sans reponse (le client verra un echec reseau ponctuel), mais arreter
+    // TOUTE l'application pour une simple fonctionnalite non configuree
+    // serait disproportionne. Reserve l'arret complet (avec nettoyage
+    // Postgres) aux erreurs vraiment inattendues.
+    if (error instanceof MissingConfigurationError) {
+      console.error(
+        `[fatal] ${kind} non rattrapee mais reconnue comme configuration manquante - process conserve en vie :`,
+        error.message
+      );
+      return;
+    }
+    uncaughtHandled = true;
+    console.error(`[fatal] ${kind} non rattrapee - arret du process apres nettoyage :`, error);
+    const cleanup = stopPortableDatabase ? stopPortableDatabase() : Promise.resolve();
+    // Timeout de securite : ne jamais rester bloque indefiniment sur l'arret
+    // de Postgres si quelque chose tourne deja mal - un process qui ne quitte
+    // jamais est pire qu'un arret de Postgres non confirme (voir
+    // stopPortablePostgres, qui journalise deja son propre echec).
+    Promise.race([cleanup.catch(() => undefined), new Promise((resolve) => setTimeout(resolve, 10000))]).finally(
+      () => process.exit(1)
+    );
+  }
+  process.on("uncaughtException", (error) => handleFatalError("exception", error));
+  process.on("unhandledRejection", (error) => handleFatalError("rejet de promesse", error));
 
   // Tout ce qui suit (chargement d'./app et de ses dependances, ecoute HTTP)
   // est enveloppe dans un try/catch : si Postgres portable a deja demarre
@@ -197,9 +339,20 @@ async function main() {
     cron.schedule(
       "0 7 * * 1",
       () => {
-        runVeillePourTousLesCabinets(getLlmProvider()).catch((error) => {
-          console.error("Erreur lors de l'execution de la veille juridique hebdomadaire :", error);
-        });
+        // getLlmProvider() peut lever une MissingConfigurationError de
+        // facon SYNCHRONE (cle API absente) - AVANT meme que
+        // runVeillePourTousLesCabinets(...) ne soit appelee, donc avant que
+        // le .catch() ci-dessous existe. Sans ce try/catch local, une telle
+        // erreur echapperait a ce .catch() et remonterait comme exception
+        // non rattrapee depuis ce callback cron (voir le meme probleme
+        // corrige dans routes/webActions.ts, getLlmProviderSafe).
+        try {
+          runVeillePourTousLesCabinets(getLlmProvider()).catch((error) => {
+            console.error("Erreur lors de l'execution de la veille juridique hebdomadaire :", error);
+          });
+        } catch (error) {
+          console.error("Veille juridique hebdomadaire ignoree (fournisseur IA non configure) :", error);
+        }
       },
       { timezone: "Africa/Porto-Novo" }
     );

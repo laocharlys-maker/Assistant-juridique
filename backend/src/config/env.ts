@@ -1,5 +1,22 @@
 import "dotenv/config";
 import { z } from "zod";
+import { isSea } from "../lib/seaPaths";
+
+// Le binaire empaquete (Node SEA, voir scripts/build-sea.js) est TOUJOURS un
+// build de production, quel que soit l'environnement de la machine qui l'a
+// compile - contrairement a `npm run dev`/`npm start`, "mode developpement"
+// n'a aucun sens pour un .exe installe chez un cabinet. Sans ce forçage,
+// NODE_ENV retombe sur le defaut Zod ci-dessous ("development") des que rien
+// ne le positionne explicitement dans l'environnement du sidecar Tauri (voir
+// src-tauri/src/main.rs, qui ne le fait pas) - ou pire, reprend par erreur la
+// valeur d'un .env de developpement local copie a cote de l'executable lors
+// d'un build fait a la main (voir copyCompanionFiles dans build-sea.js).
+// Applique APRES `dotenv/config` ci-dessus (qui a deja charge un eventuel
+// .env dans process.env) pour ecraser inconditionnellement toute valeur
+// venue de cette source, jamais avant.
+if (isSea()) {
+  process.env.NODE_ENV = "production";
+}
 
 const envSchema = z
   .object({
@@ -17,49 +34,31 @@ const envSchema = z
     GROQ_API_KEY: z.string().optional(),
     TAVILY_API_KEY: z.string().optional(),
 
-    N8N_WEBHOOK_BASE_URL: z.string().optional(),
-    N8N_WEBHOOK_SECRET: z.string().optional(),
-
-    // SMTP (Brevo) - envoi direct des documents par email, sans passer par
-    // n8n/Google Docs. Adresse d'expedition unique pour tous les cabinets
-    // (domaine Aurore verifie via SPF/DKIM chez Brevo) ; le nom affiche et le
-    // Reply-To varient par cabinet (voir cabinetContact.ts).
+    // SMTP (Brevo) - envoi direct des documents et emails, canal externe
+    // unique (voir README-LOT8TER.md - l'ancien circuit n8n est retire).
+    // Adresse d'expedition unique pour tous les cabinets (domaine Aurore
+    // verifie via SPF/DKIM chez Brevo) ; le nom affiche et le Reply-To
+    // varient par cabinet (voir cabinetContact.ts).
     SMTP_HOST: z.string().optional(),
     SMTP_PORT: z.coerce.number().optional(),
     SMTP_USER: z.string().optional(),
     SMTP_PASSWORD: z.string().optional(),
     SMTP_FROM_EMAIL: z.string().optional(),
 
-    // URL publique de ce backend (utilisee pour construire des liens absolus,
-    // ex: l'image de signature transmise a n8n). Vide en local si non expose.
-    PUBLIC_BASE_URL: z.string().optional(),
-
     SESSION_SECRET: z
       .string()
       .min(16, "SESSION_SECRET doit faire au moins 16 caracteres (voir .env.example)"),
-  })
-  .superRefine((values, ctx) => {
-    if (values.LLM_PROVIDER === "gemini" && !values.GEMINI_API_KEY) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["GEMINI_API_KEY"],
-        message: "GEMINI_API_KEY est requis quand LLM_PROVIDER=gemini",
-      });
-    }
-    if (values.LLM_PROVIDER === "anthropic" && !values.ANTHROPIC_API_KEY) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["ANTHROPIC_API_KEY"],
-        message: "ANTHROPIC_API_KEY est requis quand LLM_PROVIDER=anthropic",
-      });
-    }
-    if (values.LLM_PROVIDER === "groq" && !values.GROQ_API_KEY) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["GROQ_API_KEY"],
-        message: "GROQ_API_KEY est requis quand LLM_PROVIDER=groq",
-      });
-    }
   });
+// Pas de superRefine imposant la cle du LLM_PROVIDER actif : ce serait
+// redondant avec la garde deja presente dans chaque fabrique de provider
+// (createGeminiProvider/createGroqProvider/createAnthropicProvider dans
+// services/llm/*.ts, qui levent "XXX_API_KEY manquant" au moment ou une
+// fonctionnalite IA est reellement utilisee) - et surtout, une validation
+// ici ferait planter TOUT le demarrage de l'app pour une cle manquante,
+// ce qui est disproportionne (Lot 8 : l'installeur ne peut livrer aucune
+// cle API, jamais commise/partagee entre cabinets - voir README-LOT8.md).
+// Un cabinet sans cle configuree peut donc ouvrir l'app et utiliser tout
+// ce qui ne depend pas de l'IA ; seules les actions IA echouent, avec un
+// message clair.
 
 export const env = envSchema.parse(process.env);

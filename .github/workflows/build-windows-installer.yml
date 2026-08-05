@@ -1,0 +1,231 @@
+name: Build installeur Windows Aurore
+
+# Se declenche automatiquement a chaque push sur lot8-installeur-final, et
+# peut aussi etre lance manuellement depuis l'onglet "Actions" de GitHub
+# (bouton "Run workflow") sans avoir besoin d'un nouveau commit - voir
+# README-LOT8.md pour la marche a suivre pas-a-pas, sans ligne de commande.
+on:
+  push:
+    branches:
+      - lot8-installeur-final
+  workflow_dispatch: {}
+
+jobs:
+  build-windows-installer:
+    name: Compiler l'installeur .exe
+    runs-on: windows-latest
+    # contents: write requis pour publier/mettre a jour la release GitHub
+    # (installeur + signature + manifeste de mise a jour, voir etape
+    # "Publier la release GitHub" plus bas).
+    permissions:
+      contents: write
+
+    steps:
+      - name: Recuperer le code
+        uses: actions/checkout@v4
+
+      - name: Installer Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Installer Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      # Conserve le cache Cargo (dependances Rust deja compilees) entre les
+      # executions - accelere fortement les compilations suivantes (la
+      # toute premiere reste lente, c'est normal).
+      - name: Mettre en cache les dependances Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "src-tauri -> target"
+
+      - name: Installer le CLI Tauri + dependances de la coquille desktop
+        run: npm install
+
+      - name: Installer les dependances du backend
+        working-directory: backend
+        run: npm ci
+
+      # nmake/cl.exe ne sont pas sur le PATH par defaut sur un runner
+      # windows-latest (Visual Studio est installe mais pas "active" dans
+      # le shell courant) - necessaire pour compiler pgvector a l'etape
+      # suivante (scripts/download-postgres-binaries.js -> compilePgvector,
+      # voir README-LOT2.md "Contournement pgvector"). Action tierce tres
+      # utilisee (ilammy/msvc-dev-cmd), se contente d'appeler le
+      # vcvarsall.bat deja present sur la machine, n'installe rien.
+      - name: Activer l'environnement de compilation MSVC (pour pgvector)
+        uses: ilammy/msvc-dev-cmd@v1
+
+      # Binaires PostgreSQL 16 portables + compilation de pgvector depuis
+      # les sources (aucun binaire precompile officiel pour Windows) -
+      # AVANT build:sea, qui copie backend/vendor/postgres/ vers
+      # dist-sea/postgres/ s'il existe a ce moment-la (sinon il l'ignore
+      # silencieusement avec un avertissement - c'etait exactement le
+      # trou constate ici : dist-sea/postgres jamais cree dans ce
+      # pipeline CI). Voir scripts/download-postgres-binaries.js.
+      - name: Telecharger les binaires PostgreSQL portables (+ compiler pgvector)
+        working-directory: backend
+        run: npm run postgres:download-binaries
+
+      # Reecrit backend/src/config/bundledExternalServiceKeys.ts (place ici,
+      # jamais commis en retour - le runner est detruit a la fin du job,
+      # aucune etape de ce workflow n'execute de commande git d'ecriture,
+      # voir README-LOT8.md) a partir des GitHub Secrets correspondants
+      # (identifiants partages AzoMedIA - LLM Groq/Gemini, recherche web
+      # Tavily, envoi d'email SMTP/Brevo - decision Option A) - JUSTE AVANT
+      # build:sea, pour que le fichier reecrit soit celui compile puis
+      # obfusque avec le reste du code. Si un secret n'est pas encore
+      # configure sur ce repo, le placeholder correspondant reste vide
+      # (undefined) - jamais un echec de build, comportement identique a
+      # avant ce mecanisme pour les valeurs manquantes. Les valeurs
+      # elles-memes ne sont JAMAIS affichees (seule leur presence, en
+      # booleen, est journalisee) - et de toute facon masquees
+      # automatiquement par GitHub si elles apparaissaient dans un log.
+      - name: Injecter les identifiants de services externes partages (GitHub Secrets) dans le build
+        working-directory: backend
+        shell: pwsh
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          SMTP_FROM_EMAIL: ${{ secrets.SMTP_FROM_EMAIL }}
+        run: |
+          function Literal($value) {
+            if ([string]::IsNullOrEmpty($value)) { return "undefined" }
+            return ($value | ConvertTo-Json)
+          }
+          $entries = [ordered]@{
+            BUNDLED_GEMINI_API_KEY   = Literal $env:GEMINI_API_KEY
+            BUNDLED_GROQ_API_KEY     = Literal $env:GROQ_API_KEY
+            BUNDLED_TAVILY_API_KEY   = Literal $env:TAVILY_API_KEY
+            BUNDLED_SMTP_HOST        = Literal $env:SMTP_HOST
+            BUNDLED_SMTP_USER        = Literal $env:SMTP_USER
+            BUNDLED_SMTP_PASSWORD    = Literal $env:SMTP_PASSWORD
+            BUNDLED_SMTP_FROM_EMAIL  = Literal $env:SMTP_FROM_EMAIL
+          }
+          $lines = @(
+            "// Genere automatiquement par le workflow CI juste avant le build (voir",
+            "// .github/workflows/build-windows-installer.yml) - jamais commis avec de",
+            "// vraies valeurs, voir la version suivie en git de ce fichier."
+          )
+          foreach ($key in $entries.Keys) {
+            $lines += "export const $key`: string | undefined = $($entries[$key]);"
+          }
+          $lines += ""
+          Set-Content -Path src/config/bundledExternalServiceKeys.ts -Value ($lines -join "`n") -Encoding utf8
+          foreach ($name in @("GEMINI_API_KEY","GROQ_API_KEY","TAVILY_API_KEY","SMTP_HOST","SMTP_USER","SMTP_PASSWORD","SMTP_FROM_EMAIL")) {
+            $present = -not [string]::IsNullOrEmpty([Environment]::GetEnvironmentVariable($name))
+            Write-Output "$name injectee : $present"
+          }
+
+      - name: Compiler le backend (build:sea, avec obfuscation)
+        working-directory: backend
+        run: npm run build:sea
+
+      # Copie l'executable backend vers src-tauri/binaries/ (convention de
+      # nommage des sidecars Tauri), puis compile et empaquette
+      # l'installeur NSIS complet - voir package.json (racine),
+      # script "tauri:build". TAURI_SIGNING_PRIVATE_KEY(_PASSWORD) presents
+      # -> `tauri build` signe automatiquement l'installeur produit (fichier
+      # .sig genere a cote), necessaire a l'auto-update (tauri-plugin-updater
+      # verifie cette signature avec la cle publique de tauri.conf.json
+      # avant d'appliquer toute mise a jour).
+      - name: Preparer le sidecar et compiler l'installeur NSIS
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: npm run sidecar:prepare && npx tauri build
+
+      - name: Lire le numero de version (pour le nom du fichier telecharge)
+        id: version
+        shell: pwsh
+        run: |
+          $json = Get-Content -Raw -Path "src-tauri/tauri.conf.json" | ConvertFrom-Json
+          $version = $json.version
+          $date = Get-Date -Format "yyyy-MM-dd"
+          Write-Output "version=$version" >> $env:GITHUB_OUTPUT
+          Write-Output "date=$date" >> $env:GITHUB_OUTPUT
+
+      # Rend le fichier .exe telechargeable depuis l'onglet "Actions" de
+      # GitHub (voir README-LOT8.md pour la procedure de telechargement,
+      # sans ligne de commande). Conserve 30 jours par defaut.
+      - name: Publier l'installeur en telechargement
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aurore-Installeur-Windows-v${{ steps.version.outputs.version }}-${{ steps.version.outputs.date }}
+          path: src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: error
+          retention-days: 30
+
+      # Le contexte `secrets` n'est pas directement utilisable dans une
+      # condition `if:` (rejete par le validateur de workflow GitHub :
+      # "Unrecognized named-value: 'secrets'") - calcule ici une sortie
+      # d'etape a partir d'une variable d'environnement (elle, autorisee a
+      # lire les secrets), reutilisable par les `if:` suivants.
+      - name: Verifier la presence de la cle de signature updater
+        id: signing-key
+        shell: pwsh
+        env:
+          HAS_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+        run: |
+          Write-Output "present=$env:HAS_KEY" >> $env:GITHUB_OUTPUT
+
+      # Manifeste consomme par tauri-plugin-updater (voir tauri.conf.json,
+      # plugins.updater.endpoints) : sans lui, l'auto-update ne peut jamais
+      # savoir qu'une nouvelle version existe. Uniquement si la cle de
+      # signature updater est configuree (etape ci-dessus) - sinon aucune
+      # signature n'a ete produite, un manifeste sans signature valide
+      # serait trompeur (l'updater le rejetterait de toute facon a la
+      # verification).
+      - name: Generer le manifeste de mise a jour (latest.json)
+        if: steps.signing-key.outputs.present == 'true'
+        id: manifest
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Path "src-tauri/target/release/bundle/nsis" -Filter "*.exe" | Select-Object -First 1
+          $sigPath = "$($exe.FullName).sig"
+          if (-not (Test-Path $sigPath)) {
+            Write-Error "Fichier de signature introuvable ($sigPath) - TAURI_SIGNING_PRIVATE_KEY est-elle bien configuree ?"
+            exit 1
+          }
+          $signature = Get-Content -Raw -Path $sigPath
+          $pubDate = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+          $manifest = [ordered]@{
+            version   = "v${{ steps.version.outputs.version }}"
+            notes     = "Voir l'historique des changements sur GitHub."
+            pub_date  = $pubDate
+            platforms = [ordered]@{
+              "windows-x86_64" = [ordered]@{
+                signature = $signature.Trim()
+                url       = "https://github.com/${{ github.repository }}/releases/download/v${{ steps.version.outputs.version }}/$($exe.Name)"
+              }
+            }
+          }
+          $manifest | ConvertTo-Json -Depth 5 | Set-Content -Path latest.json -Encoding utf8
+          Write-Output "exe_name=$($exe.Name)" >> $env:GITHUB_OUTPUT
+
+      # Publie (ou met a jour) une release GitHub taguee avec la version
+      # courante, contenant l'installeur signe + son manifeste - c'est
+      # cette release qui sert de source pour l'auto-update
+      # (endpoint "releases/latest/download/latest.json" dans
+      # tauri.conf.json, toujours stable quelle que soit la version en
+      # cours). Reexecuter ce workflow sur la MEME version ecrase les
+      # assets de la release existante (--clobber) plutot que d'echouer.
+      - name: Publier la release GitHub (installeur + signature + manifeste de mise a jour)
+        if: steps.signing-key.outputs.present == 'true'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "v${{ steps.version.outputs.version }}"
+          $exePath = (Get-ChildItem -Path "src-tauri/target/release/bundle/nsis" -Filter "*.exe" | Select-Object -First 1).FullName
+          $sigPath = "$exePath.sig"
+          $exists = gh release view $tag --repo "${{ github.repository }}" 2>$null
+          if (-not $exists) {
+            gh release create $tag --repo "${{ github.repository }}" --title $tag --notes "Build automatique - voir l'historique des commits pour le detail."
+          }
+          gh release upload $tag $exePath $sigPath latest.json --repo "${{ github.repository }}" --clobber

@@ -3,6 +3,7 @@ import { env } from "../../config/env";
 import { actionOutputSchema, actionOutputJsonSchema, ActionOutput } from "../../schemas/action";
 import { LEGAL_ASSISTANT_SYSTEM_PROMPT, buildUserPrompt } from "../../prompts/legalAssistant";
 import { LlmProvider, LlmOutputError } from "./types";
+import { MissingConfigurationError } from "../../lib/configurationError";
 
 const EXTRACT_TOOL_NAME = "extraire_action_juridique";
 
@@ -76,7 +77,7 @@ export class AnthropicProvider implements LlmProvider {
 
 export function createAnthropicProvider(): AnthropicProvider {
   if (!env.ANTHROPIC_API_KEY) {
-    throw new Error("ANTHROPIC_API_KEY manquant");
+    throw new MissingConfigurationError("ANTHROPIC_API_KEY manquant");
   }
   return new AnthropicProvider(env.ANTHROPIC_API_KEY);
 }

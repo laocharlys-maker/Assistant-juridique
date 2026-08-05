@@ -3,7 +3,6 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
 import { getAccessibleAvocatIds } from "../services/access";
-import { callN8nWebhook } from "../services/n8n";
 import { buildRoleSemainePdf, buildRoleSemaineWord } from "../services/roleSemaineExport";
 
 export const roleAudiencesRouter = Router();
@@ -255,7 +254,6 @@ const createSchema = z.object({
   dernierMotif: z.string().optional(),
   diligences: z.string().optional(),
   dossierId: z.string().uuid().optional(),
-  creerRappelCalendar: z.boolean().optional().default(false),
 });
 
 roleAudiencesRouter.post("/api/role-audiences", requireAuth, async (req, res) => {
@@ -282,14 +280,6 @@ roleAudiencesRouter.post("/api/role-audiences", requireAuth, async (req, res) =>
     if (!dossier) {
       return res.status(404).json({ error: "Dossier introuvable" });
     }
-  }
-
-  if (parsed.data.creerRappelCalendar) {
-    await callN8nWebhook("creer-rappel-delai", {
-      titre: `Audience : ${parsed.data.parties}${dossier ? ` — ${dossier.nomAffaire}` : ""}`,
-      description: `${parsed.data.juridiction}${parsed.data.chambre ? ` — ${parsed.data.chambre}` : ""}${parsed.data.objetProcedure ? `\nObjet : ${parsed.data.objetProcedure}` : ""}`,
-      dateLimite: dateAudience.toISOString(),
-    });
   }
 
   const audience = await prisma.roleAudience.create({

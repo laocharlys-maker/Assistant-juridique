@@ -24,7 +24,13 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["nsis"],
+    "createUpdaterArtifacts": true,
+    "publisher": "AzoMedIA",
+    "copyright": "© 2026 AzoMedIA",
+    "category": "Business",
+    "shortDescription": "Assistant juridique pour cabinets d'avocats",
+    "longDescription": "Aurore aide les cabinets d'avocats a rediger leurs actes juridiques, suivre leurs dossiers et leurs echeances. Installation locale, donnees chiffrees, aucune dependance a un serveur distant.",
     "icon": [
       "icons/icon.ico",
       "icons/32x32.png",
@@ -36,9 +42,39 @@
     "resources": {
       "../backend/dist-sea/public": "public",
       "../backend/dist-sea/node_modules": "node_modules",
-      "../backend/dist-sea/.env": ".env",
+      "../backend/dist-sea/package.json": "package.json",
       "../backend/dist-sea/postgres": "postgres",
-      "../backend/dist-sea/prisma": "prisma"
+      "../backend/dist-sea/prisma": "prisma",
+      "../installer/README-BITLOCKER.md": "README-BITLOCKER.md",
+      "../installer/import-cert-instructions.md": "import-cert-instructions.md",
+      "../installer/firewall-rule.ps1": "firewall-rule.ps1",
+      "../installer/enable-bitlocker.ps1": "enable-bitlocker.ps1",
+      "../installer/aurore-service-install.ps1": "aurore-service-install.ps1",
+      "../docs-utilisateur": "docs-utilisateur"
+    },
+    "licenseFile": "../installer/LICENSE-EULA.txt",
+    "windows": {
+      "nsis": {
+        "languages": ["French"],
+        "displayLanguageSelector": false,
+        "installMode": "currentUser",
+        "installerIcon": "icons/icon.ico",
+        "compression": "lzma",
+        "installerHooks": "../installer/nsis/installer-hooks.nsh"
+      },
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper",
+        "silent": true
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "active": true,
+      "endpoints": [
+        "https://github.com/laocharlys-maker/Assistant-juridique/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDU5RTQwNDI4ODIwRDQwREMKUldUY1FBMkNLQVRrV1YrRzNmS1J4UEM2U2g3TUQwUTlrUTBmZENGZWdoUFR5VGIxV21tSTdQaWwK"
     }
   }
 }

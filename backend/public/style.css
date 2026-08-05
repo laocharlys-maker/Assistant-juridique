@@ -663,6 +663,15 @@ header.app-topbar {
 .badge-envoyee { background: var(--accent-tint); color: var(--accent-hover); }
 .badge-payee { background: var(--success-tint); color: var(--success); }
 
+/* Statut d'une action generee (compte-rendu, mise en demeure...) - distinct
+   des badges de statut de facture/dossier ci-dessus (memes noms de statut
+   "brouillon"/"envoyee" mais couleurs differentes selon le contexte). */
+.badge-action-brouillon { background: var(--warning-tint); color: var(--warning); }
+.badge-action-en_attente_validation { background: var(--warning-tint); color: var(--warning); }
+.badge-action-valide { background: var(--success-tint); color: var(--success); }
+.badge-action-envoye { background: var(--accent-tint); color: var(--accent-hover); }
+.badge-action-echec_generation { background: var(--danger-tint); color: var(--danger); }
+
 /* ---------- Bandeau d'en-tete degrade (pages d'accueil) ---------- */
 .page-hero {
   border-radius: 16px;
@@ -865,7 +874,7 @@ header.app-topbar {
   .role-month-cell-date::before { content: "Le "; }
 }
 
-/* ---------- Editeur de texte plein ecran (correction d'un document genere, alternative a Google Docs) ---------- */
+/* ---------- Editeur de texte plein ecran (correction d'un document genere) ---------- */
 .edit-panel[hidden] { display: none; }
 .edit-panel:not([hidden]) {
   position: fixed;

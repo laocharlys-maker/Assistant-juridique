@@ -51,7 +51,7 @@
       <div class="settings-card">
         <div class="icon-badge"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg></div>
         <h3>Police et taille du texte</h3>
-        <p class="desc">Utilisées dans les documents Word/PDF générés par Aurore (téléchargement). N'affecte pas les documents ouverts/modifiés directement dans Google Docs.</p>
+        <p class="desc">Utilisées dans les documents Word/PDF générés par Aurore (téléchargement).</p>
         <form id="style-documents-form">
           <label>Police</label>
           <select name="policeDocuments">
@@ -118,10 +118,27 @@
           <button type="submit" class="btn-sm">Ajouter</button>
         </form>
       </div>
+
+      <div class="settings-card">
+        <div class="icon-badge"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></div>
+        <h3>À propos</h3>
+        <p class="desc" id="about-version">Aurore — chargement…</p>
+        <p class="desc">Édité par AzoMedIA. Besoin d'aide ? <a href="mailto:azomedia20@gmail.com">azomedia20@gmail.com</a></p>
+      </div>
     </div>
   </div>
   <script src="/js/api.js"></script>
   <script src="/js/layout.js"></script>
+  <script>
+    (async () => {
+      try {
+        const info = await apiFetch("/api/app-info");
+        document.getElementById("about-version").textContent = `Aurore — version ${info.version}`;
+      } catch {
+        document.getElementById("about-version").textContent = "Aurore";
+      }
+    })();
+  </script>
   <script>
     function escapeHtml(str) {
       const div = document.createElement("div");

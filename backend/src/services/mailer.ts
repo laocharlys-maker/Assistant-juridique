@@ -55,3 +55,43 @@ export async function sendDocumentEmail(input: DocumentEmailInput): Promise<Mail
     return { ok: false, error: error instanceof Error ? error.message : "Erreur d'envoi inconnue" };
   }
 }
+
+export interface EmailInput {
+  destinataireEmail: string;
+  cabinetNom: string;
+  replyToEmail: string | null;
+  subject: string;
+  text?: string;
+  html?: string;
+  attachments?: { filename: string; content: Buffer; contentType: string }[];
+}
+
+// Envoi generique (sujet + texte/HTML + pieces jointes optionnelles), via
+// Brevo/Nodemailer - meme transporteur que sendDocumentEmail ci-dessus.
+// Remplace les webhooks n8n "envoyer-facture", "envoyer-email-client",
+// "email-test", "role-semaine-recap" et "veille-juridique" (retires du
+// produit, voir README-LOT8TER.md) : le backend composait deja les donnees
+// (et, pour role-semaine-recap/veille-juridique, le HTML complet) avant de
+// les transmettre a n8n pour l'envoi effectif - seul ce dernier maillon
+// change, le contenu des emails est inchange.
+export async function sendEmail(input: EmailInput): Promise<MailResult> {
+  const transporter = getTransporter();
+  if (!transporter) {
+    return { ok: false, error: "Configuration SMTP manquante (voir .env)" };
+  }
+
+  try {
+    await transporter.sendMail({
+      from: `"${input.cabinetNom}" <${env.SMTP_FROM_EMAIL}>`,
+      to: input.destinataireEmail,
+      replyTo: input.replyToEmail ?? undefined,
+      subject: input.subject,
+      text: input.text,
+      html: input.html,
+      attachments: input.attachments,
+    });
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Erreur d'envoi inconnue" };
+  }
+}

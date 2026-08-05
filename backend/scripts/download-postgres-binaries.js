@@ -170,12 +170,46 @@ async function compilePgvector(extractedRoot, zipRootDir, finalVendorDir) {
   }
 
   fs.copyFileSync(vectorDll, path.join(finalVendorDir, "lib", "vector.dll"));
-  for (const file of fs.readdirSync(cacheRepoDir)) {
-    if (file === "vector.control" || (file.startsWith("vector--") && file.endsWith(".sql"))) {
-      fs.copyFileSync(path.join(cacheRepoDir, file), path.join(finalVendorDir, "share", "extension", file));
+
+  // vector.control vit a la racine du depot pgvector, mais TOUS les
+  // scripts SQL vivent dans le sous-dossier sql/ - jamais a la racine.
+  // Verifie directement contre Makefile.win officiel (regle "install:") :
+  //   copy vector.control "$(SHAREDIR)\extension"
+  //   copy sql\vector--*.sql "$(SHAREDIR)\extension"
+  // Ceci inclut sql\vector--0.8.0.sql, qui n'est PAS un fichier statique du
+  // depot : il est GENERE par la compilation elle-meme (regle
+  // "sql\vector--0.8.0.sql: sql\vector.sql -> copy", declenchee par la
+  // dependance "all: $(SHLIB) $(DATA_built)" de Makefile.win) - absent tant
+  // que `nmake` n'a pas tourne, ce qui est deja le cas ici (execFileSync
+  // ci-dessus). L'ancienne version de cette boucle lisait uniquement
+  // fs.readdirSync(cacheRepoDir) (racine du depot) : elle trouvait bien
+  // vector.control, mais AUCUN fichier .sql (tous dans sql/, jamais a la
+  // racine) - resultat, l'extension s'installait avec un vector.control
+  // pointant vers la version 0.8.0 mais sans le script d'installation
+  // correspondant, provoquant "extension vector has no installation
+  // script nor update path for version 0.8.0" au premier vrai test
+  // d'installation. Voir README-LOT2.md.
+  fs.copyFileSync(
+    path.join(cacheRepoDir, "vector.control"),
+    path.join(finalVendorDir, "share", "extension", "vector.control")
+  );
+  const pgvectorSqlDir = path.join(cacheRepoDir, "sql");
+  let sqlFilesCopied = 0;
+  for (const file of fs.readdirSync(pgvectorSqlDir)) {
+    if (file.startsWith("vector--") && file.endsWith(".sql")) {
+      fs.copyFileSync(path.join(pgvectorSqlDir, file), path.join(finalVendorDir, "share", "extension", file));
+      sqlFilesCopied += 1;
     }
   }
-  log("pgvector compile et integre a la distribution portable.");
+  const installScript = `vector--${PGVECTOR_TAG.replace(/^v/, "")}.sql`;
+  const installScriptPresent = fs.existsSync(path.join(finalVendorDir, "share", "extension", installScript));
+  if (!installScriptPresent) {
+    throw new Error(
+      `${installScript} absent apres compilation (${sqlFilesCopied} script(s) .sql copie(s) au total) - ` +
+        `la regle DATA_built de Makefile.win n'a peut-etre pas tourne comme attendu. Verifie la sortie de nmake ci-dessus.`
+    );
+  }
+  log(`pgvector compile et integre a la distribution portable (${sqlFilesCopied} scripts SQL, dont ${installScript}).`);
 }
 
 async function buildPlatform(platformKey) {

@@ -9,7 +9,7 @@
 </head>
 <body>
   <div class="page">
-    <p><a href="/dashboard.html" id="back-link">&larr; Retour aux dossiers</a></p>
+    <p><a href="/dashboard.html" id="back-link">&larr; Retour</a></p>
     <div id="content"><p class="muted">Chargement…</p></div>
   </div>
   <script src="/js/api.js"></script>
@@ -418,6 +418,8 @@
           // applique tout de suite ce réglage initial aux liens de
           // téléchargement, sans attendre un changement manuel.
           update();
+          bindDownloadLink(document.getElementById(`word-link-${a.id}`), "document.docx");
+          bindDownloadLink(document.getElementById(`pdf-link-${a.id}`), "document.pdf");
 
           const emailInput = document.getElementById(`email-${a.id}`);
           const envoyerMoiBtn = actionsEl.querySelector(`[data-envoyer-moi="${a.id}"]`);
@@ -451,17 +453,19 @@
       en_attente_validation: "Prêt — à valider",
       valide: "Validé",
       envoye: "Envoyé au client",
+      echec_generation: "Échec de la génération",
     };
 
-    // Au-dela de ce delai sans callback n8n (document Google Docs jamais
-    // pret), on considere que la generation a probablement echoue plutot
-    // que de laisser "Génération en cours…" indefiniment - le
-    // telechargement Word/PDF local reste de toute facon disponible
-    // independamment de n8n (voir contenuGenere, deja enregistre a la
-    // creation de l'action).
-    const GENERATION_TIMEOUT_MS = 3 * 60 * 1000;
-    const GENERATION_TIMEOUT_MESSAGE =
-      "La génération semble avoir échoué. Patientez et relancez dans 2 minutes. Si l'erreur persiste, contactez le support.";
+    // Le seul vrai etat d'echec est "echec_generation" (voir Lot 5 :
+    // jeton orphelin de pseudonymisation ou anomalie equivalente detectee
+    // apres reponse du LLM - README-LOT5.md, actionsCallback.ts). Ancien
+    // comportement fautif corrige au Lot 8bis : un delai ecoule depuis la
+    // creation (Date.now() - createdAt > 3 min) etait auparavant utilise
+    // comme heuristique de "generation probablement echouee" pour le statut
+    // "brouillon" - ce message s'affichait donc a tort sur TOUS les
+    // documents generes avec succes des qu'ils depassaient 3 minutes.
+    const GENERATION_ECHEC_MESSAGE =
+      "La génération de ce document a échoué. Aucun contenu n'a été produit — relancez la génération depuis « Nouvelle action ». Si l'erreur persiste, contactez le support.";
 
     const STATUT_TAG_LABELS = {
       a_jour: "à jour",
@@ -498,7 +502,7 @@
             : '<span class="badge badge-a_jour">À venir</span>';
           return `
           <div class="action-item">
-            <span class="tag">${escapeHtml(c.delaiType.nom)}${c.rappelCalendar ? " · rappel Calendar créé" : ""}</span>
+            <span class="tag">${escapeHtml(c.delaiType.nom)}</span>
             ${badge}
             <div>Départ : ${formatDateLongue(c.dateDepart)} → <strong>Date limite : ${formatDateLongue(c.dateLimite)}</strong></div>
             <p class="muted">${escapeHtml(c.delaiType.texteReference)} — calculé par ${escapeHtml(c.createdBy.nom)} le ${new Date(c.createdAt).toLocaleString("fr-FR")}</p>
@@ -513,12 +517,15 @@
     }
 
     function renderAction(a) {
-      const generationEnEchec =
-        a.statut === "brouillon" && !a.documentUrl && Date.now() - new Date(a.createdAt).getTime() > GENERATION_TIMEOUT_MS;
-      const statutLabel = generationEnEchec ? "Échec probable de la génération" : STATUT_LABELS[a.statut] || a.statut;
-      const docLink = a.documentUrl
-        ? `<a href="${escapeHtml(a.documentUrl)}" target="_blank" rel="noopener">Ouvrir / modifier le document</a>`
-        : "";
+      const generationEnEchec = a.statut === "echec_generation";
+      // Compatibilite avec les documents crees avant le correctif Lot 8bis,
+      // restes au statut "brouillon" alors que leur contenu est deja pret
+      // (contenuGenere rempli) - traite ici comme equivalent a
+      // "en_attente_validation" (badge + bouton de validation) pour ne pas
+      // les laisser bloques sans recours.
+      const pretAValider =
+        a.statut === "en_attente_validation" || (a.statut === "brouillon" && a.contenuGenere);
+      const statutLabel = pretAValider ? STATUT_LABELS.en_attente_validation : STATUT_LABELS[a.statut] || a.statut;
       const editTexteBtn =
         a.contenuGenere && a.statut !== "envoye"
           ? `<button type="button" class="ghost btn-sm" data-toggle-edit="${a.id}" style="margin-left:8px;">Modifier le texte</button>`
@@ -547,8 +554,8 @@
       const downloadLinks = a.contenuGenere
         ? `<div style="margin:6px 0;" class="muted">
             <div>
-              <a href="/api/actions/${a.id}/word" id="word-link-${a.id}">Télécharger en Word</a> ·
-              <a href="/api/actions/${a.id}/pdf" id="pdf-link-${a.id}">Télécharger en PDF</a>
+              <a href="#" data-url="/api/actions/${a.id}/word" id="word-link-${a.id}">Télécharger en Word</a> ·
+              <a href="#" data-url="/api/actions/${a.id}/pdf" id="pdf-link-${a.id}">Télécharger en PDF</a>
             </div>
             ${
               cabinetHasEntete
@@ -580,7 +587,7 @@
       const envoiConfig = envoiConfigFor(a.typeAction);
 
       let controls = "";
-      if (a.statut === "en_attente_validation" && !currentDossierEstRecherche) {
+      if (pretAValider && !currentDossierEstRecherche) {
         const hintEnvoi = envoiConfig
           ? `<p class="muted" style="margin-top:8px;">L'envoi sera possible une fois l'action validée.</p>`
           : "";
@@ -591,7 +598,7 @@
             <button type="button" class="secondary" data-valider="${a.id}">Marquer comme validé</button>
           </div>
           ${hintEnvoi}`;
-      } else if (envoiConfig && (a.statut === "valide" || (a.statut === "en_attente_validation" && currentDossierEstRecherche))) {
+      } else if (envoiConfig && (a.statut === "valide" || (pretAValider && currentDossierEstRecherche))) {
         // Un collaborateur ne peut jamais envoyer un document directement a
         // un client : il ne peut le transmettre qu'a un membre du cabinet
         // (son avocat responsable ou un autre membre), pour relecture/envoi.
@@ -649,12 +656,12 @@
       return `
         <div class="accordion-item">
           <button type="button" class="accordion-header" data-accordion-toggle>
-            <span class="tag">${escapeHtml(titreAction)} · ${escapeHtml(statutLabel)}</span>
+            <span class="tag">${escapeHtml(titreAction)} <span class="badge badge-action-${a.statut}">${escapeHtml(statutLabel)}</span></span>
             <div><strong>Réalisé par ${escapeHtml(a.creePar.nom)}</strong> — ${new Date(a.createdAt).toLocaleString("fr-FR")}</div>
           </button>
           <div class="accordion-body">
-            ${generationEnEchec ? `<p class="error visible" style="margin:6px 0;">${escapeHtml(GENERATION_TIMEOUT_MESSAGE)}</p>` : ""}
-            ${docLink || editTexteBtn ? `<div style="margin:6px 0;">${docLink}${editTexteBtn}</div>` : ""}
+            ${generationEnEchec ? `<p class="error visible" style="margin:6px 0;">${escapeHtml(GENERATION_ECHEC_MESSAGE)}</p>` : ""}
+            ${editTexteBtn ? `<div style="margin:6px 0;">${editTexteBtn}</div>` : ""}
             ${downloadLinks}
             <div class="md-content" data-content-view="${a.id}">${renderMarkdown(a.contenuGenere || "")}</div>
             <div class="edit-panel" data-edit-panel="${a.id}" hidden>
@@ -704,8 +711,28 @@
       const query = params.toString() ? `?${params.toString()}` : "";
       const wordLink = document.getElementById(`word-link-${actionId}`);
       const pdfLink = document.getElementById(`pdf-link-${actionId}`);
-      if (wordLink) wordLink.href = `/api/actions/${actionId}/word${query}`;
-      if (pdfLink) pdfLink.href = `/api/actions/${actionId}/pdf${query}`;
+      if (wordLink) wordLink.dataset.url = `/api/actions/${actionId}/word${query}`;
+      if (pdfLink) pdfLink.dataset.url = `/api/actions/${actionId}/pdf${query}`;
+    }
+
+    // downloadFile() (voir js/api.js) plutot qu'une navigation classique -
+    // confirme par un message visible (toast) a CHAQUE telechargement, pas
+    // seulement au premier (les liens etaient jusqu'ici de simples <a href>,
+    // sans aucune confirmation visuelle apres le premier document genere).
+    function bindDownloadLink(linkEl, fallbackFilename) {
+      if (!linkEl || linkEl.dataset.downloadBound) return;
+      linkEl.dataset.downloadBound = "1";
+      linkEl.addEventListener("click", async (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const url = linkEl.dataset.url;
+        if (!url) return;
+        try {
+          await downloadFile(url, fallbackFilename);
+        } catch (err) {
+          alert(err.message);
+        }
+      });
     }
 
     async function validerAction(actionId) {

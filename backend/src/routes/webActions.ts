@@ -1,11 +1,11 @@
-import { Router } from "express";
+import { Router, Response } from "express";
 import { z } from "zod";
 import pdfParse from "pdf-parse";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
 import { requireModule } from "../middleware/roles";
-import { getLlmProvider } from "../services/llm";
-import { callN8nWebhook, webhookForAction } from "../services/n8n";
+import { getLlmProvider, LlmProvider } from "../services/llm";
+import { MissingConfigurationError } from "../lib/configurationError";
 import { logAuditStep } from "../services/audit";
 import { espace } from "../services/documentFormalisme";
 import { webActionFormSchema } from "../schemas/webForms";
@@ -48,7 +48,6 @@ import { searchWeb, formatWebSearchContext, WebSearchResult } from "../services/
 import { summarizeLongText } from "../services/resumePdf";
 import { translateText, extractTextFromDocument } from "../services/traduction";
 import { aiActionsLimiter } from "../middleware/rateLimit";
-import { env } from "../config/env";
 import { formatDateLongue } from "../utils/dateFormat";
 import { computeNomDocument } from "../utils/documentNaming";
 import { WebActionForm } from "../schemas/webForms";
@@ -403,6 +402,31 @@ function composeDestinataire(
   return `${civilite} ${connecteur} ${juridiction}${ville ? ` de ${ville}` : ""}`;
 }
 
+/**
+ * getLlmProvider() leve une MissingConfigurationError (cle API du
+ * fournisseur actif absente) de facon synchrone, AVANT tout traitement -
+ * jamais rattrapee automatiquement par Express (pas de gestion native des
+ * rejets de promesse d'un handler async en Express 4), donc chaque route
+ * qui l'appelle doit le faire via ce wrapper plutot que directement.
+ * Renvoie null (et a deja envoye la reponse 503) en cas de configuration
+ * manquante ; propage toute autre erreur (vraiment inattendue, jamais
+ * documentee comme degradation attendue).
+ */
+function getLlmProviderSafe(res: Response): LlmProvider | null {
+  try {
+    return getLlmProvider();
+  } catch (error) {
+    if (error instanceof MissingConfigurationError) {
+      console.error("[llm] fournisseur IA non configure :", error.message);
+      res.status(503).json({
+        error: "La génération de documents par IA n'est pas configurée sur ce poste (clé API manquante). Contactez le support AzoMedIA.",
+      });
+      return null;
+    }
+    throw error;
+  }
+}
+
 const suggererStrategieSchema = z.object({
   nom_affaire: z.string().min(1),
   rappel_procedure: z.string().optional(),
@@ -423,17 +447,23 @@ webActionsRouter.post(
     if (!parsed.success) {
       return res.status(400).json({ error: "Requête invalide", details: parsed.error.issues });
     }
-    const llm = getLlmProvider();
-    const suggestion = await llm.redact(
-      NOTES_STRATEGIE_SUGGESTION_SYSTEM_PROMPT,
-      buildNotesStrategieSuggestionUserPrompt({
-        nomAffaire: parsed.data.nom_affaire,
-        rappelProcedure: parsed.data.rappel_procedure,
-        deroulementDebats: parsed.data.deroulement_debats,
-        decision: parsed.data.decision,
-      })
-    );
-    return res.json({ suggestion });
+    const llm = getLlmProviderSafe(res);
+    if (!llm) return;
+    try {
+      const suggestion = await llm.redact(
+        NOTES_STRATEGIE_SUGGESTION_SYSTEM_PROMPT,
+        buildNotesStrategieSuggestionUserPrompt({
+          nomAffaire: parsed.data.nom_affaire,
+          rappelProcedure: parsed.data.rappel_procedure,
+          deroulementDebats: parsed.data.deroulement_debats,
+          decision: parsed.data.decision,
+        })
+      );
+      return res.json({ suggestion });
+    } catch (error) {
+      console.error("Erreur suggestion de strategie :", error);
+      return res.status(502).json({ error: "Échec de la suggestion IA, réessaie dans un instant" });
+    }
   }
 );
 
@@ -444,7 +474,8 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
   }
   const form = parsed.data;
   const { auth } = req;
-  const llm = getLlmProvider();
+  const llm = getLlmProviderSafe(res);
+  if (!llm) return;
 
   const debutMois = new Date();
   debutMois.setDate(1);
@@ -500,25 +531,14 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
     }
   }
 
-  // En-tete du cabinet (logo/bandeau), insere automatiquement par n8n en
-  // haut du Google Doc a chaque generation - inutile de cocher quoi que ce
-  // soit, contrairement a l'insertion dans les exports Word/PDF telecharges
-  // qui reste, elle, optionnelle (case a cocher).
-  const cabinetPourEntete = await prisma.cabinet.findUnique({
-    where: { id: auth!.cabinetId },
-    select: { enteteUrl: true },
-  });
-  const enteteUrl =
-    cabinetPourEntete?.enteteUrl && env.PUBLIC_BASE_URL
-      ? `${env.PUBLIC_BASE_URL.replace(/\/$/, "")}${cabinetPourEntete.enteteUrl}`
-      : null;
-
   try {
     let dossierId: string;
     let action: ActionOutput;
-    // Champs additionnels specifiques a certains types, transmis a n8n en
-    // plus du contenu ActionOutput standard (ex: nom du defendeur et
-    // juridiction pour une assignation).
+    // Champs additionnels specifiques a certains types d'actes (ex: nom du
+    // defendeur et juridiction pour une assignation), en plus du contenu
+    // ActionOutput standard - persistes sur Action.champsDocument pour que
+    // les exports Word/PDF locaux reconstruisent le formalisme complet
+    // (voir documentFormalisme.ts).
     let extraWebhookFields: Record<string, unknown> = {};
     // Lot 5 : true seulement si la branche empruntee ci-dessous a
     // effectivement tokenise au moins une donnee identifiante avant l'appel
@@ -2000,6 +2020,12 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
         dossierId,
         typeAction: action.type_action,
         canal: "web",
+        // La generation est synchrone (LLM deja appele ci-dessus) : le
+        // document est complet des sa creation, jamais un brouillon en
+        // attente d'un traitement externe (voir README-LOT8TER.md - l'ancien
+        // circuit n8n qui generait un document Google Docs est retire ; le
+        // statut avancait auparavant a la reception de son callback).
+        statut: "en_attente_validation",
         contenuGenere: action.synthese ?? action.argumentaire,
         dateAudience: action.date_audience ? new Date(action.date_audience) : null,
         prochaineAudience: action.prochaine_audience ? new Date(action.prochaine_audience) : null,
@@ -2007,11 +2033,9 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
         // Conserve les champs saisis pour permettre de pre-remplir n'importe
         // quel autre formulaire plus tard a partir de cet acte.
         champsFormulaire: form as object,
-        // Conserve les champs deja composes/resolus envoyes a n8n (identite
-        // des parties, huissier, greffier, juge, civilites, adresses...) -
-        // permet aux exports Word/PDF locaux de reconstruire le meme
-        // formalisme juridique que le document Google Docs (voir
-        // documentFormalisme.ts).
+        // Identite des parties, huissier, greffier, juge, civilites,
+        // adresses... : permet aux exports Word/PDF locaux de reconstruire
+        // le formalisme juridique complet (voir documentFormalisme.ts).
         champsDocument: extraWebhookFields as object,
         nomDocument,
         donneesPseudonymisees,
@@ -2021,27 +2045,10 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
 
     await logAuditStep(savedAction.id, "redaction_ia", "succes", action.categorie_texte);
 
-    const n8nResult = await callN8nWebhook(webhookForAction(action.type_action), {
-      ...action,
-      dossierId,
-      actionId: savedAction.id,
-      enteteUrl,
-      nom_document: nomDocument,
-      ...extraWebhookFields,
-    });
-
-    await logAuditStep(
-      savedAction.id,
-      "declenchement_n8n",
-      n8nResult.ok ? "succes" : "erreur",
-      n8nResult.error
-    );
-
     return res.status(201).json({
       dossierId,
       actionId: savedAction.id,
       contenu: action.synthese ?? action.argumentaire,
-      n8nDispatched: n8nResult.ok,
     });
   } catch (error) {
     if (error instanceof OrphanTokenError) {

@@ -5,7 +5,8 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
 import { requireAdmin } from "../middleware/roles";
-import { callN8nWebhook } from "../services/n8n";
+import { sendEmail } from "../services/mailer";
+import { resolveCabinetEmailIdentite } from "../services/cabinetContact";
 
 export const cabinetRouter = Router();
 
@@ -135,14 +136,17 @@ cabinetRouter.post("/api/cabinet/email-contact/test", requireAuth, requireAdmin,
     return res.status(400).json({ error: "Adresse email invalide" });
   }
 
-  const cabinet = await prisma.cabinet.findUnique({ where: { id: req.auth!.cabinetId } });
-  const n8nResult = await callN8nWebhook("email-test", {
-    cabinetNom: cabinet?.nom ?? "",
+  const { cabinetNom, replyToEmail } = await resolveCabinetEmailIdentite(req.auth!.cabinetId);
+  const mailResult = await sendEmail({
     destinataireEmail: parsed.data.email,
+    cabinetNom,
+    replyToEmail,
+    subject: `Test de l'adresse de contact - ${cabinetNom}`,
+    text: `Cet email confirme que l'adresse ${parsed.data.email} reçoit bien les emails envoyés au nom de ${cabinetNom} depuis Aurore.`,
   });
 
-  if (!n8nResult.ok) {
-    return res.status(502).json({ error: "Échec de l'envoi du test", detail: n8nResult.error });
+  if (!mailResult.ok) {
+    return res.status(502).json({ error: "Échec de l'envoi du test", detail: mailResult.error });
   }
   return res.json({ ok: true });
 });

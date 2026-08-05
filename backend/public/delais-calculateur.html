@@ -16,45 +16,59 @@
     </div>
 
     <div id="error" class="error"></div>
-    <div id="empty-warning" class="error" style="display:none;">Aucun délai n'est encore défini dans le référentiel du cabinet. Demande à l'administrateur d'en ajouter via "Gérer les délais".</div>
 
-    <div class="card">
-      <div style="display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:8px;">
-        <h2 style="margin:0;">Historique des délais</h2>
-        <span class="muted" id="history-count"></span>
-      </div>
-      <div id="history-list"><p class="muted">Chargement…</p></div>
+    <div class="tabs" id="delais-tabs" style="margin-bottom:16px;">
+      <button type="button" class="tab active" data-tab="echeances">Échéances</button>
+      <button type="button" class="tab" data-tab="types" id="tab-btn-types" style="display:none;">Types de délais configurés</button>
     </div>
 
-    <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom: 4px;">
-      <button type="button" class="secondary" id="manage-types-link" style="display:none;">Gérer les délais</button>
-      <button type="button" id="toggle-calc-btn">+ Calculer un délai</button>
+    <div id="tab-panel-echeances">
+      <div id="empty-warning" class="error" style="display:none;">Aucun délai n'est encore défini dans le référentiel du cabinet. Demande à l'administrateur d'en ajouter via "Types de délais configurés".</div>
+
+      <div class="card">
+        <div style="display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:8px;">
+          <h2 style="margin:0;">Historique des délais calculés</h2>
+          <span class="muted" id="history-count"></span>
+        </div>
+        <p class="muted" style="margin-top:-4px;">Chaque délai calculé ci-dessous à partir d'un type de délai (voir l'onglet "Types de délais configurés") apparaît ici. Créer ou supprimer un type ne crée pas de calcul.</p>
+        <div id="history-list"><p class="muted">Chargement…</p></div>
+      </div>
+
+      <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom: 4px;">
+        <button type="button" id="toggle-calc-btn">+ Calculer un délai</button>
+      </div>
+
+      <div class="collapse-panel" id="calc-panel">
+        <div class="collapse-panel-inner">
+          <form id="calc-form">
+            <label>Type de délai</label>
+            <select name="delaiTypeId" id="delai-type-select" required></select>
+            <label>Date de départ (signification, notification, décision...)</label>
+            <input name="dateDepart" type="date" required />
+            <label>Dossier concerné (optionnel)</label>
+            <select name="dossierId" id="dossier-select">
+              <option value="">— aucun —</option>
+            </select>
+            <button type="submit">Calculer</button>
+          </form>
+
+          <div id="result" style="display:none; margin-top:20px; padding-top:16px; border-top:1px solid var(--hairline);"></div>
+        </div>
+      </div>
     </div>
 
-    <div class="collapse-panel" id="calc-panel">
-      <div class="collapse-panel-inner">
-        <form id="calc-form">
-          <label>Type de délai</label>
-          <select name="delaiTypeId" id="delai-type-select" required></select>
-          <label>Date de départ (signification, notification, décision...)</label>
-          <input name="dateDepart" type="date" required />
-          <label>Dossier concerné (optionnel)</label>
-          <select name="dossierId" id="dossier-select">
-            <option value="">— aucun —</option>
-          </select>
-          <label style="display:flex; align-items:center; gap:8px; font-weight:400;">
-            <input type="checkbox" name="creerRappelCalendar" style="width:auto;" />
-            Créer un rappel dans Google Calendar
-          </label>
-          <button type="submit">Calculer</button>
-        </form>
-
-        <div id="result" style="display:none; margin-top:20px; padding-top:16px; border-top:1px solid var(--hairline);"></div>
-      </div>
+    <div id="tab-panel-types" style="display:none;">
+      <!-- Referentiel des types de delais (nom, duree, texte de loi) - meme
+           panneau que delais-types.html, monte ici via js/delaisTypesPanel.js
+           pour eviter de dupliquer create-form/liste/toggle/delete a deux
+           endroits. Reserve aux titulaires (voir gating JS ci-dessous),
+           identique a la restriction historique de delais-types.html. -->
+      <div id="types-panel-root"></div>
     </div>
   </div>
   <script src="/js/api.js"></script>
   <script src="/js/layout.js"></script>
+  <script src="/js/delaisTypesPanel.js"></script>
   <script>
     function escapeHtml(str) {
       const div = document.createElement("div");
@@ -78,6 +92,12 @@
         document.getElementById("calc-form").style.display = "none";
         return;
       }
+      // Reaffiche le formulaire si un premier type vient d'etre ajoute
+      // (onglet "Types de délais configurés") dans la meme session, sans
+      // attendre un rechargement de page - loadTypes() est maintenant
+      // rappelee a chaque retour sur cet onglet (voir plus bas).
+      document.getElementById("empty-warning").style.display = "none";
+      document.getElementById("calc-form").style.display = "";
       typeSelect.innerHTML = types
         .map((t) => `<option value="${t.id}">${escapeHtml(t.nom)} (${t.nombreUnites} ${t.unite})</option>`)
         .join("");
@@ -106,7 +126,7 @@
           .map(
             (c) => `
           <div class="action-item">
-            <span class="tag">${escapeHtml(c.delaiType.nom)}${c.dossier ? " · " + escapeHtml(c.dossier.numeroDossier) : ""}${c.rappelCalendar ? " · rappel Calendar créé" : ""}</span>
+            <span class="tag">${escapeHtml(c.delaiType.nom)}${c.dossier ? " · " + escapeHtml(c.dossier.numeroDossier) : ""}</span>
             <div>Départ : ${formatDate(c.dateDepart)} → <strong>Date limite : ${formatDate(c.dateLimite)}</strong></div>
             <p class="muted">Calculé par ${escapeHtml(c.createdBy.nom)} le ${new Date(c.createdAt).toLocaleString("fr-FR")}</p>
           </div>`
@@ -117,12 +137,35 @@
       }
     }
 
+    let typesPanelMounted = false;
+    function mountTypesPanelOnce() {
+      if (typesPanelMounted) return;
+      typesPanelMounted = true;
+      const root = document.getElementById("types-panel-root");
+      root.innerHTML = delaisTypesPanelHtml();
+      initDelaisTypesPanel(root);
+    }
+
+    document.querySelectorAll("#delais-tabs .tab").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll("#delais-tabs .tab").forEach((b) => b.classList.toggle("active", b === btn));
+        document.getElementById("tab-panel-echeances").style.display = btn.dataset.tab === "echeances" ? "block" : "none";
+        document.getElementById("tab-panel-types").style.display = btn.dataset.tab === "types" ? "block" : "none";
+        if (btn.dataset.tab === "types") mountTypesPanelOnce();
+        // Un type ajoute/desactive/supprime dans l'onglet "Types de délais
+        // configurés" doit se refleter dans le select du formulaire de
+        // calcul sans recharger la page - rechargement leger a chaque retour
+        // sur l'onglet "Échéances" (liste courte, cout negligeable).
+        if (btn.dataset.tab === "echeances") loadTypes();
+      });
+    });
+
     (async () => {
       const me = await requireSession();
       if (!me) return;
       initLayout(me);
       if (me.role === "titulaire") {
-        document.getElementById("manage-types-link").style.display = "inline-block";
+        document.getElementById("tab-btn-types").style.display = "inline-flex";
       }
       await Promise.all([loadTypes(), loadDossiers(), loadHistory()]);
 
@@ -133,10 +176,6 @@
         toggleCalcBtn.textContent = "Réduire";
       }
     })();
-
-    document.getElementById("manage-types-link").addEventListener("click", () => {
-      window.location.href = "/delais-types.html";
-    });
 
     const calcPanel = document.getElementById("calc-panel");
     const toggleCalcBtn = document.getElementById("toggle-calc-btn");
@@ -157,14 +196,12 @@
             delaiTypeId: fd.get("delaiTypeId"),
             dateDepart: fd.get("dateDepart"),
             dossierId: fd.get("dossierId") || undefined,
-            creerRappelCalendar: fd.get("creerRappelCalendar") === "on",
           },
         });
         resultEl.innerHTML = `
           <h2>Date limite</h2>
           <p style="font-size:1.4em;"><strong>${formatDate(calcul.dateLimite)}</strong></p>
           <p class="muted">${escapeHtml(calcul.delaiType.nom)} — ${escapeHtml(calcul.delaiType.texteReference)}</p>
-          ${calcul.rappelCalendar ? '<p class="muted">Rappel créé dans Google Calendar.</p>' : ""}
         `;
         resultEl.style.display = "block";
         loadHistory();

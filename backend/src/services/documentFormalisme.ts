@@ -1,10 +1,8 @@
 // Reconstruit, pour les exports Word/PDF generes localement (documentExport.ts),
 // le formalisme juridique specifique a chaque type d'acte (identite des
-// parties, huissier, greffier, juge, civilites, adresses...) qui, jusqu'ici,
-// n'etait rempli que dans le template Google Docs via les balises
-// (extraWebhookFields, voir routes/webActions.ts). Les valeurs utilisees ici
-// sont exactement celles envoyees a n8n, persistees sur Action.champsDocument
-// a la creation du document.
+// parties, huissier, greffier, juge, civilites, adresses...), a partir des
+// champs composes/resolus a la generation (extraWebhookFields, voir
+// routes/webActions.ts) et persistes sur Action.champsDocument.
 //
 // Le texte produit est du "Markdown" au sens de markdownParse.ts (une ligne
 // non vide = un paragraphe, **gras**, lignes TOUT EN MAJUSCULES mises en

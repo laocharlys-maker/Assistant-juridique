@@ -64,7 +64,7 @@
             <span class="tag">${escapeHtml(c.delaiType.nom)}${c.dossier ? " · " + escapeHtml(c.dossier.numeroDossier) + " — " + escapeHtml(c.dossier.nomAffaire) : ""}</span>
             <span class="badge ${badgeClass}">${badgeLabel}</span>
             <div>Départ : ${formatDateLongue(c.dateDepart)} → <strong>Date limite : ${formatDateLongue(c.dateLimite)}</strong></div>
-            <p class="muted">${escapeHtml(c.delaiType.texteReference)} — calculé par ${escapeHtml(c.createdBy.nom)} le ${new Date(c.createdAt).toLocaleString("fr-FR")}${c.rappelCalendar ? " · rappel Calendar créé" : ""}</p>
+            <p class="muted">${escapeHtml(c.delaiType.texteReference)} — calculé par ${escapeHtml(c.createdBy.nom)} le ${new Date(c.createdAt).toLocaleString("fr-FR")}</p>
             ${c.dossier ? `<a class="secondary" href="/dossier.html?id=${c.dossier.id}" style="display:inline-block; text-decoration:none; padding:6px 12px; border-radius:6px; margin-top:6px;">Voir le dossier</a>` : ""}
           </div>`;
           })

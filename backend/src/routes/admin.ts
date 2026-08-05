@@ -6,7 +6,7 @@ import { requireAuth } from "../middleware/requireAuth";
 import { requireSuperAdmin } from "../middleware/roles";
 import { hashPassword } from "../services/auth";
 import { buildFacturePdf } from "../services/facturePdf";
-import { callN8nWebhook } from "../services/n8n";
+import { sendEmail } from "../services/mailer";
 
 export const adminRouter = Router();
 
@@ -337,11 +337,10 @@ const TYPES_ACTION = [
 ] as const;
 
 // Etapes techniques reellement enregistrees par logAuditStep() dans le
-// pipeline de generation (extraction IA, redaction IA, declenchement du
-// webhook n8n, document pret, envoi email) - c'est CE champ qui porte des
-// valeurs comme "declenchement_n8n", distinct du type de document
-// (typeAction) filtre separement ci-dessous.
-const ETAPES_AUDIT = ["extraction_ia", "redaction_ia", "declenchement_n8n", "document_pret", "envoi_email"] as const;
+// pipeline de generation (extraction IA, redaction IA, envoi email) - c'est
+// CE champ qui est filtre ici, distinct du type de document (typeAction)
+// filtre separement ci-dessous.
+const ETAPES_AUDIT = ["extraction_ia", "redaction_ia", "envoi_email"] as const;
 
 const auditLogsQuerySchema = z.object({
   statut: z.enum(["succes", "erreur"]).optional(),
@@ -556,18 +555,17 @@ adminRouter.post("/api/admin/factures/:id/envoyer", async (req, res) => {
     estProforma: facture.estProforma,
   });
 
-  const n8nResult = await callN8nWebhook("envoyer-facture", {
-    factureId: facture.id,
-    cabinetNom: "Aurore",
-    numero: facture.numero,
-    montant: facture.montant,
-    description: facture.description,
+  const mailResult = await sendEmail({
     destinataireEmail: parsed.data.email,
-    pdfBase64: buffer.toString("base64"),
+    cabinetNom: "Aurore",
+    replyToEmail: null,
+    subject: `Facture ${facture.numero} - Aurore`,
+    text: `Veuillez trouver ci-joint la facture n°${facture.numero} (${facture.montant.toLocaleString("fr-FR")} F CFA)${facture.description ? ` - ${facture.description}` : ""}.`,
+    attachments: [{ filename: `${facture.numero}.pdf`, content: buffer, contentType: "application/pdf" }],
   });
 
-  if (!n8nResult.ok) {
-    return res.status(502).json({ error: "Échec de l'envoi de la facture", detail: n8nResult.error });
+  if (!mailResult.ok) {
+    return res.status(502).json({ error: "Échec de l'envoi de la facture", detail: mailResult.error });
   }
 
   const updated = await prisma.facture.update({

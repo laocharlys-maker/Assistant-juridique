@@ -4,7 +4,6 @@ import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
 import { requireAdmin, requireModule } from "../middleware/roles";
 import { computeDeadline } from "../services/delais";
-import { callN8nWebhook } from "../services/n8n";
 
 export const delaisRouter = Router();
 
@@ -90,7 +89,6 @@ const calculerSchema = z.object({
   delaiTypeId: z.string().uuid(),
   dateDepart: z.string().min(1),
   dossierId: z.string().uuid().optional(),
-  creerRappelCalendar: z.boolean().optional().default(false),
 });
 
 delaisRouter.post("/api/delais/calculer", requireAuth, async (req, res) => {
@@ -128,23 +126,16 @@ delaisRouter.post("/api/delais/calculer", requireAuth, async (req, res) => {
     delaiType.joursOuvresUniquement
   );
 
-  let rappelCalendar = false;
-  if (parsed.data.creerRappelCalendar) {
-    const n8nResult = await callN8nWebhook("creer-rappel-delai", {
-      titre: `Échéance : ${delaiType.nom}${dossier ? ` — ${dossier.nomAffaire}` : ""}`,
-      description: `Délai "${delaiType.nom}" (${delaiType.texteReference}). Date de départ : ${dateDepart.toISOString().slice(0, 10)}.`,
-      dateLimite: dateLimite.toISOString(),
-    });
-    rappelCalendar = n8nResult.ok;
-  }
-
+  // rappelCalendar : ancien rappel Google Calendar cree via n8n, retire du
+  // produit (voir README-LOT8TER.md) - la page "Échéances" couvre deja ce
+  // besoin. Colonne conservee en base (toujours false desormais) plutot
+  // qu'une migration de suppression, non necessaire.
   const calcul = await prisma.delaiCalcul.create({
     data: {
       delaiTypeId: delaiType.id,
       dossierId: dossier?.id,
       dateDepart,
       dateLimite,
-      rappelCalendar,
       createdById: req.auth!.userId,
     },
     include: { delaiType: true },

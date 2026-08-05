@@ -1,8 +1,11 @@
 # Aurore — Backend
 
 Backend Node.js/Express/TypeScript. Porte l'orchestration metier et IA d'Aurore
-(voir `../Aurore_Cahier_des_charges.md` pour l'architecture complete). n8n reste
-en aval, uniquement pour les effets de bord (WhatsApp, Google Workspace).
+(voir `../Aurore_Cahier_des_charges.md` pour l'architecture complete du projet
+d'origine). La version desktop actuelle n'a plus de dependance a n8n : les
+emails (documents, notifications, rappels) passent uniquement par SMTP/Brevo
+(voir `services/mailer.ts`) ; WhatsApp et le lien Google Docs editable ont ete
+retires du produit (voir README-LOT8TER.md).
 
 ## Demarrage (Phase 0)
 

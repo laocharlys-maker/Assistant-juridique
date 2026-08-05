@@ -5,7 +5,7 @@ import { requireAuth } from "../middleware/requireAuth";
 import { requireAvocat, requireModule } from "../middleware/roles";
 import { buildFacturePdf } from "../services/facturePdf";
 import { resolveEntete } from "./documentExport";
-import { callN8nWebhook } from "../services/n8n";
+import { sendEmail } from "../services/mailer";
 import { resolveCabinetEmailIdentite } from "../services/cabinetContact";
 
 export const facturesRouter = Router();
@@ -193,21 +193,19 @@ facturesRouter.post("/api/factures/:id/envoyer", requireAuth, requireAvocat, asy
     entete,
   });
 
-  const { replyToEmail } = await resolveCabinetEmailIdentite(req.auth!.cabinetId);
+  const { cabinetNom, replyToEmail } = await resolveCabinetEmailIdentite(req.auth!.cabinetId);
 
-  const n8nResult = await callN8nWebhook("envoyer-facture", {
-    factureId: facture.id,
-    cabinetNom: cabinet?.nom ?? "",
-    numero: facture.numero,
-    montant: facture.montant,
-    description: facture.description,
+  const mailResult = await sendEmail({
     destinataireEmail: parsed.data.email,
-    pdfBase64: buffer.toString("base64"),
+    cabinetNom,
     replyToEmail,
+    subject: `Facture ${facture.numero} - ${cabinetNom}`,
+    text: `Veuillez trouver ci-joint la facture n°${facture.numero} (${facture.montant.toLocaleString("fr-FR")} F CFA)${facture.description ? ` - ${facture.description}` : ""}.`,
+    attachments: [{ filename: `${facture.numero}.pdf`, content: buffer, contentType: "application/pdf" }],
   });
 
-  if (!n8nResult.ok) {
-    return res.status(502).json({ error: "Échec de l'envoi de la facture", detail: n8nResult.error });
+  if (!mailResult.ok) {
+    return res.status(502).json({ error: "Échec de l'envoi de la facture", detail: mailResult.error });
   }
 
   const updated = await prisma.facture.update({

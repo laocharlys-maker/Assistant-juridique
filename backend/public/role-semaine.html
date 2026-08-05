@@ -59,10 +59,6 @@
           <label>Dossier lié (optionnel)</label>
           <input name="dossierNumero" list="dossiers-datalist-role" placeholder="Numéro de dossier" />
           <datalist id="dossiers-datalist-role"></datalist>
-          <label style="display:flex; align-items:center; gap:8px; font-weight:400;">
-            <input type="checkbox" name="creerRappelCalendar" style="width:auto;" />
-            Créer un rappel dans Google Calendar
-          </label>
           <div style="display:flex; gap:10px; margin-top:18px;">
             <button type="submit">Ajouter au calendrier</button>
             <button type="button" class="ghost" id="cancel-add-btn">Annuler</button>
@@ -337,6 +333,14 @@
             loadSuggestions();
           });
         });
+        // Un avocat (titulaire ou non) voit par defaut les audiences de
+        // TOUT le cabinet, pas seulement les siennes - la vue "Mes
+        // audiences" reste disponible via l'onglet pour qui veut filtrer.
+        // Auparavant "mine" par defaut (repli du backend en l'absence de
+        // ?scope=), ce qui cachait a tort les audiences des collegues a un
+        // avocat non-admin tant qu'il n'avait pas clique sur "Tout le
+        // cabinet".
+        activeScope = "cabinet";
       }
 
       loadDossiersForDatalist();
@@ -400,7 +404,6 @@
             dernierMotif: fd.get("dernierMotif") || undefined,
             diligences: fd.get("diligences") || undefined,
             dossierId: dossier ? dossier.id : undefined,
-            creerRappelCalendar: fd.get("creerRappelCalendar") === "on",
           },
         });
         e.target.reset();
