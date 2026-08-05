@@ -69,7 +69,7 @@ describe.skipIf(!pgAvailable)("e2e complet : demarrage -> licence -> login -> cl
     process.env.NODE_ENV = "test";
     process.env.PORT = "0";
     delete process.env.DATABASE_MODE; // "externe" : pas de bootstrap Postgres portable (deja fourni ci-dessus)
-    delete process.env.LICENCE_BYPASS; // licence testee pour de vrai, pas contournee
+    process.env.LICENCE_BYPASS = "false"; // licence testee pour de vrai - valeur explicite (pas delete) : survit a un rechargement dotenv declenche par l.import de app.ts, qui ne peut pas ecraser une variable deja definie
 
     const { app } = await import("../../src/app");
     const { prisma: prismaClient } = await import("../../src/lib/prisma");
