@@ -161,15 +161,28 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+      # Le contexte `secrets` n'est pas directement utilisable dans une
+      # condition `if:` (rejete par le validateur de workflow GitHub :
+      # "Unrecognized named-value: 'secrets'") - calcule ici une sortie
+      # d'etape a partir d'une variable d'environnement (elle, autorisee a
+      # lire les secrets), reutilisable par les `if:` suivants.
+      - name: Verifier la presence de la cle de signature updater
+        id: signing-key
+        shell: pwsh
+        env:
+          HAS_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+        run: |
+          Write-Output "present=$env:HAS_KEY" >> $env:GITHUB_OUTPUT
+
       # Manifeste consomme par tauri-plugin-updater (voir tauri.conf.json,
       # plugins.updater.endpoints) : sans lui, l'auto-update ne peut jamais
       # savoir qu'une nouvelle version existe. Uniquement si la cle de
-      # signature updater est configuree (secrets ci-dessus) - sinon
-      # aucune signature n'a ete produite, un manifeste sans signature
-      # valide serait trompeur (l'updater le rejetterait de toute facon a
-      # la verification).
+      # signature updater est configuree (etape ci-dessus) - sinon aucune
+      # signature n'a ete produite, un manifeste sans signature valide
+      # serait trompeur (l'updater le rejetterait de toute facon a la
+      # verification).
       - name: Generer le manifeste de mise a jour (latest.json)
-        if: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+        if: steps.signing-key.outputs.present == 'true'
         id: manifest
         shell: pwsh
         run: |
@@ -203,7 +216,7 @@ jobs:
       # cours). Reexecuter ce workflow sur la MEME version ecrase les
       # assets de la release existante (--clobber) plutot que d'echouer.
       - name: Publier la release GitHub (installeur + signature + manifeste de mise a jour)
-        if: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+        if: steps.signing-key.outputs.present == 'true'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
