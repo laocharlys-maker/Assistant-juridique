@@ -123,6 +123,17 @@ actionsCallbackRouter.post("/api/actions/:id/valider", requireAuth, async (req, 
     return res.status(404).json({ error: "Action introuvable" });
   }
 
+  // Lot 11 (Partie A) : des qu'un cycle verrou/version a demarre pour ce
+  // document (au moins une ActionVersion enregistree), seule la validation
+  // d'une version precise (POST /api/actions/:id/versions/:versionId/valider,
+  // routes/actionVersions.ts) est autorisee - evite toute ambiguite sur quel
+  // contenu serait valide par cette route generique.
+  if (action.versionActuelle > 0) {
+    return res.status(409).json({
+      error: "Ce document utilise l'historique de versions : valide une version précise depuis l'onglet Historique.",
+    });
+  }
+
   // Lot 10 : un document ne peut pas etre valide tant qu'il reste des
   // remarques de revision ouvertes dessus - repasse forcement par le cycle
   // revision_demandee -> renvoyer-validation (toutes remarques resolues)
@@ -140,34 +151,9 @@ actionsCallbackRouter.post("/api/actions/:id/valider", requireAuth, async (req, 
   return res.json({ ok: true });
 });
 
-const updateContenuSchema = z.object({
-  contenu: z.string().min(1),
-});
-
-// Correction du texte genere directement dans Aurore - alimente ensuite les
-// exports Word/PDF ET, une fois ce circuit devenu la source de verite pour
-// l'envoi, l'email envoye au client. Autorise a quiconque peut
-// deja generer des documents (y compris un collaborateur sur ses propres
-// brouillons) - seule la validation reste reservee aux avocats/titulaire.
-actionsCallbackRouter.patch("/api/actions/:id/contenu", requireAuth, async (req, res) => {
-  const parsed = updateContenuSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: "Contenu invalide" });
-  }
-
-  const action = await prisma.action.findFirst({
-    where: { id: req.params.id, dossier: { cabinetId: req.auth!.cabinetId } },
-  });
-  if (!action) {
-    return res.status(404).json({ error: "Action introuvable" });
-  }
-  if (action.statut === "envoye") {
-    return res.status(409).json({ error: "Ce document a déjà été envoyé, son contenu ne peut plus être modifié." });
-  }
-
-  const updated = await prisma.action.update({
-    where: { id: action.id },
-    data: { contenuGenere: parsed.data.contenu },
-  });
-  return res.json({ contenuGenere: updated.contenuGenere });
-});
+// PATCH /api/actions/:id/contenu (correction directe de contenuGenere) a ete
+// retiree au Lot 11 (Partie A) : elle permettait de contourner entierement
+// le systeme de verrou/version/validation (aucune verification de verrou,
+// modifiable meme sur un document deja valide) - remplacee par
+// POST /api/actions/:id/versions (verifierVerrou.ts) + validation explicite
+// d'une version (routes/actionVersions.ts). Voir README-LOT11.md.

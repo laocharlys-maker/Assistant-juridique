@@ -11,6 +11,7 @@ import {
   TableCell,
   WidthType,
   ShadingType,
+  Footer,
 } from "docx";
 import PDFDocument from "pdfkit";
 import { formatDateLongue } from "../utils/dateFormat";
@@ -58,6 +59,10 @@ export interface ExportInput {
   dateAudience?: Date | null;
   prochaineAudience?: Date | null;
   piecesPrevoir?: string | null;
+  // Lot 11 (Partie C) : statut de l'Action au moment de l'export - determine
+  // le texte exact de la mention d'avertissement ci-dessous (non fourni =
+  // traite comme non valide, mention "non definitif").
+  statut?: string;
 }
 
 const formatDate = formatDateLongue;
@@ -278,6 +283,20 @@ function resolveFormalisme(input: ExportInput) {
   });
 }
 
+// Lot 11 (Partie C) : mesure d'attenuation par la clarte, pas une garantie
+// technique - Aurore ne peut pas empecher l'edition d'un .docx telecharge.
+// Rappelle la date d'export et, tant que le document n'est pas valide, que
+// son contenu n'est pas definitif (peut encore etre corrige/revu dans
+// Aurore avant validation - voir Lot 10/11 Partie A).
+function buildMentionAvertissement(input: ExportInput): string {
+  const dateExport = formatDate(new Date());
+  const base = `Document généré par Aurore le ${dateExport} — toute modification doit être reportée dans l'application pour rester tracée.`;
+  if (input.statut === "valide" || input.statut === "envoye") {
+    return base;
+  }
+  return `Document en cours de validation — non définitif. ${base}`;
+}
+
 export async function buildDocx(input: ExportInput): Promise<Buffer> {
   const police = input.police ?? "Times New Roman";
   const tailleTexte = input.tailleTexte ?? 11;
@@ -398,6 +417,16 @@ export async function buildDocx(input: ExportInput): Promise<Buffer> {
     },
     sections: [
       {
+        footers: {
+          default: new Footer({
+            children: [
+              new Paragraph({
+                children: [new TextRun({ text: buildMentionAvertissement(input), size: 14, italics: true })],
+                alignment: AlignmentType.CENTER,
+              }),
+            ],
+          }),
+        },
         children: [
           ...enteteParagraph,
           ...titreParagraphs,
@@ -650,6 +679,16 @@ export async function buildPdf(input: ExportInput): Promise<Buffer> {
       }
       doc.image(input.signature.buffer, x, doc.y, { width: PDF_SIGNATURE_WIDTH });
     }
+
+    // Lot 11 (Partie C) : PDFKit ne propose pas de pied de page repete par
+    // page sans complexifier significativement le moteur de rendu (suivi
+    // manuel des sauts de page) - mention ajoutee en toute derniere ligne du
+    // document, comme prevu explicitement par la spec dans ce cas.
+    doc.moveDown(1.2);
+    doc
+      .font(fontFamily.italic)
+      .fontSize(8)
+      .text(buildMentionAvertissement(input), { align: "center" });
 
     doc.end();
   });

@@ -35,6 +35,7 @@ export async function loadExportInput(actionId: string, cabinetId: string) {
       tailleTexte: action.dossier.cabinet.tailleDocuments,
       typeAction: action.typeAction,
       champsDocument: action.champsDocument,
+      statut: action.statut,
       nomClient: action.dossier.nomClient,
       dateAudience: action.dateAudience,
       prochaineAudience: action.prochaineAudience,

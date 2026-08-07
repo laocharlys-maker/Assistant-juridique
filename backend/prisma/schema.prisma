@@ -255,6 +255,11 @@ model User {
   commentairesRevisionEcrits  CommentaireRevision[] @relation("CommentaireRevisionAuteur")
   commentairesRevisionResolus CommentaireRevision[] @relation("CommentaireRevisionResoluPar")
 
+  // Lot 11 (Partie A) : documents actuellement verrouilles par CET
+  // utilisateur (edition en cours), et versions qu'il/elle a enregistrees.
+  actionsVerrouillees Action[]        @relation("ActionVerrouillePar")
+  versionsRedigees    ActionVersion[] @relation("ActionVersionAuteur")
+
   @@index([cabinetId])
   @@map("users")
 }
@@ -520,15 +525,54 @@ model Action {
   nomDocument           String?      @map("nom_document")
   createdBy             String       @map("created_by")
   createdAt             DateTime     @default(now()) @map("created_at")
+  // Lot 11 (Partie A) : verrouillage sequentiel - une seule personne peut
+  // editer un document a la fois. verrouillePar = id de l'utilisateur qui
+  // detient le verrou (null = libre), verrouilleLe = date de prise, utilisee
+  // par le job de liberation automatique (voir jobs/liberationVerrousExpires.ts).
+  verrouillePar    String?   @map("verrouille_par")
+  verrouilleLe     DateTime? @map("verrouille_le")
+  // Numero de la derniere ActionVersion creee pour ce document (0 = jamais
+  // edite via le systeme de versions - contenuGenere est alors simplement le
+  // contenu d'origine, genere par IA ou par le gabarit de redaction libre).
+  versionActuelle  Int       @default(0) @map("version_actuelle")
+  // Lot 11 (Partie B) : "genere_ia" (defaut, comportement historique
+  // inchange) ou "redaction_libre" (aucun appel LLM, aucun champsDocument -
+  // voir services/gabaritsRedactionLibre.ts). Jamais modifie apres creation.
+  modeCreation     String    @default("genere_ia") @map("mode_creation")
 
-  dossier      Dossier               @relation(fields: [dossierId], references: [id])
-  creePar      User                  @relation("ActionCreatedBy", fields: [createdBy], references: [id])
-  auditLogs    AuditLog[]
-  commentaires CommentaireRevision[]
+  dossier               Dossier               @relation(fields: [dossierId], references: [id])
+  creePar               User                  @relation("ActionCreatedBy", fields: [createdBy], references: [id])
+  verrouilleParUtilisateur User?               @relation("ActionVerrouillePar", fields: [verrouillePar], references: [id])
+  auditLogs             AuditLog[]
+  commentaires          CommentaireRevision[]
+  versions              ActionVersion[]
 
   @@index([dossierId])
   @@index([createdBy])
   @@map("actions")
+}
+
+// Lot 11 (Partie A) : historique complet des versions d'un document, une
+// ligne par sauvegarde explicite (jamais d'autosave). contenuGenere sur
+// Action reflete TOUJOURS la derniere version VALIDEE (jamais la derniere
+// version enregistree) - documentExport.ts/documentFormalisme.ts continuent
+// donc de lire Action.contenuGenere sans aucune modification. Jamais
+// supprimee (meme remplacee par une version plus recente) : tracabilite,
+// meme raisonnement que CommentaireRevision (Lot 10). Voir README-LOT11.md.
+model ActionVersion {
+  id                String   @id @default(uuid())
+  actionId          String   @map("action_id")
+  numero            Int
+  contenu           String
+  auteurId          String   @map("auteur_id")
+  estVersionValidee Boolean  @default(false) @map("est_version_validee")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  action Action @relation(fields: [actionId], references: [id])
+  auteur User   @relation("ActionVersionAuteur", fields: [auteurId], references: [id])
+
+  @@index([actionId])
+  @@map("action_versions")
 }
 
 // Lot 10 : remarque de revision laissee par un avocat/titulaire sur un

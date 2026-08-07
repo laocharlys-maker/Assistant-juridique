@@ -384,6 +384,12 @@ async function main() {
       },
       { timezone: "Africa/Porto-Novo" }
     );
+
+    // Lot 11 (Partie A) : liberation automatique des verrous d'edition
+    // oublies (toutes les 30 minutes) - independant du mode de base de
+    // donnees, contrairement aux sauvegardes portables ci-dessus.
+    const { scheduleLiberationVerrousExpires } = await import("./jobs/liberationVerrousExpires");
+    scheduleLiberationVerrousExpires();
   } catch (error) {
     if (stopPortableDatabase) {
       console.error("Echec du demarrage apres l'ouverture de Postgres portable - arret de Postgres avant de quitter...");
