@@ -119,13 +119,17 @@
                   })
                 );
               }
+              const tauxHoraireInput =
+                me.role === "titulaire"
+                  ? `<input type="number" min="1" data-taux-horaire="${u.id}" value="${u.tauxHoraireDefaut ?? ""}" placeholder="Taux horaire (F CFA)" style="width:170px; margin:0;" />`
+                  : "";
               return `
               <div class="dossier-item">
                 <div>
                   <strong>${escapeHtml(u.nom)}</strong>
                   <div class="meta">${escapeHtml(u.email)} · ${u.role === "titulaire" ? "Admin" : "Avocat"}${u.actif === false ? ' · <span style="color:var(--danger);">Compte désactivé</span>' : ""}</div>
                 </div>
-                <div class="icon-action-row">${actions.join("")}</div>
+                <div class="icon-action-row">${tauxHoraireInput}${actions.join("")}</div>
               </div>`;
             }
 
@@ -190,6 +194,10 @@
                        .join("")}
                    </select>`
                 : "";
+            const tauxHoraireInput =
+              me.role === "titulaire"
+                ? `<input type="number" min="1" data-taux-horaire="${u.id}" value="${u.tauxHoraireDefaut ?? ""}" placeholder="Taux horaire (F CFA)" style="width:170px; margin:0;" />`
+                : "";
 
             return `
             <div class="dossier-item">
@@ -202,7 +210,7 @@
                   ${u.actif === false ? ' · <span style="color:var(--danger);">Compte désactivé</span>' : ""}
                 </div>
               </div>
-              <div class="icon-action-row">${reassignSelect}${actions.join("")}</div>
+              <div class="icon-action-row">${reassignSelect}${tauxHoraireInput}${actions.join("")}</div>
             </div>`;
           })
           .join("");
@@ -294,6 +302,25 @@
                 body: { responsableId: sel.value },
               });
               loadUsers();
+            } catch (err) {
+              showError(document.getElementById("error"), err.message);
+              loadUsers();
+            }
+          });
+        });
+
+        // Lot 14 : taux horaire par defaut - enregistre a la perte du
+        // focus (pas a chaque frappe), coherent avec le reste de l'ecran
+        // qui n'a pas de bouton "Enregistrer" dedie pour ces reglages.
+        listEl.querySelectorAll("[data-taux-horaire]").forEach((input) => {
+          input.addEventListener("blur", async () => {
+            const userId = input.dataset.tauxHoraire;
+            const valeur = input.value.trim();
+            try {
+              await apiFetch(`/api/users/${userId}/taux-horaire`, {
+                method: "PATCH",
+                body: { tauxHoraireDefaut: valeur ? Number(valeur) : null },
+              });
             } catch (err) {
               showError(document.getElementById("error"), err.message);
               loadUsers();

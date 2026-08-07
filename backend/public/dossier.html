@@ -15,6 +15,7 @@
   <script src="/js/api.js"></script>
   <script src="/js/markdown.js"></script>
   <script src="/js/layout.js"></script>
+  <script src="/js/timer.js"></script>
   <script>
     function escapeHtml(str) {
       const div = document.createElement("div");
@@ -267,6 +268,7 @@
                   <a class="secondary" href="/delais-calculateur.html?dossierId=${dossier.id}" style="display:inline-block; text-decoration:none; padding:6px 12px; border-radius:6px; margin-left:8px;">Calculer un délai</a>`
             }
           </div>
+          <div id="timer-section"></div>
           <div id="delais-section"></div>
           <div id="agenda-section"></div>
           <h2>Historique (${dossier.actions.length})</h2>
@@ -274,6 +276,7 @@
         `;
 
         if (!currentDossierEstRecherche) {
+          initTimerWidget(id, me);
           loadDelaisDossier(id);
           loadAgendaDossier(id);
         }

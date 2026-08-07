@@ -7,6 +7,7 @@ import { buildFacturePdf } from "../services/facturePdf";
 import { resolveEntete } from "./documentExport";
 import { sendEmail } from "../services/mailer";
 import { resolveCabinetEmailIdentite } from "../services/cabinetContact";
+import { calculerMontant, formatDuree } from "../services/feuillesTemps";
 
 export const facturesRouter = Router();
 
@@ -75,6 +76,103 @@ facturesRouter.post("/api/factures", requireAuth, requireAvocat, async (req, res
   });
 
   return res.status(201).json(facture);
+});
+
+const depuisTempsSchema = z.object({
+  dossierId: z.string().uuid(),
+  estProforma: z.boolean().optional().default(false),
+});
+
+// Lot 14 - "Facturer ce dossier" depuis le temps passe : pre-remplit une
+// facture a partir des SaisieTemps facturables et non encore facturees du
+// dossier, montant calcule saisie par saisie (chacune garde son propre
+// taux horaire snapshotte - voir calculerMontant, services/feuillesTemps.ts).
+// Insertion ciblee : aucune autre route de ce fichier n'est modifiee.
+facturesRouter.post("/api/factures/depuis-temps", requireAuth, requireAvocat, async (req, res) => {
+  const parsed = depuisTempsSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Formulaire invalide", details: parsed.error.issues });
+  }
+
+  const dossier = await prisma.dossier.findFirst({
+    where: { id: parsed.data.dossierId, cabinetId: req.auth!.cabinetId },
+  });
+  if (!dossier) {
+    return res.status(404).json({ error: "Dossier introuvable" });
+  }
+
+  // Seules les saisies facturables, terminees (dureeMinutes renseignee -
+  // un chronometre encore actif n'est jamais inclus) et pas deja rattachees
+  // a une facture (factureId null - evite tout double comptage) sont
+  // proposees ici.
+  const saisies = await prisma.saisieTemps.findMany({
+    where: {
+      dossierId: dossier.id,
+      facturable: true,
+      dureeMinutes: { not: null },
+      factureId: null,
+    },
+    include: { user: { select: { nom: true } } },
+    orderBy: { date: "asc" },
+  });
+
+  if (saisies.length === 0) {
+    return res.status(400).json({
+      error: "Aucune saisie de temps facturable et non encore facturée pour ce dossier.",
+    });
+  }
+
+  const parUtilisateur = new Map<string, { nom: string; dureeMinutes: number; montant: number }>();
+  let montantTotal = 0;
+  for (const s of saisies) {
+    const montant = calculerMontant(s.dureeMinutes!, s.tauxHoraireApplique);
+    montantTotal += montant;
+    const cle = s.userId;
+    if (!parUtilisateur.has(cle)) {
+      parUtilisateur.set(cle, { nom: s.user.nom, dureeMinutes: 0, montant: 0 });
+    }
+    const ligne = parUtilisateur.get(cle)!;
+    ligne.dureeMinutes += s.dureeMinutes!;
+    ligne.montant += montant;
+  }
+
+  const lignesDescription = [...parUtilisateur.values()]
+    .sort((a, b) => a.nom.localeCompare(b.nom, "fr"))
+    .map((l) => `- ${l.nom} : ${formatDuree(l.dureeMinutes)} (${l.montant.toLocaleString("fr-FR")} F CFA)`);
+  const description = `Temps passé sur le dossier ${dossier.numeroDossier} — ${dossier.nomAffaire} :\n${lignesDescription.join("\n")}`;
+
+  const numero = await genererNumero(req.auth!.cabinetId, parsed.data.estProforma);
+
+  const facture = await prisma.$transaction(async (tx) => {
+    const nouvelleFacture = await tx.facture.create({
+      data: {
+        cabinetId: req.auth!.cabinetId,
+        dossierId: dossier.id,
+        clientNom: dossier.nomClient,
+        numero,
+        description,
+        montant: montantTotal,
+        estProforma: parsed.data.estProforma,
+        createdBy: req.auth!.userId,
+      },
+      include: {
+        dossier: { select: { numeroDossier: true, nomAffaire: true, nomClient: true } },
+        creePar: { select: { nom: true } },
+      },
+    });
+
+    // Rattache immediatement les saisies incluses - des cet instant, elles
+    // n'apparaissent plus comme disponibles pour une facturation ulterieure
+    // (contrainte explicite du prompt, verifiee par test).
+    await tx.saisieTemps.updateMany({
+      where: { id: { in: saisies.map((s) => s.id) } },
+      data: { factureId: nouvelleFacture.id },
+    });
+
+    return nouvelleFacture;
+  });
+
+  return res.status(201).json({ ...facture, saisiesIncluses: saisies.length });
 });
 
 facturesRouter.get("/api/factures", requireAuth, requireAvocat, async (req, res) => {

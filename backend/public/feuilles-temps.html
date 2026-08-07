@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aurore — Feuilles de temps</title>
+  <link rel="icon" type="image/png" href="/favicon-256.png" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="page">
+    <div class="page-hero">
+      <div class="eyebrow">Cabinet</div>
+      <h1>Feuilles de temps</h1>
+      <p>Temps enregistré (chronomètre et saisie manuelle), agrégé par collaborateur ou par dossier.</p>
+    </div>
+
+    <div id="error" class="error"></div>
+
+    <div class="cal-toolbar">
+      <div class="cal-toolbar-row">
+        <div class="tabs" id="groupby-tabs">
+          <button type="button" class="tab active" data-groupby="collaborateur">Par collaborateur</button>
+          <button type="button" class="tab" data-groupby="dossier">Par dossier</button>
+        </div>
+        <button type="button" class="secondary" id="telecharger-pdf-btn">Télécharger en PDF</button>
+      </div>
+      <div class="cal-toolbar-row">
+        <div class="cal-filters">
+          <div class="tabs" id="scope-tabs" style="display:none; margin-bottom:0;">
+            <button type="button" class="tab" data-scope="mine">Mes saisies</button>
+            <button type="button" class="tab" data-scope="equipe">Équipe</button>
+          </div>
+          <select id="filter-periode" style="width:auto;">
+            <option value="semaine">Cette semaine</option>
+            <option value="mois" selected>Ce mois</option>
+            <option value="tout">Toute la période</option>
+          </select>
+          <select id="filter-dossier" style="width:auto;">
+            <option value="">Tous les dossiers</option>
+          </select>
+          <select id="filter-collaborateur" style="width:auto; display:none;">
+            <option value="">Tous les collaborateurs</option>
+          </select>
+          <select id="filter-facturable" style="width:auto;">
+            <option value="">Facturable + non facturable</option>
+            <option value="true">Facturable uniquement</option>
+            <option value="false">Non facturable uniquement</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div id="feuille-body"><p class="muted">Chargement…</p></div>
+    </div>
+  </div>
+  <script src="/js/api.js"></script>
+  <script src="/js/layout.js"></script>
+  <script src="/js/feuilles-temps.js"></script>
+</body>
+</html>

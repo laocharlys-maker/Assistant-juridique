@@ -51,6 +51,7 @@ usersRouter.get("/api/users", requireAuth, requireAvocat, async (req, res) => {
       partageSignatureActif: true,
       accesTousDossiers: true,
       actif: true,
+      tauxHoraireDefaut: true,
       responsable: { select: { id: true, nom: true } },
       accesAccordes: { select: { avocat: { select: { id: true, nom: true } } } },
     },
@@ -255,6 +256,37 @@ usersRouter.patch(
     return res.json({ ok: true });
   }
 );
+
+// Lot 14 : taux horaire par defaut (FCFA/heure), INDIVIDUEL - reserve a
+// l'admin (gouvernance des tarifs du cabinet, meme principe que les autres
+// reglages ci-dessus), applicable a n'importe quel membre du cabinet (pas
+// seulement un collaborateur : un avocat a aussi son propre taux). Snapshotte
+// dans chaque SaisieTemps au moment de sa creation (routes/saisiesTemps.ts) -
+// le modifier ici n'affecte JAMAIS retroactivement une saisie deja
+// enregistree (voir README-LOT14.md).
+const tauxHoraireSchema = z.object({
+  tauxHoraireDefaut: z.number().int().positive().nullable(),
+});
+
+usersRouter.patch("/api/users/:id/taux-horaire", requireAuth, requireAdmin, async (req, res) => {
+  const parsed = tauxHoraireSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Requête invalide", details: parsed.error.issues });
+  }
+
+  const membre = await prisma.user.findFirst({
+    where: { id: req.params.id, cabinetId: req.auth!.cabinetId },
+  });
+  if (!membre) {
+    return res.status(404).json({ error: "Membre introuvable dans ce cabinet" });
+  }
+
+  await prisma.user.update({
+    where: { id: membre.id },
+    data: { tauxHoraireDefaut: parsed.data.tauxHoraireDefaut },
+  });
+  return res.json({ ok: true });
+});
 
 // Reassigne le responsable direct d'un collaborateur (l'avocat "titulaire"
 // de la relation) - reserve a l'admin, pour eviter qu'un avocat ne se
