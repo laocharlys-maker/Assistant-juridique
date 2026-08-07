@@ -21,6 +21,7 @@ import { cabinetRouter } from "./routes/cabinet";
 import { facturesRouter } from "./routes/factures";
 import { auditLogsRouter } from "./routes/auditLogs";
 import { roleAudiencesRouter } from "./routes/roleAudiences";
+import { evenementsRouter } from "./routes/evenements";
 import { huissiersRouter } from "./routes/huissiers";
 import { adminRouter } from "./routes/admin";
 import { licenceRouter } from "./routes/licence";
@@ -77,6 +78,7 @@ app.use(cabinetRouter);
 app.use(facturesRouter);
 app.use(auditLogsRouter);
 app.use(roleAudiencesRouter);
+app.use(evenementsRouter);
 app.use(huissiersRouter);
 app.use(adminRouter);
 app.use(

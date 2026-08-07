@@ -89,6 +89,30 @@ enum StatutRoleAudience {
   traite
 }
 
+// Lot 12a : type strict (pas de texte libre) pour permettre un filtrage
+// fiable de la vue calendrier unifiee.
+enum TypeEvenement {
+  audience
+  rdv
+  appel
+  tache
+  echeance_procedure
+  autre
+}
+
+// Lot 12a : origine de l'Evenement - "role_audience" et "delai_calcule"
+// sont generes automatiquement par evenementSync.ts (jamais crees/modifies
+// manuellement pour ces deux-la, voir README-LOT12A.md) ; "sync_google" et
+// "sync_caldav" sont prevus des maintenant pour le Lot 12b (evite une
+// migration supplementaire), pas encore utilises.
+enum SourceEvenement {
+  manuel
+  role_audience
+  delai_calcule
+  sync_google
+  sync_caldav
+}
+
 model Cabinet {
   id                                  String    @id @default(uuid())
   nom                                 String
@@ -174,6 +198,7 @@ model Cabinet {
   factures      Facture[]
   roleAudiences RoleAudience[]
   huissiers     Huissier[]
+  evenements    Evenement[]
 
   @@map("cabinets")
 }
@@ -259,6 +284,11 @@ model User {
   // utilisateur (edition en cours), et versions qu'il/elle a enregistrees.
   actionsVerrouillees Action[]        @relation("ActionVerrouillePar")
   versionsRedigees    ActionVersion[] @relation("ActionVersionAuteur")
+
+  // Lot 12a : evenements crees par CET utilisateur, et ceux auxquels
+  // il/elle est assigne(e) (table de liaison EvenementAssigne).
+  evenementsCrees    Evenement[]        @relation("EvenementCreatedBy")
+  evenementsAssignes EvenementAssigne[]
 
   @@index([cabinetId])
   @@map("users")
@@ -362,6 +392,8 @@ model DelaiCalcul {
   delaiType DelaiType @relation(fields: [delaiTypeId], references: [id])
   dossier   Dossier?  @relation(fields: [dossierId], references: [id])
   createdBy User      @relation(fields: [createdById], references: [id])
+  // Lot 12a : voir RoleAudience.evenement ci-dessus, meme raisonnement.
+  evenement Evenement?
 
   @@index([dossierId])
   @@map("delai_calculs")
@@ -398,6 +430,7 @@ model Dossier {
   delaiCalculs  DelaiCalcul[]
   factures      Facture[]
   roleAudiences RoleAudience[]
+  evenements    Evenement[]
 
   @@unique([cabinetId, numeroDossier])
   @@index([clientId])
@@ -431,10 +464,69 @@ model RoleAudience {
   cabinet Cabinet  @relation(fields: [cabinetId], references: [id])
   dossier Dossier? @relation(fields: [dossierId], references: [id])
   creePar User     @relation("RoleAudienceCreatedBy", fields: [createdBy], references: [id])
+  // Lot 12a : Evenement genere automatiquement par evenementSync.ts -
+  // optionnel car cree apres coup (hook additif, jamais dans la meme
+  // transaction que la creation du RoleAudience).
+  evenement Evenement?
 
   @@index([cabinetId])
   @@index([dossierId])
   @@map("role_audiences")
+}
+
+// Lot 12a : vue calendrier unifiee - couvre les audiences (generees depuis
+// RoleAudience), les echeances de procedure (generees depuis DelaiCalcul) et
+// les evenements crees manuellement (RDV, appel, tache, autre). Les deux
+// premiers types ne sont jamais crees/modifies directement via
+// POST/PATCH /api/evenements (voir routes/evenements.ts) - uniquement via
+// leur enregistrement source, pour ne jamais diverger silencieusement de
+// lui. Voir README-LOT12A.md pour la strategie de synchronisation douce.
+model Evenement {
+  id             String           @id @default(uuid())
+  cabinetId      String           @map("cabinet_id")
+  dossierId      String?          @map("dossier_id")
+  type           TypeEvenement
+  source         SourceEvenement  @default(manuel)
+  titre          String
+  description    String?
+  dateDebut      DateTime         @map("date_debut")
+  dateFin        DateTime?        @map("date_fin")
+  touteLaJournee Boolean          @default(false) @map("toute_la_journee")
+  lieu           String?
+  createdById    String           @map("created_by_id")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+  // Lien vers l'enregistrement source pour les Evenement auto-generes (au
+  // plus un Evenement par RoleAudience/DelaiCalcul - upsert par ce champ
+  // dans evenementSync.ts). Null pour un Evenement manuel.
+  roleAudienceId String?          @unique @map("role_audience_id")
+  delaiCalculId  String?          @unique @map("delai_calcul_id")
+
+  cabinet      Cabinet            @relation(fields: [cabinetId], references: [id])
+  dossier      Dossier?           @relation(fields: [dossierId], references: [id])
+  createdBy    User               @relation("EvenementCreatedBy", fields: [createdById], references: [id])
+  roleAudience RoleAudience?      @relation(fields: [roleAudienceId], references: [id], onDelete: SetNull)
+  delaiCalcul  DelaiCalcul?       @relation(fields: [delaiCalculId], references: [id], onDelete: SetNull)
+  assignes     EvenementAssigne[]
+
+  @@index([cabinetId, dateDebut])
+  @@index([dossierId])
+  @@map("evenements")
+}
+
+// Table de liaison many-to-many Evenement <-> User (collaborateurs
+// assignes) - modele explicite plutot qu'une relation many-to-many
+// implicite, pour rester requetable directement (filtre "par collaborateur"
+// de la vue calendrier).
+model EvenementAssigne {
+  evenementId String @map("evenement_id")
+  userId      String @map("user_id")
+
+  evenement Evenement @relation(fields: [evenementId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id])
+
+  @@id([evenementId, userId])
+  @@map("evenement_assignes")
 }
 
 // Suivi interne des honoraires/paiements. Ce n'est PAS une facture

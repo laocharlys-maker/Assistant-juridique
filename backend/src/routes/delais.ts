@@ -4,6 +4,7 @@ import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
 import { requireAdmin, requireModule } from "../middleware/roles";
 import { computeDeadline } from "../services/delais";
+import { syncEvenementDepuisDelaiCalcul, supprimerEvenementDepuisDelaiCalcul } from "../services/evenementSync";
 
 export const delaisRouter = Router();
 
@@ -141,7 +142,25 @@ delaisRouter.post("/api/delais/calculer", requireAuth, async (req, res) => {
     include: { delaiType: true },
   });
 
+  // Lot 12a : hook additif - genere l'Evenement type="echeance_procedure"
+  // correspondant, visible dans le calendrier unifie et l'Agenda du
+  // dossier. Ne recalcule rien (lit calcul.dateLimite deja calcule
+  // ci-dessus) et n'echoue jamais (voir evenementSync.ts).
+  await syncEvenementDepuisDelaiCalcul(calcul.id);
+
   return res.status(201).json(calcul);
+});
+
+delaisRouter.delete("/api/delais/:id", requireAuth, async (req, res) => {
+  await prisma.delaiCalcul
+    .deleteMany({ where: { id: req.params.id, createdBy: { cabinetId: req.auth!.cabinetId } } })
+    .catch(() => null);
+
+  // Lot 12a : supprime l'Evenement lie - n'echoue jamais, la suppression
+  // ci-dessus reste effective meme si cette synchronisation echoue.
+  await supprimerEvenementDepuisDelaiCalcul(req.params.id);
+
+  return res.json({ ok: true });
 });
 
 delaisRouter.get("/api/delais/historique", requireAuth, async (req, res) => {
