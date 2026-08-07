@@ -683,6 +683,29 @@
         </div>`;
     }
 
+    // Lot 13 - bloc "Source" distinct du texte d'analyse genere par l'IA :
+    // reference exacte, juridiction, date, et lien cliquable TOUJOURS
+    // present (une citation sans lien verifie n'atteint jamais ce rendu -
+    // elle a deja ete retiree cote serveur, voir services/jurisprudence/grounding.ts).
+    function renderSourcesJurisprudence(champsDocument) {
+      const sources = champsDocument && champsDocument.sourcesJurisprudence;
+      if (!sources || sources.length === 0) return "";
+      return `
+        <div style="margin-top:10px;">
+          <strong>Sources vérifiées (${sources.length})</strong>
+          ${sources
+            .map(
+              (s) => `
+            <div class="source-block">
+              <div><strong>${escapeHtml(s.reference)}</strong></div>
+              <div class="muted">${escapeHtml(s.juridiction || (s.origine === "web" ? "source web" : "juridiction non précisée"))}${s.date ? " — " + escapeHtml(s.date) : ""}</div>
+              <a href="${escapeHtml(s.lien)}" target="_blank" rel="noopener">${escapeHtml(s.lien)}</a>
+            </div>`
+            )
+            .join("")}
+        </div>`;
+    }
+
     function renderAction(a) {
       const generationEnEchec = a.statut === "echec_generation";
       // Compatibilite avec les documents crees avant le correctif Lot 8bis,
@@ -850,6 +873,7 @@
             ${verrouZone}
             ${downloadLinks}
             <div class="md-content" data-content-view="${a.id}">${renderMarkdown(a.contenuGenere || "")}</div>
+            ${renderSourcesJurisprudence(a.champsDocument)}
             <div class="edit-panel" data-edit-panel="${a.id}" hidden>
               <strong>Modifier le texte — ${escapeHtml(titreAction)}</strong>
               <div class="edit-panel-columns">

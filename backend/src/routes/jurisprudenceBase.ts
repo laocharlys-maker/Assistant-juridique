@@ -24,6 +24,7 @@ jurisprudenceBaseRouter.get("/api/jurisprudence-base", requireAuth, async (_req,
       juridiction: true,
       dateDecision: true,
       contenu: true,
+      lien: true,
       createdAt: true,
     },
     orderBy: { createdAt: "desc" },
@@ -37,6 +38,11 @@ const createEntrySchema = z.object({
   juridiction: z.string().optional(),
   dateDecision: z.string().optional(),
   contenu: z.string().min(20, "Le contenu doit être suffisamment détaillé pour être utile"),
+  // Lot 13 : lien reel vers la decision - optionnel a la saisie (le corpus
+  // existant n'en a pas), mais fortement recommande : une citation issue
+  // d'un chunk sans lien n'est jamais affichee dans une recherche de
+  // jurisprudence (voir services/jurisprudence/grounding.ts).
+  lien: z.string().url("Le lien doit être une URL valide (https://...)").optional().or(z.literal("")),
 });
 
 jurisprudenceBaseRouter.post("/api/jurisprudence-base", requireAuth, async (req, res) => {
@@ -44,7 +50,7 @@ jurisprudenceBaseRouter.post("/api/jurisprudence-base", requireAuth, async (req,
   if (!parsed.success) {
     return res.status(400).json({ error: "Formulaire invalide", details: parsed.error.issues });
   }
-  const { source, reference, juridiction, dateDecision, contenu } = parsed.data;
+  const { source, reference, juridiction, dateDecision, contenu, lien } = parsed.data;
 
   try {
     const embedding = await embedText(`${reference}\n${contenu}`);
@@ -52,14 +58,15 @@ jurisprudenceBaseRouter.post("/api/jurisprudence-base", requireAuth, async (req,
 
     const id = crypto.randomUUID();
     await prisma.$executeRawUnsafe(
-      `INSERT INTO jurisprudence_chunks (id, source, reference, juridiction, date_decision, contenu, embedding, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7::vector, now())`,
+      `INSERT INTO jurisprudence_chunks (id, source, reference, juridiction, date_decision, contenu, lien, embedding, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8::vector, now())`,
       id,
       source,
       reference,
       juridiction ?? null,
       dateDecision ?? null,
       contenu,
+      lien || null,
       vectorLiteral
     );
 
@@ -78,6 +85,29 @@ jurisprudenceBaseRouter.post("/api/jurisprudence-base", requireAuth, async (req,
     console.error("Erreur ajout jurisprudence :", error);
     return res.status(502).json({ error: "Échec de l'indexation (voir logs serveur)" });
   }
+});
+
+const updateLienSchema = z.object({
+  lien: z.string().url("Le lien doit être une URL valide (https://...)").optional().or(z.literal("")),
+});
+
+// Lot 13 : permet de completer le lien d'une source deja indexee (corpus
+// existant avant ce lot, ou saisie initiale sans lien) sans avoir a la
+// supprimer/reindexer - seul le lien change, jamais le contenu ni
+// l'embedding.
+jurisprudenceBaseRouter.patch("/api/jurisprudence-base/:id", requireAuth, async (req, res) => {
+  const parsed = updateLienSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Formulaire invalide", details: parsed.error.issues });
+  }
+  const updated = await prisma.jurisprudenceChunk.updateMany({
+    where: { id: req.params.id },
+    data: { lien: parsed.data.lien || null },
+  });
+  if (updated.count === 0) {
+    return res.status(404).json({ error: "Source introuvable" });
+  }
+  return res.json({ ok: true });
 });
 
 jurisprudenceBaseRouter.delete("/api/jurisprudence-base/:id", requireAuth, async (req, res) => {

@@ -681,6 +681,18 @@ header.app-topbar {
 .badge-evenement-echeance_procedure { background: var(--danger-tint); color: var(--danger); }
 .badge-evenement-autre { background: var(--hairline); color: var(--muted); }
 
+/* Lot 13 : bloc "Source" (jurisprudence citee et validee - grounding + lien
+   verifie), volontairement distinct visuellement du texte d'analyse genere
+   par l'IA (fond different, bordure a gauche). */
+.source-block {
+  border-left: 3px solid var(--accent);
+  background: var(--panel-alt);
+  border-radius: 0 8px 8px 0;
+  padding: 8px 12px;
+  margin: 8px 0;
+}
+.source-block a { word-break: break-all; }
+
 /* Lot 10 : panneau "Remarques" (commentaires de revision avocat -> collaborateur). */
 .remarque-item { border: 1px solid var(--hairline); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
 .remarque-item.resolue { opacity: 0.65; }

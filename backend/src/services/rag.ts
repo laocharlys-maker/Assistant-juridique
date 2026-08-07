@@ -8,6 +8,9 @@ export interface JurisprudenceMatch {
   juridiction: string | null;
   dateDecision: string | null;
   contenu: string;
+  // Lot 13 : lien reel vers la decision - null pour les chunks indexes
+  // avant ce lot (pas encore completes) ou dont le lien n'a pas ete saisi.
+  lien: string | null;
   distance: number;
 }
 
@@ -42,10 +45,11 @@ export async function searchJurisprudence(
       juridiction: string | null;
       date_decision: string | null;
       contenu: string;
+      lien: string | null;
       distance: number;
     }[]
   >(
-    `SELECT id, source, reference, juridiction, date_decision, contenu,
+    `SELECT id, source, reference, juridiction, date_decision, contenu, lien,
             embedding <-> $1::vector AS distance
      FROM jurisprudence_chunks
      ORDER BY embedding <-> $1::vector
@@ -59,6 +63,7 @@ export async function searchJurisprudence(
     source: r.source,
     reference: r.reference,
     juridiction: r.juridiction,
+    lien: r.lien,
     dateDecision: r.date_decision,
     contenu: r.contenu,
     distance: r.distance,

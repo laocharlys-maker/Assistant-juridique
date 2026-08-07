@@ -43,8 +43,9 @@ import {
   buildProjetOrdonnanceUserPrompt,
 } from "../prompts/webRedaction";
 import { ActionOutput } from "../schemas/action";
-import { searchJurisprudence, formatJurisprudenceContext } from "../services/rag";
+import { searchJurisprudence } from "../services/rag";
 import { searchWeb, formatWebSearchContext, WebSearchResult } from "../services/tavily";
+import { construireSourcesDisponibles, formatSourcesPourPrompt, validerEtFiltrerCitations } from "../services/jurisprudence/grounding";
 import { summarizeLongText } from "../services/resumePdf";
 import { translateText, extractTextFromDocument } from "../services/traduction";
 import { aiActionsLimiter } from "../middleware/rateLimit";
@@ -1220,15 +1221,33 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
         JURIDICTIONS_BENIN_DOMAINES_CONFIANCE
       );
       const cabinetMatches = form.inclure_cabinet ? await searchJurisprudence(form.theme) : [];
-      const redigé = await llm.redact(
+      // Lot 13 : une seule liste de sources numerotee en continu (cabinet
+      // puis web), pour que le marqueur "[REF: Source N]" impose au LLM
+      // (voir JURISPRUDENCE_SYSTEM_PROMPT) designe sans ambiguite une seule
+      // source precise - jamais deux listes qui redemarreraient chacune a 1.
+      const sourcesDisponibles = construireSourcesDisponibles(cabinetMatches, webResults);
+      const redigéBrut = await llm.redact(
         JURISPRUDENCE_SYSTEM_PROMPT,
         buildJurisprudenceUserPrompt({
           theme: form.theme,
           juridictions: form.juridictions ?? [],
-          sourcesWeb: formatWebSearchContext(webResults),
-          sourcesCabinet: form.inclure_cabinet ? formatJurisprudenceContext(cabinetMatches) : undefined,
+          sources: formatSourcesPourPrompt(sourcesDisponibles),
         })
       );
+
+      // Lot 13 - grounding strict + liens reels : retire toute citation qui
+      // ne correspond a aucune source effectivement recuperee, ou dont le
+      // lien est absent/inaccessible ; jamais de blocage de la reponse
+      // (voir README-LOT13.md) - seules les citations non verifiees sont
+      // retirees, le reste de l'analyse reste affiche normalement.
+      const { texte: redigé, sourcesValidees } = await validerEtFiltrerCitations(redigéBrut, sourcesDisponibles);
+      // Conserve les sources validees (reference/juridiction/date/lien) pour
+      // que le frontend affiche un bloc "Source" distinct du texte d'analyse
+      // (objectif 4 du Lot 13) - jamais recalcule a la volee a la relecture,
+      // fige au moment de la generation comme le reste de champsDocument.
+      if (sourcesValidees.length > 0) {
+        extraWebhookFields = { sourcesJurisprudence: sourcesValidees };
+      }
 
       // Recherche de jurisprudence : pas forcement liee a un dossier existant.
       const dossier = await prisma.dossier.upsert({
@@ -2049,6 +2068,10 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
       dossierId,
       actionId: savedAction.id,
       contenu: action.synthese ?? action.argumentaire,
+      // Lot 13 : sources jurisprudence validees (grounding + lien verifie),
+      // pour affichage immediat du bloc "Source" sans devoir rouvrir le
+      // document - absent (undefined) pour tout autre type d'action.
+      sourcesJurisprudence: extraWebhookFields.sourcesJurisprudence,
     });
   } catch (error) {
     if (error instanceof OrphanTokenError) {

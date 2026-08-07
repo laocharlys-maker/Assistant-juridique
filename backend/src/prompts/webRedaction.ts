@@ -103,14 +103,32 @@ Des recommandations concretes et actionnables pour l'avocat, en lien direct avec
 Utilise aussi, la ou c'est pertinent, des sous-listes a puces pour detailler des criteres ou conditions cumulatives, et un second tableau Markdown si une comparaison supplementaire (ex: conditions de mise en oeuvre, delais applicables selon les origines) apporte de la clarte.
 
 REGLE ABSOLUE SUR LES DECISIONS DE JUSTICE : tu ne dois citer QUE les decisions
-presentes dans les sections "SOURCES" fournies ci-dessous, avec leur reference
-exacte et leur origine. Ne cite JAMAIS une decision, un numero d'arret ou une
-date qui ne provient pas de ces sources, meme si tu penses la connaitre par
-ailleurs. Si les sources sont vides ou insuffisantes pour une section donnee,
-ecris-le explicitement plutot que d'inventer ou de deviner une reference - dans
-ce cas, developpe davantage les autres sections (textes de loi, strategie) pour
-rester utile malgre le manque de jurisprudence disponible - toujours dans la
-limite de 3000 mots au total, jamais au-dela.`;
+presentes dans les sources numerotees ("[Source N]") fournies ci-dessous, avec
+leur reference exacte et leur origine. Ne cite JAMAIS une decision, un numero
+d'arret ou une date qui ne provient pas de ces sources, meme si tu penses la
+connaitre par ailleurs. Si les sources sont vides ou insuffisantes pour une
+section donnee, ecris-le explicitement plutot que d'inventer ou de deviner une
+reference - dans ce cas, developpe davantage les autres sections (textes de
+loi, strategie) pour rester utile malgre le manque de jurisprudence disponible
+- toujours dans la limite de 3000 mots au total, jamais au-dela.
+
+FORMAT OBLIGATOIRE DE CITATION (Lot 13) : la toute premiere fois que tu
+mentionnes une decision precise (section 3, et dans le tableau de la section
+4), fais-la suivre IMMEDIATEMENT du marqueur exact [REF: Source N], ou N est
+le numero EXACT (le chiffre entre crochets, ex. "[Source 2]") de la source
+correspondante tel qu'indique ci-dessous - jamais un numero invente, jamais un
+numero qui ne figure pas dans la liste des sources fournies. N'utilise ce
+marqueur QUE pour une decision de justice precise (jamais pour un texte de
+loi, une notion generale, ou une simple mention de juridiction sans decision
+identifiee). Une meme decision reutilisee plus loin dans ta reponse (ex. dans
+le tableau comparatif) doit reprendre le MEME marqueur [REF: Source N].
+
+INTERDICTION ABSOLUE DE LIEN : n'ecris JAMAIS une URL, un lien, ou une adresse
+web dans ta reponse, sous quelque forme que ce soit (texte brut, Markdown
+[texte](url), simple mention). Les liens verifies vers chaque decision citee
+sont ajoutes automatiquement par Aurore, a partir des sources reelles, jamais
+a partir de ce que tu ecris - toute adresse web que tu produirais serait de
+toute facon retiree avant affichage.`;
 
 export const RECHERCHE_JURIDIQUE_SYSTEM_PROMPT = `${COMMON_SYSTEM}
 
@@ -419,17 +437,19 @@ Date du jour : ${dateActuelle()}`;
 export function buildJurisprudenceUserPrompt(facts: {
   theme: string;
   juridictions: string[];
-  sourcesWeb: string;
-  sourcesCabinet?: string;
+  // Lot 13 : une seule liste de sources, numerotee en continu (base du
+  // cabinet puis web - voir services/jurisprudence/grounding.ts,
+  // construireSourcesDisponibles/formatSourcesPourPrompt) - remplace les
+  // deux blocs separes precedents (sourcesWeb/sourcesCabinet), qui
+  // redemarraient chacun leur numerotation a 1 et rendaient un marqueur
+  // "[REF: Source N]" ambigu entre les deux origines.
+  sources: string;
 }): string {
-  const blocCabinet = facts.sourcesCabinet
-    ? `\n\nSOURCES DE LA BASE DU CABINET (verifiees, ajoutees manuellement par le cabinet) :\n${facts.sourcesCabinet}`
-    : "";
   return `Theme / mots-cles : ${facts.theme}
 Juridiction(s) ciblee(s) : ${facts.juridictions.join(", ") || "non precisee"}
 
-SOURCES WEB (Benin, zone OHADA, Afrique, France, reste de la francophonie, reste du monde) :
-${facts.sourcesWeb}${blocCabinet}`;
+SOURCES DISPONIBLES (Benin, zone OHADA, Afrique, France, reste de la francophonie, reste du monde, et base verifiee du cabinet si incluse) :
+${facts.sources}`;
 }
 
 export function buildRechercheJuridiqueUserPrompt(facts: {
