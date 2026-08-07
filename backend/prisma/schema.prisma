@@ -807,6 +807,15 @@ model JurisprudenceChunk {
   contenu      String
   embedding    Unsupported("vector")?
   createdAt    DateTime               @default(now()) @map("created_at")
+  // Lot 13 : lien reel et verifiable vers la decision elle-meme - absent du
+  // schema avant ce lot (verifie : aucun champ url/lien/source-lien
+  // preexistant, "source" ci-dessus n'est qu'un libelle - ex. "Cour Supreme
+  // du Benin" - jamais une URL). Nullable : les chunks indexes avant ce lot
+  // n'ont pas ce champ renseigne - voir README-LOT13.md pour l'impact sur
+  // le corpus existant. Un chunk cite sans lien est traite comme non
+  // source a l'affichage (services/jurisprudence/grounding.ts), jamais
+  // affiche sans lien verifie.
+  lien         String?
 
   @@map("jurisprudence_chunks")
 }

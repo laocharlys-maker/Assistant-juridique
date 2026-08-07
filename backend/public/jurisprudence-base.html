@@ -36,6 +36,8 @@
           <input name="juridiction" placeholder="ex: CCJA, Cour d'Appel de Cotonou" />
           <label>Date de la décision</label>
           <input name="dateDecision" type="date" />
+          <label>Lien vers la décision (recommandé — une source sans lien n'est jamais citée dans une recherche)</label>
+          <input name="lien" type="url" placeholder="https://..." />
           <label>Contenu / résumé (le plus complet possible)</label>
           <textarea name="contenu" required minlength="20" style="min-height:160px;"></textarea>
           <button type="submit">Indexer dans la base</button>
@@ -67,6 +69,15 @@
             <span class="tag">${escapeHtml(e.source)}${e.juridiction ? " · " + escapeHtml(e.juridiction) : ""}</span>
             <div><strong>${escapeHtml(e.reference)}</strong>${e.dateDecision ? " — " + escapeHtml(e.dateDecision) : ""}</div>
             <pre>${escapeHtml(e.contenu)}</pre>
+            ${
+              e.lien
+                ? `<p class="muted">🔗 <a href="${escapeHtml(e.lien)}" target="_blank" rel="noopener">${escapeHtml(e.lien)}</a></p>`
+                : `<p class="error visible" style="margin:6px 0;">Aucun lien renseigné — cette source ne sera jamais citée dans une recherche de jurisprudence (voir README-LOT13.md).</p>
+                   <form class="lien-form" data-lien-form="${e.id}" style="display:flex; gap:8px; align-items:flex-end; margin:6px 0;">
+                     <div style="flex:1;"><label style="margin:0 0 4px;">Ajouter le lien</label><input name="lien" type="url" placeholder="https://..." required /></div>
+                     <button type="submit" class="btn-sm">Enregistrer</button>
+                   </form>`
+            }
             <button type="button" class="secondary" data-delete="${e.id}">Supprimer</button>
           </div>`
           )
@@ -76,6 +87,21 @@
             if (!confirm("Supprimer cette source de la base ?")) return;
             await apiFetch(`/api/jurisprudence-base/${btn.dataset.delete}`, { method: "DELETE" });
             loadEntries();
+          });
+        });
+        listEl.querySelectorAll("[data-lien-form]").forEach((form) => {
+          form.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const fd = new FormData(e.target);
+            try {
+              await apiFetch(`/api/jurisprudence-base/${form.dataset.lienForm}`, {
+                method: "PATCH",
+                body: { lien: fd.get("lien") },
+              });
+              loadEntries();
+            } catch (err) {
+              showError(errorEl, err.message);
+            }
           });
         });
       } catch (err) {

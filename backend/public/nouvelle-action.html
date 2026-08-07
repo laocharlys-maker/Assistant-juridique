@@ -111,6 +111,7 @@
         <h2>Résultat</h2>
         <p class="muted" id="result-meta"></p>
         <div id="result-text" class="md-content"></div>
+        <div id="result-sources" style="display:none; margin-bottom:12px;"></div>
         <div id="result-downloads" style="display:none; margin-bottom:12px;">
           <a id="result-word-link" href="#" style="margin-right:12px;">Télécharger en Word</a>
           <a id="result-pdf-link" href="#">Télécharger en PDF</a>
@@ -1866,6 +1867,7 @@
     const resultEl = document.getElementById("result");
     const resultMetaEl = document.getElementById("result-meta");
     const resultTextEl = document.getElementById("result-text");
+    const resultSourcesEl = document.getElementById("result-sources");
     const resultDownloadsEl = document.getElementById("result-downloads");
     const resultWordLink = document.getElementById("result-word-link");
     const resultPdfLink = document.getElementById("result-pdf-link");
@@ -1904,6 +1906,32 @@
       }
     }
 
+    // Lot 13 - bloc "Source" distinct du texte d'analyse genere par l'IA :
+    // reference exacte, juridiction, date, et lien cliquable TOUJOURS
+    // present (une citation sans lien verifie n'atteint jamais ce rendu -
+    // elle a deja ete retiree cote serveur, voir services/jurisprudence/grounding.ts).
+    function renderSourcesJurisprudence(sources) {
+      if (!sources || sources.length === 0) {
+        resultSourcesEl.style.display = "none";
+        resultSourcesEl.innerHTML = "";
+        return;
+      }
+      resultSourcesEl.innerHTML = `
+        <strong>Sources vérifiées (${sources.length})</strong>
+        ${sources
+          .map(
+            (s) => `
+          <div class="source-block">
+            <div><strong>${escapeHtmlAttr(s.reference)}</strong></div>
+            <div class="muted">${escapeHtmlAttr(s.juridiction || (s.origine === "web" ? "source web" : "juridiction non précisée"))}${s.date ? " — " + escapeHtmlAttr(s.date) : ""}</div>
+            <a href="${escapeHtmlAttr(s.lien)}" target="_blank" rel="noopener">${escapeHtmlAttr(s.lien)}</a>
+          </div>`
+          )
+          .join("")}
+      `;
+      resultSourcesEl.style.display = "block";
+    }
+
     async function submitForm(type, payload, submitButton) {
       hideError(errorEl);
       resultEl.style.display = "none";
@@ -1912,6 +1940,7 @@
         const res = await apiFetch("/api/actions/web", { method: "POST", body: { type_action: type, ...payload } });
         resultMetaEl.textContent = "Texte généré. Télécharge le document ci-dessous (Word ou PDF), ou retrouve-le sur la fiche du dossier pour le valider et l'envoyer.";
         resultTextEl.innerHTML = renderMarkdown(res.contenu);
+        renderSourcesJurisprudence(res.sourcesJurisprudence);
         if (res.actionId) {
           resultWordLink.dataset.url = `/api/actions/${res.actionId}/word`;
           resultPdfLink.dataset.url = `/api/actions/${res.actionId}/pdf`;

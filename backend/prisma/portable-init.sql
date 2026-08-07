@@ -379,6 +379,7 @@ CREATE TABLE "jurisprudence_chunks" (
     "contenu" TEXT NOT NULL,
     "embedding" vector,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "lien" TEXT,
 
     CONSTRAINT "jurisprudence_chunks_pkey" PRIMARY KEY ("id")
 );
