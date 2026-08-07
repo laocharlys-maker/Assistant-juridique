@@ -65,6 +65,11 @@ enum StatutAction {
   // avec "brouillon", pour que le cabinet distingue clairement un document
   // qui n'a jamais ete genere avec succes. Voir README-LOT5.md.
   echec_generation
+  // Lot 10 : un avocat/titulaire a laisse au moins une remarque de revision
+  // (CommentaireRevision) sur un document en_attente_validation - retour a
+  // en_attente_validation uniquement via l'action explicite "Renvoyer pour
+  // validation", une fois toutes les remarques resolues. Voir README-LOT10.md.
+  revision_demandee
 }
 
 enum UniteDelai {
@@ -243,6 +248,12 @@ model User {
   accesAccordes AccesSupplementaire[] @relation("AccesCollaborateur")
   // Acces que CET avocat a accordes a des collaborateurs (aux siens).
   accesOctroyes AccesSupplementaire[] @relation("AccesAvocat")
+
+  // Lot 10 : remarques de revision redigees par CET avocat/titulaire, et
+  // celles que CET utilisateur a marquees resolues (peut differer de
+  // l'auteur - voir README-LOT10.md).
+  commentairesRevisionEcrits  CommentaireRevision[] @relation("CommentaireRevisionAuteur")
+  commentairesRevisionResolus CommentaireRevision[] @relation("CommentaireRevisionResoluPar")
 
   @@index([cabinetId])
   @@map("users")
@@ -510,13 +521,40 @@ model Action {
   createdBy             String       @map("created_by")
   createdAt             DateTime     @default(now()) @map("created_at")
 
-  dossier   Dossier    @relation(fields: [dossierId], references: [id])
-  creePar   User       @relation("ActionCreatedBy", fields: [createdBy], references: [id])
-  auditLogs AuditLog[]
+  dossier      Dossier               @relation(fields: [dossierId], references: [id])
+  creePar      User                  @relation("ActionCreatedBy", fields: [createdBy], references: [id])
+  auditLogs    AuditLog[]
+  commentaires CommentaireRevision[]
 
   @@index([dossierId])
   @@index([createdBy])
   @@map("actions")
+}
+
+// Lot 10 : remarque de revision laissee par un avocat/titulaire sur un
+// document en_attente_validation ("corrige ce passage", "attention a ce
+// point") - scope V1 volontairement limite a des remarques generales sur
+// le document entier, pas d'ancrage sur un passage de texte precis (evite
+// la fragilite d'un ancrage dans un editeur Markdown en texte libre - voir
+// README-LOT10.md). Jamais supprimee, meme resolue : tracabilite de la
+// relecture en cas de litige sur la qualite d'un acte.
+model CommentaireRevision {
+  id             String    @id @default(uuid())
+  actionId       String    @map("action_id")
+  auteurId       String    @map("auteur_id")
+  contenu        String
+  // "ouvert" | "resolu"
+  statut         String    @default("ouvert")
+  dateCreation   DateTime  @default(now()) @map("date_creation")
+  dateResolution DateTime? @map("date_resolution")
+  resoluParId    String?   @map("resolu_par_id")
+
+  action    Action @relation(fields: [actionId], references: [id])
+  auteur    User   @relation("CommentaireRevisionAuteur", fields: [auteurId], references: [id])
+  resoluPar User?  @relation("CommentaireRevisionResoluPar", fields: [resoluParId], references: [id])
+
+  @@index([actionId])
+  @@map("commentaires_revision")
 }
 
 model AuditLog {

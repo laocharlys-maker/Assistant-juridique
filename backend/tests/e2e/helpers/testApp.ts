@@ -19,8 +19,12 @@ export async function seedCabinetEtTitulaire(prisma: PrismaClient, suffix: strin
   return { cabinet, user };
 }
 
-export async function mintAuthCookie(userId: string, cabinetId: string): Promise<string> {
+export async function mintAuthCookie(
+  userId: string,
+  cabinetId: string,
+  role: "titulaire" | "avocat" | "collaborateur" | "super_admin" = "titulaire"
+): Promise<string> {
   const { signAuthToken } = await import("../../../src/services/auth");
-  const token = signAuthToken({ userId, cabinetId, role: "titulaire" });
+  const token = signAuthToken({ userId, cabinetId, role });
   return `aurore_session=${token}`;
 }

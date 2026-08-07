@@ -671,6 +671,14 @@ header.app-topbar {
 .badge-action-valide { background: var(--success-tint); color: var(--success); }
 .badge-action-envoye { background: var(--accent-tint); color: var(--accent-hover); }
 .badge-action-echec_generation { background: var(--danger-tint); color: var(--danger); }
+.badge-action-revision_demandee { background: var(--danger-tint); color: var(--danger); }
+
+/* Lot 10 : panneau "Remarques" (commentaires de revision avocat -> collaborateur). */
+.remarque-item { border: 1px solid var(--hairline); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
+.remarque-item.resolue { opacity: 0.65; }
+.remarque-meta { font-size: 0.82rem; color: var(--muted); margin-bottom: 4px; }
+.remarque-contenu { white-space: pre-wrap; margin: 0; }
+.remarque-actions { margin-top: 6px; }
 
 /* ---------- Bandeau d'en-tete degrade (pages d'accueil) ---------- */
 .page-hero {

@@ -211,7 +211,16 @@ dossiersRouter.get("/api/dossiers/:id", requireAuth, async (req, res) => {
       creePar: { select: { nom: true } },
       actions: {
         orderBy: { createdAt: "desc" },
-        include: { creePar: { select: { nom: true } } },
+        include: {
+          creePar: { select: { nom: true } },
+          // Lot 10 : historique des remarques de revision, toujours inclus
+          // (meme resolues - traçabilité) pour eviter un aller-retour reseau
+          // supplementaire depuis la fiche dossier.
+          commentaires: {
+            orderBy: { dateCreation: "asc" },
+            include: { auteur: { select: { nom: true } }, resoluPar: { select: { nom: true } } },
+          },
+        },
       },
     },
   });
