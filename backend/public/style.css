@@ -905,6 +905,11 @@ header.app-topbar {
   font-family: "SFMono-Regular", Consolas, monospace;
   font-size: 0.9rem;
   line-height: 1.5;
+  /* Lot 11 (Partie C) : meme fond que la zone d'apercu du document genere
+     (.accordion-body, var(--panel)) - uniformite visuelle entre edition et
+     lecture. Le texte (var(--text), deja utilise partout ailleurs) garde un
+     contraste eleve sur ce fond dans les deux themes. */
+  background: var(--panel);
 }
 .edit-panel-preview {
   flex: 1;

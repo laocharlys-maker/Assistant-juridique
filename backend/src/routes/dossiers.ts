@@ -220,6 +220,15 @@ dossiersRouter.get("/api/dossiers/:id", requireAuth, async (req, res) => {
             orderBy: { dateCreation: "asc" },
             include: { auteur: { select: { nom: true } }, resoluPar: { select: { nom: true } } },
           },
+          // Lot 11 (Partie A) : qui detient le verrou d'edition actuel (pour
+          // afficher "en cours de modification par X"), et l'historique
+          // complet des versions (contenu inclus, pour l'apercu sans appel
+          // reseau supplementaire depuis le panneau Historique).
+          verrouilleParUtilisateur: { select: { nom: true } },
+          versions: {
+            orderBy: { numero: "desc" },
+            include: { auteur: { select: { nom: true } } },
+          },
         },
       },
     },

@@ -10,8 +10,27 @@
 <body>
   <div class="page">
 
+    <!-- Écran 0 (Lot 11) : choix du mode de création, avant tout formulaire -->
+    <div id="na-mode-screen">
+      <h1>Nouvelle action</h1>
+      <p class="muted">Comment veux-tu produire ce document ?</p>
+      <div class="na-category-grid">
+        <button type="button" class="na-card" id="na-mode-ia">
+          <span class="icon-badge">🤖</span>
+          <strong>Générer avec l'IA</strong>
+          <span class="muted">Formulaire guidé, rédaction automatique à partir des informations saisies</span>
+        </button>
+        <button type="button" class="na-card" id="na-mode-libre">
+          <span class="icon-badge">✏️</span>
+          <strong>Rédiger librement</strong>
+          <span class="muted">Éditeur vide (ou gabarit minimal), sans formulaire ni appel IA</span>
+        </button>
+      </div>
+    </div>
+
     <!-- Écran 1 : accueil (recherche + dossiers récents + catégories) -->
-    <div id="na-hub-screen">
+    <div id="na-hub-screen" style="display:none;">
+      <p class="na-breadcrumb"><a href="#" id="na-breadcrumb-to-mode">Nouvelle action</a></p>
       <h1>Nouvelle action</h1>
 
       <div class="na-hero-search">
@@ -27,6 +46,29 @@
       </div>
 
       <div class="na-category-grid" id="na-category-grid"></div>
+    </div>
+
+    <!-- Écran "Rédiger librement" (Lot 11, Partie B) : type + dossier/client
+         uniquement, aucun champ métier obligatoire, aucun appel IA. -->
+    <div id="na-libre-screen" style="display:none;">
+      <p class="na-breadcrumb"><a href="#" id="na-breadcrumb-to-mode-2">Nouvelle action</a> › Rédiger librement</p>
+      <h1>Rédiger librement</h1>
+      <p class="muted">Un éditeur vide (pré-rempli d'une formule d'appel/salutation d'usage) s'ouvrira sur la fiche du dossier — aucune génération IA, aucun formulaire à remplir.</p>
+
+      <div id="na-libre-error" class="error"></div>
+      <div class="card">
+        <form id="na-libre-form">
+          <label>Type de document</label>
+          <select name="type_action" id="na-libre-type" required></select>
+          <label>Numéro de dossier</label>
+          <input name="numero_dossier" list="dossiers-datalist" placeholder="Laisse vide si non applicable" />
+          <label>Nom de l'affaire</label>
+          <input name="nom_affaire" placeholder="Laisse vide si non applicable" />
+          <label>Nom du client</label>
+          <input name="nom_client" required />
+          <button type="submit">Créer le document</button>
+        </form>
+      </div>
     </div>
 
     <!-- Écran 2 : grille des types au sein d'une catégorie -->
@@ -1539,17 +1581,84 @@
       });
     });
 
+    const naModeScreen = document.getElementById("na-mode-screen");
     const naHubScreen = document.getElementById("na-hub-screen");
     const naCategoryScreen = document.getElementById("na-category-screen");
     const naFormScreen = document.getElementById("na-form-screen");
+    const naLibreScreen = document.getElementById("na-libre-screen");
     let naPendingDossier = null;
 
     function naShowScreen(name) {
+      naModeScreen.style.display = name === "mode" ? "block" : "none";
       naHubScreen.style.display = name === "hub" ? "block" : "none";
       naCategoryScreen.style.display = name === "category" ? "block" : "none";
       naFormScreen.style.display = name === "form" ? "block" : "none";
+      naLibreScreen.style.display = name === "libre" ? "block" : "none";
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
+
+    // ---------- Lot 11 (Partie B) : choix de mode + rédaction libre ----------
+    document.getElementById("na-mode-ia").addEventListener("click", () => naShowScreen("hub"));
+    document.getElementById("na-mode-libre").addEventListener("click", () => naShowScreen("libre"));
+    document.getElementById("na-breadcrumb-to-mode").addEventListener("click", (e) => {
+      e.preventDefault();
+      naShowScreen("mode");
+    });
+    document.getElementById("na-breadcrumb-to-mode-2").addEventListener("click", (e) => {
+      e.preventDefault();
+      naShowScreen("mode");
+    });
+
+    // Meme referentiel que TYPE_LABELS cote backend (utils/documentNaming.ts) -
+    // les 16 types existants, y compris ceux normalement auto-generes
+    // (veille_juridique) : rien n'empeche un avocat de rediger lui-meme un
+    // bulletin de veille hors du cycle automatique.
+    const TYPES_REDACTION_LIBRE = [
+      ["notes", "Compte-rendu d'audience"],
+      ["redac", "Plaidoirie"],
+      ["conclusions", "Conclusions"],
+      ["note_plaidoirie", "Note de plaidoirie"],
+      ["assignation", "Assignation"],
+      ["mise_en_demeure", "Mise en demeure"],
+      ["plainte", "Plainte"],
+      ["contrat", "Contrat"],
+      ["notification_date", "Notification"],
+      ["requete", "Requête"],
+      ["projet_ordonnance", "Projet d'ordonnance"],
+      ["jurisprudence", "Recherche de jurisprudence"],
+      ["recherche_juridique", "Recherche juridique"],
+      ["resume_pdf", "Résumé de jurisprudence (PDF)"],
+      ["traduction", "Traduction FR ⇄ EN"],
+      ["veille_juridique", "Veille juridique"],
+    ];
+    document.getElementById("na-libre-type").innerHTML = TYPES_REDACTION_LIBRE.map(
+      ([value, label]) => `<option value="${value}">${label}</option>`
+    ).join("");
+
+    const naLibreForm = document.getElementById("na-libre-form");
+    const naLibreErrorEl = document.getElementById("na-libre-error");
+    naLibreForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      hideError(naLibreErrorEl);
+      const fd = new FormData(naLibreForm);
+      const submitBtn = naLibreForm.querySelector('button[type="submit"]');
+      submitBtn.disabled = true;
+      try {
+        const res = await apiFetch("/api/actions/redaction-libre", {
+          method: "POST",
+          body: {
+            type_action: fd.get("type_action"),
+            numero_dossier: fd.get("numero_dossier") || undefined,
+            nom_affaire: fd.get("nom_affaire") || undefined,
+            nom_client: fd.get("nom_client"),
+          },
+        });
+        window.location.href = `/dossier.html?id=${res.dossierId}`;
+      } catch (err) {
+        submitBtn.disabled = false;
+        showError(naLibreErrorEl, err.message);
+      }
+    });
 
     function naGoToForm(type) {
       const tabBtn = document.querySelector(`.tab[data-type="${type}"]`);

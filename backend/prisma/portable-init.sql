@@ -245,8 +245,25 @@ CREATE TABLE "actions" (
     "nom_document" TEXT,
     "created_by" TEXT NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "verrouille_par" TEXT,
+    "verrouille_le" TIMESTAMP(3),
+    "version_actuelle" INTEGER NOT NULL DEFAULT 0,
+    "mode_creation" TEXT NOT NULL DEFAULT 'genere_ia',
 
     CONSTRAINT "actions_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "action_versions" (
+    "id" TEXT NOT NULL,
+    "action_id" TEXT NOT NULL,
+    "numero" INTEGER NOT NULL,
+    "contenu" TEXT NOT NULL,
+    "auteur_id" TEXT NOT NULL,
+    "est_version_validee" BOOLEAN NOT NULL DEFAULT false,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "action_versions_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -338,6 +355,9 @@ CREATE INDEX "actions_dossier_id_idx" ON "actions"("dossier_id");
 CREATE INDEX "actions_created_by_idx" ON "actions"("created_by");
 
 -- CreateIndex
+CREATE INDEX "action_versions_action_id_idx" ON "action_versions"("action_id");
+
+-- CreateIndex
 CREATE INDEX "commentaires_revision_action_id_idx" ON "commentaires_revision"("action_id");
 
 -- CreateIndex
@@ -408,6 +428,15 @@ ALTER TABLE "actions" ADD CONSTRAINT "actions_dossier_id_fkey" FOREIGN KEY ("dos
 
 -- AddForeignKey
 ALTER TABLE "actions" ADD CONSTRAINT "actions_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "actions" ADD CONSTRAINT "actions_verrouille_par_fkey" FOREIGN KEY ("verrouille_par") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "action_versions" ADD CONSTRAINT "action_versions_action_id_fkey" FOREIGN KEY ("action_id") REFERENCES "actions"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "action_versions" ADD CONSTRAINT "action_versions_auteur_id_fkey" FOREIGN KEY ("auteur_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "commentaires_revision" ADD CONSTRAINT "commentaires_revision_action_id_fkey" FOREIGN KEY ("action_id") REFERENCES "actions"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

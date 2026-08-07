@@ -360,19 +360,77 @@
           });
         });
 
+        function ouvrirPanneauEdition(id) {
+          const action = dossier.actions.find((a) => a.id === id);
+          const contentView = actionsEl.querySelector(`[data-content-view="${id}"]`);
+          const editPanel = actionsEl.querySelector(`[data-edit-panel="${id}"]`);
+          const textarea = actionsEl.querySelector(`[data-edit-textarea="${id}"]`);
+          const preview = actionsEl.querySelector(`[data-preview="${id}"]`);
+          contentView.hidden = true;
+          editPanel.hidden = false;
+          textarea.value = action.contenuGenere || "";
+          preview.innerHTML = renderMarkdown(textarea.value);
+        }
+
+        // Verrou deja detenu (rendu cote serveur) : reouvre simplement le
+        // panneau, sans nouvel appel reseau.
         actionsEl.querySelectorAll("[data-toggle-edit]").forEach((btn) => {
           btn.addEventListener("click", (e) => {
             e.stopPropagation();
-            const id = btn.dataset.toggleEdit;
-            const action = dossier.actions.find((a) => a.id === id);
-            const contentView = actionsEl.querySelector(`[data-content-view="${id}"]`);
-            const editPanel = actionsEl.querySelector(`[data-edit-panel="${id}"]`);
-            const textarea = actionsEl.querySelector(`[data-edit-textarea="${id}"]`);
-            const preview = actionsEl.querySelector(`[data-preview="${id}"]`);
-            contentView.hidden = true;
-            editPanel.hidden = false;
-            textarea.value = action.contenuGenere || "";
-            preview.innerHTML = renderMarkdown(textarea.value);
+            ouvrirPanneauEdition(btn.dataset.toggleEdit);
+          });
+        });
+
+        // Verrou libre : le prend (POST /verrou) avant d'ouvrir le panneau -
+        // 409 avec message clair si quelqu'un d'autre l'a pris entre-temps.
+        actionsEl.querySelectorAll("[data-ouvrir-edition]").forEach((btn) => {
+          btn.addEventListener("click", async (e) => {
+            e.stopPropagation();
+            const id = btn.dataset.ouvrirEdition;
+            try {
+              const verrou = await apiFetch(`/api/actions/${id}/verrou`, { method: "POST" });
+              const action = dossier.actions.find((a) => a.id === id);
+              action.verrouillePar = verrou.verrouillePar;
+              action.verrouilleLe = verrou.verrouilleLe;
+              ouvrirPanneauEdition(id);
+            } catch (err) {
+              alert(err.message);
+            }
+          });
+        });
+
+        actionsEl.querySelectorAll("[data-terminer-edition]").forEach((btn) => {
+          btn.addEventListener("click", async (e) => {
+            e.stopPropagation();
+            try {
+              await apiFetch(`/api/actions/${btn.dataset.terminerEdition}/verrou`, { method: "DELETE" });
+              window.location.reload();
+            } catch (err) {
+              alert(err.message);
+            }
+          });
+        });
+
+        actionsEl.querySelectorAll("[data-toggle-version-apercu]").forEach((btn) => {
+          btn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const el = actionsEl.querySelector(`[data-version-apercu="${btn.dataset.toggleVersionApercu}"]`);
+            el.hidden = !el.hidden;
+          });
+        });
+
+        actionsEl.querySelectorAll("[data-valider-version]").forEach((btn) => {
+          btn.addEventListener("click", async (e) => {
+            e.stopPropagation();
+            try {
+              await apiFetch(
+                `/api/actions/${btn.dataset.validerVersion}/versions/${btn.dataset.versionId}/valider`,
+                { method: "POST" }
+              );
+              window.location.reload();
+            } catch (err) {
+              alert(err.message);
+            }
           });
         });
 
@@ -404,6 +462,12 @@
           });
         });
 
+        // Lot 11 (Partie A) : "Enregistrer" cree desormais une nouvelle
+        // ActionVersion (historique) plutot que d'ecrire directement
+        // Action.contenuGenere, qui ne change qu'a la validation explicite
+        // d'une version (voir README-LOT11.md) - d'ou le rechargement de la
+        // page pour refleter a la fois le nouvel historique et l'etat du
+        // verrou, plutot qu'une mise a jour locale de l'aperçu.
         actionsEl.querySelectorAll("[data-save-edit]").forEach((btn) => {
           btn.addEventListener("click", async (e) => {
             e.stopPropagation();
@@ -413,15 +477,11 @@
             errorEl.textContent = "";
             errorEl.classList.remove("visible");
             try {
-              const updated = await apiFetch(`/api/actions/${id}/contenu`, {
-                method: "PATCH",
+              await apiFetch(`/api/actions/${id}/versions`, {
+                method: "POST",
                 body: { contenu: textarea.value },
               });
-              const action = dossier.actions.find((a) => a.id === id);
-              action.contenuGenere = updated.contenuGenere;
-              actionsEl.querySelector(`[data-content-view="${id}"]`).innerHTML = renderMarkdown(updated.contenuGenere);
-              actionsEl.querySelector(`[data-content-view="${id}"]`).hidden = false;
-              actionsEl.querySelector(`[data-edit-panel="${id}"]`).hidden = true;
+              window.location.reload();
             } catch (err) {
               errorEl.textContent = err.message;
               errorEl.classList.add("visible");
@@ -578,10 +638,29 @@
       const pretAValider =
         a.statut === "en_attente_validation" || (a.statut === "brouillon" && a.contenuGenere);
       const statutLabel = pretAValider ? STATUT_LABELS.en_attente_validation : STATUT_LABELS[a.statut] || a.statut;
-      const editTexteBtn =
-        a.contenuGenere && a.statut !== "envoye"
-          ? `<button type="button" class="ghost btn-sm" data-toggle-edit="${a.id}" style="margin-left:8px;">Modifier le texte</button>`
-          : "";
+
+      // Lot 11 (Partie A) : verrouillage sequentiel - un document valide/envoye
+      // ne peut plus etre rouvert en edition directement (repasser par une
+      // remarque de revision, Lot 10) ; sinon, au plus une personne edite a
+      // la fois (voir routes/actionVersions.ts).
+      const documentFige = a.statut === "valide" || a.statut === "envoye";
+      const verrouParMoi = a.verrouillePar && me && a.verrouillePar === me.id;
+      const verrouParAutre = a.verrouillePar && !verrouParMoi;
+      let verrouZone = "";
+      if (documentFige) {
+        verrouZone = `<p class="muted" style="margin:6px 0;">Document validé — une remarque de révision (voir Remarques ci-dessous) est nécessaire pour le modifier à nouveau.</p>`;
+      } else if (a.contenuGenere) {
+        if (verrouParAutre) {
+          verrouZone = `<p class="muted" style="margin:6px 0;">🔒 En cours de modification par ${escapeHtml(a.verrouilleParUtilisateur?.nom || "quelqu'un d'autre")} depuis ${a.verrouilleLe ? new Date(a.verrouilleLe).toLocaleString("fr-FR") : ""}.</p>`;
+        } else if (verrouParMoi) {
+          verrouZone = `<div style="margin:6px 0; display:flex; gap:8px; flex-wrap:wrap;">
+              <button type="button" class="ghost btn-sm" data-toggle-edit="${a.id}">Modifier le texte</button>
+              <button type="button" class="ghost btn-sm" data-terminer-edition="${a.id}">Terminer l'édition</button>
+            </div>`;
+        } else {
+          verrouZone = `<div style="margin:6px 0;"><button type="button" class="ghost btn-sm" data-ouvrir-edition="${a.id}">Modifier le texte</button></div>`;
+        }
+      }
 
       const canUseOwnSignature = me && me.role !== "collaborateur" && me.signatureUrl;
       const canUseResponsableSignature = me && me.role === "collaborateur" && me.peutUtiliserSignatureResponsable;
@@ -713,7 +792,7 @@
           </button>
           <div class="accordion-body">
             ${generationEnEchec ? `<p class="error visible" style="margin:6px 0;">${escapeHtml(GENERATION_ECHEC_MESSAGE)}</p>` : ""}
-            ${editTexteBtn ? `<div style="margin:6px 0;">${editTexteBtn}</div>` : ""}
+            ${verrouZone}
             ${downloadLinks}
             <div class="md-content" data-content-view="${a.id}">${renderMarkdown(a.contenuGenere || "")}</div>
             <div class="edit-panel" data-edit-panel="${a.id}" hidden>
@@ -747,8 +826,46 @@
               </div>
             </div>
             ${controls}
+            ${renderHistoriqueVersionsPanel(a)}
             ${renderRemarquesPanel(a)}
           </div>
+        </div>`;
+    }
+
+    // Lot 11 (Partie A) : historique des versions - une ligne par sauvegarde
+    // explicite (jamais d'autosave). Le contenu de chaque version est deja
+    // disponible cote client (inclus par GET /api/dossiers/:id), donc
+    // l'apercu ne necessite aucun appel reseau supplementaire. La validation
+    // d'une version fige Action.contenuGenere sur son contenu (voir
+    // README-LOT11.md) - jamais un collaborateur.
+    function renderHistoriqueVersionsPanel(a) {
+      const versions = a.versions || [];
+      if (versions.length === 0) return "";
+
+      const estCollaborateur = me && me.role === "collaborateur";
+      const lignes = versions
+        .map((v) => {
+          const badge = v.estVersionValidee ? ' <span class="badge badge-action-valide">Validée</span>' : "";
+          const boutonValider =
+            !v.estVersionValidee && !estCollaborateur
+              ? `<button type="button" class="ghost btn-sm" data-valider-version="${a.id}" data-version-id="${v.id}">Valider cette version</button>`
+              : "";
+          return `
+            <div class="remarque-item ${v.estVersionValidee ? "resolue" : ""}">
+              <div class="remarque-meta">Version ${v.numero} — ${escapeHtml(v.auteur.nom)} — ${new Date(v.createdAt).toLocaleString("fr-FR")}${badge}</div>
+              <div class="remarque-actions" style="display:flex; gap:8px; flex-wrap:wrap;">
+                <button type="button" class="ghost btn-sm" data-toggle-version-apercu="${v.id}">Aperçu</button>
+                ${boutonValider}
+              </div>
+              <div class="md-content" data-version-apercu="${v.id}" hidden style="margin-top:8px; padding:8px; border:1px solid var(--hairline); border-radius:8px;">${renderMarkdown(v.contenu)}</div>
+            </div>`;
+        })
+        .join("");
+
+      return `
+        <div style="margin-top:14px; padding-top:14px; border-top:1px solid var(--hairline);">
+          <strong>Historique des versions (${versions.length})</strong>
+          <div style="margin-top:8px;">${lignes}</div>
         </div>`;
     }
 

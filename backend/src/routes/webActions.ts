@@ -220,7 +220,7 @@ function nomAdversePourForm(form: WebActionForm): string | null {
   }
 }
 
-type DossierLookupResult =
+export type DossierLookupResult =
   | { ok: true; dossier: Awaited<ReturnType<typeof prisma.dossier.findFirstOrThrow>> }
   | { ok: false; error: string };
 
@@ -235,7 +235,7 @@ type DossierLookupResult =
 // documents generes sans numero sont regroupes dans un dossier partage
 // "SANS-NUMERO" par cabinet (meme convention que le canal WhatsApp), cree
 // automatiquement au premier usage plutot que de bloquer la generation.
-async function findOrCreateDossier(facts: {
+export async function findOrCreateDossier(facts: {
   cabinetId: string;
   userId: string;
   numeroDossier?: string;
