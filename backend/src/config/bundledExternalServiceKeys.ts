@@ -27,3 +27,9 @@ export const BUNDLED_SMTP_HOST: string | undefined = undefined;
 export const BUNDLED_SMTP_USER: string | undefined = undefined;
 export const BUNDLED_SMTP_PASSWORD: string | undefined = undefined;
 export const BUNDLED_SMTP_FROM_EMAIL: string | undefined = undefined;
+// Lot 12b : credentials OAuth2 Google de l'application Aurore elle-meme (pas
+// un token utilisateur - ceux-la restent individuels, stockes chiffres par
+// utilisateur dans ConnexionCalendrierExterne). Meme mecanisme que les cles
+// ci-dessus.
+export const BUNDLED_GOOGLE_CALENDAR_OAUTH_CLIENT_ID: string | undefined = undefined;
+export const BUNDLED_GOOGLE_CALENDAR_OAUTH_CLIENT_SECRET: string | undefined = undefined;

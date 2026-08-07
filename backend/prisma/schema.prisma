@@ -290,6 +290,10 @@ model User {
   evenementsCrees    Evenement[]        @relation("EvenementCreatedBy")
   evenementsAssignes EvenementAssigne[]
 
+  // Lot 12b : agendas externes connectes par CET utilisateur (OAuth2
+  // individuel - jamais un compte cabinet partage).
+  connexionsCalendrierExterne ConnexionCalendrierExterne[]
+
   @@index([cabinetId])
   @@map("users")
 }
@@ -502,12 +506,16 @@ model Evenement {
   roleAudienceId String?          @unique @map("role_audience_id")
   delaiCalculId  String?          @unique @map("delai_calcul_id")
 
-  cabinet      Cabinet            @relation(fields: [cabinetId], references: [id])
-  dossier      Dossier?           @relation(fields: [dossierId], references: [id])
-  createdBy    User               @relation("EvenementCreatedBy", fields: [createdById], references: [id])
-  roleAudience RoleAudience?      @relation(fields: [roleAudienceId], references: [id], onDelete: SetNull)
-  delaiCalcul  DelaiCalcul?       @relation(fields: [delaiCalculId], references: [id], onDelete: SetNull)
-  assignes     EvenementAssigne[]
+  cabinet       Cabinet                @relation(fields: [cabinetId], references: [id])
+  dossier       Dossier?               @relation(fields: [dossierId], references: [id])
+  createdBy     User                   @relation("EvenementCreatedBy", fields: [createdById], references: [id])
+  roleAudience  RoleAudience?          @relation(fields: [roleAudienceId], references: [id], onDelete: SetNull)
+  delaiCalcul   DelaiCalcul?           @relation(fields: [delaiCalculId], references: [id], onDelete: SetNull)
+  assignes      EvenementAssigne[]
+  // Lot 12b : etat de synchronisation vers chaque agenda externe concerne
+  // (un Evenement peut se synchroniser vers plusieurs connexions - ex: le
+  // createur ET un assigne ont chacun leur propre Google Calendar connecte).
+  syncsExternes EvenementSyncExterne[]
 
   @@index([cabinetId, dateDebut])
   @@index([dossierId])
@@ -527,6 +535,89 @@ model EvenementAssigne {
 
   @@id([evenementId, userId])
   @@map("evenement_assignes")
+}
+
+// Lot 12b : fournisseur d'agenda externe connecte par un utilisateur -
+// OAuth2 individuel pour Google, identifiants CalDAV generiques pour les
+// autres (Outlook.com, Proton Calendar, iCloud...). Jamais un compte
+// cabinet partage : chaque ligne appartient a UN userId.
+enum ProviderCalendrierExterne {
+  google
+  caldav
+}
+
+// Etat de synchronisation d'un Evenement particulier vers un agenda
+// externe particulier - la "file d'attente" de la synchronisation
+// asynchrone est realisee par ce tableau (lignes "en_attente"/"a_supprimer"
+// = travail a faire), traite par le job planifie de services/calendrierSync/syncQueue.ts.
+// Voir README-LOT12B.md pour la justification de ce choix (table durable
+// plutot qu'une queue en memoire, qui perdrait son contenu a chaque
+// redemarrage du serveur).
+enum StatutSyncExterne {
+  en_attente
+  synchronise
+  erreur
+  a_supprimer
+}
+
+model ConnexionCalendrierExterne {
+  id       String                    @id @default(uuid())
+  userId   String                    @map("user_id")
+  provider ProviderCalendrierExterne
+
+  // --- Google (OAuth2) --- [chiffre-au-repos pour access_token/refresh_token]
+  accessToken    String?   @map("access_token")
+  refreshToken   String?   @map("refresh_token")
+  tokenExpiresAt DateTime? @map("token_expires_at")
+
+  // --- CalDAV (identifiants generiques) --- [chiffre-au-repos pour caldav_password]
+  caldavUrl      String? @map("caldav_url")
+  caldavUsername String? @map("caldav_username")
+  caldavPassword String? @map("caldav_password")
+
+  // URL du calendrier cible decouverte a la connexion : le calendrier
+  // principal CalDAV (reponse de la decouverte PROPFIND), ou "primary" pour
+  // Google (toujours le calendrier principal du compte connecte en V1).
+  calendrierUrl String? @map("calendrier_url")
+
+  // Coupe la synchro FUTURE sans jamais rien supprimer (ni cote Aurore, ni
+  // retroactivement cote externe) - voir DELETE /api/calendrier-externe/:id.
+  actif          Boolean  @default(true)
+  derniereErreur String?  @map("derniere_erreur")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  user  User                   @relation(fields: [userId], references: [id])
+  syncs EvenementSyncExterne[]
+
+  // Un seul compte Google + un seul CalDAV par utilisateur en V1 (pas de
+  // multi-comptes du meme fournisseur).
+  @@unique([userId, provider])
+  @@map("connexions_calendrier_externe")
+}
+
+model EvenementSyncExterne {
+  id     String @id @default(uuid())
+  // Nullable + SetNull (pas Cascade) : quand l'Evenement Aurore est
+  // supprime, cette ligne doit SURVIVRE le temps que le job de synchro
+  // supprime aussi l'evenement cote externe (statut "a_supprimer") - voir
+  // evenementSync.ts et README-LOT12B.md.
+  evenementId String? @map("evenement_id")
+  connexionId String  @map("connexion_id")
+
+  externalEventId String?           @map("external_event_id")
+  statut          StatutSyncExterne @default(en_attente)
+  tentatives      Int               @default(0)
+  derniereErreur  String?           @map("derniere_erreur")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+
+  evenement  Evenement?                 @relation(fields: [evenementId], references: [id], onDelete: SetNull)
+  connexion  ConnexionCalendrierExterne @relation(fields: [connexionId], references: [id], onDelete: Cascade)
+
+  @@unique([evenementId, connexionId])
+  @@index([statut])
+  @@map("evenement_sync_externe")
 }
 
 // Suivi interne des honoraires/paiements. Ce n'est PAS une facture
