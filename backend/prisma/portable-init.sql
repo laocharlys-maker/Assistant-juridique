@@ -28,6 +28,12 @@ CREATE TYPE "FactureStatut" AS ENUM ('brouillon', 'envoyee', 'payee');
 -- CreateEnum
 CREATE TYPE "StatutRoleAudience" AS ENUM ('a_preparer', 'pret', 'traite');
 
+-- CreateEnum
+CREATE TYPE "TypeEvenement" AS ENUM ('audience', 'rdv', 'appel', 'tache', 'echeance_procedure', 'autre');
+
+-- CreateEnum
+CREATE TYPE "SourceEvenement" AS ENUM ('manuel', 'role_audience', 'delai_calcule', 'sync_google', 'sync_caldav');
+
 -- CreateTable
 CREATE TABLE "cabinets" (
     "id" TEXT NOT NULL,
@@ -201,6 +207,36 @@ CREATE TABLE "role_audiences" (
 );
 
 -- CreateTable
+CREATE TABLE "evenements" (
+    "id" TEXT NOT NULL,
+    "cabinet_id" TEXT NOT NULL,
+    "dossier_id" TEXT,
+    "type" "TypeEvenement" NOT NULL,
+    "source" "SourceEvenement" NOT NULL DEFAULT 'manuel',
+    "titre" TEXT NOT NULL,
+    "description" TEXT,
+    "date_debut" TIMESTAMP(3) NOT NULL,
+    "date_fin" TIMESTAMP(3),
+    "toute_la_journee" BOOLEAN NOT NULL DEFAULT false,
+    "lieu" TEXT,
+    "created_by_id" TEXT NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+    "role_audience_id" TEXT,
+    "delai_calcul_id" TEXT,
+
+    CONSTRAINT "evenements_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "evenement_assignes" (
+    "evenement_id" TEXT NOT NULL,
+    "user_id" TEXT NOT NULL,
+
+    CONSTRAINT "evenement_assignes_pkey" PRIMARY KEY ("evenement_id","user_id")
+);
+
+-- CreateTable
 CREATE TABLE "factures" (
     "id" TEXT NOT NULL,
     "cabinet_id" TEXT NOT NULL,
@@ -343,6 +379,18 @@ CREATE INDEX "role_audiences_cabinet_id_idx" ON "role_audiences"("cabinet_id");
 CREATE INDEX "role_audiences_dossier_id_idx" ON "role_audiences"("dossier_id");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "evenements_role_audience_id_key" ON "evenements"("role_audience_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "evenements_delai_calcul_id_key" ON "evenements"("delai_calcul_id");
+
+-- CreateIndex
+CREATE INDEX "evenements_cabinet_id_date_debut_idx" ON "evenements"("cabinet_id", "date_debut");
+
+-- CreateIndex
+CREATE INDEX "evenements_dossier_id_idx" ON "evenements"("dossier_id");
+
+-- CreateIndex
 CREATE INDEX "factures_dossier_id_idx" ON "factures"("dossier_id");
 
 -- CreateIndex
@@ -413,6 +461,27 @@ ALTER TABLE "role_audiences" ADD CONSTRAINT "role_audiences_dossier_id_fkey" FOR
 
 -- AddForeignKey
 ALTER TABLE "role_audiences" ADD CONSTRAINT "role_audiences_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "evenements" ADD CONSTRAINT "evenements_cabinet_id_fkey" FOREIGN KEY ("cabinet_id") REFERENCES "cabinets"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "evenements" ADD CONSTRAINT "evenements_dossier_id_fkey" FOREIGN KEY ("dossier_id") REFERENCES "dossiers"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "evenements" ADD CONSTRAINT "evenements_created_by_id_fkey" FOREIGN KEY ("created_by_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "evenements" ADD CONSTRAINT "evenements_role_audience_id_fkey" FOREIGN KEY ("role_audience_id") REFERENCES "role_audiences"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "evenements" ADD CONSTRAINT "evenements_delai_calcul_id_fkey" FOREIGN KEY ("delai_calcul_id") REFERENCES "delai_calculs"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "evenement_assignes" ADD CONSTRAINT "evenement_assignes_evenement_id_fkey" FOREIGN KEY ("evenement_id") REFERENCES "evenements"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "evenement_assignes" ADD CONSTRAINT "evenement_assignes_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "factures" ADD CONSTRAINT "factures_cabinet_id_fkey" FOREIGN KEY ("cabinet_id") REFERENCES "cabinets"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

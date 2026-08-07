@@ -4,6 +4,7 @@ import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
 import { getAccessibleAvocatIds } from "../services/access";
 import { buildRoleSemainePdf, buildRoleSemaineWord } from "../services/roleSemaineExport";
+import { syncEvenementDepuisRoleAudience, supprimerEvenementDepuisRoleAudience } from "../services/evenementSync";
 
 export const roleAudiencesRouter = Router();
 
@@ -303,6 +304,12 @@ roleAudiencesRouter.post("/api/role-audiences", requireAuth, async (req, res) =>
     },
   });
 
+  // Lot 12a : hook additif - genere/tient a jour l'Evenement correspondant
+  // pour le calendrier unifie. N'echoue jamais (voir evenementSync.ts) :
+  // la creation du RoleAudience ci-dessus a deja reussi et sera renvoyee
+  // meme si cette synchronisation echoue.
+  await syncEvenementDepuisRoleAudience(audience.id);
+
   return res.status(201).json(audience);
 });
 
@@ -335,6 +342,11 @@ roleAudiencesRouter.patch("/api/role-audiences/:id", requireAuth, async (req, re
     where: { id: existing.id },
     data: parsed.data,
   });
+
+  // Lot 12a : re-synchronise l'Evenement lie (juridiction/parties/statut
+  // peuvent avoir change) - meme garde de resilience que ci-dessus.
+  await syncEvenementDepuisRoleAudience(updated.id);
+
   return res.json(updated);
 });
 
@@ -342,5 +354,11 @@ roleAudiencesRouter.delete("/api/role-audiences/:id", requireAuth, async (req, r
   await prisma.roleAudience
     .deleteMany({ where: { id: req.params.id, cabinetId: req.auth!.cabinetId } })
     .catch(() => null);
+
+  // Lot 12a : supprime l'Evenement lie (coherence du calendrier) - n'echoue
+  // jamais, la suppression du RoleAudience ci-dessus reste effective meme
+  // si cette synchronisation echoue.
+  await supprimerEvenementDepuisRoleAudience(req.params.id);
+
   return res.json({ ok: true });
 });

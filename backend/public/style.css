@@ -673,6 +673,14 @@ header.app-topbar {
 .badge-action-echec_generation { background: var(--danger-tint); color: var(--danger); }
 .badge-action-revision_demandee { background: var(--danger-tint); color: var(--danger); }
 
+/* Lot 12a : type d'un Evenement dans le calendrier unifie. */
+.badge-evenement-audience { background: var(--accent-tint); color: var(--accent-hover); }
+.badge-evenement-rdv { background: var(--success-tint); color: var(--success); }
+.badge-evenement-appel { background: var(--warning-tint); color: var(--warning); }
+.badge-evenement-tache { background: var(--hairline); color: var(--muted); }
+.badge-evenement-echeance_procedure { background: var(--danger-tint); color: var(--danger); }
+.badge-evenement-autre { background: var(--hairline); color: var(--muted); }
+
 /* Lot 10 : panneau "Remarques" (commentaires de revision avocat -> collaborateur). */
 .remarque-item { border: 1px solid var(--hairline); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
 .remarque-item.resolue { opacity: 0.65; }
@@ -1036,3 +1044,67 @@ h5.md-heading { font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0
 }
 .licence-status-box.grace { background: var(--warning-tint); color: var(--warning); border: 1px solid var(--warning); }
 .licence-status-box.bloquee { background: var(--danger-tint); color: var(--danger); border: 1px solid var(--danger); }
+
+/* ---------- Lot 12a : calendrier unifie ---------- */
+.cal-toolbar { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+.cal-toolbar-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.cal-nav { display: flex; align-items: center; gap: 8px; }
+.cal-nav strong { margin-left: 6px; text-transform: capitalize; }
+.cal-filters { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+.cal-month-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.cal-month-daylabel { text-align: center; font-size: 0.78rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; padding-bottom: 4px; }
+.cal-day-cell {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 6px;
+  min-height: 96px;
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  cursor: pointer;
+}
+.cal-day-cell.hors-mois { opacity: 0.4; }
+.cal-day-cell.aujourdhui { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.cal-day-number { font-size: 0.82rem; font-weight: 600; color: var(--text-strong); }
+.cal-day-events { display: flex; flex-direction: column; gap: 3px; overflow: hidden; }
+.cal-event-chip {
+  font-size: 0.72rem;
+  padding: 2px 6px;
+  border-radius: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.cal-event-chip.evenement-audience { background: var(--accent-tint); color: var(--accent-hover); }
+.cal-event-chip.evenement-rdv { background: var(--success-tint); color: var(--success); }
+.cal-event-chip.evenement-appel { background: var(--warning-tint); color: var(--warning); }
+.cal-event-chip.evenement-tache { background: var(--hairline); color: var(--muted); }
+.cal-event-chip.evenement-echeance_procedure { background: var(--danger-tint); color: var(--danger); }
+.cal-event-chip.evenement-autre { background: var(--hairline); color: var(--muted); }
+.cal-day-more { font-size: 0.72rem; color: var(--muted); cursor: pointer; }
+
+.cal-week-grid, .cal-day-single { display: grid; gap: 10px; }
+.cal-week-grid { grid-template-columns: repeat(7, 1fr); }
+.cal-week-col, .cal-day-single { border: 1px solid var(--border); border-radius: 10px; padding: 8px; background: var(--panel); min-height: 140px; }
+.cal-week-col-header { font-size: 0.82rem; font-weight: 700; margin-bottom: 6px; text-align: center; text-transform: capitalize; }
+
+.cal-liste-jour { margin-bottom: 18px; }
+.cal-liste-jour-titre { font-weight: 700; margin-bottom: 6px; text-transform: capitalize; }
+.cal-liste-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  margin-bottom: 6px;
+  cursor: pointer;
+}
+.cal-liste-item-heure { font-variant-numeric: tabular-nums; color: var(--muted); min-width: 46px; }
+
+.cal-assignes-list { display: flex; flex-direction: column; gap: 6px; max-height: 160px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; padding: 8px; }
+.cal-assignes-list label { display: flex; align-items: center; gap: 8px; font-weight: 400; margin: 0; }
+.cal-assignes-list input[type="checkbox"] { width: auto; }

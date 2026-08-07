@@ -268,12 +268,14 @@
             }
           </div>
           <div id="delais-section"></div>
+          <div id="agenda-section"></div>
           <h2>Historique (${dossier.actions.length})</h2>
           <div id="actions-list"></div>
         `;
 
         if (!currentDossierEstRecherche) {
           loadDelaisDossier(id);
+          loadAgendaDossier(id);
         }
 
         const clotureBtn = document.getElementById("toggle-cloture-btn");
@@ -624,6 +626,59 @@
       section.innerHTML = `
         <div class="card">
           <h2 style="margin-top:0;">Délais (${calculs.length})</h2>
+          ${lignes}
+        </div>`;
+    }
+
+    // Lot 12a : onglet "Agenda du dossier" - tous les Evenement lies (voir
+    // GET /api/evenements?dossierId=..., routes/evenements.ts), qu'ils
+    // soient generes automatiquement (audience, echeance de procedure) ou
+    // crees manuellement (RDV, appel, tache). Chaque ligne renvoie vers la
+    // vue calendrier centree sur sa date.
+    const AGENDA_TYPE_LABELS = {
+      audience: "Audience",
+      rdv: "RDV",
+      appel: "Appel",
+      tache: "Tâche",
+      echeance_procedure: "Échéance de procédure",
+      autre: "Autre",
+    };
+
+    async function loadAgendaDossier(dossierId) {
+      const section = document.getElementById("agenda-section");
+      if (!section) return;
+      let evenements;
+      try {
+        ({ evenements } = await apiFetch(`/api/evenements?dossierId=${dossierId}`));
+      } catch {
+        return;
+      }
+      if (evenements.length === 0) {
+        section.innerHTML = `
+          <div class="card">
+            <h2 style="margin-top:0;">Agenda du dossier</h2>
+            <p class="muted">Aucun événement lié à ce dossier pour l'instant.</p>
+          </div>`;
+        return;
+      }
+      const tries = [...evenements].sort((a, b) => new Date(a.dateDebut) - new Date(b.dateDebut));
+      const lignes = tries
+        .map((e) => {
+          const date = new Date(e.dateDebut);
+          const dateJourIso = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+          return `
+          <div class="action-item">
+            <span class="tag">${escapeHtml(e.titre)}</span>
+            <span class="badge badge-evenement-${e.type}">${AGENDA_TYPE_LABELS[e.type] || e.type}</span>
+            <div>${e.touteLaJournee ? formatDateLongue(date) : `${formatDateLongue(date)} à ${date.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`}${e.lieu ? " — " + escapeHtml(e.lieu) : ""}</div>
+            ${e.description ? `<p class="muted">${escapeHtml(e.description)}</p>` : ""}
+            <a class="secondary" href="/calendrier.html?date=${dateJourIso}&vue=jour" style="display:inline-block; text-decoration:none; padding:6px 12px; border-radius:6px; margin-top:6px;">Voir dans le calendrier</a>
+          </div>`;
+        })
+        .join("");
+      section.innerHTML = `
+        <div class="card">
+          <h2 style="margin-top:0;">Agenda du dossier (${evenements.length})</h2>
           ${lignes}
         </div>`;
     }
