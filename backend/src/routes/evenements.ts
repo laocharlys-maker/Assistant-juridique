@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
 import { getAccessibleAvocatIds } from "../services/access";
+import { enqueuerSyncEvenement, enqueuerSuppressionEvenement } from "../services/calendrierSync/syncQueue";
 
 export const evenementsRouter = Router();
 
@@ -177,6 +178,11 @@ evenementsRouter.post("/api/evenements", requireAuth, async (req, res) => {
     include: INCLUDE_STANDARD,
   });
 
+  // Lot 12b : hook additif - met en file la synchro vers les agendas
+  // externes concernes (jamais attendu par la reponse HTTP : n'effectue
+  // que des ecritures DB, aucun appel reseau ici - voir syncQueue.ts).
+  await enqueuerSyncEvenement(evenement.id);
+
   return res.status(201).json(evenement);
 });
 
@@ -265,6 +271,10 @@ evenementsRouter.patch("/api/evenements/:id", requireAuth, async (req, res) => {
     });
   });
 
+  // Lot 12b : re-synchronise (le contenu a pu changer) - meme hook que la
+  // creation, toujours non bloquant.
+  await enqueuerSyncEvenement(evenement.id);
+
   return res.json(evenement);
 });
 
@@ -280,6 +290,11 @@ evenementsRouter.delete("/api/evenements/:id", requireAuth, async (req, res) => 
       error: "Cet événement est généré automatiquement : supprime-le depuis son origine (rôle de la semaine ou délais).",
     });
   }
+
+  // Lot 12b : met en file la suppression externe AVANT de supprimer
+  // l'Evenement Aurore (pendant que les lignes EvenementSyncExterne sont
+  // encore rattachees) - voir syncQueue.ts.
+  await enqueuerSuppressionEvenement(existing.id);
 
   await prisma.evenement.delete({ where: { id: existing.id } });
   return res.json({ ok: true });

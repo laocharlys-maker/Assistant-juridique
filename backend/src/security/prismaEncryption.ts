@@ -29,6 +29,16 @@ const ENCRYPTED_FIELDS_BY_MODEL: Record<string, Record<string, "string" | "json"
     contenuGenere: "string",
     champsDocument: "json",
   },
+  // Lot 12b : tokens OAuth2 Google et mot de passe CalDAV - jamais en clair
+  // en base, meme pattern que les champs identifiants de Client ci-dessus.
+  // caldavUsername/caldavUrl/calendrierUrl NE sont PAS chiffres : non
+  // secrets (juste de la configuration, affichee telle quelle a l'ecran
+  // "Paramètres > Calendrier").
+  ConnexionCalendrierExterne: {
+    accessToken: "string",
+    refreshToken: "string",
+    caldavPassword: "string",
+  },
 };
 
 interface RelationInfo {

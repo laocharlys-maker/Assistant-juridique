@@ -1,5 +1,6 @@
 import { prisma } from "../lib/prisma";
 import { formatDateLongue } from "../utils/dateFormat";
+import { enqueuerSyncEvenement, enqueuerSuppressionEvenement } from "./calendrierSync/syncQueue";
 
 /**
  * Lot 12a - synchronisation douce RoleAudience/DelaiCalcul -> Evenement
@@ -42,11 +43,15 @@ export async function syncEvenementDepuisRoleAudience(roleAudienceId: string): P
       roleAudienceId: roleAudience.id,
     };
 
-    await prisma.evenement.upsert({
+    const evenement = await prisma.evenement.upsert({
       where: { roleAudienceId: roleAudience.id },
       create: data,
       update: data,
     });
+
+    // Lot 12b : met en file la synchro externe (jamais bloquant, voir
+    // syncQueue.ts) - meme point d'ancrage que la creation manuelle.
+    await enqueuerSyncEvenement(evenement.id);
   } catch (error) {
     console.error(
       `[evenement-sync] echec de synchronisation depuis RoleAudience ${roleAudienceId} :`,
@@ -57,6 +62,12 @@ export async function syncEvenementDepuisRoleAudience(roleAudienceId: string): P
 
 export async function supprimerEvenementDepuisRoleAudience(roleAudienceId: string): Promise<void> {
   try {
+    const evenement = await prisma.evenement.findUnique({ where: { roleAudienceId }, select: { id: true } });
+    if (evenement) {
+      // Lot 12b : met en file la suppression externe avant de supprimer
+      // l'Evenement Aurore (voir syncQueue.ts).
+      await enqueuerSuppressionEvenement(evenement.id);
+    }
     await prisma.evenement.deleteMany({ where: { roleAudienceId } });
   } catch (error) {
     console.error(
@@ -87,11 +98,15 @@ export async function syncEvenementDepuisDelaiCalcul(delaiCalculId: string): Pro
       delaiCalculId: delaiCalcul.id,
     };
 
-    await prisma.evenement.upsert({
+    const evenement = await prisma.evenement.upsert({
       where: { delaiCalculId: delaiCalcul.id },
       create: data,
       update: data,
     });
+
+    // Lot 12b : met en file la synchro externe (jamais bloquant, voir
+    // syncQueue.ts) - meme point d'ancrage que la creation manuelle.
+    await enqueuerSyncEvenement(evenement.id);
   } catch (error) {
     console.error(
       `[evenement-sync] echec de synchronisation depuis DelaiCalcul ${delaiCalculId} :`,
@@ -102,6 +117,12 @@ export async function syncEvenementDepuisDelaiCalcul(delaiCalculId: string): Pro
 
 export async function supprimerEvenementDepuisDelaiCalcul(delaiCalculId: string): Promise<void> {
   try {
+    const evenement = await prisma.evenement.findUnique({ where: { delaiCalculId }, select: { id: true } });
+    if (evenement) {
+      // Lot 12b : met en file la suppression externe avant de supprimer
+      // l'Evenement Aurore (voir syncQueue.ts).
+      await enqueuerSuppressionEvenement(evenement.id);
+    }
     await prisma.evenement.deleteMany({ where: { delaiCalculId } });
   } catch (error) {
     console.error(

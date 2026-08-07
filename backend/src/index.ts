@@ -12,6 +12,8 @@ import {
   BUNDLED_SMTP_USER,
   BUNDLED_SMTP_PASSWORD,
   BUNDLED_SMTP_FROM_EMAIL,
+  BUNDLED_GOOGLE_CALENDAR_OAUTH_CLIENT_ID,
+  BUNDLED_GOOGLE_CALENDAR_OAUTH_CLIENT_SECRET,
 } from "./config/bundledExternalServiceKeys";
 import { MissingConfigurationError } from "./lib/configurationError";
 
@@ -94,6 +96,12 @@ async function main() {
     }
     if (!process.env.SMTP_PASSWORD && BUNDLED_SMTP_PASSWORD) {
       process.env.SMTP_PASSWORD = BUNDLED_SMTP_PASSWORD;
+    }
+    if (!process.env.GOOGLE_CALENDAR_OAUTH_CLIENT_ID && BUNDLED_GOOGLE_CALENDAR_OAUTH_CLIENT_ID) {
+      process.env.GOOGLE_CALENDAR_OAUTH_CLIENT_ID = BUNDLED_GOOGLE_CALENDAR_OAUTH_CLIENT_ID;
+    }
+    if (!process.env.GOOGLE_CALENDAR_OAUTH_CLIENT_SECRET && BUNDLED_GOOGLE_CALENDAR_OAUTH_CLIENT_SECRET) {
+      process.env.GOOGLE_CALENDAR_OAUTH_CLIENT_SECRET = BUNDLED_GOOGLE_CALENDAR_OAUTH_CLIENT_SECRET;
     }
     if (!process.env.SMTP_FROM_EMAIL && BUNDLED_SMTP_FROM_EMAIL) {
       process.env.SMTP_FROM_EMAIL = BUNDLED_SMTP_FROM_EMAIL;
@@ -390,6 +398,11 @@ async function main() {
     // donnees, contrairement aux sauvegardes portables ci-dessus.
     const { scheduleLiberationVerrousExpires } = await import("./jobs/liberationVerrousExpires");
     scheduleLiberationVerrousExpires();
+
+    // Lot 12b : synchronisation calendrier externe (Google Calendar/CalDAV) -
+    // toutes les 2 minutes, independant du mode de base de donnees.
+    const { scheduleSyncQueue } = await import("./services/calendrierSync/syncQueue");
+    scheduleSyncQueue();
   } catch (error) {
     if (stopPortableDatabase) {
       console.error("Echec du demarrage apres l'ouverture de Postgres portable - arret de Postgres avant de quitter...");

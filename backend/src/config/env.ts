@@ -34,6 +34,18 @@ const envSchema = z
     GROQ_API_KEY: z.string().optional(),
     TAVILY_API_KEY: z.string().optional(),
 
+    // Lot 12b : identifiants OAuth2 de l'application Aurore aupres de Google
+    // (Google Cloud Console - un seul jeu de credentials pour toutes les
+    // installations, chaque UTILISATEUR effectuant ensuite sa propre
+    // connexion individuelle - voir README-LOT12B.md). Distinct de l'ancien
+    // GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET (lien Google Docs via n8n,
+    // retire au Lot 8ter) - jamais reutilise, portee differente.
+    GOOGLE_CALENDAR_OAUTH_CLIENT_ID: z.string().optional(),
+    GOOGLE_CALENDAR_OAUTH_CLIENT_SECRET: z.string().optional(),
+    // Doit correspondre EXACTEMENT a l'URI de redirection autorisee dans
+    // Google Cloud Console (ex: http://127.0.0.1:3000/api/calendrier-externe/google/callback).
+    GOOGLE_CALENDAR_OAUTH_REDIRECT_URI: z.string().optional(),
+
     // SMTP (Brevo) - envoi direct des documents et emails, canal externe
     // unique (voir README-LOT8TER.md - l'ancien circuit n8n est retire).
     // Adresse d'expedition unique pour tous les cabinets (domaine Aurore
