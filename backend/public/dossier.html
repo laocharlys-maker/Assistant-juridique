@@ -309,6 +309,57 @@
           });
         });
 
+        actionsEl.querySelectorAll("[data-toggle-remarque]").forEach((btn) => {
+          btn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            actionsEl.querySelector(`[data-remarque-form="${btn.dataset.toggleRemarque}"]`).hidden = false;
+            btn.hidden = true;
+          });
+        });
+        actionsEl.querySelectorAll("[data-remarque-textarea]").forEach((textarea) => {
+          textarea.addEventListener("click", (e) => e.stopPropagation());
+        });
+        actionsEl.querySelectorAll("[data-cancel-remarque]").forEach((btn) => {
+          btn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const id = btn.dataset.cancelRemarque;
+            actionsEl.querySelector(`[data-remarque-form="${id}"]`).hidden = true;
+            actionsEl.querySelector(`[data-toggle-remarque="${id}"]`).hidden = false;
+          });
+        });
+        actionsEl.querySelectorAll("[data-save-remarque]").forEach((btn) => {
+          btn.addEventListener("click", async (e) => {
+            e.stopPropagation();
+            const id = btn.dataset.saveRemarque;
+            const textarea = actionsEl.querySelector(`[data-remarque-textarea="${id}"]`);
+            const errorEl = actionsEl.querySelector(`[data-remarque-error="${id}"]`);
+            errorEl.textContent = "";
+            errorEl.classList.remove("visible");
+            try {
+              await apiFetch(`/api/actions/${id}/commentaires`, {
+                method: "POST",
+                body: { contenu: textarea.value },
+              });
+              window.location.reload();
+            } catch (err) {
+              errorEl.textContent = err.message;
+              errorEl.classList.add("visible");
+            }
+          });
+        });
+        actionsEl.querySelectorAll("[data-resoudre-remarque]").forEach((btn) => {
+          btn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            resoudreRemarque(btn.dataset.resoudreRemarque, btn.dataset.commentaireId);
+          });
+        });
+        actionsEl.querySelectorAll("[data-renvoyer-validation]").forEach((btn) => {
+          btn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            renvoyerValidation(btn.dataset.renvoyerValidation);
+          });
+        });
+
         actionsEl.querySelectorAll("[data-toggle-edit]").forEach((btn) => {
           btn.addEventListener("click", (e) => {
             e.stopPropagation();
@@ -454,6 +505,7 @@
       valide: "Validé",
       envoye: "Envoyé au client",
       echec_generation: "Échec de la génération",
+      revision_demandee: "Révision demandée",
     };
 
     // Le seul vrai etat d'echec est "echec_generation" (voir Lot 5 :
@@ -695,7 +747,76 @@
               </div>
             </div>
             ${controls}
+            ${renderRemarquesPanel(a)}
           </div>
+        </div>`;
+    }
+
+    // Lot 10 : panneau "Remarques" (commentaires de revision avocat/titulaire
+    // -> collaborateur) - scope V1 : remarques generales sur le document,
+    // pas d'ancrage sur un passage de texte precis. Masque pour les
+    // recherches/jurisprudence, qui n'ont pas d'etape de validation par un
+    // avocat (voir envoiConfig / validationRequise cote backend).
+    function renderRemarquesPanel(a) {
+      if (currentDossierEstRecherche) return "";
+
+      const pretAValider = a.statut === "en_attente_validation" || (a.statut === "brouillon" && a.contenuGenere);
+      const estEnRevision = a.statut === "revision_demandee";
+      const commentaires = a.commentaires || [];
+      if (!pretAValider && !estEnRevision && commentaires.length === 0) return "";
+
+      const estCollaborateur = me && me.role === "collaborateur";
+      const peutAjouter = !estCollaborateur && (pretAValider || estEnRevision);
+      const ouverts = commentaires.filter((c) => c.statut === "ouvert");
+
+      const liste =
+        commentaires.length === 0
+          ? '<p class="muted">Aucune remarque pour l\'instant.</p>'
+          : commentaires
+              .map((c) => {
+                const peutResoudre = c.statut === "ouvert" && me && (me.id === a.createdBy || me.id === c.auteurId);
+                const piedRemarque =
+                  c.statut === "resolu"
+                    ? `<div class="remarque-meta">Résolu par ${escapeHtml(c.resoluPar ? c.resoluPar.nom : "")}${c.dateResolution ? " le " + new Date(c.dateResolution).toLocaleString("fr-FR") : ""}</div>`
+                    : peutResoudre
+                      ? `<div class="remarque-actions"><button type="button" class="ghost btn-sm" data-resoudre-remarque="${a.id}" data-commentaire-id="${c.id}">Marquer résolu</button></div>`
+                      : "";
+                return `
+                <div class="remarque-item ${c.statut === "resolu" ? "resolue" : ""}">
+                  <div class="remarque-meta">${escapeHtml(c.auteur.nom)} — ${new Date(c.dateCreation).toLocaleString("fr-FR")}</div>
+                  <p class="remarque-contenu">${escapeHtml(c.contenu)}</p>
+                  ${piedRemarque}
+                </div>`;
+              })
+              .join("");
+
+      const formAjout = peutAjouter
+        ? `<div style="margin-top:8px;">
+            <button type="button" class="ghost btn-sm" data-toggle-remarque="${a.id}">+ Ajouter une remarque</button>
+            <div class="edit-panel" data-remarque-form="${a.id}" hidden style="margin-top:8px;">
+              <textarea data-remarque-textarea="${a.id}" placeholder="Ta remarque pour le collaborateur…" rows="3"></textarea>
+              <p class="error" data-remarque-error="${a.id}"></p>
+              <div class="edit-panel-actions">
+                <button type="button" class="btn-sm" data-save-remarque="${a.id}">Envoyer</button>
+                <button type="button" class="ghost btn-sm" data-cancel-remarque="${a.id}">Annuler</button>
+              </div>
+            </div>
+          </div>`
+        : "";
+
+      const renvoyerBtn = estEnRevision
+        ? `<div style="margin-top:10px;">
+            <button type="button" class="secondary" data-renvoyer-validation="${a.id}" ${ouverts.length > 0 ? "disabled" : ""}>Renvoyer pour validation</button>
+            ${ouverts.length > 0 ? `<p class="muted" style="margin-top:4px;">Désactivé tant qu'une remarque reste ouverte.</p>` : ""}
+          </div>`
+        : "";
+
+      return `
+        <div style="margin-top:14px; padding-top:14px; border-top:1px solid var(--hairline);">
+          <strong>Remarques${ouverts.length > 0 ? ` (${ouverts.length} ouverte${ouverts.length > 1 ? "s" : ""})` : ""}</strong>
+          <div style="margin-top:8px;">${liste}</div>
+          ${formAjout}
+          ${renvoyerBtn}
         </div>`;
     }
 
@@ -738,6 +859,24 @@
     async function validerAction(actionId) {
       try {
         await apiFetch(`/api/actions/${actionId}/valider`, { method: "POST" });
+        window.location.reload();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    async function resoudreRemarque(actionId, commentaireId) {
+      try {
+        await apiFetch(`/api/actions/${actionId}/commentaires/${commentaireId}/resoudre`, { method: "PATCH" });
+        window.location.reload();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    async function renvoyerValidation(actionId) {
+      try {
+        await apiFetch(`/api/actions/${actionId}/renvoyer-validation`, { method: "POST" });
         window.location.reload();
       } catch (err) {
         alert(err.message);

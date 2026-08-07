@@ -17,7 +17,7 @@ CREATE TYPE "TypeAction" AS ENUM ('notes', 'redac', 'jurisprudence', 'recherche_
 CREATE TYPE "StatutExecution" AS ENUM ('succes', 'erreur');
 
 -- CreateEnum
-CREATE TYPE "StatutAction" AS ENUM ('brouillon', 'en_attente_validation', 'valide', 'envoye', 'echec_generation');
+CREATE TYPE "StatutAction" AS ENUM ('brouillon', 'en_attente_validation', 'valide', 'envoye', 'echec_generation', 'revision_demandee');
 
 -- CreateEnum
 CREATE TYPE "UniteDelai" AS ENUM ('jours', 'mois');
@@ -250,6 +250,20 @@ CREATE TABLE "actions" (
 );
 
 -- CreateTable
+CREATE TABLE "commentaires_revision" (
+    "id" TEXT NOT NULL,
+    "action_id" TEXT NOT NULL,
+    "auteur_id" TEXT NOT NULL,
+    "contenu" TEXT NOT NULL,
+    "statut" TEXT NOT NULL DEFAULT 'ouvert',
+    "date_creation" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "date_resolution" TIMESTAMP(3),
+    "resolu_par_id" TEXT,
+
+    CONSTRAINT "commentaires_revision_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "audit_logs" (
     "id" TEXT NOT NULL,
     "action_id" TEXT NOT NULL,
@@ -324,6 +338,9 @@ CREATE INDEX "actions_dossier_id_idx" ON "actions"("dossier_id");
 CREATE INDEX "actions_created_by_idx" ON "actions"("created_by");
 
 -- CreateIndex
+CREATE INDEX "commentaires_revision_action_id_idx" ON "commentaires_revision"("action_id");
+
+-- CreateIndex
 CREATE INDEX "audit_logs_action_id_idx" ON "audit_logs"("action_id");
 
 -- AddForeignKey
@@ -391,6 +408,15 @@ ALTER TABLE "actions" ADD CONSTRAINT "actions_dossier_id_fkey" FOREIGN KEY ("dos
 
 -- AddForeignKey
 ALTER TABLE "actions" ADD CONSTRAINT "actions_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "commentaires_revision" ADD CONSTRAINT "commentaires_revision_action_id_fkey" FOREIGN KEY ("action_id") REFERENCES "actions"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "commentaires_revision" ADD CONSTRAINT "commentaires_revision_auteur_id_fkey" FOREIGN KEY ("auteur_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "commentaires_revision" ADD CONSTRAINT "commentaires_revision_resolu_par_id_fkey" FOREIGN KEY ("resolu_par_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "audit_logs" ADD CONSTRAINT "audit_logs_action_id_fkey" FOREIGN KEY ("action_id") REFERENCES "actions"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

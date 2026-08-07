@@ -123,6 +123,19 @@ actionsCallbackRouter.post("/api/actions/:id/valider", requireAuth, async (req, 
     return res.status(404).json({ error: "Action introuvable" });
   }
 
+  // Lot 10 : un document ne peut pas etre valide tant qu'il reste des
+  // remarques de revision ouvertes dessus - repasse forcement par le cycle
+  // revision_demandee -> renvoyer-validation (toutes remarques resolues)
+  // avant toute nouvelle tentative de validation.
+  const commentairesOuverts = await prisma.commentaireRevision.count({
+    where: { actionId: action.id, statut: "ouvert" },
+  });
+  if (commentairesOuverts > 0) {
+    return res.status(409).json({
+      error: `Ce document a ${commentairesOuverts} remarque(s) de révision non résolue(s) : il ne peut pas être validé tant qu'elles restent ouvertes.`,
+    });
+  }
+
   await prisma.action.update({ where: { id: action.id }, data: { statut: "valide" } });
   return res.json({ ok: true });
 });

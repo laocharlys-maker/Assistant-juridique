@@ -46,6 +46,10 @@
         <div class="stat-label">Échéances 7 jours</div>
         <div class="stat-value" id="stat-echeances">—</div>
       </div>
+      <div class="stat-card">
+        <div class="stat-label">Révisions demandées</div>
+        <div class="stat-value" id="stat-revision">—</div>
+      </div>
     </div>
 
     <div class="chart-grid">
@@ -187,6 +191,7 @@
         }
         document.getElementById("stat-dossiers").textContent = stats.dossiersActifs;
         document.getElementById("stat-echeances").textContent = stats.echeances7Jours;
+        document.getElementById("stat-revision").textContent = stats.revisionsDemandees;
 
         lastCrCeMois = stats.crCeMois;
         lastEvolution = stats.evolutionMensuelle || [];

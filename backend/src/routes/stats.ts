@@ -42,7 +42,7 @@ statsRouter.get("/api/stats", requireAuth, async (req, res) => {
 
   const sixMoisAvant = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 5, 1));
 
-  const [dossiersActifs, crCeMois, echeances7Jours, actionsRecentes] = await Promise.all([
+  const [dossiersActifs, crCeMois, echeances7Jours, revisionsDemandees, actionsRecentes] = await Promise.all([
     prisma.dossier.count({
       where: {
         cabinetId,
@@ -75,6 +75,19 @@ statsRouter.get("/api/stats", requireAuth, async (req, res) => {
               ],
             }
           : {}),
+      },
+    }),
+    // Lot 10 : documents sur lesquels un avocat/titulaire a laisse au moins
+    // une remarque de revision non encore renvoyee pour validation - meme
+    // perimetre d'acces que le reste du tableau de bord (option "badge
+    // simple" retenue pour cette V1, pas de notification push/email).
+    prisma.action.count({
+      where: {
+        statut: "revision_demandee",
+        dossier: {
+          cabinetId,
+          ...(accessibleAvocatIds ? { createdBy: { in: accessibleAvocatIds } } : {}),
+        },
       },
     }),
     prisma.action.findMany({
@@ -123,6 +136,7 @@ statsRouter.get("/api/stats", requireAuth, async (req, res) => {
     dossiersActifs,
     crCeMois,
     echeances7Jours,
+    revisionsDemandees,
     evolutionMensuelle,
     repartitionTypes,
     responsableNom,
