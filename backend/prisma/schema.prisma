@@ -199,6 +199,7 @@ model Cabinet {
   roleAudiences RoleAudience[]
   huissiers     Huissier[]
   evenements    Evenement[]
+  saisiesTemps  SaisieTemps[]
 
   @@map("cabinets")
 }
@@ -257,6 +258,14 @@ model User {
   // - utile pour quelqu'un qui a rejoint le cabinet avant l'existence du
   // compte Aurore).
   dateArrivee            DateTime? @map("date_arrivee")
+  // Lot 14 : taux horaire en FCFA, INDIVIDUEL (pas un taux unique par
+  // cabinet - un avocat senior facture plus qu'un collaborateur junior,
+  // voir README-LOT14.md). Snapshotte dans SaisieTemps.tauxHoraireApplique
+  // au moment de chaque saisie : le modifier ici n'affecte jamais
+  // retroactivement une saisie deja enregistree. Null = pas encore
+  // configure (une saisie sans taux n'est pas valorisable, voir
+  // services/feuillesTemps.ts).
+  tauxHoraireDefaut      Int?      @map("taux_horaire_defaut")
   createdAt              DateTime  @default(now()) @map("created_at")
 
   cabinet             Cabinet        @relation(fields: [cabinetId], references: [id])
@@ -293,6 +302,10 @@ model User {
   // Lot 12b : agendas externes connectes par CET utilisateur (OAuth2
   // individuel - jamais un compte cabinet partage).
   connexionsCalendrierExterne ConnexionCalendrierExterne[]
+
+  // Lot 14 : temps enregistre par CET utilisateur (chronometre ou saisie
+  // manuelle).
+  saisiesTemps SaisieTemps[]
 
   @@index([cabinetId])
   @@map("users")
@@ -435,6 +448,7 @@ model Dossier {
   factures      Facture[]
   roleAudiences RoleAudience[]
   evenements    Evenement[]
+  saisiesTemps  SaisieTemps[]
 
   @@unique([cabinetId, numeroDossier])
   @@index([clientId])
@@ -624,6 +638,77 @@ model EvenementSyncExterne {
 // normalisee au sens fiscal beninois (SYGMEF) : la facture officielle
 // reste emise separement par l'avocat sur son propre compte SYGMEF. Ce
 // document sert au cabinet pour le suivi (montant, statut, envoi client).
+// Lot 14 : origine d'une SaisieTemps - "chrono" = demarree/arretee via le
+// chronometre persistant (demarreA renseigne), "manuel" = saisie directe en
+// rattrapage (dureeMinutes renseignee directement, demarreA/arreteA null -
+// pas d'instant precis a preserver, juste une duree).
+enum SourceSaisieTemps {
+  chrono
+  manuel
+}
+
+// Temps passe par un utilisateur sur un dossier (et optionnellement une
+// action precise). Chronometre persistant cote serveur (voir
+// routes/saisiesTemps.ts) : "en cours" = demarreA renseigne ET arreteA
+// null - un utilisateur ne peut avoir qu'UNE SEULE saisie dans cet etat a
+// la fois (verifie cote application avant creation, voir README-LOT14.md
+// pour la justification de ce choix plutot qu'une contrainte DB).
+model SaisieTemps {
+  id       String            @id @default(uuid())
+  cabinetId String           @map("cabinet_id")
+  dossierId String           @map("dossier_id")
+  actionId  String?          @map("action_id")
+  userId    String           @map("user_id")
+  source    SourceSaisieTemps @default(manuel)
+  // Jour calendaire auquel ce temps est rattache, independant de l'heure
+  // precise demarreA/arreteA - c'est le champ utilise pour l'agregation par
+  // periode (feuilles de temps hebdomadaires/mensuelles) et pour dater une
+  // saisie manuelle en rattrapage (l'utilisateur choisit le jour concerne,
+  // pas forcement aujourd'hui).
+  date      DateTime
+  // Renseignes uniquement pour une saisie chronometree - arreteA reste null
+  // tant que le chronometre est actif (seule marque reconnue par le
+  // systeme d'un "chronometre en cours").
+  demarreA DateTime? @map("demarre_a")
+  arreteA  DateTime? @map("arrete_a")
+  // Toujours renseignee une fois la saisie terminee (chrono arrete, ou
+  // saisie manuelle directe) - null uniquement pendant qu'un chronometre
+  // tourne. Arrondie a la minute la plus proche (voir services/feuillesTemps.ts,
+  // arrondirMinutes()) - jamais d'ecart entre l'affichage et la facturation.
+  dureeMinutes Int? @map("duree_minutes")
+  description  String?
+  // Certaines saisies (recherche interne, formation) ne sont jamais
+  // facturees au client mais restent visibles dans les statistiques
+  // internes de charge de travail - jamais retirees de l'agregation,
+  // seulement exclues du montant facturable et de "Facturer ce dossier".
+  facturable Boolean @default(true)
+  // Snapshot du taux horaire de l'utilisateur (FCFA/heure) AU MOMENT de la
+  // creation de cette saisie - une modification ulterieure de
+  // User.tauxHoraireDefaut ne change JAMAIS retroactivement la valorisation
+  // d'une saisie deja enregistree. Null si l'utilisateur n'avait pas de
+  // taux configure a cet instant (saisie alors non valorisable en FCFA,
+  // mais toujours comptabilisee en duree).
+  tauxHoraireApplique Int? @map("taux_horaire_applique")
+  // Renseigne une fois cette saisie incluse dans une facture generee (voir
+  // routes/factures.ts, "Facturer ce dossier") - exclut alors definitivement
+  // cette saisie de toute nouvelle facturation (evite un double comptage).
+  factureId String?  @map("facture_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  cabinet Cabinet  @relation(fields: [cabinetId], references: [id])
+  dossier Dossier  @relation(fields: [dossierId], references: [id])
+  action  Action?  @relation(fields: [actionId], references: [id])
+  user    User     @relation(fields: [userId], references: [id])
+  facture Facture? @relation(fields: [factureId], references: [id])
+
+  @@index([cabinetId])
+  @@index([dossierId])
+  @@index([userId])
+  @@index([factureId])
+  @@map("saisies_temps")
+}
+
 model Facture {
   id                String        @id @default(uuid())
   cabinetId         String        @map("cabinet_id")
@@ -653,6 +738,10 @@ model Facture {
   cabinet Cabinet  @relation(fields: [cabinetId], references: [id])
   dossier Dossier? @relation(fields: [dossierId], references: [id])
   creePar User     @relation("FactureCreatedBy", fields: [createdBy], references: [id])
+  // Lot 14 : saisies de temps incluses dans cette facture (generee via
+  // "Facturer ce dossier" depuis le temps passe) - vide pour une facture
+  // creee manuellement comme avant ce lot.
+  saisiesTemps SaisieTemps[]
 
   @@unique([cabinetId, numero])
   @@index([dossierId])
@@ -729,6 +818,10 @@ model Action {
   auditLogs             AuditLog[]
   commentaires          CommentaireRevision[]
   versions              ActionVersion[]
+  // Lot 14 : saisies de temps rattachees precisement a cette action (en
+  // plus du dossier) - optionnel, une saisie peut ne concerner que le
+  // dossier dans son ensemble (dossierId seul, actionId null).
+  saisiesTemps          SaisieTemps[]
 
   @@index([dossierId])
   @@index([createdBy])

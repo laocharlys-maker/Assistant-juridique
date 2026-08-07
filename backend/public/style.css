@@ -681,6 +681,10 @@ header.app-topbar {
 .badge-evenement-echeance_procedure { background: var(--danger-tint); color: var(--danger); }
 .badge-evenement-autre { background: var(--hairline); color: var(--muted); }
 
+/* Lot 14 : widget chronometre persistant (fiche dossier). */
+.timer-widget.timer-actif { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.timer-elapsed { font-family: var(--font-display); font-size: 1.6rem; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--accent-hover); }
+
 /* Lot 13 : bloc "Source" (jurisprudence citee et validee - grounding + lien
    verifie), volontairement distinct visuellement du texte d'analyse genere
    par l'IA (fond different, bordure a gauche). */

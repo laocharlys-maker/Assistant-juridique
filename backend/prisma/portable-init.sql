@@ -40,6 +40,9 @@ CREATE TYPE "ProviderCalendrierExterne" AS ENUM ('google', 'caldav');
 -- CreateEnum
 CREATE TYPE "StatutSyncExterne" AS ENUM ('en_attente', 'synchronise', 'erreur', 'a_supprimer');
 
+-- CreateEnum
+CREATE TYPE "SourceSaisieTemps" AS ENUM ('chrono', 'manuel');
+
 -- CreateTable
 CREATE TABLE "cabinets" (
     "id" TEXT NOT NULL,
@@ -99,6 +102,7 @@ CREATE TABLE "users" (
     "telephone" TEXT,
     "adresse" TEXT,
     "date_arrivee" TIMESTAMP(3),
+    "taux_horaire_defaut" INTEGER,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "users_pkey" PRIMARY KEY ("id")
@@ -278,6 +282,28 @@ CREATE TABLE "evenement_sync_externe" (
 );
 
 -- CreateTable
+CREATE TABLE "saisies_temps" (
+    "id" TEXT NOT NULL,
+    "cabinet_id" TEXT NOT NULL,
+    "dossier_id" TEXT NOT NULL,
+    "action_id" TEXT,
+    "user_id" TEXT NOT NULL,
+    "source" "SourceSaisieTemps" NOT NULL DEFAULT 'manuel',
+    "date" TIMESTAMP(3) NOT NULL,
+    "demarre_a" TIMESTAMP(3),
+    "arrete_a" TIMESTAMP(3),
+    "duree_minutes" INTEGER,
+    "description" TEXT,
+    "facturable" BOOLEAN NOT NULL DEFAULT true,
+    "taux_horaire_applique" INTEGER,
+    "facture_id" TEXT,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "saisies_temps_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "factures" (
     "id" TEXT NOT NULL,
     "cabinet_id" TEXT NOT NULL,
@@ -442,6 +468,18 @@ CREATE INDEX "evenement_sync_externe_statut_idx" ON "evenement_sync_externe"("st
 CREATE UNIQUE INDEX "evenement_sync_externe_evenement_id_connexion_id_key" ON "evenement_sync_externe"("evenement_id", "connexion_id");
 
 -- CreateIndex
+CREATE INDEX "saisies_temps_cabinet_id_idx" ON "saisies_temps"("cabinet_id");
+
+-- CreateIndex
+CREATE INDEX "saisies_temps_dossier_id_idx" ON "saisies_temps"("dossier_id");
+
+-- CreateIndex
+CREATE INDEX "saisies_temps_user_id_idx" ON "saisies_temps"("user_id");
+
+-- CreateIndex
+CREATE INDEX "saisies_temps_facture_id_idx" ON "saisies_temps"("facture_id");
+
+-- CreateIndex
 CREATE INDEX "factures_dossier_id_idx" ON "factures"("dossier_id");
 
 -- CreateIndex
@@ -542,6 +580,21 @@ ALTER TABLE "evenement_sync_externe" ADD CONSTRAINT "evenement_sync_externe_even
 
 -- AddForeignKey
 ALTER TABLE "evenement_sync_externe" ADD CONSTRAINT "evenement_sync_externe_connexion_id_fkey" FOREIGN KEY ("connexion_id") REFERENCES "connexions_calendrier_externe"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "saisies_temps" ADD CONSTRAINT "saisies_temps_cabinet_id_fkey" FOREIGN KEY ("cabinet_id") REFERENCES "cabinets"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "saisies_temps" ADD CONSTRAINT "saisies_temps_dossier_id_fkey" FOREIGN KEY ("dossier_id") REFERENCES "dossiers"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "saisies_temps" ADD CONSTRAINT "saisies_temps_action_id_fkey" FOREIGN KEY ("action_id") REFERENCES "actions"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "saisies_temps" ADD CONSTRAINT "saisies_temps_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "saisies_temps" ADD CONSTRAINT "saisies_temps_facture_id_fkey" FOREIGN KEY ("facture_id") REFERENCES "factures"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "factures" ADD CONSTRAINT "factures_cabinet_id_fkey" FOREIGN KEY ("cabinet_id") REFERENCES "cabinets"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
