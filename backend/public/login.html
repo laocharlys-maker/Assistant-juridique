@@ -25,6 +25,7 @@
         <p class="muted">Assistant juridique du cabinet</p>
       </div>
       <div id="error" class="error"></div>
+
       <form id="login-form">
         <label for="email">Email</label>
         <input id="email" type="email" required autocomplete="username" />
@@ -32,14 +33,50 @@
         <input id="password" type="password" required autocomplete="current-password" />
         <button type="submit">Se connecter</button>
       </form>
+
+      <!-- Affiche uniquement si aucun cabinet n'existe encore sur ce poste
+           (mode desktop, tout premier lancement - voir routes/auth.ts,
+           GET /api/auth/premier-lancement) - jamais visible une fois un
+           cabinet cree. -->
+      <form id="premier-lancement-form" style="display:none;">
+        <p class="muted" style="margin-top:0;">Aucun cabinet n'est encore configuré sur ce poste — crée le compte administrateur du cabinet.</p>
+        <label for="pl-cabinet-nom">Nom du cabinet</label>
+        <input id="pl-cabinet-nom" required />
+        <label for="pl-nom">Ton nom</label>
+        <input id="pl-nom" required />
+        <label for="pl-email">Email</label>
+        <input id="pl-email" type="email" required autocomplete="username" />
+        <label for="pl-password">Mot de passe (8 caractères minimum)</label>
+        <input id="pl-password" type="password" required minlength="8" autocomplete="new-password" />
+        <button type="submit">Créer le cabinet</button>
+      </form>
     </div>
   </div>
   <script src="/js/api.js"></script>
   <script>
-    const form = document.getElementById("login-form");
+    const loginForm = document.getElementById("login-form");
+    const premierLancementForm = document.getElementById("premier-lancement-form");
     const errorEl = document.getElementById("error");
 
-    form.addEventListener("submit", async (e) => {
+    function apresConnexion(user) {
+      window.location.href =
+        user.role === "titulaire" || user.role === "avocat" ? "/tableau-de-bord.html" : "/dashboard.html";
+    }
+
+    function gererErreurConnexion(err) {
+      // Licence absente/expiree/bloquee (voir middleware/requireLicence.ts) :
+      // se connecter est impossible tant que ce n'est pas resolu - inutile
+      // de laisser l'utilisateur bloque sur un message d'erreur seul,
+      // autant l'emmener directement sur l'ecran d'activation (meme logique
+      // que requireSession() dans api.js pour les pages deja authentifiees).
+      if (err && err.body && err.body.licenceEtat) {
+        window.location.href = "/licence.html";
+        return;
+      }
+      showError(errorEl, err.message);
+    }
+
+    loginForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       hideError(errorEl);
       try {
@@ -50,21 +87,43 @@
             password: document.getElementById("password").value,
           },
         });
-        window.location.href =
-          user.role === "titulaire" || user.role === "avocat" ? "/tableau-de-bord.html" : "/dashboard.html";
+        apresConnexion(user);
       } catch (err) {
-        // Licence absente/expiree/bloquee (voir middleware/requireLicence.ts) :
-        // se connecter est impossible tant que ce n'est pas resolu - inutile
-        // de laisser l'utilisateur bloque sur un message d'erreur seul,
-        // autant l'emmener directement sur l'ecran d'activation (meme logique
-        // que requireSession() dans api.js pour les pages deja authentifiees).
-        if (err && err.body && err.body.licenceEtat) {
-          window.location.href = "/licence.html";
-          return;
-        }
-        showError(errorEl, err.message);
+        gererErreurConnexion(err);
       }
     });
+
+    premierLancementForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      hideError(errorEl);
+      try {
+        const user = await apiFetch("/api/auth/premier-lancement", {
+          method: "POST",
+          body: {
+            cabinetNom: document.getElementById("pl-cabinet-nom").value,
+            nom: document.getElementById("pl-nom").value,
+            email: document.getElementById("pl-email").value,
+            password: document.getElementById("pl-password").value,
+          },
+        });
+        apresConnexion(user);
+      } catch (err) {
+        gererErreurConnexion(err);
+      }
+    });
+
+    (async () => {
+      try {
+        const { disponible } = await apiFetch("/api/auth/premier-lancement");
+        if (disponible) {
+          loginForm.style.display = "none";
+          premierLancementForm.style.display = "block";
+        }
+      } catch {
+        // Echec silencieux : le formulaire de connexion habituel reste
+        // affiche par defaut, comportement identique a avant cet ajout.
+      }
+    })();
   </script>
 </body>
 </html>
