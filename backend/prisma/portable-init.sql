@@ -32,7 +32,13 @@ CREATE TYPE "StatutRoleAudience" AS ENUM ('a_preparer', 'pret', 'traite');
 CREATE TYPE "TypeEvenement" AS ENUM ('audience', 'rdv', 'appel', 'tache', 'echeance_procedure', 'autre');
 
 -- CreateEnum
-CREATE TYPE "SourceEvenement" AS ENUM ('manuel', 'role_audience', 'delai_calcule', 'sync_google', 'sync_caldav');
+CREATE TYPE "SourceEvenement" AS ENUM ('manuel', 'role_audience', 'delai_calcule', 'sync_google', 'sync_caldav', 'email');
+
+-- CreateEnum
+CREATE TYPE "ProviderEmailExterne" AS ENUM ('gmail', 'imap');
+
+-- CreateEnum
+CREATE TYPE "StatutEmailImporte" AS ENUM ('nouveau', 'traite');
 
 -- CreateEnum
 CREATE TYPE "ProviderCalendrierExterne" AS ENUM ('google', 'caldav');
@@ -210,6 +216,48 @@ CREATE TABLE "documents_dossier" (
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "documents_dossier_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "connexions_email_externe" (
+    "id" TEXT NOT NULL,
+    "user_id" TEXT NOT NULL,
+    "provider" "ProviderEmailExterne" NOT NULL,
+    "access_token" TEXT,
+    "refresh_token" TEXT,
+    "token_expires_at" TIMESTAMP(3),
+    "adresse_email" TEXT,
+    "imap_host" TEXT,
+    "imap_port" INTEGER,
+    "imap_secure" BOOLEAN NOT NULL DEFAULT true,
+    "imap_username" TEXT,
+    "imap_password" TEXT,
+    "dernier_identifiant_synchronise" TEXT,
+    "actif" BOOLEAN NOT NULL DEFAULT true,
+    "derniere_erreur" TEXT,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "connexions_email_externe_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "emails_importes" (
+    "id" TEXT NOT NULL,
+    "connexion_id" TEXT NOT NULL,
+    "cabinet_id" TEXT NOT NULL,
+    "identifiant_externe" TEXT NOT NULL,
+    "expediteur_email" TEXT NOT NULL,
+    "expediteur_nom" TEXT,
+    "objet" TEXT,
+    "date_reception" TIMESTAMP(3) NOT NULL,
+    "pieces_jointes" JSONB,
+    "date_detectee" TIMESTAMP(3),
+    "date_detectee_contexte" TEXT,
+    "statut" "StatutEmailImporte" NOT NULL DEFAULT 'nouveau',
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "emails_importes_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -464,6 +512,15 @@ CREATE INDEX "documents_dossier_dossier_id_idx" ON "documents_dossier"("dossier_
 CREATE INDEX "documents_dossier_cabinet_id_idx" ON "documents_dossier"("cabinet_id");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "connexions_email_externe_user_id_provider_key" ON "connexions_email_externe"("user_id", "provider");
+
+-- CreateIndex
+CREATE INDEX "emails_importes_cabinet_id_idx" ON "emails_importes"("cabinet_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "emails_importes_connexion_id_identifiant_externe_key" ON "emails_importes"("connexion_id", "identifiant_externe");
+
+-- CreateIndex
 CREATE INDEX "role_audiences_cabinet_id_idx" ON "role_audiences"("cabinet_id");
 
 -- CreateIndex
@@ -573,6 +630,15 @@ ALTER TABLE "documents_dossier" ADD CONSTRAINT "documents_dossier_dossier_id_fke
 
 -- AddForeignKey
 ALTER TABLE "documents_dossier" ADD CONSTRAINT "documents_dossier_uploade_par_id_fkey" FOREIGN KEY ("uploade_par_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "documents_dossier" ADD CONSTRAINT "documents_dossier_email_origine_id_fkey" FOREIGN KEY ("email_origine_id") REFERENCES "emails_importes"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "connexions_email_externe" ADD CONSTRAINT "connexions_email_externe_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "emails_importes" ADD CONSTRAINT "emails_importes_connexion_id_fkey" FOREIGN KEY ("connexion_id") REFERENCES "connexions_email_externe"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "role_audiences" ADD CONSTRAINT "role_audiences_cabinet_id_fkey" FOREIGN KEY ("cabinet_id") REFERENCES "cabinets"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

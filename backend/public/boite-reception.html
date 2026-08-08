@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aurore — Boîte de réception</title>
+  <link rel="icon" type="image/png" href="/favicon-256.png" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="page">
+    <div class="page-hero">
+      <div class="eyebrow">Emails</div>
+      <h1>Boîte de réception</h1>
+      <p>Pièces jointes et rendez-vous détectés dans tes emails récents — rien n'est jamais importé ou créé sans ta confirmation explicite ci-dessous.</p>
+    </div>
+
+    <div id="error" class="error"></div>
+
+    <div id="pas-connecte" style="display:none;" class="card">
+      <p>Aucune boîte mail connectée pour l'instant.</p>
+      <a href="/parametres-email.html" class="secondary" style="display:inline-block; text-decoration:none; padding:6px 12px; border-radius:6px;">Connecter une boîte mail</a>
+    </div>
+
+    <div class="tabs">
+      <button type="button" class="tab active" data-filtre="nouveau">À traiter</button>
+      <button type="button" class="tab" data-filtre="traite">Traités</button>
+    </div>
+
+    <div id="liste-emails"><p class="muted">Chargement…</p></div>
+  </div>
+
+  <!-- Import d'une piece jointe vers un dossier -->
+  <div class="modal-overlay" id="import-modal" hidden>
+    <div class="modal-box">
+      <h2>Importer la pièce jointe</h2>
+      <div id="import-error" class="error"></div>
+      <p id="import-piece-nom" class="muted"></p>
+      <form id="import-form">
+        <label>Dossier de destination</label>
+        <select name="dossierId" id="import-dossier-select" required></select>
+        <div style="display:flex; gap:10px; margin-top:14px;">
+          <button type="submit" class="btn-sm">Importer</button>
+          <button type="button" class="ghost" id="import-annuler-btn">Annuler</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Confirmation d'un evenement a partir d'une date detectee -->
+  <div class="modal-overlay" id="evenement-modal" hidden>
+    <div class="modal-box">
+      <h2>Confirmer le rendez-vous</h2>
+      <div id="evenement-error" class="error"></div>
+      <p class="muted" id="evenement-contexte"></p>
+      <form id="evenement-form">
+        <label>Type</label>
+        <select name="type" id="evenement-type" required>
+          <option value="rdv">RDV</option>
+          <option value="appel">Appel</option>
+          <option value="tache">Tâche</option>
+          <option value="autre">Autre</option>
+        </select>
+        <label>Titre</label>
+        <input name="titre" id="evenement-titre" required />
+        <label>Date et heure (à corriger si besoin)</label>
+        <input name="dateDebut" id="evenement-date" type="datetime-local" required />
+        <label>Dossier (optionnel)</label>
+        <select name="dossierId" id="evenement-dossier-select">
+          <option value="">— Aucun —</option>
+        </select>
+        <label>Lieu (optionnel)</label>
+        <input name="lieu" id="evenement-lieu" />
+        <div style="display:flex; gap:10px; margin-top:14px;">
+          <button type="submit" class="btn-sm">Confirmer</button>
+          <button type="button" class="ghost" id="evenement-annuler-btn">Annuler</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/layout.js"></script>
+  <script src="/js/boite-reception.js"></script>
+</body>
+</html>
