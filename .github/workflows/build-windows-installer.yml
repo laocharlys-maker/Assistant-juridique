@@ -93,6 +93,14 @@ jobs:
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
           SMTP_FROM_EMAIL: ${{ secrets.SMTP_FROM_EMAIL }}
+          # Lot 12b : credentials OAuth2 Google (calendrier externe + Gmail,
+          # Lot 16, qui reutilise le meme client OAuth) - ajoutes ici pour
+          # que ce step reste synchronise avec les exports reellement
+          # presents dans la version suivie en git de bundledExternalServiceKeys.ts
+          # (voir config/env.ts). Absents des GitHub Secrets => "undefined",
+          # jamais un echec de build (meme comportement que les cles ci-dessus).
+          GOOGLE_CALENDAR_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_CALENDAR_OAUTH_CLIENT_ID }}
+          GOOGLE_CALENDAR_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_CALENDAR_OAUTH_CLIENT_SECRET }}
         run: |
           function Literal($value) {
             if ([string]::IsNullOrEmpty($value)) { return "undefined" }
@@ -106,6 +114,8 @@ jobs:
             BUNDLED_SMTP_USER        = Literal $env:SMTP_USER
             BUNDLED_SMTP_PASSWORD    = Literal $env:SMTP_PASSWORD
             BUNDLED_SMTP_FROM_EMAIL  = Literal $env:SMTP_FROM_EMAIL
+            BUNDLED_GOOGLE_CALENDAR_OAUTH_CLIENT_ID     = Literal $env:GOOGLE_CALENDAR_OAUTH_CLIENT_ID
+            BUNDLED_GOOGLE_CALENDAR_OAUTH_CLIENT_SECRET = Literal $env:GOOGLE_CALENDAR_OAUTH_CLIENT_SECRET
           }
           $lines = @(
             "// Genere automatiquement par le workflow CI juste avant le build (voir",
@@ -117,7 +127,7 @@ jobs:
           }
           $lines += ""
           Set-Content -Path src/config/bundledExternalServiceKeys.ts -Value ($lines -join "`n") -Encoding utf8
-          foreach ($name in @("GEMINI_API_KEY","GROQ_API_KEY","TAVILY_API_KEY","SMTP_HOST","SMTP_USER","SMTP_PASSWORD","SMTP_FROM_EMAIL")) {
+          foreach ($name in @("GEMINI_API_KEY","GROQ_API_KEY","TAVILY_API_KEY","SMTP_HOST","SMTP_USER","SMTP_PASSWORD","SMTP_FROM_EMAIL","GOOGLE_CALENDAR_OAUTH_CLIENT_ID","GOOGLE_CALENDAR_OAUTH_CLIENT_SECRET")) {
             $present = -not [string]::IsNullOrEmpty([Environment]::GetEnvironmentVariable($name))
             Write-Output "$name injectee : $present"
           }
