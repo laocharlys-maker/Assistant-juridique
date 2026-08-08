@@ -15,7 +15,7 @@ import {
   BUNDLED_GOOGLE_CALENDAR_OAUTH_CLIENT_ID,
   BUNDLED_GOOGLE_CALENDAR_OAUTH_CLIENT_SECRET,
 } from "./config/bundledExternalServiceKeys";
-import { MissingConfigurationError } from "./lib/configurationError";
+import { isMissingConfigurationError } from "./lib/configurationError";
 
 /**
  * Point d'entree. Structure en fonction async (plutot que des imports
@@ -165,7 +165,7 @@ async function main() {
     // TOUTE l'application pour une simple fonctionnalite non configuree
     // serait disproportionne. Reserve l'arret complet (avec nettoyage
     // Postgres) aux erreurs vraiment inattendues.
-    if (error instanceof MissingConfigurationError) {
+    if (isMissingConfigurationError(error)) {
       console.error(
         `[fatal] ${kind} non rattrapee mais reconnue comme configuration manquante - process conserve en vie :`,
         error.message

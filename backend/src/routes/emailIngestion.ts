@@ -3,7 +3,7 @@ import crypto from "node:crypto";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
-import { MissingConfigurationError } from "../lib/configurationError";
+import { isMissingConfigurationError } from "../lib/configurationError";
 import { buildGmailAuthUrl, exchangeCodeForTokens, telechargerPieceJointe as telechargerPieceJointeGmail } from "../services/emailIngestion/gmailClient";
 import { testerConnexion as testerConnexionImap, telechargerPieceJointe as telechargerPieceJointeImap } from "../services/emailIngestion/imapClient";
 import { suggererDossiers } from "../services/emailIngestion/suggestionDossier";
@@ -72,7 +72,7 @@ emailIngestionRouter.get("/api/email-ingestion/gmail/connecter", requireAuth, (r
   try {
     return res.redirect(buildGmailAuthUrl(state));
   } catch (error) {
-    if (error instanceof MissingConfigurationError) {
+    if (isMissingConfigurationError(error)) {
       return res.status(503).json({ error: error.message });
     }
     throw error;

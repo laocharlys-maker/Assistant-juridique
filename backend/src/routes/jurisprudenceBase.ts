@@ -5,7 +5,7 @@ import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
 import { requireModule } from "../middleware/roles";
 import { embedText, toVectorLiteral } from "../services/embeddings";
-import { MissingConfigurationError } from "../lib/configurationError";
+import { isMissingConfigurationError } from "../lib/configurationError";
 
 export const jurisprudenceBaseRouter = Router();
 
@@ -76,7 +76,7 @@ jurisprudenceBaseRouter.post("/api/jurisprudence-base", requireAuth, async (req,
     // besoin quel que soit LLM_PROVIDER, voir embeddings.ts) distingue du
     // reste : message clair plutot que noye dans "echec de l'indexation",
     // qui laissait a tort penser a un probleme reseau/Postgres ponctuel.
-    if (error instanceof MissingConfigurationError) {
+    if (isMissingConfigurationError(error)) {
       console.error("[jurisprudence] indexation impossible, configuration manquante :", error.message);
       return res.status(503).json({
         error: "L'indexation de jurisprudence n'est pas configurée sur ce poste (clé API manquante). Contactez le support AzoMedIA.",

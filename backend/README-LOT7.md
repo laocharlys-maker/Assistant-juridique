@@ -59,11 +59,11 @@ obfuscation (confort de développement — **jamais** pour un binaire livré).
 | `selfDefending`, `debugProtection`, `deadCodeInjection` | `false` | Alourdissent fortement la taille et le temps de démarrage pour un gain de protection marginal face à un attaquant qui a de toute façon accès au binaire complet. |
 | `sourceMap` | `true` (séparé, non livré) | Pour pouvoir déboguer un crash de production sans exposer le mapping au client. |
 
-## 4. Trois bugs réels rencontrés (et corrigés) en testant le build complet
+## 4. Bugs réels rencontrés (et corrigés) en testant le build complet
 
 Conformément à la consigne de ce lot, l'obfuscation a été testée à chaque
 étape **dans le pipeline complet** (`npm run build:sea` de bout en bout,
-jamais l'obfuscation isolée) — ce qui a permis de trouver trois problèmes
+jamais l'obfuscation isolée) — ce qui a permis de trouver des problèmes
 qu'un test isolé n'aurait pas révélés.
 
 ### 4.1 — Obfuscer le bundle complet fait planter Node (out of memory)
@@ -98,6 +98,36 @@ prudent soit-il, ne peut pas couvrir par construction tous les cas réels.
 code source la liste **exacte** de tous les `require()`/`import()` réels du
 projet et les protège un par un (correspondance exacte, pas un motif
 deviné) — garantie déterministe plutôt que probabiliste.
+
+### 4.4 — `instanceof MissingConfigurationError` a échoué en production, faisant planter tout le process pour une simple clé API manquante (Lot 16)
+
+Un cabinet de test a vu le backend entier s'arrêter (`sidecar termine`,
+code 1) en générant un document sans `GEMINI_API_KEY`/`GROQ_API_KEY`
+configurée — alors que `services/llm/gemini.ts` lève délibérément un
+`MissingConfigurationError` (voir `lib/configurationError.ts`) et que
+`routes/webActions.ts` (`getLlmProviderSafe`) **et** `index.ts`
+(`handleFatalError`) sont censés le reconnaître via `instanceof` pour
+répondre `503` proprement plutôt que de tuer le process. Log réel
+(`%APPDATA%\Aurore\logs\aurore-shell.log`) :
+```
+[fatal] rejet de promesse non rattrapee - arret du process apres nettoyage : Error: GEMINI_API_KEY manquant
+```
+Un test unitaire (`instanceof` en Node pur, sans bundle) passe
+normalement, et une reproduction minimale du pipeline complet (obfuscation
+fichier par fichier + bundling esbuild, sur un cas synthétique identique
+en structure : classe levée dans un fichier atteint via un `import()`
+dynamique, comparée via `instanceof` dans un fichier statiquement importé)
+n'a **pas** reproduit l'échec isolément — la cause exacte (probablement une
+divergence d'identité de prototype propre à la combinaison réelle de
+fichiers/imports du projet, pas au mécanisme en général) reste donc non
+confirmée avec certitude. **Correction retenue, indépendante de la cause
+exacte** : `isMissingConfigurationError()` (`lib/configurationError.ts`)
+remplace tous les `instanceof MissingConfigurationError` nus — vérifie
+`instanceof` d'abord (chemin normal) puis, en repli, `error.name ===
+"MissingConfigurationError"`, une propriété posée directement sur
+l'instance dans le constructeur et donc insensible à toute divergence de
+prototype entre modules/bundles. Pattern standard pour des classes
+d'erreur personnalisées traversant des frontières de bundle/module.
 
 ## 5. Ce que l'obfuscation protège réellement (vérifié empiriquement)
 
