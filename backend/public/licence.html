@@ -47,6 +47,13 @@
       <textarea id="code-input" rows="4" placeholder="Collez ici le code fourni par AzoMedIA"></textarea>
 
       <button type="button" id="activate-btn" style="margin-top:14px; width:100%;">Activer la licence</button>
+
+      <div class="licence-divider">votre première demande ?</div>
+      <p class="muted" style="font-size:0.9rem;">Transmettez le code ci-dessous à AzoMedIA pour obtenir votre premier fichier de licence — il identifie ce poste précis.</p>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <code id="empreinte-machine" style="flex:1; word-break:break-all; padding:8px 10px; border-radius:8px; background:var(--hairline); font-size:0.8rem;">…</code>
+        <button type="button" id="copier-empreinte-btn" class="secondary btn-sm" style="white-space:nowrap;">Copier</button>
+      </div>
     </div>
 
     <div class="card" id="active-card" style="display:none;">
