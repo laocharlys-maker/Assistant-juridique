@@ -5,7 +5,7 @@ import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
 import { requireModule } from "../middleware/roles";
 import { getLlmProvider, LlmProvider } from "../services/llm";
-import { MissingConfigurationError } from "../lib/configurationError";
+import { isMissingConfigurationError } from "../lib/configurationError";
 import { logAuditStep } from "../services/audit";
 import { espace } from "../services/documentFormalisme";
 import { webActionFormSchema } from "../schemas/webForms";
@@ -417,7 +417,7 @@ function getLlmProviderSafe(res: Response): LlmProvider | null {
   try {
     return getLlmProvider();
   } catch (error) {
-    if (error instanceof MissingConfigurationError) {
+    if (isMissingConfigurationError(error)) {
       console.error("[llm] fournisseur IA non configure :", error.message);
       res.status(503).json({
         error: "La génération de documents par IA n'est pas configurée sur ce poste (clé API manquante). Contactez le support AzoMedIA.",

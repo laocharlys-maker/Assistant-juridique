@@ -3,7 +3,7 @@ import crypto from "node:crypto";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
-import { MissingConfigurationError } from "../lib/configurationError";
+import { isMissingConfigurationError } from "../lib/configurationError";
 import { buildGoogleAuthUrl, exchangeCodeForTokens } from "../services/calendrierSync/googleCalendar";
 import { decouvrirCalendrierPrincipal } from "../services/calendrierSync/caldav";
 
@@ -50,7 +50,7 @@ calendrierExterneRouter.get("/api/calendrier-externe/google/connecter", requireA
   try {
     return res.redirect(buildGoogleAuthUrl(state));
   } catch (error) {
-    if (error instanceof MissingConfigurationError) {
+    if (isMissingConfigurationError(error)) {
       return res.status(503).json({ error: error.message });
     }
     throw error;
