@@ -1,4 +1,3 @@
-import { env } from "../../config/env";
 import { actionOutputSchema, ActionOutput } from "../../schemas/action";
 import { LEGAL_ASSISTANT_SYSTEM_PROMPT, buildUserPrompt } from "../../prompts/legalAssistant";
 import { LlmProvider, LlmOutputError } from "./types";
@@ -123,8 +122,11 @@ export class GroqProvider implements LlmProvider {
 }
 
 export function createGroqProvider(): GroqProvider {
-  if (!env.GROQ_API_KEY) {
+  // process.env directement, pas env.GROQ_API_KEY (config/env.ts) - voir
+  // services/llm/index.ts, resolveLlmProvider() pour le detail.
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) {
     throw new MissingConfigurationError("GROQ_API_KEY manquant");
   }
-  return new GroqProvider(env.GROQ_API_KEY);
+  return new GroqProvider(apiKey);
 }

@@ -1,17 +1,29 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { env } from "../config/env";
 import { withTransientRetry } from "../lib/retry";
 import { MissingConfigurationError } from "../lib/configurationError";
 
 let client: GoogleGenerativeAI | null = null;
+let clientApiKey: string | undefined;
 
 function getClient(): GoogleGenerativeAI {
-  if (!env.GEMINI_API_KEY) {
+  // process.env directement, pas env.GEMINI_API_KEY (config/env.ts) - voir
+  // services/llm/index.ts, resolveLlmProvider() pour le detail (meme
+  // categorie de bug : cle bundlee posee sur process.env par index.ts en
+  // mode portable, mais potentiellement lue trop tot via le singleton
+  // fige `env`).
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
     throw new MissingConfigurationError(
       "GEMINI_API_KEY manquant : necessaire pour les embeddings (RAG jurisprudence), meme si LLM_PROVIDER n'est pas gemini."
     );
   }
-  if (!client) client = new GoogleGenerativeAI(env.GEMINI_API_KEY);
+  // Recree le client si la cle a change depuis la derniere fois (ex :
+  // absente au tout premier appel, puis renseignee) - jamais un client mis
+  // en cache avec une cle perimee/vide.
+  if (!client || clientApiKey !== apiKey) {
+    client = new GoogleGenerativeAI(apiKey);
+    clientApiKey = apiKey;
+  }
   return client;
 }
 
