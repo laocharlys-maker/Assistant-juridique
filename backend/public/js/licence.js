@@ -12,6 +12,8 @@ const codeInput = document.getElementById("code-input");
 const activateBtn = document.getElementById("activate-btn");
 const checkNowWrap = document.getElementById("check-now-wrap");
 const checkNowBtn = document.getElementById("check-now-btn");
+const empreinteMachineEl = document.getElementById("empreinte-machine");
+const copierEmpreinteBtn = document.getElementById("copier-empreinte-btn");
 
 let fileContent = null;
 
@@ -37,6 +39,8 @@ function renderStatus(status) {
   // service peut toujours etre recupere. Inutile si aucune licence n'a
   // jamais ete activee sur ce poste (rien a verifier).
   checkNowWrap.style.display = status.etat === "absente" ? "none" : "block";
+
+  empreinteMachineEl.textContent = status.empreinteMachine || "…";
 }
 
 async function loadStatus() {
@@ -142,6 +146,21 @@ checkNowBtn?.addEventListener("click", async () => {
   } finally {
     checkNowBtn.disabled = false;
     checkNowBtn.textContent = "Vérifier maintenant";
+  }
+});
+
+copierEmpreinteBtn?.addEventListener("click", async () => {
+  const valeur = empreinteMachineEl.textContent || "";
+  if (!valeur || valeur === "…") return;
+  try {
+    await navigator.clipboard.writeText(valeur);
+    const original = copierEmpreinteBtn.textContent;
+    copierEmpreinteBtn.textContent = "Copié ✓";
+    setTimeout(() => {
+      copierEmpreinteBtn.textContent = original;
+    }, 2000);
+  } catch {
+    showError(errorEl, "Impossible de copier automatiquement — sélectionnez et copiez le texte manuellement.");
   }
 });
 

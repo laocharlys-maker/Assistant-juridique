@@ -58,6 +58,14 @@ export interface LicenceStatus {
   payload: LicencePayload | null;
   joursRestantsGrace: number | null;
   messageUtilisateur: string;
+  /** Empreinte machine de CE poste (hash SHA-256, jamais l'identifiant
+   * materiel brut - voir machineFingerprint.ts) - exposee y compris quand
+   * aucune licence n'est encore active, pour que le cabinet puisse la
+   * copier-coller depuis l'ecran d'activation et la transmettre a AzoMedIA
+   * lors de la toute premiere demande de licence (voir public/licence.html
+   * et README aurore-licence-service, "empreinte machine : quand est-elle
+   * connue ?"). */
+  empreinteMachine: string;
 }
 
 // ============================================================================
@@ -279,6 +287,12 @@ const graceJoursConfigures = (): number => {
  * d'appel reseau ici (uniquement le fichier local + l'empreinte machine,
  * elle-meme mise en cache localement - voir machineFingerprint.ts). */
 export async function getCurrentLicenceStatus(): Promise<LicenceStatus> {
+  // Calculee en tout premier, y compris quand aucune licence n'existe
+  // encore : c'est la seule facon pour le cabinet de connaitre l'empreinte
+  // a transmettre a AzoMedIA pour sa toute premiere licence (voir le champ
+  // empreinteMachine ci-dessous, et README aurore-licence-service).
+  const fingerprint = await getMachineFingerprint();
+
   if (!fs.existsSync(licenceFilePath())) {
     return {
       etat: "absente",
@@ -286,6 +300,7 @@ export async function getCurrentLicenceStatus(): Promise<LicenceStatus> {
       payload: null,
       joursRestantsGrace: null,
       messageUtilisateur: "Aucune licence active. Activez Aurore avec le fichier de licence fourni par AzoMedIA.",
+      empreinteMachine: fingerprint,
     };
   }
 
@@ -300,6 +315,7 @@ export async function getCurrentLicenceStatus(): Promise<LicenceStatus> {
       payload: null,
       joursRestantsGrace: null,
       messageUtilisateur: "Le fichier de licence est invalide ou corrompu. Réactivez Aurore avec un fichier de licence valide.",
+      empreinteMachine: fingerprint,
     };
   }
 
@@ -311,10 +327,10 @@ export async function getCurrentLicenceStatus(): Promise<LicenceStatus> {
       payload: null,
       joursRestantsGrace: null,
       messageUtilisateur: "Le fichier de licence est invalide ou corrompu. Réactivez Aurore avec un fichier de licence valide.",
+      empreinteMachine: fingerprint,
     };
   }
 
-  const fingerprint = await getMachineFingerprint();
   const evaluation = evaluateLicenceState({
     payload: file.payload,
     machineFingerprint: fingerprint,
@@ -331,6 +347,7 @@ export async function getCurrentLicenceStatus(): Promise<LicenceStatus> {
     payload: file.payload,
     joursRestantsGrace: evaluation.joursRestantsGrace,
     messageUtilisateur: evaluation.messageUtilisateur,
+    empreinteMachine: fingerprint,
   };
 }
 
