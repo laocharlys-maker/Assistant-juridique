@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aurore — Boîte mail externe</title>
+  <link rel="icon" type="image/png" href="/favicon-256.png" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="page">
+    <p><a href="/profil.html">&larr; Retour à mon profil</a></p>
+    <div class="page-hero">
+      <div class="eyebrow">Compte</div>
+      <h1>Boîte mail externe</h1>
+      <p>Connecte ta boîte mail pour retrouver dans Aurore les pièces jointes et rendez-vous proposés par email, dans l'écran « Boîte de réception ». Aucun email n'est jamais importé automatiquement — tu choisis à chaque fois quoi faire. Connexion individuelle, jamais un compte cabinet partagé.</p>
+    </div>
+
+    <div id="info" class="muted" style="display:none; margin-bottom:14px;"></div>
+    <div id="error" class="error"></div>
+
+    <div class="settings-grid">
+      <div class="settings-card">
+        <div class="icon-badge"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 6-10 7L2 6"/></svg></div>
+        <h3>Gmail</h3>
+        <p class="desc">Connexion OAuth2 — ton propre compte Google, lecture seule (aucun email n'est jamais modifié ou supprimé).</p>
+        <div id="gmail-status"><p class="muted">Chargement…</p></div>
+      </div>
+
+      <div class="settings-card">
+        <div class="icon-badge"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 6-10 7L2 6"/></svg></div>
+        <h3>Boîte IMAP</h3>
+        <p class="desc">Tout autre fournisseur compatible IMAP (Outlook.com, boîte du cabinet, etc.) — un seul formulaire.</p>
+        <div id="imap-status"><p class="muted">Chargement…</p></div>
+        <form id="imap-form" style="margin-top:10px;">
+          <label>Serveur IMAP</label>
+          <input name="imapHost" placeholder="ex: imap.exemple.com" required />
+          <label>Port</label>
+          <input name="imapPort" type="number" value="993" required />
+          <label><input name="imapSecure" type="checkbox" checked style="width:auto; display:inline-block;" /> Connexion sécurisée (TLS)</label>
+          <label>Identifiant</label>
+          <input name="imapUsername" required placeholder="ex: toi@exemple.com" />
+          <label>Mot de passe (ou mot de passe d'application selon le fournisseur)</label>
+          <input name="imapPassword" type="password" required />
+          <button type="submit" class="btn-sm">Connecter</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  <script src="/js/api.js"></script>
+  <script src="/js/layout.js"></script>
+  <script src="/js/parametres-email.js"></script>
+</body>
+</html>

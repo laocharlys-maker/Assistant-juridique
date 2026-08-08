@@ -403,6 +403,12 @@ async function main() {
     // toutes les 2 minutes, independant du mode de base de donnees.
     const { scheduleSyncQueue } = await import("./services/calendrierSync/syncQueue");
     scheduleSyncQueue();
+
+    // Lot 16 : polling des boites mail connectees (Gmail/IMAP) - toutes les
+    // 5 minutes, independant du mode de base de donnees. Ne cree jamais rien
+    // automatiquement (voir services/emailIngestion/polling.ts).
+    const { scheduleEmailPolling } = await import("./services/emailIngestion/polling");
+    scheduleEmailPolling();
   } catch (error) {
     if (stopPortableDatabase) {
       console.error("Echec du demarrage apres l'ouverture de Postgres portable - arret de Postgres avant de quitter...");

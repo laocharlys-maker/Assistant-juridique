@@ -25,6 +25,7 @@ import { evenementsRouter } from "./routes/evenements";
 import { calendrierExterneRouter } from "./routes/calendrierExterne";
 import { saisiesTempsRouter } from "./routes/saisiesTemps";
 import { documentsDossierRouter } from "./routes/documentsDossier";
+import { emailIngestionRouter } from "./routes/emailIngestion";
 import { huissiersRouter } from "./routes/huissiers";
 import { adminRouter } from "./routes/admin";
 import { licenceRouter } from "./routes/licence";
@@ -91,6 +92,7 @@ app.use(evenementsRouter);
 app.use(calendrierExterneRouter);
 app.use(saisiesTempsRouter);
 app.use(documentsDossierRouter);
+app.use(emailIngestionRouter);
 app.use(huissiersRouter);
 app.use(adminRouter);
 app.use(

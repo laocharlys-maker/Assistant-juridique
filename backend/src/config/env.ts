@@ -46,6 +46,14 @@ const envSchema = z
     // Google Cloud Console (ex: http://127.0.0.1:3000/api/calendrier-externe/google/callback).
     GOOGLE_CALENDAR_OAUTH_REDIRECT_URI: z.string().optional(),
 
+    // Lot 16 : redirect_uri du flux OAuth Gmail (ingestion email) - route
+    // DISTINCTE de celle du calendrier ci-dessus (scope gmail.readonly, pas
+    // calendar.events), meme si le MEME client OAuth Google Cloud
+    // (GOOGLE_CALENDAR_OAUTH_CLIENT_ID/SECRET ci-dessus) est reutilise -
+    // voir README-LOT16.md. Doit correspondre EXACTEMENT a l'URI de
+    // redirection autorisee dans Google Cloud Console.
+    GMAIL_INGESTION_OAUTH_REDIRECT_URI: z.string().optional(),
+
     // SMTP (Brevo) - envoi direct des documents et emails, canal externe
     // unique (voir README-LOT8TER.md - l'ancien circuit n8n est retire).
     // Adresse d'expedition unique pour tous les cabinets (domaine Aurore

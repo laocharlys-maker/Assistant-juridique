@@ -111,6 +111,10 @@ enum SourceEvenement {
   delai_calcule
   sync_google
   sync_caldav
+  // Lot 16 : cree a partir d'une date detectee dans le corps d'un email,
+  // TOUJOURS apres confirmation/correction explicite de l'utilisateur dans
+  // l'ecran "Boite de reception" - jamais automatique (voir README-LOT16.md).
+  email
 }
 
 model Cabinet {
@@ -311,6 +315,10 @@ model User {
   // Lot 15 : pieces uploadees par CET utilisateur.
   documentsUploades DocumentDossier[]
 
+  // Lot 16 : boites mail connectees par CET utilisateur (OAuth2 Gmail
+  // individuel, ou identifiants IMAP - jamais un compte cabinet partage).
+  connexionsEmailExterne ConnexionEmailExterne[]
+
   @@index([cabinetId])
   @@map("users")
 }
@@ -481,21 +489,120 @@ model DocumentDossier {
   // genere a l'upload, jamais previsible/le nom d'origine (evite collisions
   // et fuite d'information via le nom de fichier - contrainte du prompt).
   nomFichier   String  @map("nom_fichier")
-  // "upload" (V1, seule valeur utilisee dans ce lot) - "email" prevu pour
-  // le Lot 16 (import depuis une boite mail), avec emailOrigineId alors
-  // renseigne. Aucune dependance creee vers un quelconque modele Email ici.
+  // "upload" (saisie manuelle, Lot 15) ou "email" (import assiste depuis
+  // une boite mail connectee, Lot 16 - emailOrigineId alors renseigne).
   source         String  @default("upload")
+  // Lot 16 : lien reel vers l'email source, ajoute maintenant que
+  // EmailImporte existe (prevu nullable des le Lot 15, sans dependance
+  // creee a l'epoque - voir README-LOT15.md et README-LOT16.md). SetNull
+  // (pas Cascade) : la suppression d'un EmailImporte (ex: purge future) ne
+  // doit jamais entrainer la suppression d'une piece deja importee.
   emailOrigineId String? @map("email_origine_id")
   uploadeParId   String  @map("uploade_par_id")
   createdAt      DateTime @default(now()) @map("created_at")
 
-  cabinet     Cabinet @relation(fields: [cabinetId], references: [id])
-  dossier     Dossier @relation(fields: [dossierId], references: [id])
-  uploadePar  User    @relation(fields: [uploadeParId], references: [id])
+  cabinet      Cabinet       @relation(fields: [cabinetId], references: [id])
+  dossier      Dossier       @relation(fields: [dossierId], references: [id])
+  uploadePar   User          @relation(fields: [uploadeParId], references: [id])
+  emailOrigine EmailImporte? @relation(fields: [emailOrigineId], references: [id], onDelete: SetNull)
 
   @@index([dossierId])
   @@index([cabinetId])
   @@map("documents_dossier")
+}
+
+// Lot 16 : mailbox connectee par un utilisateur (OAuth2 Gmail individuel,
+// ou identifiants IMAP generiques pour les autres fournisseurs) - jamais un
+// compte cabinet partage, meme principe que ConnexionCalendrierExterne
+// (Lot 12b), delibrement SEPAREE de celle-ci (scopes OAuth differents,
+// couplage juge non souhaitable pour cette V1 - voir README-LOT16.md).
+enum ProviderEmailExterne {
+  gmail
+  imap
+}
+
+enum StatutEmailImporte {
+  nouveau
+  traite
+}
+
+model ConnexionEmailExterne {
+  id       String               @id @default(uuid())
+  userId   String               @map("user_id")
+  provider ProviderEmailExterne
+
+  // --- Gmail (OAuth2) --- [chiffre-au-repos pour access_token/refresh_token]
+  accessToken    String?   @map("access_token")
+  refreshToken   String?   @map("refresh_token")
+  tokenExpiresAt DateTime? @map("token_expires_at")
+  // Adresse Gmail connectee (affichage uniquement, ex. "Connecte : x@gmail.com").
+  adresseEmail   String?   @map("adresse_email")
+
+  // --- IMAP generique --- [chiffre-au-repos pour imap_password]
+  imapHost     String?  @map("imap_host")
+  imapPort     Int?     @map("imap_port")
+  imapSecure   Boolean  @default(true) @map("imap_secure")
+  imapUsername String?  @map("imap_username")
+  imapPassword String?  @map("imap_password")
+
+  // Curseur de polling : dernier identifiant de message deja recupere
+  // (Gmail messageId le plus recent, ou UID IMAP le plus eleve) - evite de
+  // re-lister les emails deja vus a chaque cycle node-cron.
+  dernierIdentifiantSynchronise String? @map("dernier_identifiant_synchronise")
+
+  actif          Boolean  @default(true)
+  derniereErreur String?  @map("derniere_erreur")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  user   User           @relation(fields: [userId], references: [id])
+  emails EmailImporte[]
+
+  @@unique([userId, provider])
+  @@map("connexions_email_externe")
+}
+
+// Metadonnees d'un email recupere par polling - JAMAIS le corps complet du
+// texte (voir dateDetecteeContexte ci-dessous : un court extrait autour de
+// la date detectee uniquement, pas le message entier - contrainte du
+// prompt "ne jamais logger le contenu complet d'un email"). Les pieces
+// jointes ne sont PAS telechargees/stockees au moment du polling : seule
+// leur metadonnee (nom, type, taille, identifiant cote fournisseur) est
+// conservee ici ; le contenu binaire n'est recupere qu'a la confirmation
+// explicite d'import (voir routes/emailIngestion.ts), jamais avant.
+model EmailImporte {
+  id                 String   @id @default(uuid())
+  connexionId        String   @map("connexion_id")
+  cabinetId          String   @map("cabinet_id")
+  // Identifiant du message cote fournisseur (Gmail messageId, ou UID IMAP) -
+  // garantit qu'un meme email n'est jamais liste deux fois.
+  identifiantExterne String   @map("identifiant_externe")
+  expediteurEmail    String   @map("expediteur_email")
+  expediteurNom      String?  @map("expediteur_nom")
+  objet              String?
+  dateReception      DateTime @map("date_reception")
+  // Metadonnees des pieces jointes detectees : [{ id, nomFichier, typeMime,
+  // tailleOctets }] - "id" est l'identifiant cote fournisseur (attachmentId
+  // Gmail, ou index de partie IMAP), utilise pour re-recuperer le contenu
+  // binaire uniquement au moment de la confirmation d'import.
+  piecesJointes      Json?    @map("pieces_jointes")
+  // Date/heure detectee localement dans le corps (voir detectionDate.ts) -
+  // proposee a l'utilisateur, jamais utilisee seule pour creer un Evenement.
+  dateDetectee          DateTime? @map("date_detectee")
+  // Court extrait de contexte autour de la date detectee (ex: "...le 12 a
+  // 10h au tribunal...", quelques dizaines de caracteres) - PAS le corps
+  // complet du message, uniquement pour que l'utilisateur comprenne d'ou
+  // vient la suggestion avant de confirmer.
+  dateDetecteeContexte  String?   @map("date_detectee_contexte")
+  statut             StatutEmailImporte @default(nouveau)
+  createdAt          DateTime           @default(now()) @map("created_at")
+
+  connexion ConnexionEmailExterne @relation(fields: [connexionId], references: [id], onDelete: Cascade)
+  documentsImportes DocumentDossier[]
+
+  @@unique([connexionId, identifiantExterne])
+  @@index([cabinetId])
+  @@map("emails_importes")
 }
 
 // Role de la semaine : audiences a venir (une par ligne), saisies

@@ -39,6 +39,15 @@ const ENCRYPTED_FIELDS_BY_MODEL: Record<string, Record<string, "string" | "json"
     refreshToken: "string",
     caldavPassword: "string",
   },
+  // Lot 16 : tokens OAuth2 Gmail et mot de passe IMAP - meme pattern que
+  // ConnexionCalendrierExterne ci-dessus. adresseEmail/imapHost/imapPort/
+  // imapSecure/imapUsername NE sont PAS chiffres : non secrets (juste de la
+  // configuration, affichee telle quelle a l'ecran "Paramètres > Emails").
+  ConnexionEmailExterne: {
+    accessToken: "string",
+    refreshToken: "string",
+    imapPassword: "string",
+  },
 };
 
 interface RelationInfo {
