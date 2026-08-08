@@ -1,5 +1,4 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { env } from "../../config/env";
 import { actionOutputSchema, actionOutputJsonSchema, ActionOutput } from "../../schemas/action";
 import { LEGAL_ASSISTANT_SYSTEM_PROMPT, buildUserPrompt } from "../../prompts/legalAssistant";
 import { LlmProvider, LlmOutputError } from "./types";
@@ -61,8 +60,11 @@ export class GeminiProvider implements LlmProvider {
 }
 
 export function createGeminiProvider(): GeminiProvider {
-  if (!env.GEMINI_API_KEY) {
+  // process.env directement, pas env.GEMINI_API_KEY (config/env.ts) - voir
+  // services/llm/index.ts, resolveLlmProvider() pour le detail.
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
     throw new MissingConfigurationError("GEMINI_API_KEY manquant");
   }
-  return new GeminiProvider(env.GEMINI_API_KEY);
+  return new GeminiProvider(apiKey);
 }

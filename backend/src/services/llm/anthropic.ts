@@ -1,5 +1,4 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { env } from "../../config/env";
 import { actionOutputSchema, actionOutputJsonSchema, ActionOutput } from "../../schemas/action";
 import { LEGAL_ASSISTANT_SYSTEM_PROMPT, buildUserPrompt } from "../../prompts/legalAssistant";
 import { LlmProvider, LlmOutputError } from "./types";
@@ -76,8 +75,11 @@ export class AnthropicProvider implements LlmProvider {
 }
 
 export function createAnthropicProvider(): AnthropicProvider {
-  if (!env.ANTHROPIC_API_KEY) {
+  // process.env directement, pas env.ANTHROPIC_API_KEY (config/env.ts) -
+  // voir services/llm/index.ts, resolveLlmProvider() pour le detail.
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
     throw new MissingConfigurationError("ANTHROPIC_API_KEY manquant");
   }
-  return new AnthropicProvider(env.ANTHROPIC_API_KEY);
+  return new AnthropicProvider(apiKey);
 }
