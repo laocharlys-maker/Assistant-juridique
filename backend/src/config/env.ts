@@ -60,6 +60,11 @@ const envSchema = z
     SESSION_SECRET: z
       .string()
       .min(16, "SESSION_SECRET doit faire au moins 16 caracteres (voir .env.example)"),
+
+    // Lot 15 : taille maximale (en Mo) d'une piece uploadee sur un dossier
+    // (services/stockageDocuments.ts, routes/documentsDossier.ts) - defaut
+    // raisonnable pour un usage documentaire cabinet (scans, correspondances).
+    DOCUMENTS_TAILLE_MAX_MO: z.coerce.number().positive().default(20),
   });
 // Pas de superRefine imposant la cle du LLM_PROVIDER actif : ce serait
 // redondant avec la garde deja presente dans chaque fabrique de provider

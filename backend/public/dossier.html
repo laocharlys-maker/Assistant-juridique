@@ -269,6 +269,7 @@
             }
           </div>
           <div id="timer-section"></div>
+          <div id="pieces-section"></div>
           <div id="delais-section"></div>
           <div id="agenda-section"></div>
           <h2>Historique (${dossier.actions.length})</h2>
@@ -277,6 +278,7 @@
 
         if (!currentDossierEstRecherche) {
           initTimerWidget(id, me);
+          loadPiecesDossier(id);
           loadDelaisDossier(id);
           loadAgendaDossier(id);
         }
@@ -589,6 +591,184 @@
       echeance_proche: "échéance proche",
       cloture: "clôturé",
     };
+
+    // Lot 15 - onglet "Pièces" : liste + upload par glisser-déposer +
+    // aperçu inline (PDF/images) + téléchargement/suppression. Le fichier
+    // est lu côté navigateur (FileReader -> Data URL base64) et envoyé en
+    // JSON, même mécanisme déjà utilisé dans l'app pour l'en-tête/la
+    // signature (public/parametres.html, profil.html) - pas de nouvelle
+    // dépendance d'upload (multer) ajoutée pour ça, voir README-LOT15.md.
+    const TYPE_ICONES_PIECES = {
+      "application/pdf": "📄",
+      "application/msword": "📝",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "📝",
+      "text/plain": "📃",
+    };
+
+    function iconePiece(typeMime) {
+      if (typeMime.startsWith("image/")) return "🖼️";
+      return TYPE_ICONES_PIECES[typeMime] || "📎";
+    }
+
+    function formatTaille(octets) {
+      if (octets < 1024) return `${octets} o`;
+      if (octets < 1024 * 1024) return `${(octets / 1024).toFixed(1)} Ko`;
+      return `${(octets / (1024 * 1024)).toFixed(1)} Mo`;
+    }
+
+    let piecesDossierCourant = [];
+    let piecesDossierId = null;
+
+    async function loadPiecesDossier(dossierId) {
+      const section = document.getElementById("pieces-section");
+      if (!section) return;
+      piecesDossierId = dossierId;
+
+      section.innerHTML = `
+        <div class="card">
+          <h2 style="margin-top:0;">Pièces</h2>
+          <div id="pieces-dropzone" class="pieces-dropzone">
+            Glisse un fichier ici, ou <label class="pieces-file-label">clique pour en choisir un<input type="file" id="pieces-file-input" hidden /></label>
+            <p class="muted" style="margin:4px 0 0;">PDF, images, Word, texte — 20 Mo max par fichier.</p>
+          </div>
+          <p class="error" id="pieces-upload-error"></p>
+          <div id="pieces-list" style="margin-top:12px;"><p class="muted">Chargement…</p></div>
+        </div>`;
+
+      wirePiecesUpload();
+      await rafraichirPiecesListe();
+    }
+
+    async function rafraichirPiecesListe() {
+      const listEl = document.getElementById("pieces-list");
+      if (!listEl) return;
+      try {
+        piecesDossierCourant = await apiFetch(`/api/dossiers/${piecesDossierId}/documents`);
+      } catch (err) {
+        listEl.innerHTML = `<p class="error visible">${escapeHtml(err.message)}</p>`;
+        return;
+      }
+
+      if (piecesDossierCourant.length === 0) {
+        listEl.innerHTML = '<p class="muted">Aucune pièce déposée pour l\'instant.</p>';
+        return;
+      }
+
+      listEl.innerHTML = piecesDossierCourant
+        .map((d) => {
+          const apercuPossible = d.typeMime === "application/pdf" || d.typeMime.startsWith("image/");
+          const peutSupprimer = d.uploadePar.id === me.id || me.role === "titulaire" || me.role === "avocat";
+          return `
+          <div class="action-item">
+            <span class="tag">${iconePiece(d.typeMime)} ${escapeHtml(d.nomOriginal)}</span>
+            <div class="muted">${formatTaille(d.tailleOctets)} — ajouté par ${escapeHtml(d.uploadePar.nom)} le ${new Date(d.createdAt).toLocaleString("fr-FR")}</div>
+            <div style="margin-top:6px; display:flex; gap:8px; flex-wrap:wrap;">
+              ${apercuPossible ? `<button type="button" class="ghost btn-sm" data-piece-apercu="${d.id}" data-piece-type="${d.typeMime}">Aperçu</button>` : ""}
+              <button type="button" class="ghost btn-sm" data-piece-telecharger="${d.id}" data-piece-nom="${escapeHtml(d.nomOriginal)}">Télécharger</button>
+              ${peutSupprimer ? `<button type="button" class="ghost btn-sm" data-piece-supprimer="${d.id}">Supprimer</button>` : ""}
+            </div>
+            <div id="piece-preview-${d.id}" hidden style="margin-top:8px;"></div>
+          </div>`;
+        })
+        .join("");
+
+      listEl.querySelectorAll("[data-piece-apercu]").forEach((btn) => {
+        btn.addEventListener("click", () => apercevoirPiece(btn.dataset.pieceApercu, btn.dataset.pieceType));
+      });
+      listEl.querySelectorAll("[data-piece-telecharger]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          try {
+            await downloadFile(`/api/documents/${btn.dataset.pieceTelecharger}`, btn.dataset.pieceNom);
+          } catch (err) {
+            alert(err.message);
+          }
+        });
+      });
+      listEl.querySelectorAll("[data-piece-supprimer]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          if (!confirm("Supprimer définitivement cette pièce ?")) return;
+          try {
+            await apiFetch(`/api/documents/${btn.dataset.pieceSupprimer}`, { method: "DELETE" });
+            await rafraichirPiecesListe();
+          } catch (err) {
+            alert(err.message);
+          }
+        });
+      });
+    }
+
+    // Apercu inline (jamais window.open/target="_blank" - sans effet dans
+    // la webview desktop Tauri, voir le commentaire detaille dans
+    // js/api.js) : fetch + blob + <img>/<iframe> directement dans la page,
+    // meme mecanisme que le telechargement (downloadFile) sans declencher
+    // la boite de dialogue "Enregistrer".
+    async function apercevoirPiece(id, typeMime) {
+      const previewEl = document.getElementById(`piece-preview-${id}`);
+      if (!previewEl) return;
+      if (!previewEl.hidden) {
+        previewEl.hidden = true;
+        previewEl.innerHTML = "";
+        return;
+      }
+      try {
+        const response = await fetch(`/api/documents/${id}?inline=1`, { credentials: "include" });
+        if (!response.ok) throw new Error("Aperçu indisponible.");
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        previewEl.innerHTML = typeMime.startsWith("image/")
+          ? `<img src="${url}" style="max-width:100%; border-radius:8px;" />`
+          : `<iframe src="${url}" style="width:100%; height:500px; border:1px solid var(--border); border-radius:8px;"></iframe>`;
+        previewEl.hidden = false;
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    function wirePiecesUpload() {
+      const dropzone = document.getElementById("pieces-dropzone");
+      const fileInput = document.getElementById("pieces-file-input");
+      if (!dropzone || !fileInput) return;
+
+      fileInput.addEventListener("change", () => {
+        if (fileInput.files[0]) uploadPiece(fileInput.files[0]);
+        fileInput.value = "";
+      });
+
+      dropzone.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        dropzone.classList.add("pieces-dropzone-active");
+      });
+      dropzone.addEventListener("dragleave", () => {
+        dropzone.classList.remove("pieces-dropzone-active");
+      });
+      dropzone.addEventListener("drop", (e) => {
+        e.preventDefault();
+        dropzone.classList.remove("pieces-dropzone-active");
+        const fichier = e.dataTransfer.files[0];
+        if (fichier) uploadPiece(fichier);
+      });
+    }
+
+    function uploadPiece(fichier) {
+      const errorEl = document.getElementById("pieces-upload-error");
+      errorEl.textContent = "";
+      const reader = new FileReader();
+      reader.onload = async () => {
+        try {
+          await apiFetch(`/api/dossiers/${piecesDossierId}/documents`, {
+            method: "POST",
+            body: { nom: fichier.name, fichierDataUrl: reader.result },
+          });
+          await rafraichirPiecesListe();
+        } catch (err) {
+          errorEl.textContent = err.message;
+        }
+      };
+      reader.onerror = () => {
+        errorEl.textContent = "Impossible de lire ce fichier.";
+      };
+      reader.readAsDataURL(fichier);
+    }
 
     // Affiche les délais de procédure calculés et rattachés à ce dossier -
     // module payant, peut être désactivé pour le cabinet (403) : dans ce

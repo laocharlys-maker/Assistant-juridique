@@ -200,6 +200,7 @@ model Cabinet {
   huissiers     Huissier[]
   evenements    Evenement[]
   saisiesTemps  SaisieTemps[]
+  documents     DocumentDossier[]
 
   @@map("cabinets")
 }
@@ -306,6 +307,9 @@ model User {
   // Lot 14 : temps enregistre par CET utilisateur (chronometre ou saisie
   // manuelle).
   saisiesTemps SaisieTemps[]
+
+  // Lot 15 : pieces uploadees par CET utilisateur.
+  documentsUploades DocumentDossier[]
 
   @@index([cabinetId])
   @@map("users")
@@ -449,11 +453,49 @@ model Dossier {
   roleAudiences RoleAudience[]
   evenements    Evenement[]
   saisiesTemps  SaisieTemps[]
+  documents     DocumentDossier[]
 
   @@unique([cabinetId, numeroDossier])
   @@index([clientId])
   @@index([archivedAt])
   @@map("dossiers")
+}
+
+// Lot 15 : piece stockee et rattachee a un dossier (contrat scanne,
+// correspondance, preuve, piece d'identite...) - independant de tout acte
+// genere par Aurore (Action.contenuGenere). Le fichier lui-meme vit sur
+// disque, chiffre (voir services/stockageDocuments.ts) : cette table ne
+// contient JAMAIS le contenu binaire, uniquement des metadonnees et le nom
+// du fichier chiffre sur disque.
+model DocumentDossier {
+  id           String  @id @default(uuid())
+  cabinetId    String  @map("cabinet_id")
+  dossierId    String  @map("dossier_id")
+  // Nom d'origine tel qu'uploade (metadonnee d'affichage uniquement) -
+  // jamais utilise pour nommer le fichier sur disque (voir nomFichier).
+  nomOriginal  String  @map("nom_original")
+  typeMime     String  @map("type_mime")
+  tailleOctets Int     @map("taille_octets")
+  // Nom du fichier CHIFFRE sur disque, dans le dossier de ce DocumentDossier
+  // (voir stockageDocuments.ts, dossierDocumentsDir(dossierId)) - un UUID
+  // genere a l'upload, jamais previsible/le nom d'origine (evite collisions
+  // et fuite d'information via le nom de fichier - contrainte du prompt).
+  nomFichier   String  @map("nom_fichier")
+  // "upload" (V1, seule valeur utilisee dans ce lot) - "email" prevu pour
+  // le Lot 16 (import depuis une boite mail), avec emailOrigineId alors
+  // renseigne. Aucune dependance creee vers un quelconque modele Email ici.
+  source         String  @default("upload")
+  emailOrigineId String? @map("email_origine_id")
+  uploadeParId   String  @map("uploade_par_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  cabinet     Cabinet @relation(fields: [cabinetId], references: [id])
+  dossier     Dossier @relation(fields: [dossierId], references: [id])
+  uploadePar  User    @relation(fields: [uploadeParId], references: [id])
+
+  @@index([dossierId])
+  @@index([cabinetId])
+  @@map("documents_dossier")
 }
 
 // Role de la semaine : audiences a venir (une par ligne), saisies

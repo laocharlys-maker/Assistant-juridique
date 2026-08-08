@@ -196,6 +196,23 @@ CREATE TABLE "dossiers" (
 );
 
 -- CreateTable
+CREATE TABLE "documents_dossier" (
+    "id" TEXT NOT NULL,
+    "cabinet_id" TEXT NOT NULL,
+    "dossier_id" TEXT NOT NULL,
+    "nom_original" TEXT NOT NULL,
+    "type_mime" TEXT NOT NULL,
+    "taille_octets" INTEGER NOT NULL,
+    "nom_fichier" TEXT NOT NULL,
+    "source" TEXT NOT NULL DEFAULT 'upload',
+    "email_origine_id" TEXT,
+    "uploade_par_id" TEXT NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "documents_dossier_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "role_audiences" (
     "id" TEXT NOT NULL,
     "cabinet_id" TEXT NOT NULL,
@@ -441,6 +458,12 @@ CREATE INDEX "dossiers_archived_at_idx" ON "dossiers"("archived_at");
 CREATE UNIQUE INDEX "dossiers_cabinet_id_numero_dossier_key" ON "dossiers"("cabinet_id", "numero_dossier");
 
 -- CreateIndex
+CREATE INDEX "documents_dossier_dossier_id_idx" ON "documents_dossier"("dossier_id");
+
+-- CreateIndex
+CREATE INDEX "documents_dossier_cabinet_id_idx" ON "documents_dossier"("cabinet_id");
+
+-- CreateIndex
 CREATE INDEX "role_audiences_cabinet_id_idx" ON "role_audiences"("cabinet_id");
 
 -- CreateIndex
@@ -541,6 +564,15 @@ ALTER TABLE "dossiers" ADD CONSTRAINT "dossiers_client_id_fkey" FOREIGN KEY ("cl
 
 -- AddForeignKey
 ALTER TABLE "dossiers" ADD CONSTRAINT "dossiers_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "documents_dossier" ADD CONSTRAINT "documents_dossier_cabinet_id_fkey" FOREIGN KEY ("cabinet_id") REFERENCES "cabinets"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "documents_dossier" ADD CONSTRAINT "documents_dossier_dossier_id_fkey" FOREIGN KEY ("dossier_id") REFERENCES "dossiers"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "documents_dossier" ADD CONSTRAINT "documents_dossier_uploade_par_id_fkey" FOREIGN KEY ("uploade_par_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "role_audiences" ADD CONSTRAINT "role_audiences_cabinet_id_fkey" FOREIGN KEY ("cabinet_id") REFERENCES "cabinets"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

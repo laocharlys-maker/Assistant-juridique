@@ -24,6 +24,7 @@ import { roleAudiencesRouter } from "./routes/roleAudiences";
 import { evenementsRouter } from "./routes/evenements";
 import { calendrierExterneRouter } from "./routes/calendrierExterne";
 import { saisiesTempsRouter } from "./routes/saisiesTemps";
+import { documentsDossierRouter } from "./routes/documentsDossier";
 import { huissiersRouter } from "./routes/huissiers";
 import { adminRouter } from "./routes/admin";
 import { licenceRouter } from "./routes/licence";
@@ -44,7 +45,13 @@ app.set("trust proxy", 1);
 // requete inutilement, en particulier sur des connexions lentes.
 app.use(compression());
 
-app.use(express.json({ limit: "15mb" }));
+// Lot 15 : releve de 15mb a 30mb pour laisser de la place aux pieces jointes
+// de dossier envoyees en base64 (surcout d'encodage ~33%, voir
+// routes/documentsDossier.ts) - la limite metier reelle par fichier reste
+// DOCUMENTS_TAILLE_MAX_MO (20 Mo par defaut), verifiee explicitement cote
+// route sur le contenu DECODE, ce plafond JSON n'etant qu'un garde-fou de
+// transport avec de la marge.
+app.use(express.json({ limit: "30mb" }));
 app.use("/api", globalApiLimiter);
 app.use(cookieParser());
 app.use(healthRouter);
@@ -83,6 +90,7 @@ app.use(roleAudiencesRouter);
 app.use(evenementsRouter);
 app.use(calendrierExterneRouter);
 app.use(saisiesTempsRouter);
+app.use(documentsDossierRouter);
 app.use(huissiersRouter);
 app.use(adminRouter);
 app.use(
