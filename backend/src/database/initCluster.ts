@@ -15,6 +15,7 @@ import {
   type PortablePostgresCredentials,
 } from "./credentialsStore";
 import { pgExecutable, credentialsFilePath, portableSchemaSqlFile } from "./portablePaths";
+import { marquerMigrationsCommeAppliquees } from "./applyPendingMigrations";
 
 export interface InitClusterOptions {
   binDir: string;
@@ -151,6 +152,19 @@ export async function ensureClusterInitialized(options: InitClusterOptions): Pro
       [...connArgs, "-d", options.database, "-c", `GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO ${credentials.appUser};`],
       superuserEnv
     );
+
+    // portable-init.sql (juste applique ci-dessus) contient deja la
+    // totalite des migrations existantes au moment du build - les marquer
+    // "appliquees" sans les rejouer, pour que les MISES A JOUR futures de ce
+    // cluster (voir applyPendingMigrations.ts) sachent qu'elles n'ont pas
+    // besoin d'etre rejouees non plus.
+    console.log("[postgres-init] enregistrement des migrations deja incluses dans le schema initial...");
+    marquerMigrationsCommeAppliquees({
+      host: options.host,
+      port: options.port,
+      database: options.database,
+      credentials,
+    });
 
     fs.writeFileSync(provisioningMarkerFile(options.dataDir), new Date().toISOString());
     console.log("[postgres-init] cluster initialise avec succes.");

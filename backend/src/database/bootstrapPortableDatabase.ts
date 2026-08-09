@@ -2,6 +2,7 @@ import { ensureClusterInitialized } from "./initCluster";
 import { startPortablePostgres, stopPortablePostgres } from "./postgresPortable";
 import { buildDatabaseUrl } from "./credentialsStore";
 import { pgBinDir, pgDataDir, pgLogFile, portableSettingsFromEnv } from "./portablePaths";
+import { applyPendingMigrations } from "./applyPendingMigrations";
 
 export interface PortableDatabaseHandle {
   databaseUrl: string;
@@ -31,6 +32,12 @@ export async function bootstrapPortableDatabase(): Promise<PortableDatabaseHandl
 
   const credentials = await ensureClusterInitialized({ binDir, dataDir, logFile, host, port, database });
   await startPortablePostgres({ binDir, dataDir, logFile, host, port });
+
+  // Rattrape les mises a jour de schema qu'une installation EXISTANTE
+  // n'aurait pas encore recues (voir applyPendingMigrations.ts) - no-op
+  // rapide si tout est deja a jour, ce qui est le cas courant a chaque
+  // demarrage normal.
+  await applyPendingMigrations({ host, port, database, credentials });
 
   return {
     databaseUrl: buildDatabaseUrl(credentials),

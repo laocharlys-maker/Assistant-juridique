@@ -488,6 +488,17 @@ function copyCompanionFiles() {
     fs.copyFileSync(portableSchemaSql, path.join(OUT, "prisma", "portable-init.sql"));
   }
 
+  // Migrations incrementales (voir src/database/applyPendingMigrations.ts) -
+  // portable-init.sql ci-dessus ne sert qu'a la toute premiere
+  // initialisation d'un cluster neuf ; ce dossier permet a une installation
+  // EXISTANTE (mise a jour depuis une version anterieure) de recevoir les
+  // tables/colonnes ajoutees depuis, sans quoi le backend plante au
+  // demarrage suivant sur la premiere requete touchant le nouvel objet.
+  const migrationsDir = path.join(ROOT, "prisma", "migrations");
+  if (fs.existsSync(migrationsDir)) {
+    copyDir(migrationsDir, path.join(OUT, "prisma", "migrations"));
+  }
+
   const envFile = path.join(ROOT, ".env");
   if (fs.existsSync(envFile)) {
     fs.copyFileSync(envFile, path.join(OUT, ".env"));

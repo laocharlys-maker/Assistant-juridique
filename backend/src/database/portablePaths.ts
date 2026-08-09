@@ -129,6 +129,18 @@ export function portableSchemaSqlFile(): string {
   return path.join(appRoot(), "prisma", "portable-init.sql");
 }
 
+/**
+ * Dossier des migrations incrementales (voir prisma/migrations/,
+ * embarquees par scripts/build-sea.js) - permet a une installation
+ * EXISTANTE (cluster deja initialise avec un portable-init.sql plus ancien)
+ * de recevoir les tables/colonnes ajoutees par une mise a jour de l'app,
+ * voir applyPendingMigrations.ts. portable-init.sql (ci-dessus) ne sert,
+ * lui, qu'a la toute premiere initialisation d'un cluster neuf.
+ */
+export function portableMigrationsDir(): string {
+  return path.join(appRoot(), "prisma", "migrations");
+}
+
 export interface PortablePostgresSettings {
   host: string;
   port: number;
