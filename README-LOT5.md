@@ -1,5 +1,15 @@
 # Lot 5 : pseudonymisation avant appel LLM
 
+> **Mise à jour ultérieure** : la distinction ✅/❌ ci-dessous (notamment
+> `assignation`, `conclusions`, `note_plaidoirie`, `redac`) documentait un
+> choix de conception qui s'est révélé incorrect en pratique (voir bug de
+> parties inversées sur les Conclusions) et a été abandonné : ces quatre
+> types passent désormais eux aussi par `redigerAvecPseudonymisation()`.
+> Consigne actuelle, sans exception : tout type d'acte qui manipule un nom
+> de client/partie adverse/destinataire doit tokeniser cette identité avant
+> l'appel LLM. Le reste de ce document (mécanisme, conventions de nommage,
+> fail-safe) reste exact.
+
 Empêche les données identifiantes des clients du cabinet de transiter en
 clair vers le LLM externe (Anthropic/Gemini/Groq) : les valeurs
 identifiantes connues sont remplacées par des tokens neutres avant l'appel,

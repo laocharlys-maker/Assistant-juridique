@@ -73,11 +73,17 @@ actionsCallbackRouter.post("/api/actions/:id/envoyer", requireAuth, async (req, 
   }
   const entete = await resolveEntete(req.auth!.cabinetId, true);
 
-  const pdfBuffer = await buildPdf({
-    ...loaded.input,
-    signature: signatureResolution.signature,
-    entete,
-  });
+  let pdfBuffer: Buffer;
+  try {
+    pdfBuffer = await buildPdf({
+      ...loaded.input,
+      signature: signatureResolution.signature,
+      entete,
+    });
+  } catch (error) {
+    console.error(`Erreur generation PDF (action ${action.id}) :`, error);
+    return res.status(500).json({ error: "Impossible de générer le document PDF (voir logs serveur)" });
+  }
   const filename = `${slugify(action.nomDocument || `${TYPE_LABELS[action.typeAction] || action.typeAction}-${action.dossier.numeroDossier}`)}.pdf`;
 
   const { cabinetNom, replyToEmail } = await resolveCabinetEmailIdentite(req.auth!.cabinetId);

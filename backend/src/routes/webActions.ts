@@ -543,10 +543,11 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
     let extraWebhookFields: Record<string, unknown> = {};
     // Lot 5 : true seulement si la branche empruntee ci-dessous a
     // effectivement tokenise au moins une donnee identifiante avant l'appel
-    // LLM (voir security/anonymizer.ts) - reste false pour les types
-    // d'actes qui n'envoient aucune identite au LLM (assignation,
-    // conclusions, note de plaidoirie - voir README-LOT5.md) ou les
-    // recherches/traductions/veilles.
+    // LLM (voir security/anonymizer.ts) - reste false uniquement pour les
+    // types sans aucun champ identifiant a proteger (recherches/
+    // traductions/veilles, qui ne portent jamais de nom de client/partie).
+    // Tout type qui manipule un nom de client/partie adverse/destinataire
+    // doit passer par redigerAvecPseudonymisation, sans exception.
     let donneesPseudonymisees = false;
 
     if (form.type_action === "notes") {
@@ -668,14 +669,21 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
       // Pas de destinataire pour la plaidoirie : c'est le discours que
       // l'avocat prononce lui-meme a l'audience, jamais une lettre adressee
       // a quelqu'un d'autre.
-      const redigé = await llm.redact(
-        config.systemPrompt,
-        buildRedacUserPrompt({
+      const champsIdentifiantsRedac: ChampIdentifiantInput[] = [
+        { champ: "nomClient", role: "PARTIE", valeur: form.nom_client },
+      ];
+      const { texteFinal: redigé, donneesPseudonymisees: dpRedac } = await redigerAvecPseudonymisation({
+        champsIdentifiants: champsIdentifiantsRedac,
+        promptTexte: buildRedacUserPrompt({
           nomAffaire: form.nom_affaire || "non précisée",
+          nomClient: form.nom_client,
           contexte: form.contexte,
           axesArgumentation: form.axes_argumentation,
-        })
-      );
+        }),
+        redact: (p) => llm.redact(config.systemPrompt, p),
+        typeActionLog: "redac",
+      });
+      donneesPseudonymisees = dpRedac;
 
       const dossierLookup = await findOrCreateDossier({
         cabinetId: auth!.cabinetId,
@@ -706,18 +714,27 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
         argumentaire: redigé,
       };
     } else if (form.type_action === "assignation") {
-      const redigeBrut = await llm.redact(
-        ASSIGNATION_SYSTEM_PROMPT,
-        buildAssignationUserPrompt({
+      const champsIdentifiantsAssignation: ChampIdentifiantInput[] = [
+        { champ: "nomClient", role: "PARTIE", valeur: form.nom_client },
+        { champ: "nomDefendeur", role: "PARTIE", valeur: form.destinataire },
+      ];
+      const { texteFinal: redigeBrut, donneesPseudonymisees: dpAssignation } = await redigerAvecPseudonymisation({
+        champsIdentifiants: champsIdentifiantsAssignation,
+        promptTexte: buildAssignationUserPrompt({
           nomAffaire: form.nom_affaire || "non précisée",
+          nomClient: form.nom_client,
+          nomDefendeur: form.destinataire,
           contexte: form.contexte,
           axesArgumentation: form.axes_argumentation,
           demandeClient: form.demande_client,
           fondementJuridique: form.fondement_juridique,
           qualificationJuridique: form.qualification_juridique,
           prejudiceSubi: form.prejudice_subi,
-        })
-      );
+        }),
+        redact: (p) => llm.redact(ASSIGNATION_SYSTEM_PROMPT, p),
+        typeActionLog: "assignation",
+      });
+      donneesPseudonymisees = dpAssignation;
 
       const blocs = decouperBlocsMarques(redigeBrut, [
         "DEMANDE_CLIENT",
@@ -834,10 +851,16 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
         argumentaire: redigé,
       };
     } else if (form.type_action === "conclusions") {
-      const redigeBrut = await llm.redact(
-        CONCLUSIONS_SYSTEM_PROMPT,
-        buildConclusionsUserPrompt({
+      const champsIdentifiantsConclusions: ChampIdentifiantInput[] = [
+        { champ: "nomClient", role: "PARTIE", valeur: form.nom_client },
+        { champ: "nomPartieAdverse", role: "PARTIE", valeur: form.nom_partie_adverse },
+      ];
+      const { texteFinal: redigeBrut, donneesPseudonymisees: dpConclusions } = await redigerAvecPseudonymisation({
+        champsIdentifiants: champsIdentifiantsConclusions,
+        promptTexte: buildConclusionsUserPrompt({
           nomAffaire: form.nom_affaire || "non précisée",
+          nomClient: form.nom_client,
+          nomPartieAdverse: form.nom_partie_adverse,
           contexte: form.contexte,
           axesArgumentation: form.axes_argumentation,
           fondementJuridique: form.fondement_juridique,
@@ -847,8 +870,11 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
           montantFraisProcedure: form.montant_frais_procedure,
           manquementAFaireJuger: form.manquement_a_faire_juger,
           demanderDepens: form.demander_depens,
-        })
-      );
+        }),
+        redact: (p) => llm.redact(CONCLUSIONS_SYSTEM_PROMPT, p),
+        typeActionLog: "conclusions",
+      });
+      donneesPseudonymisees = dpConclusions;
 
       const blocs = decouperBlocsMarques(redigeBrut, [
         "EXPOSE_DES_FAITS",
@@ -988,10 +1014,16 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
         argumentaire: redigé,
       };
     } else if (form.type_action === "note_plaidoirie") {
-      const redigeBrut = await llm.redact(
-        NOTE_PLAIDOIRIE_SYSTEM_PROMPT,
-        buildNotePlaidoirieUserPrompt({
+      const champsIdentifiantsNotePlaidoirie: ChampIdentifiantInput[] = [
+        { champ: "nomClient", role: "PARTIE", valeur: form.nom_client },
+        { champ: "nomPartieAdverse", role: "PARTIE", valeur: form.nom_partie_adverse },
+      ];
+      const { texteFinal: redigeBrut, donneesPseudonymisees: dpNotePlaidoirie } = await redigerAvecPseudonymisation({
+        champsIdentifiants: champsIdentifiantsNotePlaidoirie,
+        promptTexte: buildNotePlaidoirieUserPrompt({
           nomAffaire: form.nom_affaire || "non précisée",
+          nomClient: form.nom_client,
+          nomPartieAdverse: form.nom_partie_adverse,
           contexte: form.contexte,
           axesArgumentation: form.axes_argumentation,
           fondementJuridique: form.fondement_juridique,
@@ -999,8 +1031,11 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
           prejudiceSubi: form.prejudice_subi,
           demandes: form.demandes,
           demanderDepens: form.demander_depens,
-        })
-      );
+        }),
+        redact: (p) => llm.redact(NOTE_PLAIDOIRIE_SYSTEM_PROMPT, p),
+        typeActionLog: "note_plaidoirie",
+      });
+      donneesPseudonymisees = dpNotePlaidoirie;
 
       const blocs = decouperBlocsMarques(redigeBrut, [
         "RAPPEL_FAITS",

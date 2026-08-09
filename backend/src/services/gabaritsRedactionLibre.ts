@@ -1,4 +1,5 @@
 import { TypeAction } from "@prisma/client";
+import { espace } from "./documentFormalisme";
 
 /**
  * Lot 11 (Partie B) : referentiel statique (une constante versionnee dans
@@ -20,7 +21,7 @@ export const GABARITS_REDACTION_LIBRE: Record<TypeAction, string> = {
   // a l'export a partir de Action.champsDocument (voir documentFormalisme.ts),
   // comme pour le mode IA.
   notes:
-    "I. RAPPEL DE LA PROCÉDURE\n\n\n\nII. DÉROULEMENT DES DÉBATS ET PLAIDOIRIES\n\n\n\nIII. DÉCISION DU TRIBUNAL\n\n\n\nIV. STRATÉGIE ET SUITE À DONNER\n\n",
+    `I. RAPPEL DE LA PROCÉDURE\n\n${espace()}\n\n${espace()}\n\nII. DÉROULEMENT DES DÉBATS ET PLAIDOIRIES\n\n${espace()}\n\n${espace()}\n\nIII. DÉCISION DU TRIBUNAL\n\n${espace()}\n\n${espace()}\n\nIV. STRATÉGIE ET SUITE À DONNER\n\n`,
   redac: "Pour le compte de [nom du client],\n\n\n\nPar ces motifs, il est demandé à la juridiction de bien vouloir faire droit à la présente plaidoirie.",
   // Le titre "CONCLUSIONS", le bloc "Aff/Objet/A/destinataire", "I. LES
   // PARTIES" (POUR/CONTRE) et la phrase d'ouverture de "II. PLAISE AU

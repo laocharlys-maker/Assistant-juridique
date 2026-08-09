@@ -3,6 +3,7 @@ import { formatDateLongue } from "../utils/dateFormat";
 const COMMON_SYSTEM = `Tu es Aurore, assistante juridique experte pour un cabinet d'avocats beninois. Tu agis avec rigueur et professionnalisme.
 Les faits ci-dessous viennent d'un formulaire deja rempli par l'avocat(e) : ne les invente pas, ne les modifie pas, contente-toi de les rediger sous une forme professionnelle.
 Reponds uniquement avec le texte redige final, sans titre, sans balise markdown, sans commentaire hors-sujet.
+Certains noms ci-dessous ont ete remplaces par un identifiant neutre de la forme MOT_X (ex: PARTIE_A, PARTIE_B, JUGE_1, GREFFIER_1, ADRESSE_1...), pour proteger la confidentialite des personnes concernees avant de te transmettre le texte. Chaque fois que tu dois designer la personne ou l'entite correspondante dans ta redaction, tu DOIS reutiliser cet identifiant strictement a l'identique (memes lettres/chiffres, meme trait de soulignement "_", jamais en minuscules, jamais reformule) : n'ecris JAMAIS a la place une expression comme "la partie A", "le juge" ou toute autre paraphrase en langage naturel, meme si cela semble plus fluide a lire - ce sont des jetons techniques qui seront automatiquement remplaces par les vraies informations une fois ton texte recu, une reformulation empecherait ce remplacement et laisserait un texte incoherent.
 N'inclus JAMAIS de ligne de type "Fait a [ville], le [date]" (ni aucune autre mention de date/lieu de redaction ou de signature), que ce soit en tete ou en fin de texte : la date et le lieu sont deja ajoutes automatiquement par la mise en page du document, tu ne dois jamais les repeter toi-meme.
 REGLE ABSOLUE SUR LE LOCUTEUR : le texte redige est cense emaner du cabinet d'avocats ou de l'avocat(e) lui-meme, jamais de toi (Aurore, l'assistante IA). Ne mentionne JAMAIS "Aurore", n'ecris JAMAIS a la premiere personne en te presentant comme une assistante juridique/IA (ex: "Nous, Aurore, assistante juridique..."), et n'indique jamais que le document a ete redige par une intelligence artificielle. Si le texte doit se presenter a la premiere personne, c'est celle de l'avocat(e) ou du cabinet (ex: "Nous, le cabinet [nom], ..." ou simplement une formulation neutre sans locuteur nomme si le nom de l'avocat n'est pas fourni).`;
 
@@ -180,6 +181,8 @@ Ecris comme un avocat beninois experimente redigeant lui-meme ces conclusions po
 
 Tu rediges UNIQUEMENT le contenu variable de CONCLUSIONS (ecriture de procedure civile beninoise). Ce texte s'insere dans un document deja mis en forme par ailleurs (page de garde, identite des parties, formule d'ouverture "PLAISE AU TRIBUNAL", bordereau des pieces, date, signature) : ne redige JAMAIS ces elements, ils sont deja presents ailleurs dans le document.
 
+REGLE ABSOLUE SUR LES ROLES : les champs "Client" et "Partie adverse" fournis ci-dessous indiquent sans ambiguite qui est qui - le "Client" est TOUJOURS celui pour le compte de qui ce document est redige (le concluant), la "Partie adverse" est TOUJOURS l'autre partie au litige. Ne deduis JAMAIS ces roles a partir de l'ordre des noms dans le champ "Affaire" (qui n'est qu'un intitule de dossier, sans rapport avec qui est demandeur ou defendeur) ni a partir du contexte narratif fourni : base-toi uniquement sur les champs "Client"/"Partie adverse" explicites, et ne les inverse jamais.
+
 Structure ta reponse en EXACTEMENT huit blocs, chacun precede de son marqueur entre doubles crochets sur sa propre ligne (rien d'autre sur cette ligne), dans cet ordre. Chaque bloc doit etre une phrase ou un court paragraphe COMPLET ET AUTONOME (pas juste le fait brut recopie), car chacun s'insere separement a un endroit different du document final :
 
 [[EXPOSE_DES_FAITS]]
@@ -210,6 +213,8 @@ REGLE ABSOLUE : n'invente jamais un fait, un article de loi, un montant ou une d
 
 export function buildConclusionsUserPrompt(facts: {
   nomAffaire: string;
+  nomClient?: string;
+  nomPartieAdverse?: string;
   contexte: string;
   axesArgumentation: string[];
   fondementJuridique?: string;
@@ -220,11 +225,13 @@ export function buildConclusionsUserPrompt(facts: {
   manquementAFaireJuger?: string;
   demanderDepens?: boolean;
 }): string {
-  const lignes = [
-    `Affaire : ${facts.nomAffaire}`,
+  const lignes = [`Affaire : ${facts.nomAffaire}`];
+  if (facts.nomClient) lignes.push(`Client (celui pour qui ce document est redige) : ${facts.nomClient}`);
+  if (facts.nomPartieAdverse) lignes.push(`Partie adverse : ${facts.nomPartieAdverse}`);
+  lignes.push(
     `Contexte : ${facts.contexte}`,
-    `Axes d'argumentation :\n${facts.axesArgumentation.map((a, i) => `${i + 1}. ${a}`).join("\n")}`,
-  ];
+    `Axes d'argumentation :\n${facts.axesArgumentation.map((a, i) => `${i + 1}. ${a}`).join("\n")}`
+  );
   if (facts.fondementJuridique) lignes.push(`Fondement juridique invoque : ${facts.fondementJuridique}`);
   if (facts.qualificationJuridique) lignes.push(`Qualification juridique : ${facts.qualificationJuridique}`);
   if (facts.prejudiceSubi) lignes.push(`Prejudice subi : ${facts.prejudiceSubi}`);
@@ -253,6 +260,8 @@ Ecris comme un avocat beninois experimente redigeant lui-meme cette note pour so
 
 Tu rediges UNIQUEMENT le contenu variable d'une NOTE DE PLAIDOIRIE (synthese ecrite courte remise au juge en fin d'audience, resumant ce qui a ete plaide oralement - PAS un argumentaire complet comme une plaidoirie ou des conclusions). Ce texte s'insere dans un document deja mis en forme par ailleurs (page de garde, identite des parties, formule d'ouverture "PLAISE AU TRIBUNAL", date, signature) : ne redige JAMAIS ces elements, ils sont deja presents ailleurs dans le document. Reste synthetique : une note de plaidoirie est un aide-memoire pour le juge, pas une nouvelle demonstration complete.
 
+REGLE ABSOLUE SUR LES ROLES : les champs "Client" et "Partie adverse" fournis ci-dessous indiquent sans ambiguite qui est qui - le "Client" est TOUJOURS celui pour le compte de qui cette note est redigee, la "Partie adverse" est TOUJOURS l'autre partie au litige. Ne deduis JAMAIS ces roles a partir de l'ordre des noms dans le champ "Affaire" ni a partir du contexte narratif fourni : base-toi uniquement sur les champs "Client"/"Partie adverse" explicites, et ne les inverse jamais.
+
 Structure ta reponse en EXACTEMENT cinq blocs, chacun precede de son marqueur entre doubles crochets sur sa propre ligne (rien d'autre sur cette ligne), dans cet ordre :
 
 [[RAPPEL_FAITS]]
@@ -274,6 +283,8 @@ REGLE ABSOLUE : n'invente jamais un fait, un article de loi, un montant ou une d
 
 export function buildNotePlaidoirieUserPrompt(facts: {
   nomAffaire: string;
+  nomClient?: string;
+  nomPartieAdverse?: string;
   contexte: string;
   axesArgumentation: string[];
   fondementJuridique?: string;
@@ -282,11 +293,13 @@ export function buildNotePlaidoirieUserPrompt(facts: {
   demandes?: string[];
   demanderDepens?: boolean;
 }): string {
-  const lignes = [
-    `Affaire : ${facts.nomAffaire}`,
+  const lignes = [`Affaire : ${facts.nomAffaire}`];
+  if (facts.nomClient) lignes.push(`Client (celui pour qui cette note est redigee) : ${facts.nomClient}`);
+  if (facts.nomPartieAdverse) lignes.push(`Partie adverse : ${facts.nomPartieAdverse}`);
+  lignes.push(
     `Contexte : ${facts.contexte}`,
-    `Axes d'argumentation :\n${facts.axesArgumentation.map((a, i) => `${i + 1}. ${a}`).join("\n")}`,
-  ];
+    `Axes d'argumentation :\n${facts.axesArgumentation.map((a, i) => `${i + 1}. ${a}`).join("\n")}`
+  );
   if (facts.fondementJuridique) lignes.push(`Fondement juridique invoque : ${facts.fondementJuridique}`);
   if (facts.qualificationJuridique) lignes.push(`Qualification juridique : ${facts.qualificationJuridique}`);
   if (facts.prejudiceSubi) lignes.push(`Prejudice subi / enjeu du litige : ${facts.prejudiceSubi}`);
@@ -310,6 +323,8 @@ Ecris comme un avocat beninois experimente redigeant lui-meme cette assignation 
 
 Tu rediges UNIQUEMENT le contenu variable d'une ASSIGNATION beninoise (acte d'huissier). Les montants s'expriment toujours en Francs CFA (FCFA), jamais en euros ni en une autre monnaie.
 
+REGLE ABSOLUE SUR LES ROLES : les champs "Client" et "Partie assignee (defendeur)" fournis ci-dessous indiquent sans ambiguite qui est qui - le "Client" est TOUJOURS celui pour le compte de qui cette assignation est redigee (le demandeur), la "Partie assignee" est TOUJOURS le defendeur. Ne deduis JAMAIS ces roles a partir de l'ordre des noms dans le champ "Affaire" (qui n'est qu'un intitule de dossier) ni a partir du contexte narratif fourni : base-toi uniquement sur les champs "Client"/"Partie assignee" explicites, et ne les inverse jamais.
+
 Structure ta reponse en EXACTEMENT cinq blocs, chacun precede de son marqueur entre doubles crochets sur sa propre ligne (rien d'autre sur cette ligne), dans cet ordre :
 
 [[DEMANDE_CLIENT]]
@@ -331,6 +346,8 @@ REGLE ABSOLUE : n'invente jamais un fait, un montant, une date ou un article de 
 
 export function buildAssignationUserPrompt(facts: {
   nomAffaire: string;
+  nomClient?: string;
+  nomDefendeur?: string;
   contexte: string;
   axesArgumentation: string[];
   demandeClient?: string;
@@ -338,11 +355,13 @@ export function buildAssignationUserPrompt(facts: {
   qualificationJuridique?: string;
   prejudiceSubi?: string;
 }): string {
-  const lignes = [
-    `Affaire : ${facts.nomAffaire}`,
+  const lignes = [`Affaire : ${facts.nomAffaire}`];
+  if (facts.nomClient) lignes.push(`Client (celui pour qui cette assignation est redigee) : ${facts.nomClient}`);
+  if (facts.nomDefendeur) lignes.push(`Partie assignee (defendeur) : ${facts.nomDefendeur}`);
+  lignes.push(
     `Contexte : ${facts.contexte}`,
-    `Axes d'argumentation :\n${facts.axesArgumentation.map((a, i) => `${i + 1}. ${a}`).join("\n")}`,
-  ];
+    `Axes d'argumentation :\n${facts.axesArgumentation.map((a, i) => `${i + 1}. ${a}`).join("\n")}`
+  );
   if (facts.demandeClient) lignes.push(`Objet de la demande : ${facts.demandeClient}`);
   if (facts.fondementJuridique) lignes.push(`Fondement juridique invoque : ${facts.fondementJuridique}`);
   if (facts.qualificationJuridique) lignes.push(`Qualification juridique : ${facts.qualificationJuridique}`);
@@ -412,6 +431,7 @@ export function buildNotesUserPrompt(facts: {
 
 export function buildRedacUserPrompt(facts: {
   nomAffaire: string;
+  nomClient?: string;
   contexte: string;
   axesArgumentation: string[];
   destinataire?: string;
@@ -428,7 +448,7 @@ export function buildRedacUserPrompt(facts: {
       ? `\nPieces a produire (a reprendre dans le bordereau) :\n${facts.pieces.map((p, i) => `${i + 1}. ${p}`).join("\n")}`
       : "";
   return `Affaire : ${facts.nomAffaire}
-${facts.destinataire ? `Partie assignee (defendeur) : ${facts.destinataire}\n` : ""}${facts.adresseA ? `Document adresse a : ${facts.adresseA}\n` : ""}Contexte : ${facts.contexte}
+${facts.nomClient ? `Client : ${facts.nomClient}\n` : ""}${facts.destinataire ? `Partie assignee (defendeur) : ${facts.destinataire}\n` : ""}${facts.adresseA ? `Document adresse a : ${facts.adresseA}\n` : ""}Contexte : ${facts.contexte}
 Axes d'argumentation a developper :
 ${facts.axesArgumentation.map((axe, i) => `${i + 1}. ${axe}`).join("\n")}${blocDemandes}${blocPieces}
 Date du jour : ${dateActuelle()}`;
