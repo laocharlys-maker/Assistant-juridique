@@ -1,6 +1,6 @@
 [package]
 name = "aurore-desktop"
-version = "0.1.0"
+version = "0.1.1"
 description = "Coquille desktop Tauri pour Aurore : lance le backend Express/TS empaquete en executable Node SEA comme sidecar et affiche son interface dans une webview."
 edition = "2021"
 

@@ -1,6 +1,6 @@
 {
   "name": "aurore-desktop-shell",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Coquille desktop Tauri pour Aurore (Lot 1 : sidecar Node SEA + packaging).",
   "scripts": {
