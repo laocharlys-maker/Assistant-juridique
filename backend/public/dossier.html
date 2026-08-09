@@ -23,6 +23,16 @@
       return div.innerHTML;
     }
 
+    // Redirection depuis "Rédiger librement" (Nouvelle action) juste apres
+    // creation : pre-coche la case signature du document concerne cote
+    // fiche dossier, pour eviter d'avoir a la recocher (l'en-tete du
+    // cabinet est deja cochee par defaut, voir cabinetHasEntete dans
+    // renderAction). Declare au niveau module (pas dans l'IIFE plus bas) car
+    // lu par renderAction, une fonction top-level separee.
+    const urlParamsInitiaux = new URLSearchParams(window.location.search);
+    const highlightActionId = urlParamsInitiaux.get("actionId");
+    const preAvecSignature = highlightActionId && urlParamsInitiaux.get("avecSignature") === "1";
+
     // Barre d'outils de l'editeur de texte (voir data-md-cmd dans le panneau
     // d'edition) : insere/entoure la syntaxe Markdown correspondante autour
     // de la selection courante, plutot que de demander a l'avocat de la
@@ -231,12 +241,6 @@
 
       const urlParams = new URLSearchParams(window.location.search);
       const id = urlParams.get("id");
-      // Redirection depuis "Rédiger librement" (Nouvelle action) juste apres
-      // creation : pre-coche la case signature du document concerne cote
-      // fiche dossier, pour eviter d'avoir a la recocher (l'en-tete du
-      // cabinet est deja cochee par defaut ci-dessous, voir cabinetHasEntete).
-      const highlightActionId = urlParams.get("actionId");
-      const preAvecSignature = highlightActionId && urlParams.get("avecSignature") === "1";
       const contentEl = document.getElementById("content");
       if (!id) {
         contentEl.innerHTML = '<p class="error visible">Aucun dossier spécifié.</p>';

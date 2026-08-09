@@ -40,11 +40,17 @@
     // tourne sur CE dossier, pour ne pas dupliquer les controles.
     let widgetChrono = "";
     if (chronoActif && chronoActif.dossier.id === dossierIdCourant) {
-      const debut = new Date(chronoActif.demarreA).getTime();
-      const secondes = Math.max(0, Math.floor((Date.now() - debut) / 1000));
-      const avertissement = secondes > SEUIL_AVERTISSEMENT_HEURES * 3600;
+      // demarreA null (mais arreteA null aussi) = EN PAUSE, voir le
+      // commentaire sur SaisieTemps.demarreA (schema.prisma).
+      const enPause = !chronoActif.demarreA;
+      const accumulee = chronoActif.dureeAccumuleeSecondes || 0;
+      const segmentEnCours = chronoActif.demarreA
+        ? Math.max(0, Math.floor((Date.now() - new Date(chronoActif.demarreA).getTime()) / 1000))
+        : 0;
+      const secondes = accumulee + segmentEnCours;
+      const avertissement = !enPause && secondes > SEUIL_AVERTISSEMENT_HEURES * 3600;
       widgetChrono = `
-        <p class="muted">⏱ Un chronomètre est en cours sur ce dossier depuis ${formatDureeAffichage(secondes)} — arrête-le depuis le Header.${avertissement ? " Il tourne depuis plus de 4h, vérifie que tu ne l'as pas oublié en route." : ""}</p>`;
+        <p class="muted">⏱ Un chronomètre est ${enPause ? "en pause" : "en cours"} sur ce dossier (${formatDureeAffichage(secondes)}) — pilote-le depuis le Header.${avertissement ? " Il tourne depuis plus de 4h, vérifie que tu ne l'as pas oublié en route." : ""}</p>`;
     }
 
     const totalMinutes = saisiesDossier.reduce((acc, s) => acc + (s.dureeMinutes || 0), 0);

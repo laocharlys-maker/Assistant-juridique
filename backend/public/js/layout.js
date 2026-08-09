@@ -227,6 +227,14 @@ async function initHeaderChrono(me) {
 
   let chronoActif = null;
 
+  function formatDureeHms(secondes) {
+    const h = Math.floor(secondes / 3600);
+    const m = Math.floor((secondes % 3600) / 60);
+    const s = Math.floor(secondes % 60);
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${pad(h)}:${pad(m)}:${pad(s)}`;
+  }
+
   function render() {
     if (headerChronoIntervalId) {
       clearInterval(headerChronoIntervalId);
@@ -238,22 +246,37 @@ async function initHeaderChrono(me) {
       return;
     }
     el.hidden = false;
-    const debut = new Date(chronoActif.demarreA).getTime();
+    // demarreA null (mais arreteA null aussi) = EN PAUSE - voir le
+    // commentaire sur SaisieTemps.demarreA (schema.prisma) : une saisie
+    // "actif" est toujours creee avec demarreA renseigne, donc null ne peut
+    // signifier qu'une pause en cours, jamais "pas encore demarre".
+    const enPause = !chronoActif.demarreA;
+    const accumuleeSecondes = chronoActif.dureeAccumuleeSecondes || 0;
+    const debut = chronoActif.demarreA ? new Date(chronoActif.demarreA).getTime() : null;
+
     const tick = () => {
-      const secondes = Math.max(0, Math.floor((Date.now() - debut) / 1000));
-      const h = Math.floor(secondes / 3600);
-      const m = Math.floor((secondes % 3600) / 60);
-      const s = Math.floor(secondes % 60);
-      const pad = (n) => String(n).padStart(2, "0");
+      const secondes = enPause ? accumuleeSecondes : accumuleeSecondes + Math.max(0, Math.floor((Date.now() - debut) / 1000));
       const span = document.getElementById("header-chrono-temps");
-      if (span) span.textContent = `${pad(h)}:${pad(m)}:${pad(s)}`;
+      if (span) span.textContent = formatDureeHms(secondes);
     };
+
     el.innerHTML = `
-      <span class="header-chrono-badge" title="Chronomètre en cours — dossier ${escapeHtmlHeaderChrono(chronoActif.dossier.numeroDossier)}">⏱ <span id="header-chrono-temps"></span> <span>· ${escapeHtmlHeaderChrono(chronoActif.dossier.numeroDossier)}</span></span>
-      <button type="button" id="header-chrono-stop-btn" class="icon-btn" aria-label="Arrêter le chronomètre" title="Arrêter le chronomètre">✕</button>
+      <span class="header-chrono-badge" title="Chronomètre ${enPause ? "en pause" : "en cours"} — dossier ${escapeHtmlHeaderChrono(chronoActif.dossier.numeroDossier)}">${enPause ? "⏸" : "⏱"} <span id="header-chrono-temps"></span> <span>· ${escapeHtmlHeaderChrono(chronoActif.dossier.numeroDossier)}${enPause ? " (en pause)" : ""}</span></span>
+      <button type="button" id="header-chrono-pauseresume-btn" class="ghost btn-sm" style="padding:5px 12px; margin:0;" aria-label="${enPause ? "Reprendre" : "Mettre en pause"} le chronomètre" title="${enPause ? "Reprendre" : "Mettre en pause"} le chronomètre">${enPause ? "Reprendre" : "Pause"}</button>
+      <button type="button" id="header-chrono-stop-btn" class="danger btn-sm" style="padding:5px 12px; margin:0;" aria-label="Arrêter le chronomètre" title="Arrêter le chronomètre">Arrêter</button>
     `;
     tick();
-    headerChronoIntervalId = setInterval(tick, 1000);
+    if (!enPause) {
+      headerChronoIntervalId = setInterval(tick, 1000);
+    }
+    document.getElementById("header-chrono-pauseresume-btn").addEventListener("click", async () => {
+      try {
+        await apiFetch(`/api/saisies-temps/${chronoActif.id}/${enPause ? "reprendre" : "pause"}`, { method: "POST" });
+        await rafraichir();
+      } catch (err) {
+        alert(err.message);
+      }
+    });
     document.getElementById("header-chrono-stop-btn").addEventListener("click", async () => {
       try {
         await apiFetch(`/api/saisies-temps/${chronoActif.id}/arreter`, { method: "POST" });

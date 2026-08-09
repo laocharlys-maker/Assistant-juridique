@@ -1400,77 +1400,49 @@
     // ---------- Chronomètre (Lot 14, déplacé depuis la fiche dossier) ----------
     // Reutilise dossiersParNumero (rempli par loadDossiersForAutofill ci-dessus)
     // pour resoudre le numero de dossier saisi. Une fois demarre, le
-    // chronometre reste visible partout dans l'app via le widget du Header
-    // (voir initHeaderChrono dans layout.js) - ce widget-ci ne fait que le
-    // demarrer/arreter depuis Nouvelle action et donner un raccourci d'arret
-    // local, sans dupliquer l'etat (toujours relu depuis le serveur).
+    // chronometre reste visible ET pilotable (arreter) partout dans l'app
+    // via le widget du Header (voir initHeaderChrono dans layout.js) - ce
+    // widget-ci ne sert donc qu'a le DEMARRER (la carte se masque tant qu'un
+    // chronometre tourne deja, pour ne jamais dupliquer l'affichage).
     let chronoActifNa = null;
-    function formatDureeChronoNa(secondesTotales) {
-      const h = Math.floor(secondesTotales / 3600);
-      const m = Math.floor((secondesTotales % 3600) / 60);
-      const s = Math.floor(secondesTotales % 60);
-      const pad = (n) => String(n).padStart(2, "0");
-      return `${pad(h)}:${pad(m)}:${pad(s)}`;
-    }
-    let chronoNaIntervalId = null;
     function renderChronoWidget() {
       const el = document.getElementById("na-chrono-content");
-      if (!el) return;
-      if (chronoNaIntervalId) {
-        clearInterval(chronoNaIntervalId);
-        chronoNaIntervalId = null;
-      }
+      const card = document.getElementById("na-chrono-card");
+      if (!el || !card) return;
       if (chronoActifNa) {
-        const debut = new Date(chronoActifNa.demarreA).getTime();
-        const tick = () => {
-          const secondes = Math.max(0, Math.floor((Date.now() - debut) / 1000));
-          const span = document.getElementById("na-chrono-elapsed");
-          if (span) span.textContent = formatDureeChronoNa(secondes);
-        };
-        el.innerHTML = `
-          <div class="timer-widget timer-actif">
-            <div class="timer-elapsed" id="na-chrono-elapsed"></div>
-            <p class="muted" style="margin:4px 0;">Dossier ${escapeHtmlAttr(chronoActifNa.dossier.numeroDossier)} — ${escapeHtmlAttr(chronoActifNa.dossier.nomAffaire)}</p>
-            <button type="button" class="danger" id="na-chrono-arreter-btn">Arrêter le chronomètre</button>
-          </div>`;
-        tick();
-        chronoNaIntervalId = setInterval(tick, 1000);
-        document.getElementById("na-chrono-arreter-btn").addEventListener("click", async () => {
-          try {
-            await apiFetch(`/api/saisies-temps/${chronoActifNa.id}/arreter`, { method: "POST" });
-            await chargerChronoWidget();
-            if (window.rafraichirHeaderChrono) window.rafraichirHeaderChrono();
-          } catch (err) {
-            alert(err.message);
-          }
-        });
-      } else {
-        el.innerHTML = `
-          <form id="na-chrono-demarrer-form">
-            <label>Numéro de dossier</label>
-            <input name="numero_dossier" list="dossiers-datalist" required placeholder="ex: 12/2026" />
-            <p class="error" id="na-chrono-error"></p>
-            <button type="submit">Démarrer le chronomètre</button>
-          </form>`;
-        document.getElementById("na-chrono-demarrer-form").addEventListener("submit", async (e) => {
-          e.preventDefault();
-          const errorEl = document.getElementById("na-chrono-error");
-          errorEl.textContent = "";
-          const numero = new FormData(e.target).get("numero_dossier").trim();
-          const dossier = dossiersParNumero.get(numero);
-          if (!dossier) {
-            errorEl.textContent = "Numéro de dossier introuvable.";
-            return;
-          }
-          try {
-            await apiFetch("/api/saisies-temps/demarrer", { method: "POST", body: { dossierId: dossier.id } });
-            await chargerChronoWidget();
-            if (window.rafraichirHeaderChrono) window.rafraichirHeaderChrono();
-          } catch (err) {
-            errorEl.textContent = err.message;
-          }
-        });
+        // Deja visible et pilotable depuis le Header (demarrer/arreter -
+        // voir initHeaderChrono, layout.js) tant qu'il tourne : plus besoin
+        // de le repeter ici, la carte entiere se masque.
+        card.hidden = true;
+        el.innerHTML = "";
+        return;
       }
+      card.hidden = false;
+      el.innerHTML = `
+        <form id="na-chrono-demarrer-form">
+          <label>Numéro de dossier</label>
+          <input name="numero_dossier" list="dossiers-datalist" required placeholder="ex: 12/2026" />
+          <p class="error" id="na-chrono-error"></p>
+          <button type="submit">Démarrer le chronomètre</button>
+        </form>`;
+      document.getElementById("na-chrono-demarrer-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const errorEl = document.getElementById("na-chrono-error");
+        errorEl.textContent = "";
+        const numero = new FormData(e.target).get("numero_dossier").trim();
+        const dossier = dossiersParNumero.get(numero);
+        if (!dossier) {
+          errorEl.textContent = "Numéro de dossier introuvable.";
+          return;
+        }
+        try {
+          await apiFetch("/api/saisies-temps/demarrer", { method: "POST", body: { dossierId: dossier.id } });
+          await chargerChronoWidget();
+          if (window.rafraichirHeaderChrono) window.rafraichirHeaderChrono();
+        } catch (err) {
+          errorEl.textContent = err.message;
+        }
+      });
     }
     async function chargerChronoWidget() {
       try {

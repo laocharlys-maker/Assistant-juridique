@@ -1,6 +1,70 @@
 import { describe, it, expect } from "vitest";
 import JSZip from "jszip";
-import { buildDocx, buildPdf, ExportInput } from "../documentExport";
+import { buildDocx, buildPdf, ExportInput, readImageDimensions, fitDocxImage } from "../documentExport";
+
+// Construit un faux PNG structurellement plausible (signature + chunk IHDR
+// avec des dimensions connues) - suffisant pour readImageDimensions, qui ne
+// lit que ces octets fixes et ne valide jamais le CRC ni le reste du fichier
+// (jamais besoin d'un vrai decodeur PNG pour ce seul besoin : mesurer la
+// largeur/hauteur declarees).
+function fakePng(width: number, height: number): Buffer {
+  const buffer = Buffer.alloc(24);
+  buffer.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], 0); // signature PNG
+  buffer.writeUInt32BE(13, 8); // longueur du chunk IHDR (non lue par readImageDimensions)
+  buffer.write("IHDR", 12, "ascii");
+  buffer.writeUInt32BE(width, 16);
+  buffer.writeUInt32BE(height, 20);
+  return buffer;
+}
+
+// Construit un faux JPEG minimal : SOI + un marqueur SOF0 (0xFFC0) portant
+// les dimensions reelles - meme principe que fakePng ci-dessus.
+function fakeJpeg(width: number, height: number): Buffer {
+  const buffer = Buffer.alloc(19);
+  buffer.set([0xff, 0xd8], 0); // SOI
+  buffer.set([0xff, 0xc0], 2); // marqueur SOF0
+  buffer.writeUInt16BE(11, 4); // longueur du segment
+  buffer[6] = 8; // precision
+  buffer.writeUInt16BE(height, 7);
+  buffer.writeUInt16BE(width, 9);
+  return buffer;
+}
+
+describe("readImageDimensions", () => {
+  it("lit les dimensions reelles d'un PNG", () => {
+    expect(readImageDimensions(fakePng(450, 121), "png")).toEqual({ width: 450, height: 121 });
+    expect(readImageDimensions(fakePng(800, 200), "png")).toEqual({ width: 800, height: 200 });
+  });
+
+  it("lit les dimensions reelles d'un JPEG", () => {
+    expect(readImageDimensions(fakeJpeg(600, 300), "jpg")).toEqual({ width: 600, height: 300 });
+  });
+
+  it("renvoie null pour des octets qui ne sont pas un PNG valide (signature absente)", () => {
+    expect(readImageDimensions(Buffer.alloc(24), "png")).toBeNull();
+  });
+});
+
+describe("fitDocxImage - preserve le ratio reel (jamais de deformation)", () => {
+  it("une signature plus large que haute (ratio tres different de la boite) n'est jamais aplatie", () => {
+    // Boite historique 150x60 (ratio 2.5:1) - une signature scannee 900x120
+    // (ratio 7.5:1) etait avant ce correctif etiree en 150x60, l'aplatissant
+    // visuellement (constate par l'utilisateur a l'export Word).
+    const { width, height } = fitDocxImage(fakePng(900, 120), "png", 150, 60);
+    expect(width / height).toBeCloseTo(900 / 120, 5);
+    expect(width).toBeLessThanOrEqual(150);
+    expect(height).toBeLessThanOrEqual(60);
+  });
+
+  it("une image carree reste carree", () => {
+    const { width, height } = fitDocxImage(fakePng(400, 400), "png", 450, 121);
+    expect(width).toBe(height);
+  });
+
+  it("se replie sur la boite complete si les dimensions n'ont pas pu etre lues", () => {
+    expect(fitDocxImage(Buffer.alloc(4), "png", 150, 60)).toEqual({ width: 150, height: 60 });
+  });
+});
 
 const MARKDOWN_SAMPLE = [
   "## Conditions de fond",

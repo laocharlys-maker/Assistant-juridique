@@ -357,6 +357,7 @@ CREATE TABLE "saisies_temps" (
     "date" TIMESTAMP(3) NOT NULL,
     "demarre_a" TIMESTAMP(3),
     "arrete_a" TIMESTAMP(3),
+    "duree_accumulee_secondes" INTEGER NOT NULL DEFAULT 0,
     "duree_minutes" INTEGER,
     "description" TEXT,
     "facturable" BOOLEAN NOT NULL DEFAULT true,

@@ -108,6 +108,72 @@ function isHeaderLine(line: string): boolean {
   return trimmed === trimmed.toUpperCase();
 }
 
+// Lit les dimensions reelles d'une image PNG/JPEG directement depuis ses
+// octets (sans dependance externe) - necessaire car, contrairement a
+// PDFKit (doc.image({ fit: [...] }) preserve deja le ratio tout seul), la
+// librairie docx (ImageRun) exige une largeur ET une hauteur explicites
+// pour chaque image et ne preserve JAMAIS le ratio d'elle-meme : une
+// entete/signature dont les proportions reelles different de la boite fixe
+// precedemment codee en dur (450x121 / 150x60) ressortait visuellement
+// aplatie/etiree a l'export Word - jamais en PDF, d'ou le bug signale
+// uniquement sur ce format. PNG : dimensions au format big-endian dans le
+// chunk IHDR (octets 16-23, juste apres la signature PNG de 8 octets et
+// l'en-tete "IHDR" du premier chunk). JPEG : parcourt les marqueurs jusqu'a
+// un SOFn (Start Of Frame, seul type de marqueur a porter les dimensions
+// reelles), en sautant chaque marqueur intermediaire via sa longueur
+// declaree.
+export function readImageDimensions(buffer: Buffer, type: "png" | "jpg"): { width: number; height: number } | null {
+  try {
+    if (type === "png") {
+      if (buffer.length < 24) return null;
+      const isPng = buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47;
+      if (!isPng) return null;
+      return { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) };
+    }
+
+    let offset = 2; // saute SOI (0xFFD8)
+    while (offset < buffer.length - 9) {
+      if (buffer[offset] !== 0xff) {
+        offset++;
+        continue;
+      }
+      const marker = buffer[offset + 1];
+      // SOF0-SOF15, hors DHT (0xC4), JPG (0xC8) et DAC (0xCC) qui ne portent
+      // jamais les dimensions malgre un octet de marqueur dans la meme plage.
+      const isStartOfFrame = marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc;
+      if (isStartOfFrame) {
+        return { height: buffer.readUInt16BE(offset + 5), width: buffer.readUInt16BE(offset + 7) };
+      }
+      const segmentLength = buffer.readUInt16BE(offset + 2);
+      offset += 2 + segmentLength;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+// Equivalent, pour docx (ImageRun), du comportement "fit" deja utilise cote
+// PDFKit : reduit l'image pour qu'elle tienne dans la boite (maxWidth x
+// maxHeight) SANS jamais deformer son ratio reel - jamais d'agrandissement
+// au-dela de la boite. Repli sur la boite complete (comportement
+// precedent) si les dimensions reelles n'ont pas pu etre lues (format
+// inattendu, fichier corrompu...), plutot que de faire echouer tout
+// l'export pour une image en cause.
+export function fitDocxImage(
+  buffer: Buffer,
+  type: "png" | "jpg",
+  maxWidth: number,
+  maxHeight: number
+): { width: number; height: number } {
+  const dims = readImageDimensions(buffer, type);
+  if (!dims || dims.width <= 0 || dims.height <= 0) {
+    return { width: maxWidth, height: maxHeight };
+  }
+  const ratio = Math.min(maxWidth / dims.width, maxHeight / dims.height);
+  return { width: Math.round(dims.width * ratio), height: Math.round(dims.height * ratio) };
+}
+
 const DOCX_ALIGNMENT: Record<SignatureAlignment, (typeof AlignmentType)[keyof typeof AlignmentType]> = {
   START: AlignmentType.LEFT,
   CENTER: AlignmentType.CENTER,
@@ -333,7 +399,7 @@ export async function buildDocx(input: ExportInput): Promise<Buffer> {
           children: [
             new ImageRun({
               data: input.entete.buffer,
-              transformation: { width: 450, height: 121 },
+              transformation: fitDocxImage(input.entete.buffer, input.entete.type, 450, 121),
               type: input.entete.type,
             }),
           ],
@@ -387,7 +453,7 @@ export async function buildDocx(input: ExportInput): Promise<Buffer> {
           children: [
             new ImageRun({
               data: input.signature.buffer,
-              transformation: { width: 150, height: 60 },
+              transformation: fitDocxImage(input.signature.buffer, input.signature.type, 150, 60),
               type: input.signature.type,
             }),
           ],

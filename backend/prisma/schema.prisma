@@ -820,10 +820,20 @@ model SaisieTemps {
   // pas forcement aujourd'hui).
   date      DateTime
   // Renseignes uniquement pour une saisie chronometree - arreteA reste null
-  // tant que le chronometre est actif (seule marque reconnue par le
-  // systeme d'un "chronometre en cours").
+  // tant que le chronometre n'est pas definitivement arrete. demarreA
+  // marque le debut du segment EN COURS : non-null + arreteA null =
+  // chronometre EN COURS ; demarreA null + arreteA null = chronometre EN
+  // PAUSE (jamais l'etat d'une ligne fraichement creee - POST .../demarrer
+  // le cree toujours avec demarreA deja renseigne, voir routes/saisiesTemps.ts) ;
+  // arreteA non-null = definitivement arrete.
   demarreA DateTime? @map("demarre_a")
   arreteA  DateTime? @map("arrete_a")
+  // Duree cumulee (en secondes) des segments PRECEDENTS deja clos par une
+  // mise en pause - n'inclut JAMAIS le segment en cours (voir demarreA
+  // ci-dessus). Une pause/reprise ne cree jamais une nouvelle SaisieTemps :
+  // le meme enregistrement accumule ses segments successifs jusqu'a l'arret
+  // definitif, qui calcule alors dureeMinutes = accumulee + segment en cours.
+  dureeAccumuleeSecondes Int @default(0) @map("duree_accumulee_secondes")
   // Toujours renseignee une fois la saisie terminee (chrono arrete, ou
   // saisie manuelle directe) - null uniquement pendant qu'un chronometre
   // tourne. Arrondie a la minute la plus proche (voir services/feuillesTemps.ts,

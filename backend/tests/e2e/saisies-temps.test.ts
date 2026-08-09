@@ -157,6 +157,40 @@ describe.skipIf(!pgAvailable)("e2e : timer & feuilles de temps (Lot 14)", () => 
     expect(actif.dossier.id).toBe(autreDossierId);
   });
 
+  it("met en pause puis reprend le chronomètre : la durée accumulée est conservée, un second démarrage reste bloqué pendant la pause", async () => {
+    // Laisse s'ecouler un minimum de temps reel avant la mise en pause.
+    await new Promise((resolve) => setTimeout(resolve, 1100));
+
+    const pauseRes = await api(collaborateurCookie, `/api/saisies-temps/${saisieChronoId}/pause`, { method: "POST" });
+    expect(pauseRes.status).toBe(200);
+    const enPause = await pauseRes.json();
+    expect(enPause.demarreA).toBeNull();
+    expect(enPause.arreteA).toBeNull();
+    expect(enPause.dureeAccumuleeSecondes).toBeGreaterThanOrEqual(1);
+
+    const actifPauseRes = await api(collaborateurCookie, "/api/saisies-temps/actif");
+    const actifPause = await actifPauseRes.json();
+    expect(actifPause.id).toBe(saisieChronoId);
+    expect(actifPause.demarreA).toBeNull();
+
+    // Un chronometre EN PAUSE compte toujours comme "actif" : demarrer un
+    // nouveau chronometre doit rester bloque, avec un message qui distingue
+    // explicitement "en pause" de "en cours".
+    const bloqueRes = await api(collaborateurCookie, "/api/saisies-temps/demarrer", {
+      method: "POST",
+      body: JSON.stringify({ dossierId }),
+    });
+    expect(bloqueRes.status).toBe(409);
+    const bloqueBody = await bloqueRes.json();
+    expect(bloqueBody.error).toContain("en pause");
+
+    const reprendreRes = await api(collaborateurCookie, `/api/saisies-temps/${saisieChronoId}/reprendre`, { method: "POST" });
+    expect(reprendreRes.status).toBe(200);
+    const reprise = await reprendreRes.json();
+    expect(reprise.demarreA).not.toBeNull();
+    expect(reprise.dureeAccumuleeSecondes).toBe(enPause.dureeAccumuleeSecondes);
+  });
+
   it("bloque le démarrage d'un second chronomètre avec un message clair identifiant le dossier en cours", async () => {
     const res = await api(collaborateurCookie, "/api/saisies-temps/demarrer", {
       method: "POST",
@@ -178,6 +212,31 @@ describe.skipIf(!pgAvailable)("e2e : timer & feuilles de temps (Lot 14)", () => 
     const actifRes = await api(collaborateurCookie, "/api/saisies-temps/actif");
     const actif = await actifRes.json();
     expect(actif).toBeNull();
+  });
+
+  it("arrêter un chronomètre EN PAUSE le clôture correctement (sans segment en cours à ajouter)", async () => {
+    const demarreRes = await api(collaborateurCookie, "/api/saisies-temps/demarrer", {
+      method: "POST",
+      body: JSON.stringify({ dossierId: autreDossierId }),
+    });
+    const saisie = await demarreRes.json();
+
+    await new Promise((resolve) => setTimeout(resolve, 1100));
+    const pauseRes = await api(collaborateurCookie, `/api/saisies-temps/${saisie.id}/pause`, { method: "POST" });
+    const enPause = await pauseRes.json();
+    expect(enPause.dureeAccumuleeSecondes).toBeGreaterThanOrEqual(1);
+
+    const arreterRes = await api(collaborateurCookie, `/api/saisies-temps/${saisie.id}/arreter`, { method: "POST" });
+    expect(arreterRes.status).toBe(200);
+    const arrete = await arreterRes.json();
+    expect(arrete.arreteA).not.toBeNull();
+    // La duree finale reprend exactement l'accumulee de la pause (arrondie
+    // a la minute la plus proche), sans ajouter de segment fantome puisque
+    // demarreA etait deja null au moment de l'arret.
+    expect(arrete.dureeMinutes).toBe(Math.round(enPause.dureeAccumuleeSecondes / 60));
+
+    const actifRes = await api(collaborateurCookie, "/api/saisies-temps/actif");
+    expect(await actifRes.json()).toBeNull();
   });
 
   it("permet maintenant de démarrer un chronomètre (y compris sur le dossier initialement bloqué)", async () => {

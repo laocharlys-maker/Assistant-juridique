@@ -86,17 +86,20 @@ saisiesTempsRouter.post("/api/saisies-temps/demarrer", requireAuth, async (req, 
     return res.status(400).json({ error: "Formulaire invalide", details: parsed.error.issues });
   }
 
-  // Un seul chronometre actif a la fois (contrainte du prompt) - bloque
-  // avec un message clair identifiant le dossier concerne, plutot que
-  // d'arreter automatiquement le precedent (risque de perte de temps non
-  // voulue sur le mauvais dossier - voir README-LOT14.md).
+  // Un seul chronometre actif a la fois (contrainte du prompt), EN COURS ou
+  // EN PAUSE (arreteA null dans les deux cas - voir le commentaire sur
+  // SaisieTemps.demarreA, schema.prisma) - bloque avec un message clair
+  // identifiant le dossier concerne, plutot que d'arreter automatiquement
+  // le precedent (risque de perte de temps non voulue sur le mauvais
+  // dossier - voir README-LOT14.md).
   const actif = await prisma.saisieTemps.findFirst({
-    where: { userId: req.auth!.userId, demarreA: { not: null }, arreteA: null },
+    where: { userId: req.auth!.userId, arreteA: null },
     include: { dossier: { select: { numeroDossier: true, nomAffaire: true } } },
   });
   if (actif) {
+    const etat = actif.demarreA ? "en cours" : "en pause";
     return res.status(409).json({
-      error: `Un chronomètre est déjà en cours sur le dossier ${actif.dossier.numeroDossier} — ${actif.dossier.nomAffaire}. Arrête-le avant d'en démarrer un autre.`,
+      error: `Un chronomètre est déjà ${etat} sur le dossier ${actif.dossier.numeroDossier} — ${actif.dossier.nomAffaire}. Arrête-le avant d'en démarrer un autre.`,
     });
   }
 
@@ -142,7 +145,12 @@ saisiesTempsRouter.post("/api/saisies-temps/demarrer", requireAuth, async (req, 
   return res.status(201).json(avecMontant(saisie));
 });
 
-saisiesTempsRouter.post("/api/saisies-temps/:id/arreter", requireAuth, async (req, res) => {
+// Met en pause un chronometre EN COURS : accumule la duree du segment qui
+// vient de se terminer dans dureeAccumuleeSecondes, puis vide demarreA
+// (voir le commentaire sur SaisieTemps.demarreA, schema.prisma) - ne cree
+// JAMAIS une nouvelle SaisieTemps, ne cloture jamais dureeMinutes (reserve
+// a l'arret definitif, POST .../arreter ci-dessous).
+saisiesTempsRouter.post("/api/saisies-temps/:id/pause", requireAuth, async (req, res) => {
   const saisie = await prisma.saisieTemps.findFirst({
     where: { id: req.params.id, userId: req.auth!.userId },
   });
@@ -150,11 +158,68 @@ saisiesTempsRouter.post("/api/saisies-temps/:id/arreter", requireAuth, async (re
     return res.status(404).json({ error: "Saisie de temps introuvable" });
   }
   if (!saisie.demarreA || saisie.arreteA) {
+    return res.status(409).json({ error: "Ce chronomètre n'est pas en cours (déjà en pause ou arrêté)." });
+  }
+
+  const segmentSecondes = Math.max(0, Math.round((Date.now() - saisie.demarreA.getTime()) / 1000));
+
+  const updated = await prisma.saisieTemps.update({
+    where: { id: saisie.id },
+    data: { demarreA: null, dureeAccumuleeSecondes: saisie.dureeAccumuleeSecondes + segmentSecondes },
+    include: INCLUDE_STANDARD,
+  });
+
+  return res.json(avecMontant(updated));
+});
+
+// Reprend un chronometre EN PAUSE : redemarre un nouveau segment (demarreA)
+// sans toucher a la duree deja accumulee. Meme garde-fou "un seul actif a
+// la fois" que POST .../demarrer (defensif : ne devrait normalement jamais
+// se declencher, ce chronometre etant deja celui compte comme "actif").
+saisiesTempsRouter.post("/api/saisies-temps/:id/reprendre", requireAuth, async (req, res) => {
+  const saisie = await prisma.saisieTemps.findFirst({
+    where: { id: req.params.id, userId: req.auth!.userId },
+  });
+  if (!saisie) {
+    return res.status(404).json({ error: "Saisie de temps introuvable" });
+  }
+  if (saisie.demarreA || saisie.arreteA) {
+    return res.status(409).json({ error: "Ce chronomètre n'est pas en pause." });
+  }
+
+  const autreActif = await prisma.saisieTemps.findFirst({
+    where: { userId: req.auth!.userId, arreteA: null, id: { not: saisie.id } },
+  });
+  if (autreActif) {
+    return res.status(409).json({ error: "Un autre chronomètre est déjà en cours ou en pause. Arrête-le avant de reprendre celui-ci." });
+  }
+
+  const updated = await prisma.saisieTemps.update({
+    where: { id: saisie.id },
+    data: { demarreA: new Date() },
+    include: INCLUDE_STANDARD,
+  });
+
+  return res.json(avecMontant(updated));
+});
+
+saisiesTempsRouter.post("/api/saisies-temps/:id/arreter", requireAuth, async (req, res) => {
+  const saisie = await prisma.saisieTemps.findFirst({
+    where: { id: req.params.id, userId: req.auth!.userId },
+  });
+  if (!saisie) {
+    return res.status(404).json({ error: "Saisie de temps introuvable" });
+  }
+  if (saisie.arreteA) {
     return res.status(409).json({ error: "Ce chronomètre n'est pas actif." });
   }
 
   const arreteA = new Date();
-  const dureeMinutes = arrondirMinutes(arreteA.getTime() - saisie.demarreA.getTime());
+  // Segment en cours (0 si le chronometre etait en pause, demarreA deja
+  // null) + tous les segments precedents deja accumules lors d'une pause
+  // anterieure - jamais recalcule ensuite, voir arrondirMinutes ci-dessus.
+  const segmentEnCoursMs = saisie.demarreA ? arreteA.getTime() - saisie.demarreA.getTime() : 0;
+  const dureeMinutes = arrondirMinutes(saisie.dureeAccumuleeSecondes * 1000 + segmentEnCoursMs);
 
   const updated = await prisma.saisieTemps.update({
     where: { id: saisie.id },
@@ -165,13 +230,14 @@ saisiesTempsRouter.post("/api/saisies-temps/:id/arreter", requireAuth, async (re
   return res.json(avecMontant(updated));
 });
 
-// Chronometre actif de l'utilisateur courant (ou null) - interroge au
-// chargement de chaque page pour restaurer l'etat du widget cote frontend :
-// c'est ce qui garantit la persistance (contrainte du prompt) - jamais
-// stocke uniquement en memoire navigateur, toujours relu depuis le serveur.
+// Chronometre actif de l'utilisateur courant (ou null), EN COURS ou EN
+// PAUSE - interroge au chargement de chaque page pour restaurer l'etat du
+// widget cote frontend : c'est ce qui garantit la persistance (contrainte
+// du prompt) - jamais stocke uniquement en memoire navigateur, toujours
+// relu depuis le serveur.
 saisiesTempsRouter.get("/api/saisies-temps/actif", requireAuth, async (req, res) => {
   const saisie = await prisma.saisieTemps.findFirst({
-    where: { userId: req.auth!.userId, demarreA: { not: null }, arreteA: null },
+    where: { userId: req.auth!.userId, arreteA: null },
     include: INCLUDE_STANDARD,
   });
   return res.json(saisie ? avecMontant(saisie) : null);
