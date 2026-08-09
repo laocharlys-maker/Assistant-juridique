@@ -103,9 +103,16 @@
         listEl.innerHTML = users
           .map((u) => {
             if (u.role === "titulaire" || u.role === "avocat") {
-              if (u.id === me.id) return "";
+              // Les ACTIONS (desactiver/promouvoir/voir l'activite) n'ont pas
+              // de sens sur soi-meme - mais la ligne elle-meme (et son champ
+              // taux horaire) doit rester visible, sinon un titulaire seul
+              // dans son cabinet (aucun autre avocat) ne voit STRICTEMENT
+              // AUCUNE ligne ici et ne peut jamais renseigner son propre
+              // taux horaire (bug constate : masquer toute la ligne au lieu
+              // des seules actions destructrices).
+              const estMoi = u.id === me.id;
               const actions = [];
-              if (me.role === "titulaire") {
+              if (me.role === "titulaire" && !estMoi) {
                 actions.push(iconBtn({ icon: "activity", tooltip: "Voir l'activité", dataset: { "voir-activite": u.id } }));
                 if (u.role !== "titulaire") {
                   actions.push(iconBtn({ icon: "crown", tooltip: "Désigner comme admin", dataset: { "promouvoir-admin": u.id } }));
@@ -126,7 +133,7 @@
               return `
               <div class="dossier-item">
                 <div>
-                  <strong>${escapeHtml(u.nom)}</strong>
+                  <strong>${escapeHtml(u.nom)}${estMoi ? " (toi)" : ""}</strong>
                   <div class="meta">${escapeHtml(u.email)} · ${u.role === "titulaire" ? "Admin" : "Avocat"}${u.actif === false ? ' · <span style="color:var(--danger);">Compte désactivé</span>' : ""}</div>
                 </div>
                 <div class="icon-action-row">${tauxHoraireInput}${actions.join("")}</div>

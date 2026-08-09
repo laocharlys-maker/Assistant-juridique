@@ -1,12 +1,11 @@
-// Lot 14 - chronometre persistant (widget "Temps passé" sur la fiche
-// dossier). Persistance : l'etat "en cours" vit cote serveur
-// (SaisieTemps.demarreA/arreteA, voir routes/saisiesTemps.ts) - ce script
-// ne fait QUE relire cet etat au chargement (chargerEtat) et l'affiche en
-// le faisant defiler localement (setInterval, purement visuel) : un
-// rafraichissement de page ne perd jamais le temps ecoule, il est
-// recalcule depuis demarreA a chaque rechargement.
+// Lot 14 - widget "Temps passé" sur la fiche dossier (historique, saisie
+// manuelle, total, facturation). Le chronometre demarrer/arreter lui-meme a
+// ete deplace vers Nouvelle action + le Header (voir initHeaderChrono dans
+// layout.js) - ce widget affiche seulement, en lecture seule, qu'un
+// chronometre est en cours ici s'il y en a un (avec un lien vers le
+// Header/Nouvelle action pour l'arreter), pour eviter toute duplication des
+// controles demarrer/arreter a deux endroits.
 (function () {
-  let intervalId = null;
   let chronoActif = null;
   let dossierIdCourant = null;
   let meCourant = null;
@@ -36,30 +35,31 @@
     const el = document.getElementById("timer-section");
     if (!el) return;
 
-    let widgetChrono;
+    // Le chronometre demarrer/arreter vit desormais dans Nouvelle action et
+    // le Header (voir layout.js) - ici, simple rappel en lecture seule s'il
+    // tourne sur CE dossier, pour ne pas dupliquer les controles.
+    let widgetChrono = "";
     if (chronoActif && chronoActif.dossier.id === dossierIdCourant) {
       const debut = new Date(chronoActif.demarreA).getTime();
       const secondes = Math.max(0, Math.floor((Date.now() - debut) / 1000));
       const avertissement = secondes > SEUIL_AVERTISSEMENT_HEURES * 3600;
       widgetChrono = `
-        <div class="timer-widget timer-actif">
-          <div class="timer-elapsed">${formatDureeAffichage(secondes)}</div>
-          ${avertissement ? `<p class="error visible" style="margin:4px 0;">Ce chronomètre tourne depuis plus de ${SEUIL_AVERTISSEMENT_HEURES}h — vérifie que tu ne l'as pas oublié en route.</p>` : ""}
-          <button type="button" class="danger" id="timer-arreter-btn">Arrêter le chronomètre</button>
-        </div>`;
-    } else if (chronoActif) {
-      // Actif mais sur un AUTRE dossier - pas de bouton demarrer ici tant
-      // qu'il n'est pas arrete (un seul chronometre actif a la fois,
-      // bloque avec message clair - voir routes/saisiesTemps.ts).
-      widgetChrono = `<p class="muted">Un chronomètre est en cours sur un autre dossier (${escapeHtml(chronoActif.dossier.numeroDossier)}) — arrête-le d'abord depuis ce dossier pour en démarrer un ici.</p>`;
-    } else {
-      widgetChrono = `<button type="button" id="timer-demarrer-btn">Démarrer le chronomètre</button>`;
+        <p class="muted">⏱ Un chronomètre est en cours sur ce dossier depuis ${formatDureeAffichage(secondes)} — arrête-le depuis le Header.${avertissement ? " Il tourne depuis plus de 4h, vérifie que tu ne l'as pas oublié en route." : ""}</p>`;
     }
 
     const totalMinutes = saisiesDossier.reduce((acc, s) => acc + (s.dureeMinutes || 0), 0);
-    const totalFacturable = saisiesDossier
-      .filter((s) => s.facturable && !s.factureId)
-      .reduce((acc, s) => acc + (s.montant || 0), 0);
+    // Tout temps enregistre est facturable (pas de distinction "non
+    // facturable") - seul le temps deja rattache a une facture (factureId)
+    // est exclu du montant restant a facturer.
+    const nonFacturees = saisiesDossier.filter((s) => !s.factureId && s.dureeMinutes);
+    const totalAFacturer = nonFacturees.reduce((acc, s) => acc + (s.montant || 0), 0);
+    // Une saisie dont le montant est null n'a pas pu etre valorisee (taux
+    // horaire absent au moment de la saisie, voir tauxHoraireApplique) -
+    // signale-le plutot que de laisser le montant total silencieusement
+    // incomplet.
+    const minutesSansTaux = nonFacturees
+      .filter((s) => s.montant === null || s.montant === undefined)
+      .reduce((acc, s) => acc + s.dureeMinutes, 0);
 
     el.innerHTML = `
       <div class="card">
@@ -75,9 +75,6 @@
           <input type="number" name="dureeMinutes" min="1" required placeholder="ex: 90" />
           <label>Description (optionnel)</label>
           <input name="description" />
-          <label style="display:flex; align-items:center; gap:6px; font-weight:400;">
-            <input type="checkbox" name="facturable" checked style="width:auto;" /> Facturable
-          </label>
           <p class="error" id="timer-manuel-error"></p>
           <div class="edit-panel-actions">
             <button type="submit" class="btn-sm">Enregistrer</button>
@@ -93,9 +90,8 @@
                     (s) => `
               <div class="action-item">
                 <span class="tag">${escapeHtml(s.user.nom)}</span>
-                <span class="badge ${s.facturable ? "badge-a_jour" : "badge-cloture"}">${s.facturable ? "Facturable" : "Non facturable"}</span>
                 ${s.factureId ? '<span class="badge badge-payee">Facturé</span>' : ""}
-                <div>${s.dureeMinutes ? formatDureeCourte(s.dureeMinutes) : "en cours"} — ${new Date(s.date).toLocaleDateString("fr-FR")}${s.description ? " — " + escapeHtml(s.description) : ""}</div>
+                <div>${s.dureeMinutes ? formatDureeCourte(s.dureeMinutes) : "en cours"}${typeof s.montant === "number" ? ` — ${s.montant.toLocaleString("fr-FR")} F CFA` : ""} — ${new Date(s.date).toLocaleDateString("fr-FR")}${s.description ? " — " + escapeHtml(s.description) : ""}</div>
               </div>`
                   )
                   .join("")
@@ -103,8 +99,13 @@
           <p style="margin-top:8px;"><strong>Total enregistré : ${formatDureeCourte(totalMinutes)}</strong></p>
         </div>
         ${
-          (meCourant.role === "titulaire" || meCourant.role === "avocat") && totalFacturable > 0
-            ? `<button type="button" class="secondary" id="timer-facturer-btn">Facturer le temps passé (${totalFacturable.toLocaleString("fr-FR")} F CFA)</button>`
+          (meCourant.role === "titulaire" || meCourant.role === "avocat") && totalAFacturer > 0
+            ? `<button type="button" class="secondary" id="timer-facturer-btn">Facturer le temps passé (${totalAFacturer.toLocaleString("fr-FR")} F CFA)</button>`
+            : ""
+        }
+        ${
+          minutesSansTaux > 0
+            ? `<p class="muted" style="margin-top:8px;">${formatDureeCourte(minutesSansTaux)} non valorisé — taux horaire non renseigné (à renseigner par l'administrateur dans Équipe &gt; Collaborateurs).</p>`
             : ""
         }
       </div>`;
@@ -113,11 +114,6 @@
   }
 
   function wireEvents() {
-    const demarrerBtn = document.getElementById("timer-demarrer-btn");
-    if (demarrerBtn) demarrerBtn.addEventListener("click", demarrer);
-    const arreterBtn = document.getElementById("timer-arreter-btn");
-    if (arreterBtn) arreterBtn.addEventListener("click", arreter);
-
     const manuelForm = document.getElementById("timer-manuel-form");
     const toggleManuelBtn = document.getElementById("timer-toggle-manuel-btn");
     if (toggleManuelBtn) {
@@ -141,25 +137,6 @@
     if (facturerBtn) facturerBtn.addEventListener("click", facturer);
   }
 
-  async function demarrer() {
-    try {
-      await apiFetch("/api/saisies-temps/demarrer", { method: "POST", body: { dossierId: dossierIdCourant } });
-      await chargerEtat();
-    } catch (err) {
-      alert(err.message);
-    }
-  }
-
-  async function arreter() {
-    if (!chronoActif) return;
-    try {
-      await apiFetch(`/api/saisies-temps/${chronoActif.id}/arreter`, { method: "POST" });
-      await chargerEtat();
-    } catch (err) {
-      alert(err.message);
-    }
-  }
-
   async function soumettreManuel(e) {
     e.preventDefault();
     const errorEl = document.getElementById("timer-manuel-error");
@@ -173,7 +150,6 @@
           date: fd.get("date"),
           dureeMinutes: Number(fd.get("dureeMinutes")),
           description: fd.get("description") || undefined,
-          facturable: fd.get("facturable") === "on",
         },
       });
       await chargerEtat();
@@ -210,25 +186,6 @@
       saisiesDossier = [];
     }
     render();
-    demarrerTicker();
-  }
-
-  // Rafraichit l'affichage du temps ecoule chaque seconde - purement
-  // visuel (le serveur reste la seule source de verite, voir chargerEtat) :
-  // meme si ce timer JS s'arrete (onglet en arriere-plan throttle par le
-  // navigateur), la duree reelle reste correcte au prochain rechargement,
-  // recalculee depuis demarreA.
-  function demarrerTicker() {
-    if (intervalId) clearInterval(intervalId);
-    if (chronoActif && chronoActif.dossier.id === dossierIdCourant) {
-      intervalId = setInterval(() => {
-        const el = document.querySelector(".timer-elapsed");
-        if (!el) return;
-        const debut = new Date(chronoActif.demarreA).getTime();
-        const secondes = Math.max(0, Math.floor((Date.now() - debut) / 1000));
-        el.textContent = formatDureeAffichage(secondes);
-      }, 1000);
-    }
   }
 
   window.initTimerWidget = async function (dossierId, me) {

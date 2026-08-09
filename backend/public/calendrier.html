@@ -55,10 +55,12 @@
       </div>
     </div>
 
+    <div id="cal-suggestions-content"></div>
+
     <div id="cal-body"><p class="muted">Chargement…</p></div>
   </div>
 
-  <!-- Detail (tout type) - Modifier/Supprimer visibles seulement pour un evenement source="manuel". -->
+  <!-- Detail (tout type) - Modifier/Supprimer visibles pour un evenement source="manuel" ou "role_audience" (les audiences s'editent/suppriment ici meme, via /api/role-audiences). -->
   <div class="modal-overlay" id="cal-detail-modal" hidden>
     <div class="modal-box">
       <span class="badge" id="cal-detail-badge"></span>
@@ -68,6 +70,15 @@
       <p id="cal-detail-description" style="white-space:pre-wrap;"></p>
       <p id="cal-detail-dossier"></p>
       <p id="cal-detail-assignes" class="muted"></p>
+      <div id="cal-detail-audience-extra" hidden>
+        <p id="cal-detail-audience-procedure" class="muted"></p>
+        <label style="margin-top:10px;">Statut de préparation</label>
+        <select id="cal-detail-audience-statut" style="width:auto;">
+          <option value="a_preparer">À préparer</option>
+          <option value="pret">Prêt</option>
+          <option value="traite">Traité</option>
+        </select>
+      </div>
       <div style="display:flex; gap:10px; margin-top:18px;">
         <button type="button" class="secondary" id="cal-detail-modifier-btn">Modifier</button>
         <button type="button" class="danger" id="cal-detail-supprimer-btn">Supprimer</button>
@@ -76,38 +87,77 @@
     </div>
   </div>
 
-  <!-- Creation/edition - types manuels uniquement (rdv/appel/tache/autre). -->
+  <!-- Creation/edition - types manuels (rdv/appel/tache/autre) + audience (route dediee /api/role-audiences). -->
   <div class="modal-overlay" id="cal-form-modal" hidden>
     <div class="modal-box">
       <h2 id="cal-form-heading">Nouvel événement</h2>
       <div id="cal-form-error" class="error"></div>
       <form id="cal-form">
         <input type="hidden" id="cal-form-id" />
+        <input type="hidden" id="cal-form-audience-id" />
         <label>Type</label>
         <select name="type" id="cal-form-type" required>
+          <option value="audience">Audience</option>
           <option value="rdv">RDV</option>
           <option value="appel">Appel</option>
           <option value="tache">Tâche</option>
           <option value="autre">Autre</option>
         </select>
-        <label>Titre</label>
-        <input name="titre" id="cal-form-titre" required />
-        <label>Description (optionnel)</label>
-        <textarea name="description" id="cal-form-description" rows="3"></textarea>
+
+        <div id="cal-form-audience-fields" hidden>
+          <label>Juridiction</label>
+          <input name="juridiction" id="cal-form-juridiction" placeholder="ex: CRIET Instance" />
+          <label>Chambre (optionnel)</label>
+          <input name="chambre" id="cal-form-chambre" placeholder="ex: Chambre correctionnelle" />
+          <label>Numéro de procédure (optionnel)</label>
+          <input name="procedureNumero" id="cal-form-procedureNumero" placeholder="ex: 15/2025" />
+          <label>Parties</label>
+          <input name="parties" id="cal-form-parties" placeholder="ex: Koffi C/ Kodjo" />
+          <label>Qualité procédurale du client (optionnel)</label>
+          <select name="qualiteProcedurale" id="cal-form-qualiteProcedurale">
+            <option value="">— Non précisé —</option>
+            <option value="Demandeur">Demandeur</option>
+            <option value="Défendeur">Défendeur</option>
+            <option value="Intervenant volontaire">Intervenant volontaire</option>
+            <option value="Intervenant forcé">Intervenant forcé</option>
+            <option value="Appelant">Appelant</option>
+            <option value="Intimé">Intimé</option>
+            <option value="Demandeur au pourvoi">Demandeur au pourvoi</option>
+            <option value="Défendeur au pourvoi">Défendeur au pourvoi</option>
+          </select>
+          <label>Objet de la procédure (optionnel)</label>
+          <input name="objetProcedure" id="cal-form-objetProcedure" />
+          <label>Dernier motif (optionnel)</label>
+          <input name="dernierMotif" id="cal-form-dernierMotif" placeholder="ex: DP" />
+          <label>Diligences (optionnel)</label>
+          <input name="diligences" id="cal-form-diligences" placeholder="ex: PSV" />
+        </div>
+
+        <div id="cal-form-manuel-fields">
+          <label>Titre</label>
+          <input name="titre" id="cal-form-titre" />
+          <label>Description (optionnel)</label>
+          <textarea name="description" id="cal-form-description" rows="3"></textarea>
+        </div>
+
         <label>Date et heure de début</label>
         <input type="datetime-local" name="dateDebut" id="cal-form-dateDebut" required />
-        <label>Date et heure de fin (optionnel)</label>
-        <input type="datetime-local" name="dateFin" id="cal-form-dateFin" />
-        <label style="display:flex; align-items:center; gap:6px; font-weight:400;">
-          <input type="checkbox" name="touteLaJournee" id="cal-form-touteLaJournee" style="width:auto;" /> Toute la journée
-        </label>
-        <label>Lieu (optionnel)</label>
-        <input name="lieu" id="cal-form-lieu" />
+        <div id="cal-form-fin-fields">
+          <label>Date et heure de fin (optionnel)</label>
+          <input type="datetime-local" name="dateFin" id="cal-form-dateFin" />
+          <label style="display:flex; align-items:center; gap:6px; font-weight:400;">
+            <input type="checkbox" name="touteLaJournee" id="cal-form-touteLaJournee" style="width:auto;" /> Toute la journée
+          </label>
+          <label>Lieu (optionnel)</label>
+          <input name="lieu" id="cal-form-lieu" />
+        </div>
         <label>Dossier lié (optionnel)</label>
         <input name="dossierNumero" id="cal-form-dossierNumero" list="cal-dossiers-datalist" placeholder="Numéro de dossier" />
         <datalist id="cal-dossiers-datalist"></datalist>
-        <label>Assigné(e)(s) (optionnel)</label>
-        <div id="cal-form-assignes" class="cal-assignes-list"></div>
+        <div id="cal-form-assignes-field">
+          <label>Assigné(e)(s) (optionnel)</label>
+          <div id="cal-form-assignes" class="cal-assignes-list"></div>
+        </div>
         <p class="error" id="cal-form-submit-error"></p>
         <div style="display:flex; gap:10px; margin-top:18px;">
           <button type="submit">Enregistrer</button>

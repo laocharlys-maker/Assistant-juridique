@@ -50,6 +50,16 @@
         <div class="stat-label">Révisions demandées</div>
         <div class="stat-value" id="stat-revision">—</div>
       </div>
+      <div class="stat-card" id="stat-factures-card" style="display:none;">
+        <div class="stat-label">Factures en attente</div>
+        <div class="stat-value" id="stat-factures">—</div>
+      </div>
+    </div>
+
+    <div class="card" id="factures-attente-card" style="display:none;">
+      <h2 style="margin-top:0;">Factures en attente de paiement</h2>
+      <div id="factures-attente-list"></div>
+      <p class="muted" style="margin:8px 0 0;"><a href="/factures.html">Voir toutes les factures →</a></p>
     </div>
 
     <div class="chart-grid">
@@ -73,6 +83,12 @@
   <script src="/js/api.js"></script>
   <script src="/js/layout.js"></script>
   <script>
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str ?? "";
+      return div.innerHTML;
+    }
+
     const TYPE_LABELS = {
       notes: "Compte-rendu",
       redac: "Plaidoirie",
@@ -177,7 +193,71 @@
         .join("");
     }
 
+    const FACTURES_ATTENTE_MAX_AFFICHEES = 8;
+
+    function renderFacturesEnAttente(factures) {
+      const cardStat = document.getElementById("stat-factures-card");
+      const card = document.getElementById("factures-attente-card");
+      const listEl = document.getElementById("factures-attente-list");
+
+      if (!factures) {
+        // Absent de la reponse (collaborateur, ou module facturation
+        // desactive pour ce cabinet) - aucune carte facturation a afficher.
+        cardStat.style.display = "none";
+        card.style.display = "none";
+        return;
+      }
+
+      cardStat.style.display = "";
+      document.getElementById("stat-factures").textContent = factures.length;
+
+      if (factures.length === 0) {
+        card.style.display = "none";
+        return;
+      }
+      card.style.display = "";
+
+      const aujourdHui = new Date();
+      const visibles = factures.slice(0, FACTURES_ATTENTE_MAX_AFFICHEES);
+      const reste = factures.length - visibles.length;
+
+      listEl.innerHTML =
+        visibles
+          .map((f) => {
+            const enRetard = f.dateEcheance && new Date(f.dateEcheance) < aujourdHui;
+            return `
+          <div class="action-item">
+            <span class="tag">${escapeHtml(f.numero)}</span>
+            ${enRetard ? '<span class="badge badge-echeance_proche">En retard</span>' : ""}
+            <div>${escapeHtml(f.clientNom || "Client non précisé")} — <strong>${f.montant.toLocaleString("fr-FR")} F CFA</strong>${
+              f.dateEcheance ? ` — échéance le ${new Date(f.dateEcheance).toLocaleDateString("fr-FR")}` : ""
+            }</div>
+            <button type="button" class="secondary btn-sm" data-marquer-payee="${f.id}" style="margin-top:6px;">Marquer comme payée</button>
+          </div>`;
+          })
+          .join("") + (reste > 0 ? `<p class="muted" style="margin-top:6px;">+${reste} de plus — voir Facturation.</p>` : "");
+
+      listEl.querySelectorAll("[data-marquer-payee]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          btn.disabled = true;
+          try {
+            await apiFetch(`/api/factures/${btn.dataset.marquerPayee}`, {
+              method: "PATCH",
+              body: { statut: "payee" },
+            });
+            loadStats(activeScope);
+          } catch (err) {
+            btn.disabled = false;
+            showError(document.getElementById("error"), err.message);
+          }
+        });
+      });
+    }
+
+    let activeScope;
+
     async function loadStats(scope) {
+      activeScope = scope;
       const errorEl = document.getElementById("error");
       hideError(errorEl);
       try {
@@ -219,6 +299,7 @@
 
         renderTrendChart(lastEvolution, filterEl.value);
         renderTypeBreakdown(stats.repartitionTypes);
+        renderFacturesEnAttente(stats.facturesEnAttente);
       } catch (err) {
         showError(errorEl, err.message);
       }

@@ -97,32 +97,14 @@ describe("buildDocx", () => {
   });
 });
 
-// Lot 11 (Partie C) : mention d'avertissement rappelant que toute
-// modification doit etre reportee dans Aurore - jamais une garantie
-// technique, une simple mesure d'attenuation par la clarte.
-describe("mention d'avertissement (Lot 11, Partie C)", () => {
-  it("buildDocx : affiche la mention 'non definitif' quand le document n'est pas encore valide", async () => {
-    const buffer = await buildDocx({ ...BASE_INPUT, statut: "en_attente_validation" });
+// La mention d'avertissement (Lot 11, Partie C) a ete retiree sur demande
+// explicite : aucun pied de page ne doit plus apparaitre sur les exports
+// Word/PDF, quel que soit le statut du document.
+describe("pied de page", () => {
+  it("buildDocx : n'ajoute aucun pied de page", async () => {
+    const buffer = await buildDocx(BASE_INPUT);
     const zip = await JSZip.loadAsync(buffer);
-    const footer = await zip.file("word/footer1.xml")!.async("string");
-    expect(footer).toContain("Document en cours de validation");
-    expect(footer).toContain("non définitif");
-    expect(footer).toContain("généré par Aurore le");
-  });
-
-  it("buildDocx : n'affiche pas 'non definitif' une fois le document valide", async () => {
-    const buffer = await buildDocx({ ...BASE_INPUT, statut: "valide" });
-    const zip = await JSZip.loadAsync(buffer);
-    const footer = await zip.file("word/footer1.xml")!.async("string");
-    expect(footer).not.toContain("non définitif");
-    expect(footer).toContain("généré par Aurore le");
-  });
-
-  it("buildDocx : meme mention 'non definitif' quand le statut n'est pas fourni (par defaut, non valide)", async () => {
-    const buffer = await buildDocx({ ...BASE_INPUT, statut: undefined });
-    const zip = await JSZip.loadAsync(buffer);
-    const footer = await zip.file("word/footer1.xml")!.async("string");
-    expect(footer).toContain("non définitif");
+    expect(zip.file("word/footer1.xml")).toBeNull();
   });
 });
 
@@ -151,22 +133,6 @@ describe("buildPdf", () => {
     });
     expect(buffer.subarray(0, 5).toString("latin1")).toBe("%PDF-");
     expect(buffer.length).toBeGreaterThan(500);
-  });
-
-  // Lot 11 (Partie C) : meme limite que la note en tete de fichier - le
-  // texte du PDF (flux compresses) n'est pas extractible simplement ici, on
-  // verifie seulement que l'ajout de la mention (statut valide/non valide)
-  // ne fait planter ni buildPdf ni la generation du fichier - le contenu
-  // exact de la mention est verifie cote Word ci-dessus (meme fonction
-  // buildMentionAvertissement partagee par les deux formats).
-  it("genere un fichier PDF valide sans erreur, avec la mention pour un document non valide", async () => {
-    const buffer = await buildPdf({ ...BASE_INPUT, statut: "en_attente_validation" });
-    expect(buffer.subarray(0, 5).toString("latin1")).toBe("%PDF-");
-  });
-
-  it("genere un fichier PDF valide sans erreur, avec la mention pour un document valide", async () => {
-    const buffer = await buildPdf({ ...BASE_INPUT, statut: "valide" });
-    expect(buffer.subarray(0, 5).toString("latin1")).toBe("%PDF-");
   });
 
   it("genere un fichier PDF valide sans erreur quand typeAction est defini mais champsDocument absent (redaction libre)", async () => {

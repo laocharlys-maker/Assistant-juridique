@@ -578,6 +578,27 @@ header.app-topbar {
 .topbar-link { color: var(--text); text-decoration: none; font-size: 0.9rem; margin: 0 6px; }
 .topbar-link:hover { color: var(--accent); }
 
+/* Chronometre persistant (Lot 14, deplace dans le Header) - reste visible
+   sur toute page tant qu'il tourne (voir initHeaderChrono, layout.js). */
+.header-chrono { display: flex; align-items: center; gap: 6px; margin-left: 4px; }
+.header-chrono-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--accent-tint);
+  color: var(--accent-hover);
+  font-weight: 600;
+  font-size: 0.85rem;
+  padding: 5px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.header-chrono-badge #header-chrono-temps { font-variant-numeric: tabular-nums; }
+#header-chrono-stop-btn { padding: 5px; }
+@media (max-width: 640px) {
+  .header-chrono-badge span:last-child { display: none; }
+}
+
 .icon-btn {
   margin: 0;
   padding: 7px;
@@ -900,23 +921,6 @@ header.app-topbar {
   padding: 24px;
 }
 .modal-box h2 { margin-top: 0; }
-
-/* ---------- Audiences programmees : calendrier mensuel ---------- */
-.role-month-grid-header { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin: 16px 0 8px; }
-.role-month-col-label { text-align: center; font-size: 0.78rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
-.role-month-week { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 8px; }
-.role-month-cell { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 8px; min-height: 90px; box-shadow: var(--shadow-sm); }
-.role-month-cell-empty { background: transparent; border: 1px dashed var(--hairline); box-shadow: none; }
-.role-month-cell-date { font-size: 0.78rem; font-weight: 700; color: var(--muted); margin-bottom: 6px; }
-.role-month-entry { border-top: 1px solid var(--hairline); padding-top: 6px; margin-top: 6px; font-size: 0.85rem; }
-.role-month-entry:first-of-type { border-top: none; padding-top: 0; margin-top: 0; }
-
-@media (max-width: 900px) {
-  .role-month-grid-header { display: none; }
-  .role-month-week { grid-template-columns: 1fr; }
-  .role-month-cell-empty { display: none; }
-  .role-month-cell-date::before { content: "Le "; }
-}
 
 /* ---------- Editeur de texte plein ecran (correction d'un document genere) ---------- */
 .edit-panel[hidden] { display: none; }

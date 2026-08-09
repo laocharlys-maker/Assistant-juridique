@@ -42,6 +42,35 @@ statsRouter.get("/api/stats", requireAuth, async (req, res) => {
 
   const sixMoisAvant = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 5, 1));
 
+  // Factures en attente de paiement (envoyees, pas encore payees, hors
+  // proforma qui ne sont jamais reglees telles quelles) - reserve aux
+  // avocats/titulaire (memes roles que /api/factures, voir requireAvocat) ;
+  // un collaborateur ne voit jamais la facturation du cabinet. Pas de
+  // scope mine/cabinet ici : GET /api/factures lui-meme ne fait pas cette
+  // distinction (tout avocat voit toutes les factures du cabinet).
+  let facturesEnAttente:
+    | {
+        id: string;
+        numero: string;
+        clientNom: string | null;
+        montant: number;
+        dateEcheance: Date | null;
+      }[]
+    | null = null;
+  if (req.auth!.role === "titulaire" || req.auth!.role === "avocat") {
+    const cabinetModules = await prisma.cabinet.findUnique({
+      where: { id: cabinetId },
+      select: { modulesDesactives: true },
+    });
+    if (!cabinetModules?.modulesDesactives.includes("facturation")) {
+      facturesEnAttente = await prisma.facture.findMany({
+        where: { cabinetId, statut: "envoyee", estProforma: false },
+        select: { id: true, numero: true, clientNom: true, montant: true, dateEcheance: true },
+        orderBy: { dateEcheance: "asc" },
+      });
+    }
+  }
+
   const [dossiersActifs, crCeMois, echeances7Jours, revisionsDemandees, actionsRecentes] = await Promise.all([
     prisma.dossier.count({
       where: {
@@ -140,5 +169,6 @@ statsRouter.get("/api/stats", requireAuth, async (req, res) => {
     evolutionMensuelle,
     repartitionTypes,
     responsableNom,
+    facturesEnAttente,
   });
 });

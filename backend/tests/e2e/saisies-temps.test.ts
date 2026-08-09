@@ -3,9 +3,9 @@
  * (démarrage/arrêt/reprise après "fermeture" simulée par une simple
  * relecture GET /actif dans une nouvelle requête), chronomètre unique par
  * utilisateur, saisie manuelle, snapshot du taux horaire, génération de
- * facture depuis le temps passé (sans double comptage), exclusion des
- * saisies non facturables de la facturation (mais visibles en agrégation),
- * et permissions (un collaborateur ne voit jamais les saisies d'un autre).
+ * facture depuis le temps passé (sans double comptage), tout temps
+ * enregistré est facturable, et permissions (un collaborateur ne voit
+ * jamais les saisies d'un autre).
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Server } from "node:http";
@@ -239,7 +239,7 @@ describe.skipIf(!pgAvailable)("e2e : timer & feuilles de temps (Lot 14)", () => 
     expect(relue.montant).toBe(10000);
   });
 
-  it("exclut une saisie non facturable de la facturation mais la garde visible dans les statistiques internes", async () => {
+  it("toute saisie manuelle est facturable, sans possibilité de la marquer autrement", async () => {
     const res = await api(collaborateurCookie, "/api/saisies-temps", {
       method: "POST",
       body: JSON.stringify({
@@ -247,19 +247,20 @@ describe.skipIf(!pgAvailable)("e2e : timer & feuilles de temps (Lot 14)", () => 
         date: new Date().toISOString(),
         dureeMinutes: 45,
         description: "Formation interne",
-        facturable: false,
       }),
     });
     expect(res.status).toBe(201);
+    const saisie = await res.json();
+    expect(saisie.facturable).toBe(true);
 
     const feuilleRes = await api(titulaireCookie, `/api/saisies-temps/feuille?dossierId=${dossierId}&groupBy=dossier`);
     const feuille = await feuilleRes.json();
-    expect(feuille.lignes[0].dureeMinutesNonFacturable).toBeGreaterThanOrEqual(45);
+    expect(feuille.lignes[0].dureeMinutes).toBeGreaterThanOrEqual(45);
   });
 
   let factureId: string;
 
-  it("« Facturer ce dossier » génère une facture correcte à partir des saisies facturables non facturées", async () => {
+  it("« Facturer ce dossier » génère une facture correcte à partir de tout le temps non encore facturé", async () => {
     const res = await api(titulaireCookie, "/api/factures/depuis-temps", {
       method: "POST",
       body: JSON.stringify({ dossierId }),
@@ -267,9 +268,11 @@ describe.skipIf(!pgAvailable)("e2e : timer & feuilles de temps (Lot 14)", () => 
     expect(res.status).toBe(201);
     const facture = await res.json();
     factureId = facture.id;
-    // 90min (saisie manuelle initiale) + 60min à 10000F/h = 15000 + 10000 = 25000
-    expect(facture.montant).toBe(25000);
-    expect(facture.saisiesIncluses).toBeGreaterThanOrEqual(2);
+    // 90min + 60min à 10000F/h (15000 + 10000) + 45min à 25000F/h (taux
+    // modifié par le test précédent, snapshotté à la création de cette
+    // dernière saisie) = 15000 + 10000 + 18750 = 43750
+    expect(facture.montant).toBe(43750);
+    expect(facture.saisiesIncluses).toBeGreaterThanOrEqual(3);
     expect(facture.description).toContain("Collaborateur Test");
   });
 
@@ -280,7 +283,7 @@ describe.skipIf(!pgAvailable)("e2e : timer & feuilles de temps (Lot 14)", () => 
     });
     expect(res.status).toBe(400);
 
-    const saisies = await prisma.saisieTemps.findMany({ where: { dossierId, facturable: true } });
+    const saisies = await prisma.saisieTemps.findMany({ where: { dossierId } });
     for (const s of saisies) {
       if (s.dureeMinutes !== null) {
         expect(s.factureId).toBe(factureId);

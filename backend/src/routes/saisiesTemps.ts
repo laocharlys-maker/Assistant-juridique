@@ -185,7 +185,6 @@ const creerManuelleSchema = z.object({
   date: z.string().min(1),
   dureeMinutes: z.number().int().positive("La durée doit être supérieure à 0"),
   description: z.string().optional(),
-  facturable: z.boolean().optional().default(true),
 });
 
 saisiesTempsRouter.post("/api/saisies-temps", requireAuth, async (req, res) => {
@@ -229,7 +228,6 @@ saisiesTempsRouter.post("/api/saisies-temps", requireAuth, async (req, res) => {
       date,
       dureeMinutes: parsed.data.dureeMinutes,
       description: parsed.data.description,
-      facturable: parsed.data.facturable,
       tauxHoraireApplique: utilisateur?.tauxHoraireDefaut ?? null,
     },
     include: INCLUDE_STANDARD,
@@ -241,7 +239,6 @@ saisiesTempsRouter.post("/api/saisies-temps", requireAuth, async (req, res) => {
 const modifierSchema = z.object({
   description: z.string().optional(),
   dureeMinutes: z.number().int().positive().optional(),
-  facturable: z.boolean().optional(),
   date: z.string().optional(),
 });
 
@@ -277,7 +274,6 @@ saisiesTempsRouter.patch("/api/saisies-temps/:id", requireAuth, async (req, res)
     data: {
       description: parsed.data.description,
       dureeMinutes: parsed.data.dureeMinutes,
-      facturable: parsed.data.facturable,
       date,
     },
     include: INCLUDE_STANDARD,
@@ -316,14 +312,12 @@ function periodeDepuisQuery(req: { query: { debut?: unknown; fin?: unknown } }):
 // GET /api/saisies-temps/equipe pour la vue avocat/titulaire).
 saisiesTempsRouter.get("/api/saisies-temps", requireAuth, async (req, res) => {
   const dossierId = typeof req.query.dossierId === "string" ? req.query.dossierId : undefined;
-  const facturableParam = typeof req.query.facturable === "string" ? req.query.facturable === "true" : undefined;
   const { debut, fin } = periodeDepuisQuery(req);
 
   const saisies = await prisma.saisieTemps.findMany({
     where: {
       userId: req.auth!.userId,
       ...(dossierId ? { dossierId } : {}),
-      ...(facturableParam !== undefined ? { facturable: facturableParam } : {}),
       ...(debut || fin ? { date: { ...(debut ? { gte: debut } : {}), ...(fin ? { lt: fin } : {}) } } : {}),
     },
     include: INCLUDE_STANDARD,
@@ -343,7 +337,6 @@ saisiesTempsRouter.get("/api/saisies-temps/equipe", requireAuth, async (req, res
   }
 
   const dossierId = typeof req.query.dossierId === "string" ? req.query.dossierId : undefined;
-  const facturableParam = typeof req.query.facturable === "string" ? req.query.facturable === "true" : undefined;
   const userIdParam = typeof req.query.userId === "string" ? req.query.userId : undefined;
   const { debut, fin } = periodeDepuisQuery(req);
 
@@ -368,7 +361,6 @@ saisiesTempsRouter.get("/api/saisies-temps/equipe", requireAuth, async (req, res
       cabinetId: req.auth!.cabinetId,
       ...(userIds ? { userId: { in: userIds } } : {}),
       ...(dossierId ? { dossierId } : {}),
-      ...(facturableParam !== undefined ? { facturable: facturableParam } : {}),
       ...(debut || fin ? { date: { ...(debut ? { gte: debut } : {}), ...(fin ? { lt: fin } : {}) } } : {}),
     },
     include: INCLUDE_STANDARD,
@@ -387,7 +379,6 @@ function versSaisiePourAgregation(saisie: {
   dossier: { numeroDossier: string; nomAffaire: string };
   dureeMinutes: number | null;
   tauxHoraireApplique: number | null;
-  facturable: boolean;
 }): SaisiePourAgregation | null {
   // Un chronometre encore actif (dureeMinutes null) n'a pas de duree
   // definitive - exclu de toute agregation/facturation tant qu'il n'est
@@ -400,7 +391,6 @@ function versSaisiePourAgregation(saisie: {
     dossierLabel: `${saisie.dossier.numeroDossier} — ${saisie.dossier.nomAffaire}`,
     dureeMinutes: saisie.dureeMinutes,
     tauxHoraireApplique: saisie.tauxHoraireApplique,
-    facturable: saisie.facturable,
   };
 }
 
@@ -411,7 +401,6 @@ saisiesTempsRouter.get("/api/saisies-temps/feuille", requireAuth, async (req, re
   const groupBy = req.query.groupBy === "dossier" ? "dossier" : "collaborateur";
   const dossierId = typeof req.query.dossierId === "string" ? req.query.dossierId : undefined;
   const userIdParam = typeof req.query.userId === "string" ? req.query.userId : undefined;
-  const facturableParam = typeof req.query.facturable === "string" ? req.query.facturable === "true" : undefined;
   const format = req.query.format === "pdf" ? "pdf" : "json";
   const { debut, fin } = periodeDepuisQuery(req);
 
@@ -440,7 +429,6 @@ saisiesTempsRouter.get("/api/saisies-temps/feuille", requireAuth, async (req, re
       cabinetId: req.auth!.cabinetId,
       ...(userIds ? { userId: { in: userIds } } : {}),
       ...(dossierId ? { dossierId } : {}),
-      ...(facturableParam !== undefined ? { facturable: facturableParam } : {}),
       ...(debut || fin ? { date: { ...(debut ? { gte: debut } : {}), ...(fin ? { lt: fin } : {}) } } : {}),
     },
     include: { user: { select: { nom: true } }, dossier: { select: { numeroDossier: true, nomAffaire: true } } },

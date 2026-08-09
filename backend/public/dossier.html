@@ -229,7 +229,14 @@
         huissiersAnnuaire = [];
       }
 
-      const id = new URLSearchParams(window.location.search).get("id");
+      const urlParams = new URLSearchParams(window.location.search);
+      const id = urlParams.get("id");
+      // Redirection depuis "Rédiger librement" (Nouvelle action) juste apres
+      // creation : pre-coche la case signature du document concerne cote
+      // fiche dossier, pour eviter d'avoir a la recocher (l'en-tete du
+      // cabinet est deja cochee par defaut ci-dessous, voir cabinetHasEntete).
+      const highlightActionId = urlParams.get("actionId");
+      const preAvecSignature = highlightActionId && urlParams.get("avecSignature") === "1";
       const contentEl = document.getElementById("content");
       if (!id) {
         contentEl.innerHTML = '<p class="error visible">Aucun dossier spécifié.</p>';
@@ -270,7 +277,6 @@
           </div>
           <div id="timer-section"></div>
           <div id="pieces-section"></div>
-          <div id="delais-section"></div>
           <div id="agenda-section"></div>
           <h2>Historique (${dossier.actions.length})</h2>
           <div id="actions-list"></div>
@@ -279,7 +285,6 @@
         if (!currentDossierEstRecherche) {
           initTimerWidget(id, me);
           loadPiecesDossier(id);
-          loadDelaisDossier(id);
           loadAgendaDossier(id);
         }
 
@@ -770,49 +775,6 @@
       reader.readAsDataURL(fichier);
     }
 
-    // Affiche les délais de procédure calculés et rattachés à ce dossier -
-    // module payant, peut être désactivé pour le cabinet (403) : dans ce
-    // cas on masque simplement la section plutôt que d'afficher une erreur.
-    async function loadDelaisDossier(dossierId) {
-      const section = document.getElementById("delais-section");
-      if (!section) return;
-      let calculs;
-      try {
-        calculs = await apiFetch(`/api/delais/historique?dossierId=${dossierId}`);
-      } catch {
-        return;
-      }
-      if (calculs.length === 0) {
-        section.innerHTML = `
-          <div class="card">
-            <h2 style="margin-top:0;">Délais</h2>
-            <p class="muted">Aucun délai calculé pour ce dossier pour l'instant.</p>
-          </div>`;
-        return;
-      }
-      const now = Date.now();
-      const lignes = calculs
-        .map((c) => {
-          const enRetard = new Date(c.dateLimite).getTime() < now;
-          const badge = enRetard
-            ? '<span class="badge badge-echeance_proche">Dépassé</span>'
-            : '<span class="badge badge-a_jour">À venir</span>';
-          return `
-          <div class="action-item">
-            <span class="tag">${escapeHtml(c.delaiType.nom)}</span>
-            ${badge}
-            <div>Départ : ${formatDateLongue(c.dateDepart)} → <strong>Date limite : ${formatDateLongue(c.dateLimite)}</strong></div>
-            <p class="muted">${escapeHtml(c.delaiType.texteReference)} — calculé par ${escapeHtml(c.createdBy.nom)} le ${new Date(c.createdAt).toLocaleString("fr-FR")}</p>
-          </div>`;
-        })
-        .join("");
-      section.innerHTML = `
-        <div class="card">
-          <h2 style="margin-top:0;">Délais (${calculs.length})</h2>
-          ${lignes}
-        </div>`;
-    }
-
     // Lot 12a : onglet "Agenda du dossier" - tous les Evenement lies (voir
     // GET /api/evenements?dossierId=..., routes/evenements.ts), qu'ils
     // soient generes automatiquement (audience, echeance de procedure) ou
@@ -962,7 +924,7 @@
               hasSignatureOption && !currentDossierEstRecherche
                 ? `<div style="margin:6px 0 0; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
                      <label style="display:flex; align-items:center; gap:6px; font-weight:400; margin:0;">
-                       <input type="checkbox" id="avecSignatureDL-${a.id}" style="width:auto;" /> ${signatureLabel} dans le téléchargement
+                       <input type="checkbox" id="avecSignatureDL-${a.id}" style="width:auto;"${preAvecSignature && a.id === highlightActionId ? " checked" : ""} /> ${signatureLabel} dans le téléchargement
                      </label>
                      <select id="positionSignatureDL-${a.id}" style="width:auto;">
                        <option value="START">Alignée à gauche</option>

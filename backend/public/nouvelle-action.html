@@ -10,6 +10,14 @@
 <body>
   <div class="page">
 
+    <!-- Chronomètre (Lot 14, déplacé depuis la fiche dossier) - toujours
+         visible ici quel que soit l'écran de l'assistant en cours ; une fois
+         démarré, reste visible partout dans l'app via le Header (layout.js). -->
+    <div class="card" id="na-chrono-card">
+      <h2 style="margin-top:0;">Chronomètre</h2>
+      <div id="na-chrono-content"><p class="muted">Chargement…</p></div>
+    </div>
+
     <!-- Écran 0 (Lot 11) : choix du mode de création, avant tout formulaire -->
     <div id="na-mode-screen">
       <h1>Nouvelle action</h1>
@@ -48,12 +56,15 @@
       <div class="na-category-grid" id="na-category-grid"></div>
     </div>
 
-    <!-- Écran "Rédiger librement" (Lot 11, Partie B) : type + dossier/client
-         uniquement, aucun champ métier obligatoire, aucun appel IA. -->
+    <!-- Écran "Rédiger librement" (Lot 11, Partie B) : type + dossier/client +
+         champs d'identité (juridiction, chambre, greffier...), aucun contenu
+         pré-rédigé, aucun appel IA. Les champs d'identité sont les mêmes que
+         ceux lus par documentFormalisme.ts pour reconstruire l'en-tête du
+         document à l'export Word/PDF (identique au mode "Générer avec l'IA"). -->
     <div id="na-libre-screen" style="display:none;">
       <p class="na-breadcrumb"><a href="#" id="na-breadcrumb-to-mode-2">Nouvelle action</a> › Rédiger librement</p>
       <h1>Rédiger librement</h1>
-      <p class="muted">Un éditeur vide (pré-rempli d'une formule d'appel/salutation d'usage) s'ouvrira sur la fiche du dossier — aucune génération IA, aucun formulaire à remplir.</p>
+      <p class="muted">Un éditeur vide (pré-rempli des sections d'usage) s'ouvrira sur la fiche du dossier — aucune génération IA. Les données ci-dessous ne servent qu'à composer l'en-tête du document (elles ne sont jamais rédigées à ta place).</p>
 
       <div id="na-libre-error" class="error"></div>
       <div class="card">
@@ -66,8 +77,22 @@
           <input name="nom_affaire" placeholder="Laisse vide si non applicable" />
           <label>Nom du client</label>
           <input name="nom_client" required />
+
+          <div id="na-libre-champs-dynamiques"></div>
+
+          <div style="margin-top:14px; display:flex; flex-direction:column; gap:6px;">
+            <label style="display:flex; align-items:center; gap:8px; font-weight:400;">
+              <input type="checkbox" name="avec_entete" id="na-libre-entete" style="width:auto;" checked /> Insérer l'en-tête du cabinet
+            </label>
+            <label style="display:flex; align-items:center; gap:8px; font-weight:400;">
+              <input type="checkbox" name="avec_signature" id="na-libre-signature" style="width:auto;" /> Insérer ma signature
+            </label>
+          </div>
+
           <button type="submit">Créer le document</button>
         </form>
+        <datalist id="na-libre-juridictions-datalist"></datalist>
+        <datalist id="na-libre-villes-datalist"></datalist>
       </div>
     </div>
 
@@ -1369,7 +1394,104 @@
       }
       await loadDossiersForAutofill();
       naLoadRecentDocuments();
+      initChronoWidget(me);
     })();
+
+    // ---------- Chronomètre (Lot 14, déplacé depuis la fiche dossier) ----------
+    // Reutilise dossiersParNumero (rempli par loadDossiersForAutofill ci-dessus)
+    // pour resoudre le numero de dossier saisi. Une fois demarre, le
+    // chronometre reste visible partout dans l'app via le widget du Header
+    // (voir initHeaderChrono dans layout.js) - ce widget-ci ne fait que le
+    // demarrer/arreter depuis Nouvelle action et donner un raccourci d'arret
+    // local, sans dupliquer l'etat (toujours relu depuis le serveur).
+    let chronoActifNa = null;
+    function formatDureeChronoNa(secondesTotales) {
+      const h = Math.floor(secondesTotales / 3600);
+      const m = Math.floor((secondesTotales % 3600) / 60);
+      const s = Math.floor(secondesTotales % 60);
+      const pad = (n) => String(n).padStart(2, "0");
+      return `${pad(h)}:${pad(m)}:${pad(s)}`;
+    }
+    let chronoNaIntervalId = null;
+    function renderChronoWidget() {
+      const el = document.getElementById("na-chrono-content");
+      if (!el) return;
+      if (chronoNaIntervalId) {
+        clearInterval(chronoNaIntervalId);
+        chronoNaIntervalId = null;
+      }
+      if (chronoActifNa) {
+        const debut = new Date(chronoActifNa.demarreA).getTime();
+        const tick = () => {
+          const secondes = Math.max(0, Math.floor((Date.now() - debut) / 1000));
+          const span = document.getElementById("na-chrono-elapsed");
+          if (span) span.textContent = formatDureeChronoNa(secondes);
+        };
+        el.innerHTML = `
+          <div class="timer-widget timer-actif">
+            <div class="timer-elapsed" id="na-chrono-elapsed"></div>
+            <p class="muted" style="margin:4px 0;">Dossier ${escapeHtmlAttr(chronoActifNa.dossier.numeroDossier)} — ${escapeHtmlAttr(chronoActifNa.dossier.nomAffaire)}</p>
+            <button type="button" class="danger" id="na-chrono-arreter-btn">Arrêter le chronomètre</button>
+          </div>`;
+        tick();
+        chronoNaIntervalId = setInterval(tick, 1000);
+        document.getElementById("na-chrono-arreter-btn").addEventListener("click", async () => {
+          try {
+            await apiFetch(`/api/saisies-temps/${chronoActifNa.id}/arreter`, { method: "POST" });
+            await chargerChronoWidget();
+            if (window.rafraichirHeaderChrono) window.rafraichirHeaderChrono();
+          } catch (err) {
+            alert(err.message);
+          }
+        });
+      } else {
+        el.innerHTML = `
+          <form id="na-chrono-demarrer-form">
+            <label>Numéro de dossier</label>
+            <input name="numero_dossier" list="dossiers-datalist" required placeholder="ex: 12/2026" />
+            <p class="error" id="na-chrono-error"></p>
+            <button type="submit">Démarrer le chronomètre</button>
+          </form>`;
+        document.getElementById("na-chrono-demarrer-form").addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const errorEl = document.getElementById("na-chrono-error");
+          errorEl.textContent = "";
+          const numero = new FormData(e.target).get("numero_dossier").trim();
+          const dossier = dossiersParNumero.get(numero);
+          if (!dossier) {
+            errorEl.textContent = "Numéro de dossier introuvable.";
+            return;
+          }
+          try {
+            await apiFetch("/api/saisies-temps/demarrer", { method: "POST", body: { dossierId: dossier.id } });
+            await chargerChronoWidget();
+            if (window.rafraichirHeaderChrono) window.rafraichirHeaderChrono();
+          } catch (err) {
+            errorEl.textContent = err.message;
+          }
+        });
+      }
+    }
+    async function chargerChronoWidget() {
+      try {
+        chronoActifNa = await apiFetch("/api/saisies-temps/actif");
+      } catch {
+        chronoActifNa = null;
+      }
+      renderChronoWidget();
+    }
+    function initChronoWidget(me) {
+      const card = document.getElementById("na-chrono-card");
+      if (!card) return;
+      // Meme module que la facturation (voir routes/saisiesTemps.ts) - si
+      // desactive pour ce cabinet, inutile d'afficher un widget dont chaque
+      // action echouerait.
+      if ((me.modulesDesactives || []).includes("facturation")) {
+        card.hidden = true;
+        return;
+      }
+      chargerChronoWidget();
+    }
 
     // Autocompletion + pre-remplissage : quand on saisit/choisit un numero
     // de dossier deja existant, le nom de l'affaire (et du client) se
@@ -1636,30 +1758,276 @@
       ([value, label]) => `<option value="${value}">${label}</option>`
     ).join("");
 
+    // Champs d'identite par type de document - memes cles que celles lues
+    // par buildFormalisme() (services/documentFormalisme.ts) pour composer
+    // l'en-tete/le pied de page du document a l'export Word/PDF (identite
+    // des parties, juridiction, greffier, huissier...). Tous facultatifs :
+    // une cle absente est simplement omise du formalisme reconstruit, sans
+    // erreur. "notes" a en plus 3 champs speciaux (date_audience,
+    // prochaine_audience, pieces_prevoir) qui sont des colonnes Action
+    // dediees, pas des cles de champsDocument - voir naLibreChampsSpeciaux.
+    const CHAMPS_IDENTITE_REDACTION_LIBRE = {
+      notes: [
+        { key: "nom_juridiction", label: "Juridiction", type: "juridiction" },
+        { key: "nom_chambre", label: "Chambre (optionnel)", type: "text", placeholder: "ex: Chambre de commerce" },
+        { key: "nom_juge", label: "Juge / Président de chambre (optionnel)", type: "text" },
+        { key: "nom_greffier", label: "Greffier (optionnel)", type: "text" },
+        { key: "numero_rg", label: "Numéro RG (optionnel)", type: "text", placeholder: "ex: RG n° 123/2026" },
+        { key: "objet_litige", label: "Objet du litige (optionnel)", type: "text" },
+        { key: "nom_avocat", label: "Avocat en charge (optionnel)", type: "text" },
+      ],
+      assignation: [
+        { key: "nom_juridiction", label: "Juridiction", type: "juridiction" },
+        { key: "nom_chambre", label: "Chambre (optionnel)", type: "text" },
+        { key: "ville", label: "Ville (optionnel)", type: "ville" },
+        { key: "nom_defendeur", label: "Défendeur (partie assignée)", type: "text" },
+        { key: "adresse_defendeur", label: "Adresse du défendeur (optionnel)", type: "text" },
+        { key: "nom_avocat", label: "Avocat en charge", type: "text" },
+        { key: "nom_huissier", label: "Huissier / Commissaire de justice", type: "text" },
+        { key: "adresse_cabinet", label: "Adresse du cabinet (optionnel)", type: "text" },
+        { key: "profession_client", label: "Profession du client (optionnel)", type: "text" },
+        { key: "nationalite_client", label: "Nationalité du client (optionnel)", type: "text" },
+        { key: "informations_client", label: "Informations sur le client (optionnel)", type: "text" },
+        { key: "adresse_client", label: "Adresse du client (optionnel)", type: "text" },
+      ],
+      mise_en_demeure: [
+        { key: "destinataire", label: "Nom du destinataire", type: "text" },
+        { key: "civilite_appel_destinataire", label: "Civilité d'appel (optionnel)", type: "text", placeholder: "ex: Madame, Monsieur," },
+        { key: "profession_destinataire", label: "Profession du destinataire (optionnel)", type: "text" },
+        { key: "informations_destinataire", label: "Informations complémentaires (optionnel)", type: "text" },
+        {
+          key: "mode_notification",
+          label: "Mode de notification (optionnel)",
+          type: "select",
+          options: ["Par exploit de commissaire de justice (huissier)", "Lettre recommandée avec accusé de réception"],
+        },
+        { key: "objet_mise_en_demeure", label: "Objet (optionnel)", type: "text" },
+        { key: "adresse_client", label: "Adresse du client (optionnel)", type: "text" },
+        { key: "nom_avocat", label: "Avocat en charge (optionnel)", type: "text" },
+        { key: "adresse_cabinet", label: "Adresse du cabinet (optionnel)", type: "text" },
+      ],
+      plainte: [
+        {
+          key: "mode_redaction",
+          label: "Rédigée par",
+          type: "select",
+          options: ["avocat", "plaignant"],
+          optionLabels: ["L'avocat, pour son client (représentation)", "Le requérant lui-même"],
+        },
+        { key: "nom_defendeur", label: "Nom du défendeur / mis en cause", type: "text" },
+        { key: "adresse_defendeur", label: "Adresse du défendeur (optionnel)", type: "text" },
+        { key: "nationalite_defendeur", label: "Nationalité du défendeur (optionnel)", type: "text" },
+        { key: "qualification_infraction", label: "Qualification pénale (optionnel)", type: "text" },
+        {
+          key: "destinataire",
+          label: "Destinataire (optionnel)",
+          type: "select",
+          options: ["M. le Président", "Mme la Présidente", "M. le Procureur de la République"],
+        },
+        { key: "nom_juridiction", label: "Juridiction (optionnel)", type: "juridiction" },
+        { key: "profession_client", label: "Profession du client (optionnel)", type: "text" },
+        { key: "nationalite_client", label: "Nationalité du client (optionnel)", type: "text" },
+        { key: "adresse_client", label: "Adresse du client (optionnel)", type: "text" },
+        { key: "nom_avocat", label: "Avocat en charge (optionnel)", type: "text" },
+        { key: "adresse_cabinet", label: "Adresse du cabinet (optionnel)", type: "text" },
+      ],
+      requete: [
+        { key: "objet", label: "Objet de la requête", type: "text" },
+        {
+          key: "destinataire",
+          label: "Destinataire (optionnel)",
+          type: "select",
+          options: ["M. le Président", "Mme la Présidente", "M. le Procureur de la République"],
+        },
+        { key: "civilite_appel_destinataire", label: "Civilité d'appel (optionnel)", type: "text", placeholder: "ex: Madame, Monsieur" },
+        { key: "qualite_representant", label: "Qualité du représentant légal (optionnel)", type: "text" },
+        { key: "nationalite_client", label: "Nationalité du client (optionnel)", type: "text" },
+        { key: "informations_client", label: "Informations sur le client (optionnel)", type: "text" },
+        { key: "nom_defendeur", label: "Partie adverse (optionnel)", type: "text" },
+        { key: "adresse_defendeur", label: "Adresse de la partie adverse (optionnel)", type: "text" },
+        { key: "nom_avocat", label: "Avocat en charge (optionnel)", type: "text" },
+        { key: "adresse_cabinet", label: "Adresse du cabinet (optionnel)", type: "text" },
+        { key: "piece_a_prevoir", label: "Pièces à prévoir (optionnel)", type: "text" },
+      ],
+      projet_ordonnance: [
+        { key: "nom_juridiction", label: "Juridiction", type: "juridiction" },
+        { key: "ville", label: "Ville (optionnel)", type: "ville" },
+        { key: "date_requete", label: "Date de la requête (optionnel)", type: "text", placeholder: "ex: 12 janvier 2026" },
+        { key: "nationalite_client", label: "Nationalité du client (optionnel)", type: "text" },
+        { key: "informations_client", label: "Informations sur le client (optionnel)", type: "text" },
+        { key: "representant_legal", label: "Représentant légal (optionnel)", type: "text" },
+        { key: "qualite_representant", label: "Qualité du représentant (optionnel)", type: "text" },
+        { key: "nom_avocat", label: "Avocat en charge (optionnel)", type: "text" },
+        { key: "piece_a_prevoir", label: "Pièces à prévoir (optionnel)", type: "text" },
+      ],
+      conclusions: [
+        { key: "nom_juridiction", label: "Juridiction", type: "juridiction" },
+        { key: "ville", label: "Ville (optionnel)", type: "ville" },
+        {
+          key: "destinataire",
+          label: "Destinataire (optionnel)",
+          type: "select",
+          options: ["M. le Président", "Mme la Présidente", "M. le Juge", "Mme la Juge"],
+        },
+        { key: "qualite_client", label: "Qualité du client (optionnel)", type: "text" },
+        { key: "nationalite_client", label: "Nationalité du client (optionnel)", type: "text" },
+        { key: "informations_client", label: "Informations sur le client (optionnel)", type: "text" },
+        { key: "nom_avocat", label: "Avocat en charge (optionnel)", type: "text" },
+        { key: "adresse_cabinet", label: "Adresse du cabinet (optionnel)", type: "text" },
+        { key: "nom_partie_adverse", label: "Partie adverse (optionnel)", type: "text" },
+        { key: "qualite_partie_adverse", label: "Qualité de la partie adverse (optionnel)", type: "text" },
+        { key: "informations_partie_adverse", label: "Informations sur la partie adverse (optionnel)", type: "text" },
+        { key: "nationalite_partie_adverse", label: "Nationalité de la partie adverse (optionnel)", type: "text" },
+        { key: "piece_a_prevoir", label: "Pièces à prévoir (optionnel)", type: "text" },
+      ],
+      note_plaidoirie: [
+        { key: "nom_juridiction", label: "Juridiction", type: "juridiction" },
+        { key: "ville", label: "Ville (optionnel)", type: "ville" },
+        { key: "numero_rg", label: "Numéro RG (optionnel)", type: "text" },
+        {
+          key: "destinataire",
+          label: "Destinataire (optionnel)",
+          type: "select",
+          options: ["M. le Président", "Mme la Présidente", "M. le Juge", "Mme la Juge"],
+        },
+        { key: "qualite_client", label: "Qualité du client (optionnel)", type: "text" },
+        { key: "profession_client", label: "Profession du client (optionnel)", type: "text" },
+        { key: "informations_client", label: "Informations sur le client (optionnel)", type: "text" },
+        { key: "nom_avocat", label: "Avocat en charge (optionnel)", type: "text" },
+        { key: "adresse_cabinet", label: "Adresse du cabinet (optionnel)", type: "text" },
+        { key: "nom_partie_adverse", label: "Partie adverse (optionnel)", type: "text" },
+        { key: "qualite_partie_adverse", label: "Qualité de la partie adverse (optionnel)", type: "text" },
+        { key: "profession_partie_adverse", label: "Profession de la partie adverse (optionnel)", type: "text" },
+        { key: "informations_partie_adverse", label: "Informations sur la partie adverse (optionnel)", type: "text" },
+        { key: "nom_avocat_partie_adverse", label: "Avocat de la partie adverse (optionnel)", type: "text" },
+      ],
+      contrat: [
+        { key: "type_contrat", label: "Type de contrat", type: "text", placeholder: "ex: Contrat de prestation de services" },
+        { key: "partie_1", label: "Partie 1 (nom / raison sociale)", type: "text" },
+        { key: "informations_partie_1", label: "Informations sur la partie 1 (optionnel)", type: "text" },
+        { key: "nationalite_partie_1", label: "Nationalité partie 1 (optionnel)", type: "text" },
+        { key: "partie_2", label: "Partie 2 (nom / raison sociale)", type: "text" },
+        { key: "informations_partie_2", label: "Informations sur la partie 2 (optionnel)", type: "text" },
+        { key: "nationalite_partie_2", label: "Nationalité partie 2 (optionnel)", type: "text" },
+        { key: "adresse_cabinet", label: "Adresse du cabinet (optionnel)", type: "text" },
+      ],
+      notification_date: [
+        { key: "destinataire", label: "Nom du destinataire", type: "text" },
+        { key: "adresse_destinataire", label: "Adresse du destinataire (optionnel)", type: "text" },
+        { key: "civilite_appel_destinataire", label: "Civilité d'appel (optionnel)", type: "text", placeholder: "ex: Madame, Monsieur" },
+        { key: "objet", label: "Objet (optionnel)", type: "text" },
+        {
+          key: "mode_notification",
+          label: "Mode de notification (optionnel)",
+          type: "select",
+          options: [
+            "Par exploit de commissaire de justice (huissier)",
+            "Lettre recommandée avec accusé de réception",
+            "Remis en main propre contre décharge",
+          ],
+        },
+        { key: "informations_client", label: "Informations sur le client (optionnel)", type: "text" },
+        { key: "nom_avocat", label: "Avocat en charge (optionnel)", type: "text" },
+        { key: "adresse_cabinet", label: "Adresse du cabinet (optionnel)", type: "text" },
+      ],
+    };
+
+    // "notes" a 3 champs speciaux stockes sur des colonnes Action dediees
+    // (Action.dateAudience/prochaineAudience/piecesPrevoir), pas dans
+    // champsDocument - voir routes/actionsRedactionLibre.ts.
+    const CHAMPS_SPECIAUX_NOTES = [
+      { key: "date_audience", label: "Date de l'audience", type: "date" },
+      { key: "prochaine_audience", label: "Date de la prochaine audience (optionnel)", type: "date" },
+      { key: "pieces_prevoir", label: "Pièces à prévoir (optionnel, séparées par une virgule)", type: "text" },
+    ];
+
+    document.getElementById("na-libre-juridictions-datalist").innerHTML = JURIDICTIONS_BENIN.map(
+      (j) => `<option value="${escapeHtmlAttr(j)}">`
+    ).join("");
+    document.getElementById("na-libre-villes-datalist").innerHTML = VILLES_BENIN.map(
+      (v) => `<option value="${escapeHtmlAttr(v)}">`
+    ).join("");
+
+    function naLibreRenderChampDynamique(champ) {
+      const inputId = `na-libre-champ-${champ.key}`;
+      if (champ.type === "juridiction") {
+        return `<label>${champ.label}</label><input name="${champ.key}" id="${inputId}" list="na-libre-juridictions-datalist" placeholder="Sélectionne ou saisis une juridiction" />`;
+      }
+      if (champ.type === "ville") {
+        return `<label>${champ.label}</label><input name="${champ.key}" id="${inputId}" list="na-libre-villes-datalist" />`;
+      }
+      if (champ.type === "date") {
+        return `<label>${champ.label}</label><input type="date" name="${champ.key}" id="${inputId}" />`;
+      }
+      if (champ.type === "select") {
+        const labels = champ.optionLabels || champ.options;
+        const options = champ.options
+          .map((v, i) => `<option value="${escapeHtmlAttr(v)}">${escapeHtmlAttr(labels[i])}</option>`)
+          .join("");
+        return `<label>${champ.label}</label><select name="${champ.key}" id="${inputId}"><option value="">— Non précisé —</option>${options}</select>`;
+      }
+      return `<label>${champ.label}</label><input name="${champ.key}" id="${inputId}" ${champ.placeholder ? `placeholder="${escapeHtmlAttr(champ.placeholder)}"` : ""} />`;
+    }
+
+    function naLibreMettreAJourChampsDynamiques() {
+      const type = document.getElementById("na-libre-type").value;
+      const speciaux = type === "notes" ? CHAMPS_SPECIAUX_NOTES : [];
+      const identite = CHAMPS_IDENTITE_REDACTION_LIBRE[type] || [];
+      const container = document.getElementById("na-libre-champs-dynamiques");
+      if (speciaux.length === 0 && identite.length === 0) {
+        container.innerHTML = "";
+        return;
+      }
+      container.innerHTML = [...speciaux, ...identite].map(naLibreRenderChampDynamique).join("");
+    }
+    document.getElementById("na-libre-type").addEventListener("change", naLibreMettreAJourChampsDynamiques);
+
     const naLibreForm = document.getElementById("na-libre-form");
     const naLibreErrorEl = document.getElementById("na-libre-error");
     naLibreForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       hideError(naLibreErrorEl);
       const fd = new FormData(naLibreForm);
+      const type = fd.get("type_action");
+      const speciaux = type === "notes" ? CHAMPS_SPECIAUX_NOTES : [];
+      const identite = CHAMPS_IDENTITE_REDACTION_LIBRE[type] || [];
+      const champsDocument = {};
+      identite.forEach((champ) => {
+        const v = (fd.get(champ.key) || "").trim();
+        if (v) champsDocument[champ.key] = v;
+      });
       const submitBtn = naLibreForm.querySelector('button[type="submit"]');
       submitBtn.disabled = true;
       try {
         const res = await apiFetch("/api/actions/redaction-libre", {
           method: "POST",
           body: {
-            type_action: fd.get("type_action"),
+            type_action: type,
             numero_dossier: fd.get("numero_dossier") || undefined,
             nom_affaire: fd.get("nom_affaire") || undefined,
             nom_client: fd.get("nom_client"),
+            date_audience: speciaux.length > 0 ? fd.get("date_audience") || undefined : undefined,
+            prochaine_audience: speciaux.length > 0 ? fd.get("prochaine_audience") || undefined : undefined,
+            pieces_prevoir: speciaux.length > 0 ? fd.get("pieces_prevoir") || undefined : undefined,
+            champs_document: Object.keys(champsDocument).length > 0 ? champsDocument : undefined,
           },
         });
-        window.location.href = `/dossier.html?id=${res.dossierId}`;
+        // L'insertion effective de l'entete/signature ne se decide qu'au
+        // telechargement Word/PDF (voir routes/documentExport.ts) - ces 2
+        // parametres ne servent qu'a pre-cocher les memes cases sur la fiche
+        // dossier pour CE document precis, evitant de devoir les recocher.
+        const avecEntete = fd.get("avec_entete") === "on";
+        const avecSignature = fd.get("avec_signature") === "on";
+        const params = new URLSearchParams({ id: res.dossierId, actionId: res.actionId });
+        if (avecEntete) params.set("avecEntete", "1");
+        if (avecSignature) params.set("avecSignature", "1");
+        window.location.href = `/dossier.html?${params.toString()}`;
       } catch (err) {
         submitBtn.disabled = false;
         showError(naLibreErrorEl, err.message);
       }
     });
+    naLibreMettreAJourChampsDynamiques();
 
     function naGoToForm(type) {
       const tabBtn = document.querySelector(`.tab[data-type="${type}"]`);

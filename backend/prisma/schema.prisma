@@ -319,6 +319,10 @@ model User {
   // individuel, ou identifiants IMAP - jamais un compte cabinet partage).
   connexionsEmailExterne ConnexionEmailExterne[]
 
+  // Factures pour lesquelles CET utilisateur a explicitement demande a ne
+  // plus recevoir le rappel de paiement (pop-up du tableau de bord).
+  facturesRappelsIgnores FactureRappelIgnore[]
+
   @@index([cabinetId])
   @@map("users")
 }
@@ -891,10 +895,33 @@ model Facture {
   // "Facturer ce dossier" depuis le temps passe) - vide pour une facture
   // creee manuellement comme avant ce lot.
   saisiesTemps SaisieTemps[]
+  // Rappels de paiement (pop-up du tableau de bord) ecartes definitivement
+  // par un ou plusieurs utilisateurs pour cette facture precise.
+  rappelsIgnores FactureRappelIgnore[]
 
   @@unique([cabinetId, numero])
   @@index([dossierId])
   @@map("factures")
+}
+
+// Rappel de paiement (pop-up "Factures en attente" du tableau de bord)
+// ecarte definitivement par UN utilisateur pour UNE facture - jamais
+// partage entre utilisateurs du cabinet (chaque avocat/titulaire decide
+// pour lui-meme, voir routes/factures.ts). Redevient visible si la facture
+// est modifiee/remise a "envoyee" apres avoir ete payee puis rouverte -
+// n'est jamais supprime automatiquement, seulement par cascade si la
+// facture ou l'utilisateur est supprime.
+model FactureRappelIgnore {
+  id        String   @id @default(uuid())
+  factureId String   @map("facture_id")
+  userId    String   @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  facture Facture @relation(fields: [factureId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([factureId, userId])
+  @@map("facture_rappels_ignores")
 }
 
 model Action {

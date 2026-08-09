@@ -61,6 +61,17 @@ let evenements = [];
 let annuaire = [];
 const dossiersParNumero = new Map();
 let currentDetailEvenement = null;
+let currentDetailAudience = null;
+
+// Date calendaire locale (YYYY-MM-DD) — a ne jamais remplacer par
+// toISOString().slice(0,10), qui bascule sur le jour UTC et decale le mois
+// affiche des que le fuseau local n'est pas UTC.
+function toLocalDateStr(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
 
 function peutVoirTouLeCabinet() {
   return me && (me.role === "titulaire" || me.role === "avocat");
@@ -278,8 +289,9 @@ function basculerVue(vue) {
 // ---------- Detail ----------
 const detailModal = document.getElementById("cal-detail-modal");
 
-function ouvrirDetail(evenement) {
+async function ouvrirDetail(evenement) {
   currentDetailEvenement = evenement;
+  currentDetailAudience = null;
   document.getElementById("cal-detail-badge").className = `badge badge-evenement-${evenement.type}`;
   document.getElementById("cal-detail-badge").textContent = TYPE_LABELS_EVENEMENT[evenement.type];
   document.getElementById("cal-detail-titre").textContent = evenement.titre;
@@ -300,35 +312,86 @@ function ouvrirDetail(evenement) {
       ? `Assigné(e)(s) : ${evenement.assignes.map((a) => a.user.nom).join(", ")}`
       : "";
 
+  const extraEl = document.getElementById("cal-detail-audience-extra");
+  extraEl.hidden = true;
+
+  // Une audience (fusion Calendrier / Calendrier Audiences) s'edite et se
+  // supprime directement ici, via /api/role-audiences - seule une echeance
+  // de delai calculee reste generee-seule (source de verite = les delais).
   const estManuel = evenement.source === "manuel";
-  document.getElementById("cal-detail-modifier-btn").hidden = !estManuel;
-  document.getElementById("cal-detail-supprimer-btn").hidden = !estManuel;
-  if (!estManuel) {
-    const origine = evenement.source === "role_audience" ? "le rôle de la semaine" : "le calcul de délais";
-    assignesEl.textContent += `${assignesEl.textContent ? " — " : ""}Généré automatiquement depuis ${origine} : modifie-le depuis sa source.`;
+  const estAudience = evenement.source === "role_audience";
+  document.getElementById("cal-detail-modifier-btn").hidden = !(estManuel || estAudience);
+  document.getElementById("cal-detail-supprimer-btn").hidden = !(estManuel || estAudience);
+  if (!estManuel && !estAudience) {
+    assignesEl.textContent += `${assignesEl.textContent ? " — " : ""}Généré automatiquement depuis le calcul de délais : modifie-le depuis les Délais.`;
   }
 
   detailModal.hidden = false;
+
+  if (estAudience && evenement.roleAudienceId) {
+    try {
+      const audience = await apiFetch(`/api/role-audiences/${evenement.roleAudienceId}`);
+      if (!currentDetailEvenement || currentDetailEvenement.id !== evenement.id) return;
+      currentDetailAudience = audience;
+      const lignes = [
+        audience.procedureNumero && `Procédure n° ${audience.procedureNumero}`,
+        audience.qualiteProcedurale && `Qualité procédurale : ${audience.qualiteProcedurale}`,
+        audience.objetProcedure && `Objet : ${audience.objetProcedure}`,
+        audience.dernierMotif && `Dernier motif : ${audience.dernierMotif}`,
+        audience.diligences && `Diligences : ${audience.diligences}`,
+      ].filter(Boolean);
+      document.getElementById("cal-detail-audience-procedure").innerHTML = lignes.map(escapeHtml).join("<br />");
+      document.getElementById("cal-detail-audience-statut").value = audience.statut;
+      extraEl.hidden = false;
+    } catch {
+      // Non bloquant : le detail de base (deja affiche) reste utilisable.
+    }
+  }
 }
 
 document.getElementById("cal-detail-fermer-btn").addEventListener("click", () => {
   detailModal.hidden = true;
 });
-document.getElementById("cal-detail-supprimer-btn").addEventListener("click", async () => {
-  if (!currentDetailEvenement) return;
-  if (!confirm("Supprimer cet événement ?")) return;
+document.getElementById("cal-detail-audience-statut").addEventListener("change", async (e) => {
+  if (!currentDetailAudience) return;
   try {
-    await apiFetch(`/api/evenements/${currentDetailEvenement.id}`, { method: "DELETE" });
-    detailModal.hidden = true;
+    await apiFetch(`/api/role-audiences/${currentDetailAudience.id}`, { method: "PATCH", body: { statut: e.target.value } });
     await chargerEvenements();
   } catch (err) {
     alert(err.message);
   }
 });
-document.getElementById("cal-detail-modifier-btn").addEventListener("click", () => {
+document.getElementById("cal-detail-supprimer-btn").addEventListener("click", async () => {
   if (!currentDetailEvenement) return;
+  const estAudience = currentDetailEvenement.source === "role_audience";
+  if (!confirm(estAudience ? "Supprimer cette audience du calendrier ?" : "Supprimer cet événement ?")) return;
+  try {
+    if (estAudience && currentDetailEvenement.roleAudienceId) {
+      await apiFetch(`/api/role-audiences/${currentDetailEvenement.roleAudienceId}`, { method: "DELETE" });
+    } else {
+      await apiFetch(`/api/evenements/${currentDetailEvenement.id}`, { method: "DELETE" });
+    }
+    detailModal.hidden = true;
+    await chargerEvenements();
+    await chargerSuggestions();
+  } catch (err) {
+    alert(err.message);
+  }
+});
+document.getElementById("cal-detail-modifier-btn").addEventListener("click", async () => {
+  if (!currentDetailEvenement) return;
+  const evenement = currentDetailEvenement;
   detailModal.hidden = true;
-  ouvrirFormulaire(currentDetailEvenement);
+  if (evenement.source === "role_audience" && evenement.roleAudienceId) {
+    try {
+      const audience = currentDetailAudience || (await apiFetch(`/api/role-audiences/${evenement.roleAudienceId}`));
+      ouvrirFormulaireAudience(audience);
+    } catch (err) {
+      alert(err.message);
+    }
+    return;
+  }
+  ouvrirFormulaire(evenement);
 });
 
 // ---------- Creation / edition ----------
@@ -348,10 +411,43 @@ function renderAssignesCheckboxes(selectionnes) {
     .join("");
 }
 
+const CHAMPS_AUDIENCE = [
+  "juridiction",
+  "chambre",
+  "procedureNumero",
+  "parties",
+  "qualiteProcedurale",
+  "objetProcedure",
+  "dernierMotif",
+  "diligences",
+];
+
+// Bascule le formulaire entre les champs "audience" (dedies, route
+// /api/role-audiences) et les champs "evenement manuel" (rdv/appel/tache/
+// autre, route /api/evenements) - fusion Calendrier / Calendrier Audiences :
+// un seul formulaire, deux routes backend selon le type choisi.
+function basculerChampsFormulaire(type) {
+  const estAudience = type === "audience";
+  document.getElementById("cal-form-audience-fields").hidden = !estAudience;
+  document.getElementById("cal-form-manuel-fields").hidden = estAudience;
+  document.getElementById("cal-form-fin-fields").hidden = estAudience;
+  document.getElementById("cal-form-assignes-field").hidden = estAudience;
+  document.getElementById("cal-form-titre").required = !estAudience;
+  document.getElementById("cal-form-juridiction").required = estAudience;
+  document.getElementById("cal-form-parties").required = estAudience;
+}
+document.getElementById("cal-form-type").addEventListener("change", (e) => {
+  basculerChampsFormulaire(e.target.value);
+});
+
 function ouvrirFormulaire(evenement, dateInitiale) {
   document.getElementById("cal-form-heading").textContent = evenement ? "Modifier l'événement" : "Nouvel événement";
   document.getElementById("cal-form-id").value = evenement ? evenement.id : "";
-  document.getElementById("cal-form-type").value = evenement ? evenement.type : "rdv";
+  document.getElementById("cal-form-audience-id").value = "";
+  const typeSelect = document.getElementById("cal-form-type");
+  typeSelect.value = evenement ? evenement.type : "rdv";
+  typeSelect.disabled = !!evenement;
+  basculerChampsFormulaire(typeSelect.value);
   document.getElementById("cal-form-titre").value = evenement ? evenement.titre : "";
   document.getElementById("cal-form-description").value = evenement ? evenement.description || "" : "";
   const debutInitial = evenement ? new Date(evenement.dateDebut) : dateInitiale || new Date();
@@ -360,7 +456,31 @@ function ouvrirFormulaire(evenement, dateInitiale) {
   document.getElementById("cal-form-touteLaJournee").checked = evenement ? evenement.touteLaJournee : false;
   document.getElementById("cal-form-lieu").value = evenement ? evenement.lieu || "" : "";
   document.getElementById("cal-form-dossierNumero").value = evenement && evenement.dossier ? evenement.dossier.numeroDossier : "";
+  CHAMPS_AUDIENCE.forEach((f) => {
+    document.getElementById(`cal-form-${f}`).value = "";
+  });
   renderAssignesCheckboxes(evenement ? evenement.assignes : []);
+  hideError(document.getElementById("cal-form-error"));
+  document.getElementById("cal-form-submit-error").textContent = "";
+  formModal.hidden = false;
+}
+
+// Edition d'une audience existante (bouton "Modifier" du detail) - meme
+// modale que les evenements manuels, mais prefillee depuis le RoleAudience
+// (le type reste verrouille sur "audience").
+function ouvrirFormulaireAudience(audience) {
+  document.getElementById("cal-form-heading").textContent = "Modifier l'audience";
+  document.getElementById("cal-form-id").value = "";
+  document.getElementById("cal-form-audience-id").value = audience.id;
+  const typeSelect = document.getElementById("cal-form-type");
+  typeSelect.value = "audience";
+  typeSelect.disabled = true;
+  basculerChampsFormulaire("audience");
+  document.getElementById("cal-form-dateDebut").value = toDatetimeLocalValue(new Date(audience.dateAudience));
+  document.getElementById("cal-form-dossierNumero").value = audience.dossier ? audience.dossier.numeroDossier : "";
+  CHAMPS_AUDIENCE.forEach((f) => {
+    document.getElementById(`cal-form-${f}`).value = audience[f] || "";
+  });
   hideError(document.getElementById("cal-form-error"));
   document.getElementById("cal-form-submit-error").textContent = "";
   formModal.hidden = false;
@@ -376,7 +496,7 @@ calForm.addEventListener("submit", async (e) => {
   const errorEl = document.getElementById("cal-form-submit-error");
   errorEl.textContent = "";
 
-  const id = document.getElementById("cal-form-id").value;
+  const type = document.getElementById("cal-form-type").value;
   const fd = new FormData(calForm);
   const dossierNumero = (fd.get("dossierNumero") || "").trim();
   const dossier = dossierNumero ? dossiersParNumero.get(dossierNumero) : null;
@@ -384,12 +504,48 @@ calForm.addEventListener("submit", async (e) => {
     errorEl.textContent = "Numéro de dossier introuvable.";
     return;
   }
+
+  if (type === "audience") {
+    const audienceId = document.getElementById("cal-form-audience-id").value;
+    const dateAudienceLocale = new Date(fd.get("dateDebut"));
+    if (!audienceId && dateAudienceLocale.getTime() < Date.now()) {
+      errorEl.textContent = "La date de l'audience ne peut pas être dans le passé. Vérifie la date saisie.";
+      return;
+    }
+    const payload = {
+      dateAudience: dateAudienceLocale.toISOString(),
+      juridiction: fd.get("juridiction"),
+      chambre: fd.get("chambre") || undefined,
+      procedureNumero: fd.get("procedureNumero") || undefined,
+      parties: fd.get("parties"),
+      qualiteProcedurale: fd.get("qualiteProcedurale") || undefined,
+      objetProcedure: fd.get("objetProcedure") || undefined,
+      dernierMotif: fd.get("dernierMotif") || undefined,
+      diligences: fd.get("diligences") || undefined,
+      dossierId: dossier ? dossier.id : undefined,
+    };
+    try {
+      if (audienceId) {
+        await apiFetch(`/api/role-audiences/${audienceId}`, { method: "PATCH", body: payload });
+      } else {
+        await apiFetch("/api/role-audiences", { method: "POST", body: payload });
+      }
+      formModal.hidden = true;
+      await chargerEvenements();
+      await chargerSuggestions();
+    } catch (err) {
+      errorEl.textContent = err.message;
+    }
+    return;
+  }
+
+  const id = document.getElementById("cal-form-id").value;
   const assignes = Array.from(document.querySelectorAll('#cal-form-assignes input[type="checkbox"]:checked')).map(
     (cb) => cb.value
   );
 
   const payload = {
-    type: fd.get("type"),
+    type,
     titre: fd.get("titre"),
     description: fd.get("description") || undefined,
     dateDebut: new Date(fd.get("dateDebut")).toISOString(),
@@ -413,6 +569,65 @@ calForm.addEventListener("submit", async (e) => {
   }
 });
 
+// ---------- Suggestions d'audiences (reprises du Calendrier Audiences) ----------
+// Dossiers dont le dernier compte-rendu annonce une prochaine audience ce
+// mois-ci et qui n'ont pas encore ete ajoutes au calendrier.
+async function chargerSuggestions() {
+  const box = document.getElementById("cal-suggestions-content");
+  try {
+    const debutStr = toLocalDateStr(debutMois(currentDate));
+    const { suggestions } = await apiFetch(`/api/role-audiences/suggestions?debut=${debutStr}&periode=mois`);
+    if (suggestions.length === 0) {
+      box.innerHTML = "";
+      return;
+    }
+    box.innerHTML = `
+      <div class="card">
+        <h2 style="margin-bottom:6px;">Suggestions d'audiences</h2>
+        <p class="muted" style="margin-top:0;">Ces dossiers annoncent une prochaine audience ce mois-ci dans leur dernier compte-rendu — vérifie et complète avant d'ajouter au calendrier.</p>
+        ${suggestions
+          .map(
+            (s) => `
+          <div class="dossier-item">
+            <div>
+              <strong>${escapeHtml(s.dossier.nomAffaire)}</strong>
+              <div class="meta">Dossier ${escapeHtml(s.dossier.numeroDossier)} · ${escapeHtml(s.dossier.nomClient)} · Prochaine audience : ${new Date(s.prochaineAudience).toLocaleString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}${s.piecesPrevoir ? `<br />Pièces à prévoir : ${escapeHtml(s.piecesPrevoir)}` : ""}</div>
+            </div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <button type="button" class="secondary btn-sm" data-suggestion-add='${JSON.stringify({ dossierId: s.dossierId, dossierNumero: s.dossier.numeroDossier, parties: s.dossier.nomAffaire, prochaineAudience: s.prochaineAudience }).replace(/'/g, "&#39;")}'>Ajouter au calendrier</button>
+              <button type="button" class="ghost btn-sm" data-suggestion-ignorer="${s.actionId}">Ne pas ajouter au calendrier</button>
+            </div>
+          </div>`
+          )
+          .join("")}
+      </div>`;
+    box.querySelectorAll("[data-suggestion-add]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const s = JSON.parse(btn.dataset.suggestionAdd);
+        ouvrirFormulaire(null, new Date(s.prochaineAudience));
+        const typeSelect = document.getElementById("cal-form-type");
+        typeSelect.value = "audience";
+        typeSelect.disabled = false;
+        basculerChampsFormulaire("audience");
+        document.getElementById("cal-form-dossierNumero").value = s.dossierNumero;
+        document.getElementById("cal-form-parties").value = s.parties;
+      });
+    });
+    box.querySelectorAll("[data-suggestion-ignorer]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        try {
+          await apiFetch(`/api/role-audiences/suggestions/${btn.dataset.suggestionIgnorer}/ignorer`, { method: "POST" });
+          chargerSuggestions();
+        } catch (err) {
+          showError(document.getElementById("error"), err.message);
+        }
+      });
+    });
+  } catch {
+    box.innerHTML = "";
+  }
+}
+
 // ---------- Navigation / filtres ----------
 document.querySelectorAll("#cal-view-tabs .tab").forEach((btn) => {
   btn.addEventListener("click", () => basculerVue(btn.dataset.vue));
@@ -422,16 +637,19 @@ document.getElementById("cal-prev-btn").addEventListener("click", () => {
   else if (currentVue === "semaine") currentDate = ajouterJours(currentDate, -7);
   else currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);
   chargerEvenements();
+  chargerSuggestions();
 });
 document.getElementById("cal-next-btn").addEventListener("click", () => {
   if (currentVue === "jour") currentDate = ajouterJours(currentDate, 1);
   else if (currentVue === "semaine") currentDate = ajouterJours(currentDate, 7);
   else currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1);
   chargerEvenements();
+  chargerSuggestions();
 });
 document.getElementById("cal-today-btn").addEventListener("click", () => {
   currentDate = new Date();
   chargerEvenements();
+  chargerSuggestions();
 });
 document.getElementById("cal-filter-type").addEventListener("change", (e) => {
   filtreType = e.target.value;
@@ -495,4 +713,5 @@ async function chargerReferentiels() {
 
   await chargerReferentiels();
   await chargerEvenements();
+  await chargerSuggestions();
 })();

@@ -244,6 +244,23 @@ roleAudiencesRouter.post("/api/role-audiences/suggestions/:actionId/ignorer", re
   return res.json({ ok: true });
 });
 
+// Detail d'une audience precise - utilise par le calendrier unifie pour
+// pre-remplir le formulaire d'edition et afficher les champs specifiques
+// (juridiction, statut...) dans le detail d'un evenement de type "audience".
+roleAudiencesRouter.get("/api/role-audiences/:id", requireAuth, async (req, res) => {
+  const audience = await prisma.roleAudience.findFirst({
+    where: { id: req.params.id, cabinetId: req.auth!.cabinetId },
+    include: {
+      dossier: { select: { id: true, numeroDossier: true, nomAffaire: true } },
+      creePar: { select: { nom: true } },
+    },
+  });
+  if (!audience) {
+    return res.status(404).json({ error: "Audience introuvable" });
+  }
+  return res.json(audience);
+});
+
 const createSchema = z.object({
   dateAudience: z.string().min(1),
   juridiction: z.string().min(1),
@@ -315,6 +332,7 @@ roleAudiencesRouter.post("/api/role-audiences", requireAuth, async (req, res) =>
 
 const updateSchema = z.object({
   statut: z.enum(["a_preparer", "pret", "traite"]).optional(),
+  dateAudience: z.string().min(1).optional(),
   juridiction: z.string().min(1).optional(),
   chambre: z.string().optional(),
   procedureNumero: z.string().optional(),
@@ -323,6 +341,7 @@ const updateSchema = z.object({
   objetProcedure: z.string().optional(),
   dernierMotif: z.string().optional(),
   diligences: z.string().optional(),
+  dossierId: z.string().uuid().nullable().optional(),
 });
 
 roleAudiencesRouter.patch("/api/role-audiences/:id", requireAuth, async (req, res) => {
@@ -338,9 +357,37 @@ roleAudiencesRouter.patch("/api/role-audiences/:id", requireAuth, async (req, re
     return res.status(404).json({ error: "Audience introuvable" });
   }
 
+  let dateAudience: Date | undefined;
+  if (parsed.data.dateAudience !== undefined) {
+    dateAudience = new Date(parsed.data.dateAudience);
+    if (Number.isNaN(dateAudience.getTime())) {
+      return res.status(400).json({ error: "Date d'audience invalide" });
+    }
+  }
+
+  let dossierId: string | null | undefined;
+  if (parsed.data.dossierId !== undefined) {
+    if (parsed.data.dossierId === null) {
+      dossierId = null;
+    } else {
+      const dossier = await prisma.dossier.findFirst({
+        where: { id: parsed.data.dossierId, cabinetId: req.auth!.cabinetId },
+      });
+      if (!dossier) {
+        return res.status(404).json({ error: "Dossier introuvable" });
+      }
+      dossierId = dossier.id;
+    }
+  }
+
+  const { dateAudience: _dateAudience, dossierId: _dossierId, ...rest } = parsed.data;
   const updated = await prisma.roleAudience.update({
     where: { id: existing.id },
-    data: parsed.data,
+    data: {
+      ...rest,
+      ...(dateAudience !== undefined ? { dateAudience } : {}),
+      ...(dossierId !== undefined ? { dossierId } : {}),
+    },
   });
 
   // Lot 12a : re-synchronise l'Evenement lie (juridiction/parties/statut

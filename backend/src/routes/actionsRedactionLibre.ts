@@ -14,11 +14,21 @@ export const actionsRedactionLibreRouter = Router();
 // Validation minimale, volontairement separee du schema Zod du mode IA
 // (webForms.ts, jamais touche par ce lot) : type de document valide parmi
 // les 16 existants + dossier/client, aucun champ metier obligatoire.
+// champs_document reprend les memes cles que celles lues par
+// buildFormalisme() (services/documentFormalisme.ts) pour CE type - saisies
+// directement par l'avocat ici (pas de LLM, pas de fiche client consultee),
+// jamais validees champ par champ cote serveur : le formulaire cote client
+// ne propose que les cles pertinentes pour le type choisi, le reste est
+// simplement ignore a l'affichage (voir buildFormalisme, s()).
 const redactionLibreSchema = z.object({
   type_action: z.nativeEnum(TypeAction),
   numero_dossier: z.string().trim().optional(),
   nom_affaire: z.string().trim().optional(),
   nom_client: z.string().trim().min(1, "Le nom du client est requis."),
+  date_audience: z.string().trim().optional(),
+  prochaine_audience: z.string().trim().optional(),
+  pieces_prevoir: z.string().trim().optional(),
+  champs_document: z.record(z.string(), z.string()).optional(),
 });
 
 // Chemin de creation alternatif complet au mode "generation IA"
@@ -35,6 +45,24 @@ actionsRedactionLibreRouter.post(
     if (!parsed.success) {
       return res.status(400).json({ error: "Requête invalide", details: parsed.error.issues });
     }
+
+    let dateAudience: Date | undefined;
+    if (parsed.data.date_audience) {
+      dateAudience = new Date(parsed.data.date_audience);
+      if (Number.isNaN(dateAudience.getTime())) {
+        return res.status(400).json({ error: "Date d'audience invalide" });
+      }
+    }
+    let prochaineAudience: Date | undefined;
+    if (parsed.data.prochaine_audience) {
+      prochaineAudience = new Date(parsed.data.prochaine_audience);
+      if (Number.isNaN(prochaineAudience.getTime())) {
+        return res.status(400).json({ error: "Date de prochaine audience invalide" });
+      }
+    }
+    const champsDocumentNonVides =
+      parsed.data.champs_document &&
+      Object.fromEntries(Object.entries(parsed.data.champs_document).filter(([, v]) => v.trim().length > 0));
 
     const dossierResult = await findOrCreateDossier({
       cabinetId: req.auth!.cabinetId,
@@ -65,6 +93,10 @@ actionsRedactionLibreRouter.post(
         modeCreation: "redaction_libre",
         nomDocument,
         createdBy: req.auth!.userId,
+        dateAudience,
+        prochaineAudience,
+        piecesPrevoir: parsed.data.pieces_prevoir || undefined,
+        champsDocument: champsDocumentNonVides && Object.keys(champsDocumentNonVides).length > 0 ? champsDocumentNonVides : undefined,
       },
     });
 

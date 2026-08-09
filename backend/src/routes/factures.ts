@@ -84,9 +84,10 @@ const depuisTempsSchema = z.object({
 });
 
 // Lot 14 - "Facturer ce dossier" depuis le temps passe : pre-remplit une
-// facture a partir des SaisieTemps facturables et non encore facturees du
-// dossier, montant calcule saisie par saisie (chacune garde son propre
-// taux horaire snapshotte - voir calculerMontant, services/feuillesTemps.ts).
+// facture a partir des SaisieTemps non encore facturees du dossier (tout
+// temps enregistre est facturable), montant calcule saisie par saisie
+// (chacune garde son propre taux horaire snapshotte - voir calculerMontant,
+// services/feuillesTemps.ts).
 // Insertion ciblee : aucune autre route de ce fichier n'est modifiee.
 facturesRouter.post("/api/factures/depuis-temps", requireAuth, requireAvocat, async (req, res) => {
   const parsed = depuisTempsSchema.safeParse(req.body);
@@ -101,14 +102,13 @@ facturesRouter.post("/api/factures/depuis-temps", requireAuth, requireAvocat, as
     return res.status(404).json({ error: "Dossier introuvable" });
   }
 
-  // Seules les saisies facturables, terminees (dureeMinutes renseignee -
-  // un chronometre encore actif n'est jamais inclus) et pas deja rattachees
-  // a une facture (factureId null - evite tout double comptage) sont
-  // proposees ici.
+  // Toute saisie de temps est facturable (aucune exception) - seules les
+  // saisies terminees (dureeMinutes renseignee - un chronometre encore
+  // actif n'est jamais inclus) et pas deja rattachees a une facture
+  // (factureId null - evite tout double comptage) sont proposees ici.
   const saisies = await prisma.saisieTemps.findMany({
     where: {
       dossierId: dossier.id,
-      facturable: true,
       dureeMinutes: { not: null },
       factureId: null,
     },
@@ -118,7 +118,7 @@ facturesRouter.post("/api/factures/depuis-temps", requireAuth, requireAvocat, as
 
   if (saisies.length === 0) {
     return res.status(400).json({
-      error: "Aucune saisie de temps facturable et non encore facturée pour ce dossier.",
+      error: "Aucune saisie de temps non encore facturée pour ce dossier.",
     });
   }
 
@@ -191,6 +191,44 @@ facturesRouter.get("/api/factures", requireAuth, requireAvocat, async (req, res)
   });
 
   return res.json(factures);
+});
+
+// Pop-up "Factures en attente de paiement" (tableau de bord) : factures
+// envoyees et non payees (hors proforma) que CET utilisateur n'a pas
+// explicitement ecartees ("Ne plus me rappeler" - voir POST .../ignorer-rappel
+// ci-dessous). Route distincte de GET /api/factures : /api/stats calcule
+// deja le compteur affiche sur la carte du tableau de bord a partir des
+// memes criteres - cette route ne sert que la liste effectivement affichee
+// dans le pop-up.
+facturesRouter.get("/api/factures/rappels", requireAuth, requireAvocat, async (req, res) => {
+  const factures = await prisma.facture.findMany({
+    where: {
+      cabinetId: req.auth!.cabinetId,
+      statut: "envoyee",
+      estProforma: false,
+      rappelsIgnores: { none: { userId: req.auth!.userId } },
+    },
+    select: { id: true, numero: true, clientNom: true, montant: true, dateEcheance: true },
+    orderBy: { dateEcheance: "asc" },
+  });
+  return res.json(factures);
+});
+
+facturesRouter.post("/api/factures/:id/ignorer-rappel", requireAuth, requireAvocat, async (req, res) => {
+  const facture = await prisma.facture.findFirst({
+    where: { id: req.params.id, cabinetId: req.auth!.cabinetId },
+  });
+  if (!facture) {
+    return res.status(404).json({ error: "Facture introuvable" });
+  }
+
+  await prisma.factureRappelIgnore.upsert({
+    where: { factureId_userId: { factureId: facture.id, userId: req.auth!.userId } },
+    create: { factureId: facture.id, userId: req.auth!.userId },
+    update: {},
+  });
+
+  return res.json({ ok: true });
 });
 
 async function loadFacture(id: string, cabinetId: string) {

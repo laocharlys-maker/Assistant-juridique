@@ -37,14 +37,25 @@ export function requireSuperAdmin(req: Request, res: Response, next: NextFunctio
 // vendable separement (factures, jurisprudence, delais...).
 export function requireModule(cle: string) {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    const cabinet = await prisma.cabinet.findUnique({
-      where: { id: req.auth!.cabinetId },
-      select: { modulesDesactives: true },
-    });
-    if (cabinet?.modulesDesactives.includes(cle)) {
-      res.status(403).json({ error: "Ce module n'est pas activé pour votre cabinet. Contactez l'administrateur de la plateforme." });
-      return;
+    // Sans try/catch, une erreur Postgres ici (middleware partage par tous
+    // les modules payants - facturation, jurisprudence, delais...) resterait
+    // une promesse rejetee non rattrapee, qui arrete TOUT le backend via le
+    // filet de securite process.on("unhandledRejection", ...) de index.ts -
+    // un rayon d'action disproportionne pour une simple verification
+    // d'acces a un module.
+    try {
+      const cabinet = await prisma.cabinet.findUnique({
+        where: { id: req.auth!.cabinetId },
+        select: { modulesDesactives: true },
+      });
+      if (cabinet?.modulesDesactives.includes(cle)) {
+        res.status(403).json({ error: "Ce module n'est pas activé pour votre cabinet. Contactez l'administrateur de la plateforme." });
+        return;
+      }
+      next();
+    } catch (error) {
+      console.error(`Erreur verification du module "${cle}" :`, error);
+      res.status(500).json({ error: "Erreur interne (voir logs serveur)" });
     }
-    next();
   };
 }

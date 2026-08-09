@@ -392,6 +392,16 @@ CREATE TABLE "factures" (
 );
 
 -- CreateTable
+CREATE TABLE "facture_rappels_ignores" (
+    "id" TEXT NOT NULL,
+    "facture_id" TEXT NOT NULL,
+    "user_id" TEXT NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "facture_rappels_ignores_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "actions" (
     "id" TEXT NOT NULL,
     "dossier_id" TEXT NOT NULL,
@@ -566,6 +576,9 @@ CREATE INDEX "factures_dossier_id_idx" ON "factures"("dossier_id");
 CREATE UNIQUE INDEX "factures_cabinet_id_numero_key" ON "factures"("cabinet_id", "numero");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "facture_rappels_ignores_facture_id_user_id_key" ON "facture_rappels_ignores"("facture_id", "user_id");
+
+-- CreateIndex
 CREATE INDEX "actions_dossier_id_idx" ON "actions"("dossier_id");
 
 -- CreateIndex
@@ -702,6 +715,12 @@ ALTER TABLE "factures" ADD CONSTRAINT "factures_dossier_id_fkey" FOREIGN KEY ("d
 
 -- AddForeignKey
 ALTER TABLE "factures" ADD CONSTRAINT "factures_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "facture_rappels_ignores" ADD CONSTRAINT "facture_rappels_ignores_facture_id_fkey" FOREIGN KEY ("facture_id") REFERENCES "factures"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "facture_rappels_ignores" ADD CONSTRAINT "facture_rappels_ignores_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "actions" ADD CONSTRAINT "actions_dossier_id_fkey" FOREIGN KEY ("dossier_id") REFERENCES "dossiers"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

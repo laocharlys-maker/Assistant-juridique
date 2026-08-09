@@ -53,9 +53,6 @@ function construireParams(format) {
   const dossierId = document.getElementById("filter-dossier").value;
   if (dossierId) params.set("dossierId", dossierId);
 
-  const facturable = document.getElementById("filter-facturable").value;
-  if (facturable) params.set("facturable", facturable);
-
   if (peutVoirEquipe() && scope === "equipe") {
     const userId = document.getElementById("filter-collaborateur").value;
     if (userId) params.set("userId", userId);
@@ -90,19 +87,17 @@ function renderFeuille(lignes) {
     return;
   }
 
-  let totalFacturable = 0;
-  let totalNonFacturable = 0;
+  let totalDuree = 0;
   let totalMontant = 0;
 
   const lignesHtml = lignes
     .map((l) => {
-      totalFacturable += l.dureeMinutesFacturable;
-      totalNonFacturable += l.dureeMinutesNonFacturable;
-      totalMontant += l.montantFacturable;
+      totalDuree += l.dureeMinutes;
+      totalMontant += l.montant;
       return `
         <div class="action-item">
           <span class="tag">${escapeHtml(l.label)}</span>
-          <div>Facturable : <strong>${formatDureeCourte(l.dureeMinutesFacturable)}</strong> (${l.montantFacturable.toLocaleString("fr-FR")} F CFA) — Non facturable : ${formatDureeCourte(l.dureeMinutesNonFacturable)}</div>
+          <div><strong>${formatDureeCourte(l.dureeMinutes)}</strong> — ${l.montant.toLocaleString("fr-FR")} F CFA</div>
         </div>`;
     })
     .join("");
@@ -110,7 +105,7 @@ function renderFeuille(lignes) {
   bodyEl.innerHTML = `
     ${lignesHtml}
     <div class="action-item" style="background:var(--panel-alt);">
-      <strong>Total — Facturable : ${formatDureeCourte(totalFacturable)} (${totalMontant.toLocaleString("fr-FR")} F CFA) · Non facturable : ${formatDureeCourte(totalNonFacturable)}</strong>
+      <strong>Total — ${formatDureeCourte(totalDuree)} — ${totalMontant.toLocaleString("fr-FR")} F CFA</strong>
     </div>`;
 }
 
@@ -153,7 +148,7 @@ document.querySelectorAll("#scope-tabs .tab").forEach((btn) => {
     chargerFeuille();
   });
 });
-["filter-periode", "filter-dossier", "filter-collaborateur", "filter-facturable"].forEach((id) => {
+["filter-periode", "filter-dossier", "filter-collaborateur"].forEach((id) => {
   document.getElementById(id).addEventListener("change", chargerFeuille);
 });
 document.getElementById("telecharger-pdf-btn").addEventListener("click", async () => {

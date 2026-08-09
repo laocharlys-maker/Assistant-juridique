@@ -98,7 +98,7 @@ describe.skipIf(!pgAvailable)("e2e : mode rédaction libre (Lot 11, Partie B)", 
     const body = await res.json();
     expect(body.actionId).toBeTruthy();
     expect(body.dossierId).toBeTruthy();
-    expect(body.contenuGenere).toContain("Maître");
+    expect(body.contenuGenere).toContain("Veuillez agréer");
 
     const action = await prisma.action.findUnique({ where: { id: body.actionId } });
     expect(action?.modeCreation).toBe("redaction_libre");
@@ -135,6 +135,41 @@ describe.skipIf(!pgAvailable)("e2e : mode rédaction libre (Lot 11, Partie B)", 
     expect(llmMock.callCount).toBe(0);
     const action = await prisma.action.findUnique({ where: { id: body.actionId } });
     expect(action?.donneesPseudonymisees).toBe(false);
+  });
+
+  it("enregistre les champs d'identité (champsDocument) et les dates saisis manuellement", async () => {
+    const res = await api("/api/actions/redaction-libre", {
+      method: "POST",
+      body: JSON.stringify({
+        type_action: "notes",
+        nom_client: "Client Compte-Rendu",
+        date_audience: "2026-08-07",
+        prochaine_audience: "2026-09-10",
+        pieces_prevoir: "Assignation, Bordereau",
+        champs_document: {
+          nom_juridiction: "Tribunal de Première Instance",
+          nom_chambre: "Chambre de commerce",
+          nom_juge: "Warren Buffet",
+          nom_greffier: "Stan Dejan",
+        },
+      }),
+    });
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    // Squelette I-IV du gabarit "notes", pas de contenu pre-redige.
+    expect(body.contenuGenere).toContain("I. RAPPEL DE LA PROCÉDURE");
+    expect(body.contenuGenere).toContain("IV. STRATÉGIE ET SUITE À DONNER");
+
+    const action = await prisma.action.findUnique({ where: { id: body.actionId } });
+    expect(action?.champsDocument).toMatchObject({
+      nom_juridiction: "Tribunal de Première Instance",
+      nom_chambre: "Chambre de commerce",
+      nom_juge: "Warren Buffet",
+      nom_greffier: "Stan Dejan",
+    });
+    expect(action?.dateAudience?.toISOString().slice(0, 10)).toBe("2026-08-07");
+    expect(action?.prochaineAudience?.toISOString().slice(0, 10)).toBe("2026-09-10");
+    expect(action?.piecesPrevoir).toBe("Assignation, Bordereau");
   });
 
   it("réutilise un dossier existant par numéro, comme le mode IA", async () => {

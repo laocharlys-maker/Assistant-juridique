@@ -29,25 +29,24 @@ describe("formatDuree", () => {
 });
 
 const saisies: SaisiePourAgregation[] = [
-  { userId: "u1", userNom: "Awa Toko", dossierId: "d1", dossierLabel: "AFF-1 — Affaire A", dureeMinutes: 60, tauxHoraireApplique: 10000, facturable: true },
-  { userId: "u1", userNom: "Awa Toko", dossierId: "d2", dossierLabel: "AFF-2 — Affaire B", dureeMinutes: 30, tauxHoraireApplique: 10000, facturable: true },
-  { userId: "u1", userNom: "Awa Toko", dossierId: "d1", dossierLabel: "AFF-1 — Affaire A", dureeMinutes: 45, tauxHoraireApplique: 10000, facturable: false },
-  { userId: "u2", userNom: "Jean Kokou", dossierId: "d1", dossierLabel: "AFF-1 — Affaire A", dureeMinutes: 120, tauxHoraireApplique: 20000, facturable: true },
+  { userId: "u1", userNom: "Awa Toko", dossierId: "d1", dossierLabel: "AFF-1 — Affaire A", dureeMinutes: 60, tauxHoraireApplique: 10000 },
+  { userId: "u1", userNom: "Awa Toko", dossierId: "d2", dossierLabel: "AFF-2 — Affaire B", dureeMinutes: 30, tauxHoraireApplique: 10000 },
+  { userId: "u1", userNom: "Awa Toko", dossierId: "d1", dossierLabel: "AFF-1 — Affaire A", dureeMinutes: 45, tauxHoraireApplique: 10000 },
+  { userId: "u2", userNom: "Jean Kokou", dossierId: "d1", dossierLabel: "AFF-1 — Affaire A", dureeMinutes: 120, tauxHoraireApplique: 20000 },
 ];
 
 describe("agregerParCollaborateur", () => {
-  it("somme le temps facturable/non facturable et le montant par utilisateur, tous dossiers confondus", () => {
+  it("somme le temps et le montant par utilisateur, tous dossiers confondus", () => {
     const lignes = agregerParCollaborateur(saisies);
     expect(lignes).toHaveLength(2);
 
     const awa = lignes.find((l) => l.cle === "u1")!;
-    expect(awa.dureeMinutesFacturable).toBe(90); // 60 + 30
-    expect(awa.dureeMinutesNonFacturable).toBe(45);
-    expect(awa.montantFacturable).toBe(15000); // (60/60*10000) + (30/60*10000)
+    expect(awa.dureeMinutes).toBe(135); // 60 + 30 + 45
+    expect(awa.montant).toBe(22500); // (60/60*10000) + (30/60*10000) + (45/60*10000)
 
     const jean = lignes.find((l) => l.cle === "u2")!;
-    expect(jean.dureeMinutesFacturable).toBe(120);
-    expect(jean.montantFacturable).toBe(40000);
+    expect(jean.dureeMinutes).toBe(120);
+    expect(jean.montant).toBe(40000);
   });
 
   it("trie les lignes par libellé", () => {
@@ -60,13 +59,12 @@ describe("agregerParDossier", () => {
   it("somme par dossier, tous collaborateurs confondus", () => {
     const lignes = agregerParDossier(saisies);
     const d1 = lignes.find((l) => l.cle === "d1")!;
-    // d1 facturable : 60 (u1) + 120 (u2) ; non facturable : 45 (u1)
-    expect(d1.dureeMinutesFacturable).toBe(180);
-    expect(d1.dureeMinutesNonFacturable).toBe(45);
-    expect(d1.montantFacturable).toBe(10000 + 40000);
+    // d1 : 60 (u1) + 45 (u1) + 120 (u2)
+    expect(d1.dureeMinutes).toBe(225);
+    expect(d1.montant).toBe(10000 + 7500 + 40000);
 
     const d2 = lignes.find((l) => l.cle === "d2")!;
-    expect(d2.dureeMinutesFacturable).toBe(30);
-    expect(d2.dureeMinutesNonFacturable).toBe(0);
+    expect(d2.dureeMinutes).toBe(30);
+    expect(d2.montant).toBe(5000);
   });
 });

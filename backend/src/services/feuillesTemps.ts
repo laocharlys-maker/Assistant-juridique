@@ -16,15 +16,13 @@ export interface SaisiePourAgregation {
   dossierLabel: string;
   dureeMinutes: number;
   tauxHoraireApplique: number | null;
-  facturable: boolean;
 }
 
 export interface LigneAgregee {
   cle: string;
   label: string;
-  dureeMinutesFacturable: number;
-  dureeMinutesNonFacturable: number;
-  montantFacturable: number;
+  dureeMinutes: number;
+  montant: number;
 }
 
 /** Montant en FCFA pour une duree/taux donnes - null si le taux n'etait pas
@@ -53,22 +51,17 @@ function agreger(saisies: SaisiePourAgregation[], cleDe: (s: SaisiePourAgregatio
   for (const s of saisies) {
     const cle = cleDe(s);
     if (!parCle.has(cle)) {
-      parCle.set(cle, { cle, label: labelDe(s), dureeMinutesFacturable: 0, dureeMinutesNonFacturable: 0, montantFacturable: 0 });
+      parCle.set(cle, { cle, label: labelDe(s), dureeMinutes: 0, montant: 0 });
     }
     const ligne = parCle.get(cle)!;
-    if (s.facturable) {
-      ligne.dureeMinutesFacturable += s.dureeMinutes;
-      ligne.montantFacturable += calculerMontant(s.dureeMinutes, s.tauxHoraireApplique);
-    } else {
-      ligne.dureeMinutesNonFacturable += s.dureeMinutes;
-    }
+    ligne.dureeMinutes += s.dureeMinutes;
+    ligne.montant += calculerMontant(s.dureeMinutes, s.tauxHoraireApplique);
   }
   return [...parCle.values()].sort((a, b) => a.label.localeCompare(b.label, "fr"));
 }
 
 /** Agregation par collaborateur - charge de travail par personne sur la
- * periode/le perimetre demande (temps facturable ET non facturable, pour
- * rester utile comme statistique interne - contrainte explicite du prompt). */
+ * periode/le perimetre demande. */
 export function agregerParCollaborateur(saisies: SaisiePourAgregation[]): LigneAgregee[] {
   return agreger(saisies, (s) => s.userId, (s) => s.userNom);
 }
@@ -115,18 +108,16 @@ export async function buildFeuilleTempsPdf(input: FeuilleTempsExportInput): Prom
 
     const usableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
     const left = doc.page.margins.left;
-    const colLabel = usableWidth * 0.4;
-    const colFacturable = usableWidth * 0.2;
-    const colNonFacturable = usableWidth * 0.2;
-    const colMontant = usableWidth * 0.2;
+    const colLabel = usableWidth * 0.5;
+    const colTemps = usableWidth * 0.25;
+    const colMontant = usableWidth * 0.25;
 
     const enTete = (y: number) => {
       doc.font("Helvetica-Bold").fontSize(9);
       const x = left;
       doc.text("", x, y);
-      doc.text("Temps facturable", x + colLabel, y, { width: colFacturable, align: "right" });
-      doc.text("Temps non facturable", x + colLabel + colFacturable, y, { width: colNonFacturable, align: "right" });
-      doc.text("Montant", x + colLabel + colFacturable + colNonFacturable, y, { width: colMontant, align: "right" });
+      doc.text("Temps", x + colLabel, y, { width: colTemps, align: "right" });
+      doc.text("Montant", x + colLabel + colTemps, y, { width: colMontant, align: "right" });
     };
 
     const ligneTop = doc.y;
@@ -135,8 +126,7 @@ export async function buildFeuilleTempsPdf(input: FeuilleTempsExportInput): Prom
     doc.moveTo(left, doc.y).lineTo(left + usableWidth, doc.y).stroke();
     doc.moveDown(0.4);
 
-    let totalFacturable = 0;
-    let totalNonFacturable = 0;
+    let totalDuree = 0;
     let totalMontant = 0;
 
     doc.font("Helvetica").fontSize(10);
@@ -147,20 +137,15 @@ export async function buildFeuilleTempsPdf(input: FeuilleTempsExportInput): Prom
       }
       const y = doc.y;
       doc.text(ligne.label, left, y, { width: colLabel });
-      doc.text(formatDuree(ligne.dureeMinutesFacturable), left + colLabel, y, { width: colFacturable, align: "right" });
-      doc.text(formatDuree(ligne.dureeMinutesNonFacturable), left + colLabel + colFacturable, y, {
-        width: colNonFacturable,
-        align: "right",
-      });
-      doc.text(formatMontant(ligne.montantFacturable), left + colLabel + colFacturable + colNonFacturable, y, {
+      doc.text(formatDuree(ligne.dureeMinutes), left + colLabel, y, { width: colTemps, align: "right" });
+      doc.text(formatMontant(ligne.montant), left + colLabel + colTemps, y, {
         width: colMontant,
         align: "right",
       });
       doc.moveDown(0.6);
 
-      totalFacturable += ligne.dureeMinutesFacturable;
-      totalNonFacturable += ligne.dureeMinutesNonFacturable;
-      totalMontant += ligne.montantFacturable;
+      totalDuree += ligne.dureeMinutes;
+      totalMontant += ligne.montant;
     }
 
     doc.moveTo(left, doc.y).lineTo(left + usableWidth, doc.y).stroke();
@@ -168,12 +153,8 @@ export async function buildFeuilleTempsPdf(input: FeuilleTempsExportInput): Prom
     doc.font("Helvetica-Bold").fontSize(10);
     const yTotal = doc.y;
     doc.text("Total", left, yTotal, { width: colLabel });
-    doc.text(formatDuree(totalFacturable), left + colLabel, yTotal, { width: colFacturable, align: "right" });
-    doc.text(formatDuree(totalNonFacturable), left + colLabel + colFacturable, yTotal, {
-      width: colNonFacturable,
-      align: "right",
-    });
-    doc.text(formatMontant(totalMontant), left + colLabel + colFacturable + colNonFacturable, yTotal, {
+    doc.text(formatDuree(totalDuree), left + colLabel, yTotal, { width: colTemps, align: "right" });
+    doc.text(formatMontant(totalMontant), left + colLabel + colTemps, yTotal, {
       width: colMontant,
       align: "right",
     });
@@ -183,10 +164,7 @@ export async function buildFeuilleTempsPdf(input: FeuilleTempsExportInput): Prom
       .font("Helvetica-Oblique")
       .fontSize(8)
       .fillColor("#6b6a64")
-      .text(
-        `Généré le ${formatDateLongue(new Date())} — le temps non facturable reste comptabilisé ici à titre statistique interne, jamais inclus dans une facturation.`,
-        { align: "center" }
-      );
+      .text(`Généré le ${formatDateLongue(new Date())}.`, { align: "center" });
 
     doc.end();
   });

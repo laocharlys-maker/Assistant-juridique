@@ -25,7 +25,6 @@ const NAV_ICONS = {
 const NAV_ITEMS = [
   { href: "/tableau-de-bord.html", label: "Tableau de bord", roles: ["titulaire", "avocat", "collaborateur"], group: "Travail", icon: "dashboard" },
   { href: "/calendrier.html", label: "Calendrier", roles: ["titulaire", "avocat", "collaborateur"], group: "Travail", icon: "calendar" },
-  { href: "/role-semaine.html", label: "Calendrier Audiences", roles: ["titulaire", "avocat", "collaborateur"], group: "Travail", icon: "calendar" },
   { href: "/nouvelle-action.html", label: "Nouvelle action", roles: ["titulaire", "avocat", "collaborateur"], group: "Travail", icon: "plus", moduleKey: "nouvelle_action" },
   { href: "/dashboard.html", label: "Documents générés", roles: ["titulaire", "avocat", "collaborateur"], group: "Travail", icon: "docs", moduleKey: "documents_generes" },
   { href: "/clients.html", label: "Clients", roles: ["titulaire", "avocat", "collaborateur"], group: "Travail", icon: "clients" },
@@ -127,6 +126,7 @@ function initLayout(me) {
       </button>
       <img src="/logo-aurore-header.png" alt="" class="brand-logo" onerror="this.style.display='none'" />
       <span class="brand-word">AURORE, ASSISTANTE JURIDIQUE</span>
+      <span id="header-chrono" class="header-chrono" hidden></span>
     </div>
     <div class="topbar-right">
       <button type="button" id="theme-toggle-btn" class="icon-btn" aria-label="Changer de thème" title="Mode clair / sombre">
@@ -195,6 +195,90 @@ function initLayout(me) {
   // redirige vers /licence.html avant meme d'appeler initLayout) - seul le
   // cas "grace" a besoin d'un bandeau ici.
   checkLicenceBanner(main, topbar);
+
+  // Lot 14 (deplace) : chronometre persistant dans le Header - visible sur
+  // TOUTE page (initLayout tourne partout), pas seulement sur la fiche
+  // dossier ou Nouvelle action. L'etat "en cours" est toujours relu depuis
+  // le serveur a chaque chargement de page (voir /api/saisies-temps/actif) :
+  // jamais uniquement en memoire navigateur, donc jamais perdu en changeant
+  // de page.
+  initHeaderChrono(me);
+
+  // Pop-up "Factures en attente de paiement" - une fois par jour maximum
+  // (throttle localStorage), reserve aux avocats/titulaire (memes roles que
+  // /api/factures/rappels, voir requireAvocat).
+  initFacturesRappel(me);
+}
+
+function escapeHtmlHeaderChrono(str) {
+  const div = document.createElement("div");
+  div.textContent = str ?? "";
+  return div.innerHTML;
+}
+
+let headerChronoIntervalId = null;
+
+async function initHeaderChrono(me) {
+  const el = document.getElementById("header-chrono");
+  if (!el) return;
+  // Meme module que la facturation (voir routes/saisiesTemps.ts) - inutile
+  // d'interroger une route que ce cabinet n'a pas.
+  if ((me.modulesDesactives || []).includes("facturation")) return;
+
+  let chronoActif = null;
+
+  function render() {
+    if (headerChronoIntervalId) {
+      clearInterval(headerChronoIntervalId);
+      headerChronoIntervalId = null;
+    }
+    if (!chronoActif) {
+      el.hidden = true;
+      el.innerHTML = "";
+      return;
+    }
+    el.hidden = false;
+    const debut = new Date(chronoActif.demarreA).getTime();
+    const tick = () => {
+      const secondes = Math.max(0, Math.floor((Date.now() - debut) / 1000));
+      const h = Math.floor(secondes / 3600);
+      const m = Math.floor((secondes % 3600) / 60);
+      const s = Math.floor(secondes % 60);
+      const pad = (n) => String(n).padStart(2, "0");
+      const span = document.getElementById("header-chrono-temps");
+      if (span) span.textContent = `${pad(h)}:${pad(m)}:${pad(s)}`;
+    };
+    el.innerHTML = `
+      <span class="header-chrono-badge" title="Chronomètre en cours — dossier ${escapeHtmlHeaderChrono(chronoActif.dossier.numeroDossier)}">⏱ <span id="header-chrono-temps"></span> <span>· ${escapeHtmlHeaderChrono(chronoActif.dossier.numeroDossier)}</span></span>
+      <button type="button" id="header-chrono-stop-btn" class="icon-btn" aria-label="Arrêter le chronomètre" title="Arrêter le chronomètre">✕</button>
+    `;
+    tick();
+    headerChronoIntervalId = setInterval(tick, 1000);
+    document.getElementById("header-chrono-stop-btn").addEventListener("click", async () => {
+      try {
+        await apiFetch(`/api/saisies-temps/${chronoActif.id}/arreter`, { method: "POST" });
+        await rafraichir();
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+  }
+
+  async function rafraichir() {
+    try {
+      chronoActif = await apiFetch("/api/saisies-temps/actif");
+    } catch {
+      chronoActif = null;
+    }
+    render();
+  }
+
+  // Expose pour que d'autres pages (Nouvelle action) puissent forcer un
+  // rafraichissement immediat juste apres avoir demarre/arrete le
+  // chronometre elles-memes, sans attendre le prochain chargement de page.
+  window.rafraichirHeaderChrono = rafraichir;
+
+  await rafraichir();
 }
 
 async function checkLicenceBanner(main, topbar) {
@@ -209,4 +293,119 @@ async function checkLicenceBanner(main, topbar) {
     // Echec silencieux : ne doit jamais empecher l'affichage normal de la
     // page (ex: API temporairement indisponible).
   }
+}
+
+function escapeHtmlFacturesRappel(str) {
+  const div = document.createElement("div");
+  div.textContent = str ?? "";
+  return div.innerHTML;
+}
+
+// Cle localStorage isolee par utilisateur (poste partage possible en mode
+// reseau, voir README-LOT6.md) - jamais cote serveur : purement un
+// throttle d'affichage ("deja vu aujourd'hui"), pas une donnee metier. La
+// suppression definitive par facture ("Ne plus me rappeler") est, elle,
+// persistee cote serveur (FactureRappelIgnore) pour survivre a un
+// changement de poste/navigateur.
+function factureRappelStorageKey(me) {
+  return `aurore-rappel-factures-dernier-${me.id}`;
+}
+
+function factureRappelDejaAffiche(me) {
+  const aujourdHui = new Date().toISOString().slice(0, 10);
+  return localStorage.getItem(factureRappelStorageKey(me)) === aujourdHui;
+}
+
+function factureRappelMarquerAffiche(me) {
+  const aujourdHui = new Date().toISOString().slice(0, 10);
+  localStorage.setItem(factureRappelStorageKey(me), aujourdHui);
+}
+
+async function initFacturesRappel(me) {
+  if (me.role !== "titulaire" && me.role !== "avocat") return;
+  if (factureRappelDejaAffiche(me)) return;
+
+  let factures;
+  try {
+    factures = await apiFetch("/api/factures/rappels");
+  } catch {
+    // Module facturation desactive pour ce cabinet, ou erreur reseau
+    // ponctuelle - jamais bloquant, on reessaiera au prochain chargement.
+    return;
+  }
+  if (!factures || factures.length === 0) return;
+
+  // Marque comme "vu" des maintenant (pas seulement a la fermeture) : un
+  // rechargement de page dans la meme journee ne doit pas le rouvrir.
+  factureRappelMarquerAffiche(me);
+  afficherPopupFacturesRappel(factures);
+}
+
+function afficherPopupFacturesRappel(factures) {
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay";
+  overlay.id = "factures-rappel-overlay";
+
+  function ligneHtml(f) {
+    const enRetard = f.dateEcheance && new Date(f.dateEcheance) < new Date();
+    return `
+      <div class="action-item" data-facture-rappel-ligne="${f.id}">
+        <span class="tag">${escapeHtmlFacturesRappel(f.numero)}</span>
+        ${enRetard ? '<span class="badge badge-echeance_proche">En retard</span>' : ""}
+        <div>${escapeHtmlFacturesRappel(f.clientNom || "Client non précisé")} — <strong>${f.montant.toLocaleString("fr-FR")} F CFA</strong>${
+          f.dateEcheance ? ` — échéance le ${new Date(f.dateEcheance).toLocaleDateString("fr-FR")}` : ""
+        }</div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:6px;">
+          <button type="button" class="secondary btn-sm" data-facture-rappel-payee="${f.id}">Marquer comme payée</button>
+          <button type="button" class="ghost btn-sm" data-facture-rappel-ignorer="${f.id}">Ne plus me rappeler</button>
+        </div>
+      </div>`;
+  }
+
+  overlay.innerHTML = `
+    <div class="modal-box">
+      <h2>Factures en attente de paiement</h2>
+      <p class="muted">${factures.length} facture${factures.length > 1 ? "s" : ""} envoyée${factures.length > 1 ? "s" : ""} pas encore marquée${factures.length > 1 ? "s" : ""} payée${factures.length > 1 ? "s" : ""}.</p>
+      <div id="factures-rappel-liste">${factures.map(ligneHtml).join("")}</div>
+      <div style="display:flex; gap:10px; margin-top:18px;">
+        <button type="button" class="ghost" id="factures-rappel-fermer-btn">Fermer</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  function fermerSiVide() {
+    if (overlay.querySelectorAll("[data-facture-rappel-ligne]").length === 0) {
+      overlay.remove();
+    }
+  }
+
+  overlay.querySelector("#factures-rappel-fermer-btn").addEventListener("click", () => overlay.remove());
+
+  overlay.querySelectorAll("[data-facture-rappel-payee]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      try {
+        await apiFetch(`/api/factures/${btn.dataset.factureRappelPayee}`, { method: "PATCH", body: { statut: "payee" } });
+        overlay.querySelector(`[data-facture-rappel-ligne="${btn.dataset.factureRappelPayee}"]`)?.remove();
+        fermerSiVide();
+      } catch (err) {
+        btn.disabled = false;
+        alert(err.message);
+      }
+    });
+  });
+
+  overlay.querySelectorAll("[data-facture-rappel-ignorer]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      try {
+        await apiFetch(`/api/factures/${btn.dataset.factureRappelIgnorer}/ignorer-rappel`, { method: "POST" });
+        overlay.querySelector(`[data-facture-rappel-ligne="${btn.dataset.factureRappelIgnorer}"]`)?.remove();
+        fermerSiVide();
+      } catch (err) {
+        btn.disabled = false;
+        alert(err.message);
+      }
+    });
+  });
 }

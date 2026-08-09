@@ -16,20 +16,31 @@ export const jurisprudenceBaseRouter = Router();
 jurisprudenceBaseRouter.use("/api/jurisprudence-base", requireAuth, requireModule("jurisprudence"));
 
 jurisprudenceBaseRouter.get("/api/jurisprudence-base", requireAuth, async (_req, res) => {
-  const entries = await prisma.jurisprudenceChunk.findMany({
-    select: {
-      id: true,
-      source: true,
-      reference: true,
-      juridiction: true,
-      dateDecision: true,
-      contenu: true,
-      lien: true,
-      createdAt: true,
-    },
-    orderBy: { createdAt: "desc" },
-  });
-  return res.json(entries);
+  // Sans try/catch, une erreur ici (ex: extension Postgres "vector" ou
+  // table jurisprudence_chunks manquante sur cet environnement) resterait
+  // une promesse rejetee non rattrapee - avec le filet de securite de
+  // index.ts (process.on("unhandledRejection", ...)), cela arrete TOUT le
+  // backend, pas seulement cette requete. D'ou ce try/catch explicite,
+  // comme sur POST /api/jurisprudence-base ci-dessous.
+  try {
+    const entries = await prisma.jurisprudenceChunk.findMany({
+      select: {
+        id: true,
+        source: true,
+        reference: true,
+        juridiction: true,
+        dateDecision: true,
+        contenu: true,
+        lien: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    return res.json(entries);
+  } catch (error) {
+    console.error("Erreur chargement base de jurisprudence :", error);
+    return res.status(500).json({ error: "Impossible de charger la base de jurisprudence (voir logs serveur)" });
+  }
 });
 
 const createEntrySchema = z.object({
@@ -100,17 +111,24 @@ jurisprudenceBaseRouter.patch("/api/jurisprudence-base/:id", requireAuth, async 
   if (!parsed.success) {
     return res.status(400).json({ error: "Formulaire invalide", details: parsed.error.issues });
   }
-  const updated = await prisma.jurisprudenceChunk.updateMany({
-    where: { id: req.params.id },
-    data: { lien: parsed.data.lien || null },
-  });
-  if (updated.count === 0) {
-    return res.status(404).json({ error: "Source introuvable" });
+  try {
+    const updated = await prisma.jurisprudenceChunk.updateMany({
+      where: { id: req.params.id },
+      data: { lien: parsed.data.lien || null },
+    });
+    if (updated.count === 0) {
+      return res.status(404).json({ error: "Source introuvable" });
+    }
+    return res.json({ ok: true });
+  } catch (error) {
+    console.error("Erreur mise à jour du lien de jurisprudence :", error);
+    return res.status(500).json({ error: "Impossible d'enregistrer le lien (voir logs serveur)" });
   }
-  return res.json({ ok: true });
 });
 
 jurisprudenceBaseRouter.delete("/api/jurisprudence-base/:id", requireAuth, async (req, res) => {
-  await prisma.jurisprudenceChunk.delete({ where: { id: req.params.id } }).catch(() => null);
+  await prisma.jurisprudenceChunk.delete({ where: { id: req.params.id } }).catch((error) => {
+    console.error("Erreur suppression jurisprudence :", error);
+  });
   return res.json({ ok: true });
 });

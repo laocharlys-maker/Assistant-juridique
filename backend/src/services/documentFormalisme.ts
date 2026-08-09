@@ -165,7 +165,18 @@ function anneeEnLettres(n: number): string {
 export function buildFormalisme(
   typeAction: string,
   champsDocument: unknown,
-  ctx: FormalismeContext
+  ctx: FormalismeContext,
+  // true pour un document cree en "redaction libre" (Lot 11 Partie B) : les
+  // phrases de liaison narratives normalement ecrites par l'IA pour
+  // introduire/conclure son texte ("J'agis en qualite de conseil de...",
+  // "Veuillez agreer... salutations distinguees"...) n'ont pas de sens ici,
+  // l'avocat redige lui-meme tout le corps du document - seules les
+  // donnees de base et les formules de mise en page fixes (identite,
+  // destinataire, objet, bloc de signature) restent generees. Uniquement
+  // applique aux types explicitement ajustes pour la redaction libre (voir
+  // les cas "mise_en_demeure" et "notification_date" ci-dessous) - les
+  // autres types ne changent jamais de comportement selon ce drapeau.
+  redactionLibre = false
 ): Formalisme | null {
   const c = (champsDocument && typeof champsDocument === "object" ? champsDocument : {}) as Record<
     string,
@@ -274,13 +285,18 @@ export function buildFormalisme(
           s(c, "informations_destinataire") && retrait(4320, `**${s(c, "informations_destinataire")}**`),
           s(c, "objet_mise_en_demeure") && `OBJET : ${s(c, "objet_mise_en_demeure")}`,
           s(c, "civilite_appel_destinataire"),
-          `J'agis par la présente en qualité de conseil de ${ctx.nomClient}${
-            s(c, "adresse_client") ? `, demeurant à ${s(c, "adresse_client")}` : ""
-          }, qui m'a confié la défense de ses intérêts.`
+          // Phrase de liaison ecrite par l'IA pour introduire son texte -
+          // sans objet en redaction libre, l'avocat redige lui-meme tout
+          // le corps de la mise en demeure (voir le parametre redactionLibre).
+          !redactionLibre &&
+            `J'agis par la présente en qualité de conseil de ${ctx.nomClient}${
+              s(c, "adresse_client") ? `, demeurant à ${s(c, "adresse_client")}` : ""
+            }, qui m'a confié la défense de ses intérêts.`
         ),
         apres: bloc(
-          "Sous toutes réserves dont mon client entend se prévaloir en justice.",
-          `Veuillez agréer, ${s(c, "civilite_appel_destinataire") || "Madame, Monsieur,"} l'expression de mes salutations distinguées.`,
+          !redactionLibre && "Sous toutes réserves dont mon client entend se prévaloir en justice.",
+          !redactionLibre &&
+            `Veuillez agréer, ${s(c, "civilite_appel_destinataire") || "Madame, Monsieur,"} l'expression de mes salutations distinguées.`,
           s(c, "nom_avocat") && retrait(5040, `**Maître ${s(c, "nom_avocat")}**`),
           retrait(5040, "**Avocat au Barreau du Bénin**")
         ),
@@ -670,14 +686,19 @@ export function buildFormalisme(
           s(c, "adresse_destinataire") && retrait(4320, `**${s(c, "adresse_destinataire")}**`),
           s(c, "objet") && `**OBJET : ${s(c, "objet")}**`,
           s(c, "civilite_appel_destinataire"),
-          `J'agis en qualité de conseil de ${ligne(
-            s(c, "civilite_nom_client") || ctx.nomClient,
-            s(c, "informations_client")
-          )}. Mon client a élu domicile en mon cabinet pour les besoins des présentes.`
+          // Phrase de liaison ecrite par l'IA pour introduire son texte -
+          // sans objet en redaction libre, l'avocat redige lui-meme tout
+          // le corps de la notification (voir le parametre redactionLibre).
+          !redactionLibre &&
+            `J'agis en qualité de conseil de ${ligne(
+              s(c, "civilite_nom_client") || ctx.nomClient,
+              s(c, "informations_client")
+            )}. Mon client a élu domicile en mon cabinet pour les besoins des présentes.`
         ),
         apres: bloc(
-          "Nous vous remercions de l'attention que vous porterez à cette notification.",
-          `Veuillez agréer, ${s(c, "civilite_appel_destinataire") || "Madame, Monsieur,"} l'expression de mes salutations distinguées.`,
+          !redactionLibre && "Nous vous remercions de l'attention que vous porterez à cette notification.",
+          !redactionLibre &&
+            `Veuillez agréer, ${s(c, "civilite_appel_destinataire") || "Madame, Monsieur,"} l'expression de mes salutations distinguées.`,
           s(c, "nom_avocat") && retrait(5760, `**Maître ${s(c, "nom_avocat")}**`),
           retrait(5760, "**Avocat au Barreau du Bénin**"),
           retrait(5760, "(Sceau du Cabinet)")
