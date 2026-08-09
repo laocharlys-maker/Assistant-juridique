@@ -134,14 +134,24 @@ documentExportRouter.get("/api/actions/:id/word", requireAuth, async (req, res) 
   }
   const entete = await resolveEntete(req.auth!.cabinetId, req.query.avecEntete === "1");
 
-  const buffer = await buildDocx({ ...loaded.input, signature: signatureResolution.signature, entete });
-  const filename = `${slugify(loaded.action.nomDocument || `${loaded.input.typeLabel}-${loaded.input.numeroDossier}`)}.docx`;
-  res.setHeader(
-    "Content-Type",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-  );
-  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-  return res.send(buffer);
+  // Sans try/catch, une erreur de generation ici (image d'entete/signature
+  // corrompue, contenu inattendu...) resterait une promesse rejetee non
+  // rattrapee, qui arrete TOUT le backend via le filet de securite
+  // process.on("unhandledRejection", ...) de index.ts - un rayon d'action
+  // disproportionne pour l'echec de telechargement d'UN document.
+  try {
+    const buffer = await buildDocx({ ...loaded.input, signature: signatureResolution.signature, entete });
+    const filename = `${slugify(loaded.action.nomDocument || `${loaded.input.typeLabel}-${loaded.input.numeroDossier}`)}.docx`;
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    );
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    return res.send(buffer);
+  } catch (error) {
+    console.error(`Erreur generation Word (action ${loaded.action.id}) :`, error);
+    return res.status(500).json({ error: "Impossible de générer le document Word (voir logs serveur)" });
+  }
 });
 
 documentExportRouter.get("/api/actions/:id/pdf", requireAuth, async (req, res) => {
@@ -157,9 +167,14 @@ documentExportRouter.get("/api/actions/:id/pdf", requireAuth, async (req, res) =
   }
   const entete = await resolveEntete(req.auth!.cabinetId, req.query.avecEntete === "1");
 
-  const buffer = await buildPdf({ ...loaded.input, signature: signatureResolution.signature, entete });
-  const filename = `${slugify(loaded.action.nomDocument || `${loaded.input.typeLabel}-${loaded.input.numeroDossier}`)}.pdf`;
-  res.setHeader("Content-Type", "application/pdf");
-  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-  return res.send(buffer);
+  try {
+    const buffer = await buildPdf({ ...loaded.input, signature: signatureResolution.signature, entete });
+    const filename = `${slugify(loaded.action.nomDocument || `${loaded.input.typeLabel}-${loaded.input.numeroDossier}`)}.pdf`;
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    return res.send(buffer);
+  } catch (error) {
+    console.error(`Erreur generation PDF (action ${loaded.action.id}) :`, error);
+    return res.status(500).json({ error: "Impossible de générer le document PDF (voir logs serveur)" });
+  }
 });

@@ -280,16 +280,16 @@
             }
           </div>
           <div id="timer-section"></div>
-          <div id="pieces-section"></div>
-          <div id="agenda-section"></div>
           <h2>Historique (${dossier.actions.length})</h2>
           <div id="actions-list"></div>
+          <div id="agenda-section"></div>
+          <div id="pieces-section"></div>
         `;
 
         if (!currentDossierEstRecherche) {
           initTimerWidget(id, me);
-          loadPiecesDossier(id);
           loadAgendaDossier(id);
+          loadPiecesDossier(id);
         }
 
         const clotureBtn = document.getElementById("toggle-cloture-btn");
