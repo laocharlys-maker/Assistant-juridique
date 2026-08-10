@@ -382,7 +382,15 @@ export function buildFormalisme(
           "**Barreau du Bénin**",
           centre("À"),
           s(c, "destinataire") && centre(`**${s(c, "destinataire")}**`),
-          `**OBJET : Plainte${civileTxt ? ` ${civileTxt}` : ""}**`,
+          // "Contre X pour Y" repete ici l'identite du mis en cause et la
+          // qualification des faits (deja detaillees plus bas dans le bloc
+          // CONTRE et etaient avant repetees une 3e fois dans une phrase
+          // figee "J'ai l'honneur d'intervenir...", retiree - voir
+          // document de reference fourni par l'utilisateur, qui n'a plus
+          // cette phrase).
+          `**OBJET : Plainte${civileTxt ? ` ${civileTxt}` : ""}${
+            nomDefendeurPlainte ? ` contre ${nomDefendeurPlainte}` : ""
+          }${s(c, "qualification_infraction") ? ` pour ${s(c, "qualification_infraction")}` : ""}**`,
           `POUR **${nomClientPlainte}**${s(c, "profession_client") ? `, ${s(c, "profession_client")}` : ""}${
             s(c, "nationalite_client") ? `, de nationalité ${s(c, "nationalite_client")}` : ""
           }${
@@ -400,11 +408,7 @@ export function buildFormalisme(
             }${
               s(c, "adresse_defendeur") ? `, demeurant à ${s(c, "adresse_defendeur")}.` : "."
             }`,
-          s(c, "qualification_infraction") && `**QUALIFICATION DES FAITS : ${s(c, "qualification_infraction")}**`,
-          `${appelMagistrat},`,
-          // "X" si le mis en cause n'est pas identifie (nom_defendeur
-          // desormais optionnel) - convention usuelle d'une plainte contre X.
-          `J'ai l'honneur d'intervenir par la présente en qualité de conseil de ${nomClientPlainte}, pour porter plainte entre vos mains contre ${nomDefendeurPlainte || "X"} pour les faits ci-dessus qualifiés.`
+          `${appelMagistrat},`
         ),
         apres: bloc(
           "Sous toutes réserves que de droit.",
@@ -633,9 +637,13 @@ export function buildFormalisme(
       // via des espaces, faute de mise en page multi-colonnes).
       const partie1 = s(c, "partie_1");
       const partie2 = s(c, "partie_2");
+      // "CONTRAT DE " est ajoute automatiquement ici - si la valeur saisie
+      // commence deja par "Contrat de" (malgre l'exemple du formulaire qui
+      // ne l'inclut plus), on evite de le repeter en double.
+      const typeContrat = s(c, "type_contrat").replace(/^contrat\s+de\s+/i, "");
       return {
         avant: bloc(
-          centre(`**${s(c, "type_contrat") || "Contrat"}**`),
+          titre(20, typeContrat ? `CONTRAT DE ${typeContrat.toUpperCase()}` : "CONTRAT"),
           s(c, "nom_cabinet") && `**${s(c, "nom_cabinet")}**`,
           s(c, "adresse_cabinet") && `**${s(c, "adresse_cabinet")}**`,
           "**Barreau du Bénin**",

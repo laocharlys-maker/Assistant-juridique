@@ -21,7 +21,7 @@ export const GABARITS_REDACTION_LIBRE: Record<TypeAction, string> = {
   // a l'export a partir de Action.champsDocument (voir documentFormalisme.ts),
   // comme pour le mode IA.
   notes:
-    `I. RAPPEL DE LA PROCÉDURE\n\n${espace()}\n\n${espace()}\n\nII. DÉROULEMENT DES DÉBATS ET PLAIDOIRIES\n\n${espace()}\n\n${espace()}\n\nIII. DÉCISION DU TRIBUNAL\n\n${espace()}\n\n${espace()}\n\nIV. STRATÉGIE ET SUITE À DONNER\n\n`,
+    `I. RAPPEL DE LA PROCÉDURE\n\n${espace()}\n\n${espace()}\n\n${espace()}\n\n${espace()}\n\nII. DÉROULEMENT DES DÉBATS ET PLAIDOIRIES\n\n${espace()}\n\n${espace()}\n\n${espace()}\n\n${espace()}\n\nIII. DÉCISION DU TRIBUNAL\n\n${espace()}\n\n${espace()}\n\n${espace()}\n\n${espace()}\n\nIV. STRATÉGIE ET SUITE À DONNER\n\n`,
   redac: "Pour le compte de [nom du client],\n\n\n\nPar ces motifs, il est demandé à la juridiction de bien vouloir faire droit à la présente plaidoirie.",
   // Le titre "CONCLUSIONS", le bloc "Aff/Objet/A/destinataire", "I. LES
   // PARTIES" (POUR/CONTRE) et la phrase d'ouverture de "II. PLAISE AU
@@ -38,7 +38,7 @@ export const GABARITS_REDACTION_LIBRE: Record<TypeAction, string> = {
   // documentFormalisme.ts, cas "note_plaidoirie") a partir de
   // Action.champsDocument - les repeter ici ferait doublon.
   note_plaidoirie:
-    `II. RAPPEL DES FAITS\n\n${espace()}\n\n${espace()}\n\nIII. DISCUSSION JURIDIQUE\n\n${espace()}\n\n${espace()}\n\nIV. DISPOSITIF\n\nPAR CES MOTIFS\nIl plaira au Tribunal de Première Instance de :\n\n${espace()}\n\n${espace()}\n\n`,
+    `II. RAPPEL DES FAITS\n\n${espace()}\n\n${espace()}\n\n${espace()}\n\n${espace()}\n\nIII. DISCUSSION JURIDIQUE\n\n${espace()}\n\n${espace()}\n\n${espace()}\n\n${espace()}\n\nIV. DISPOSITIF\n\nPAR CES MOTIFS\nIl plaira au Tribunal de Première Instance de :\n\n${espace()}\n\n${espace()}\n\n${espace()}\n\n${espace()}\n\n`,
   // "DONNÉ ASSIGNATION À :", l'identite du defendeur, le bloc "OÙ ÉTANT ET
   // PARLANT À", la formule de comparution et l'avertissement au defendeur
   // sont deja produits par le formalisme (documentFormalisme.ts, cas
@@ -46,7 +46,7 @@ export const GABARITS_REDACTION_LIBRE: Record<TypeAction, string> = {
   // contenu variable (l'objet, l'expose des faits, la discussion juridique
   // et les demandes) restent a completer.
   assignation:
-    `**I. OBJET DE LA DEMANDE**\n\n${espace()}\n\n${espace()}\n\n**II. EXPOSÉ DES FAITS**\n\n${espace()}\n\n${espace()}\n\n**III. DISCUSSION JURIDIQUE**\n\n${espace()}\n\n${espace()}\n\n**EN CONSÉQUENCE**\n\n`,
+    `**I. OBJET DE LA DEMANDE**\n\n${espace()}\n\n${espace()}\n\n${espace()}\n\n${espace()}\n\n**II. EXPOSÉ DES FAITS**\n\n${espace()}\n\n${espace()}\n\n${espace()}\n\n${espace()}\n\n**III. DISCUSSION JURIDIQUE**\n\n${espace()}\n\n${espace()}\n\n${espace()}\n\n${espace()}\n\n**EN CONSÉQUENCE**\n\n`,
   // La salutation d'ouverture ("Monsieur," / "Madame, Monsieur,") est deja
   // produite par le champ d'identite civilite_appel_destinataire (voir
   // documentFormalisme.ts) - un salut fixe ici en ferait un second, en
@@ -58,8 +58,12 @@ export const GABARITS_REDACTION_LIBRE: Record<TypeAction, string> = {
   // second, en double, et risquerait de contredire le vrai destinataire
   // choisi (ex: "Procureur" alors que "Président" a ete selectionne).
   plainte:
-    `LES FAITS :\n\n${espace()}\n\n${espace()}\n\nFONDEMENTS :\n\n${espace()}\n\n${espace()}\n\nPAR CES MOTIFS\n\n${espace()}\n\n${espace()}\n\n`,
-  contrat: "**CONTRAT**\n\nEntre les soussignés :\n\n1. [Partie 1]\n2. [Partie 2]\n\nIl a été convenu ce qui suit :\n\n",
+    `LES FAITS :\n\n${espace()}\n\n${espace()}\n\n${espace()}\n\n${espace()}\n\nFONDEMENTS :\n\n${espace()}\n\n${espace()}\n\n${espace()}\n\n${espace()}\n\nPAR CES MOTIFS\n\n${espace()}\n\n${espace()}\n\n${espace()}\n\n${espace()}\n\n`,
+  // Le titre ("CONTRAT DE ..."), "ENTRE LES SOUSSIGNÉS :" et l'identite des
+  // parties sont deja produits par le formalisme (voir documentFormalisme.ts,
+  // cas "contrat") a partir de Action.champsDocument - les repeter ici
+  // ferait doublon.
+  contrat: `**CONTRAT**\n\nIl a été convenu ce qui suit :\n\n${espace()}\n\n${espace()}\n\n${espace()}\n\n${espace()}\n\n`,
   notification_date: `${espace()}\n\n${espace()}\n\n${espace()}\n\n${espace()}\n\nVeuillez agréer, Madame, Monsieur, l'expression de mes salutations distinguées.`,
   // Le titre "REQUÊTE", le bloc "POUR :"/"CONTRE :" et l'adresse au
   // destinataire sont deja produits par le formalisme (voir
@@ -67,7 +71,7 @@ export const GABARITS_REDACTION_LIBRE: Record<TypeAction, string> = {
   // les repeter ici ferait doublon (constate : "REQUÊTE" et l'adresse au
   // destinataire apparaissaient deux fois a l'export).
   requete:
-    `I- EXPOSÉ DES FAITS\n\n${espace()}\n\n${espace()}\n\nII- DISCUSSION JURIDIQUE\n\n${espace()}\n\n${espace()}\n\nIII- PAR CES MOTIFS\n\n${espace()}\n\n${espace()}\n\n`,
+    `I- EXPOSÉ DES FAITS\n\n${espace()}\n\n${espace()}\n\n${espace()}\n\n${espace()}\n\nII- DISCUSSION JURIDIQUE\n\n${espace()}\n\n${espace()}\n\n${espace()}\n\n${espace()}\n\nIII- PAR CES MOTIFS\n\n${espace()}\n\n${espace()}\n\n${espace()}\n\n${espace()}\n\n`,
   projet_ordonnance: "**PROJET D'ORDONNANCE**\n\nNous, Président du Tribunal...\n\n",
   jurisprudence: "## Recherche de jurisprudence\n\n",
   recherche_juridique: "## Recherche juridique\n\n",
