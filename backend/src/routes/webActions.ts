@@ -6,6 +6,7 @@ import { requireAuth } from "../middleware/requireAuth";
 import { requireModule } from "../middleware/roles";
 import { getLlmProvider, LlmProvider } from "../services/llm";
 import { isMissingConfigurationError } from "../lib/configurationError";
+import { isNetworkFetchError, isGeminiQuotaError } from "../lib/networkError";
 import { logAuditStep } from "../services/audit";
 import { espace } from "../services/documentFormalisme";
 import { webActionFormSchema } from "../schemas/webForms";
@@ -2154,6 +2155,28 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
       }
       return res.status(422).json({
         error: "Anomalie de sécurité détectée lors de la génération — document non produit.",
+      });
+    }
+    // Cle Gemini absente (embedText(), RAG jurisprudence - voir
+    // services/embeddings.ts) : distinct de getLlmProviderSafe() plus haut,
+    // qui ne verifie que la cle du fournisseur LLM actif, jamais celle de
+    // Gemini specifiquement requise pour les embeddings.
+    if (isMissingConfigurationError(error)) {
+      console.error("[jurisprudence] recherche impossible, configuration manquante :", error.message);
+      return res.status(503).json({
+        error: "La recherche de jurisprudence dans la base du cabinet n'est pas configurée sur ce poste (clé API manquante). Contactez le support AzoMedIA.",
+      });
+    }
+    if (isNetworkFetchError(error)) {
+      console.error("Erreur inattendue sur /api/actions/web, echec reseau :", error);
+      return res.status(503).json({
+        error: "Impossible de contacter le service d'IA (vérifiez votre connexion internet), puis réessayez.",
+      });
+    }
+    if (isGeminiQuotaError(error)) {
+      console.error("[jurisprudence] recherche impossible, quota Gemini epuise :", error);
+      return res.status(503).json({
+        error: "Le quota de l'API IA utilisée pour la recherche dans la base du cabinet est épuisé. Contactez le support AzoMedIA pour recharger le compte.",
       });
     }
     console.error("Erreur inattendue sur /api/actions/web", error);

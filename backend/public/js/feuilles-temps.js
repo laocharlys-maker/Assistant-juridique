@@ -80,12 +80,19 @@ async function chargerFeuille() {
   }
 }
 
+// "Facturer ce dossier" n'a de sens qu'en vue "Par dossier" (la ligne
+// correspond alors a un dossier, l.cle = dossierId - voir agregerParDossier
+// cote serveur) et uniquement pour un avocat/titulaire (meme permission que
+// POST /api/factures/depuis-temps, requireAvocat cote serveur) : un
+// collaborateur ne peut pas creer de facture.
 function renderFeuille(lignes) {
   const bodyEl = document.getElementById("feuille-body");
   if (!lignes || lignes.length === 0) {
     bodyEl.innerHTML = '<p class="muted">Aucune saisie de temps pour cette sélection.</p>';
     return;
   }
+
+  const peutFacturer = groupBy === "dossier" && peutVoirEquipe();
 
   let totalDuree = 0;
   let totalMontant = 0;
@@ -98,6 +105,7 @@ function renderFeuille(lignes) {
         <div class="action-item">
           <span class="tag">${escapeHtml(l.label)}</span>
           <div><strong>${formatDureeCourte(l.dureeMinutes)}</strong> — ${l.montant.toLocaleString("fr-FR")} F CFA</div>
+          ${peutFacturer ? `<button type="button" class="secondary btn-sm" data-facturer="${l.cle}" style="margin-top:6px;">Facturer ce dossier</button>` : ""}
         </div>`;
     })
     .join("");
@@ -107,6 +115,31 @@ function renderFeuille(lignes) {
     <div class="action-item" style="background:var(--panel-alt);">
       <strong>Total — ${formatDureeCourte(totalDuree)} — ${totalMontant.toLocaleString("fr-FR")} F CFA</strong>
     </div>`;
+
+  bodyEl.querySelectorAll("[data-facturer]").forEach((btn) => {
+    btn.addEventListener("click", () => facturerDossier(btn.dataset.facturer));
+  });
+}
+
+// Reprend exactement le meme flux que le bouton "Facturer" du chronometre
+// (voir js/timer.js, facturer()) : agrege tout le temps facturable et pas
+// encore facture sur ce dossier en une facture, puis renvoie vers
+// Facturation avec le client/dossier deja preselectionnes (voir
+// factures.html, lecture de ?dossierId= au chargement).
+async function facturerDossier(dossierId) {
+  if (
+    !confirm(
+      "Générer une facture à partir de tout le temps facturable et non encore facturé enregistré sur ce dossier ?"
+    )
+  ) {
+    return;
+  }
+  try {
+    await apiFetch("/api/factures/depuis-temps", { method: "POST", body: { dossierId } });
+    window.location.href = `/factures.html?dossierId=${dossierId}`;
+  } catch (err) {
+    showError(document.getElementById("error"), err.message);
+  }
 }
 
 async function chargerReferentiels() {

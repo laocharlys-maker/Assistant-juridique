@@ -6,6 +6,7 @@ import { requireAuth } from "../middleware/requireAuth";
 import { requireModule } from "../middleware/roles";
 import { embedText, toVectorLiteral } from "../services/embeddings";
 import { isMissingConfigurationError } from "../lib/configurationError";
+import { isNetworkFetchError, isGeminiQuotaError } from "../lib/networkError";
 
 export const jurisprudenceBaseRouter = Router();
 
@@ -91,6 +92,18 @@ jurisprudenceBaseRouter.post("/api/jurisprudence-base", requireAuth, async (req,
       console.error("[jurisprudence] indexation impossible, configuration manquante :", error.message);
       return res.status(503).json({
         error: "L'indexation de jurisprudence n'est pas configurée sur ce poste (clé API manquante). Contactez le support AzoMedIA.",
+      });
+    }
+    if (isNetworkFetchError(error)) {
+      console.error("[jurisprudence] indexation impossible, echec reseau :", error);
+      return res.status(503).json({
+        error: "Impossible de contacter le service d'IA (vérifiez votre connexion internet), puis réessayez.",
+      });
+    }
+    if (isGeminiQuotaError(error)) {
+      console.error("[jurisprudence] indexation impossible, quota Gemini epuise :", error);
+      return res.status(503).json({
+        error: "Le quota de l'API IA utilisée pour l'indexation est épuisé. Contactez le support AzoMedIA pour recharger le compte.",
       });
     }
     console.error("Erreur ajout jurisprudence :", error);
