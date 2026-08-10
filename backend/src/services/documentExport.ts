@@ -355,7 +355,7 @@ function resolveFormalisme(input: ExportInput) {
 
 export async function buildDocx(input: ExportInput): Promise<Buffer> {
   const police = input.police ?? "Times New Roman";
-  const tailleTexte = input.tailleTexte ?? 11;
+  const tailleTexte = input.tailleTexte ?? 13;
 
   // Pour les types de documents qui ont un formalisme juridique specifique
   // (identite des parties, huissier, greffier, juge...), on le reconstruit a
@@ -399,7 +399,7 @@ export async function buildDocx(input: ExportInput): Promise<Buffer> {
           children: [
             new ImageRun({
               data: input.entete.buffer,
-              transformation: fitDocxImage(input.entete.buffer, input.entete.type, 450, 121),
+              transformation: fitDocxImage(input.entete.buffer, input.entete.type, 550, 150),
               type: input.entete.type,
             }),
           ],
@@ -453,7 +453,7 @@ export async function buildDocx(input: ExportInput): Promise<Buffer> {
           children: [
             new ImageRun({
               data: input.signature.buffer,
-              transformation: fitDocxImage(input.signature.buffer, input.signature.type, 150, 60),
+              transformation: fitDocxImage(input.signature.buffer, input.signature.type, 190, 76),
               type: input.signature.type,
             }),
           ],
@@ -642,7 +642,7 @@ function renderPdfContent(
   }
 }
 
-const PDF_SIGNATURE_WIDTH = 150;
+const PDF_SIGNATURE_WIDTH = 190;
 
 export async function buildPdf(input: ExportInput): Promise<Buffer> {
   return new Promise((resolve, reject) => {
@@ -652,13 +652,13 @@ export async function buildPdf(input: ExportInput): Promise<Buffer> {
     doc.on("end", () => resolve(Buffer.concat(chunks)));
     doc.on("error", reject);
 
-    const tailleTexte = input.tailleTexte ?? 11;
+    const tailleTexte = input.tailleTexte ?? 13;
     const fontFamily = pdfFontFamily(input.police);
 
     if (input.entete) {
       const usableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-      const ENTETE_W = Math.min(450, usableWidth);
-      const ENTETE_H = 121;
+      const ENTETE_W = Math.min(550, usableWidth);
+      const ENTETE_H = 150;
       const enteteX = doc.page.margins.left + (usableWidth - ENTETE_W) / 2;
       const enteteY = doc.y;
       doc.image(input.entete.buffer, enteteX, enteteY, { fit: [ENTETE_W, ENTETE_H] });

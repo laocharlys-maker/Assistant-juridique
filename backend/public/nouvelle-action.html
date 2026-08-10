@@ -1786,10 +1786,11 @@
           options: ["avocat", "plaignant"],
           optionLabels: ["L'avocat, pour son client (représentation)", "Le requérant lui-même"],
         },
-        { key: "nom_defendeur", label: "Nom du défendeur / mis en cause", type: "text" },
+        { key: "nom_defendeur", label: "Nom du défendeur / mis en cause (optionnel)", type: "text" },
         { key: "adresse_defendeur", label: "Adresse du défendeur (optionnel)", type: "text" },
         { key: "nationalite_defendeur", label: "Nationalité du défendeur (optionnel)", type: "text" },
         { key: "qualification_infraction", label: "Qualification pénale (optionnel)", type: "text" },
+        { key: "constitution_partie_civile", label: "Avec constitution de partie civile", type: "checkbox" },
         {
           key: "destinataire",
           label: "Destinataire (optionnel)",
@@ -1937,6 +1938,9 @@
           .map((v, i) => `<option value="${escapeHtmlAttr(v)}">${escapeHtmlAttr(labels[i])}</option>`)
           .join("");
         return `<label>${champ.label}</label><select name="${champ.key}" id="${inputId}"><option value="">— Non précisé —</option>${options}</select>`;
+      }
+      if (champ.type === "checkbox") {
+        return `<label style="display:flex; align-items:center; gap:6px; font-weight:400;"><input type="checkbox" name="${champ.key}" id="${inputId}" style="width:auto;" /> ${champ.label}</label>`;
       }
       return `<label>${champ.label}</label><input name="${champ.key}" id="${inputId}" ${champ.placeholder ? `placeholder="${escapeHtmlAttr(champ.placeholder)}"` : ""} />`;
     }

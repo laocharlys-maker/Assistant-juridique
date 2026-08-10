@@ -85,14 +85,20 @@ export async function resolveSignature(
   }
 
   if (!signatureUrl) {
-    return { ok: false, error: "Aucune signature disponible" };
+    return {
+      ok: false,
+      error: "Signature non enregistrée dans votre profil. Enregistrez votre signature dans Paramètres, puis relancez.",
+    };
   }
 
   try {
     const { buffer, type } = await readImageFile(signatureUrl);
     return { ok: true, signature: { buffer, alignment, type } };
   } catch {
-    return { ok: false, error: "Signature introuvable sur le serveur" };
+    return {
+      ok: false,
+      error: "Signature introuvable sur le serveur. Réenregistrez votre signature dans Paramètres, puis relancez.",
+    };
   }
 }
 
@@ -108,16 +114,26 @@ function parseSignatureQuery(req: import("express").Request): {
   return { avecSignature, alignment };
 }
 
-export async function resolveEntete(cabinetId: string, avecEntete: boolean): Promise<EnteteInput | undefined> {
-  if (!avecEntete) return undefined;
+type EnteteResolution = { ok: true; entete: EnteteInput | undefined } | { ok: false; error: string };
+
+export async function resolveEntete(cabinetId: string, avecEntete: boolean): Promise<EnteteResolution> {
+  if (!avecEntete) return { ok: true, entete: undefined };
 
   const cabinet = await prisma.cabinet.findUnique({ where: { id: cabinetId } });
-  if (!cabinet?.enteteUrl) return undefined;
+  if (!cabinet?.enteteUrl) {
+    return {
+      ok: false,
+      error: "En-tête non enregistré dans les paramètres du cabinet. Enregistrez l'en-tête dans Paramètres, puis relancez.",
+    };
+  }
 
   try {
-    return await readImageFile(cabinet.enteteUrl);
+    return { ok: true, entete: await readImageFile(cabinet.enteteUrl) };
   } catch {
-    return undefined;
+    return {
+      ok: false,
+      error: "En-tête introuvable sur le serveur. Réenregistrez l'en-tête dans Paramètres, puis relancez.",
+    };
   }
 }
 
@@ -132,7 +148,11 @@ documentExportRouter.get("/api/actions/:id/word", requireAuth, async (req, res) 
   if (!signatureResolution.ok) {
     return res.status(403).json({ error: signatureResolution.error });
   }
-  const entete = await resolveEntete(req.auth!.cabinetId, req.query.avecEntete === "1");
+  const enteteResolution = await resolveEntete(req.auth!.cabinetId, req.query.avecEntete === "1");
+  if (!enteteResolution.ok) {
+    return res.status(403).json({ error: enteteResolution.error });
+  }
+  const entete = enteteResolution.entete;
 
   // Sans try/catch, une erreur de generation ici (image d'entete/signature
   // corrompue, contenu inattendu...) resterait une promesse rejetee non
@@ -165,7 +185,11 @@ documentExportRouter.get("/api/actions/:id/pdf", requireAuth, async (req, res) =
   if (!signatureResolution.ok) {
     return res.status(403).json({ error: signatureResolution.error });
   }
-  const entete = await resolveEntete(req.auth!.cabinetId, req.query.avecEntete === "1");
+  const enteteResolution = await resolveEntete(req.auth!.cabinetId, req.query.avecEntete === "1");
+  if (!enteteResolution.ok) {
+    return res.status(403).json({ error: enteteResolution.error });
+  }
+  const entete = enteteResolution.entete;
 
   try {
     const buffer = await buildPdf({ ...loaded.input, signature: signatureResolution.signature, entete });

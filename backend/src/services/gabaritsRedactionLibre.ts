@@ -33,7 +33,12 @@ export const GABARITS_REDACTION_LIBRE: Record<TypeAction, string> = {
   // la signature/le bordereau des pieces).
   conclusions:
     "**1. EXPOSÉ DES FAITS ET DE LA PROCÉDURE**\n\n\n\n**2. DISCUSSION JURIDIQUE**\n\n\n\n**III. DISPOSITIF (« Par ces motifs »)**\n\n**PAR CES MOTIFS**\n\n\n\n**En conséquence :**\n\n",
-  note_plaidoirie: "**NOTE DE PLAIDOIRIE**\n\n",
+  // Le titre "NOTE DE PLAIDOIRIE" et la section "I. LES PARTIES" (identite
+  // des parties/avocats) sont deja produits par le formalisme (voir
+  // documentFormalisme.ts, cas "note_plaidoirie") a partir de
+  // Action.champsDocument - les repeter ici ferait doublon.
+  note_plaidoirie:
+    `II. RAPPEL DES FAITS\n\n${espace()}\n\n${espace()}\n\nIII. DISCUSSION JURIDIQUE\n\n${espace()}\n\n${espace()}\n\nIV. DISPOSITIF\n\nPAR CES MOTIFS\nIl plaira au Tribunal de Première Instance de :\n\n${espace()}\n\n${espace()}\n\n`,
   // "DONNÉ ASSIGNATION À :", l'identite du defendeur, le bloc "OÙ ÉTANT ET
   // PARLANT À", la formule de comparution et l'avertissement au defendeur
   // sont deja produits par le formalisme (documentFormalisme.ts, cas
@@ -41,19 +46,28 @@ export const GABARITS_REDACTION_LIBRE: Record<TypeAction, string> = {
   // contenu variable (l'objet, l'expose des faits, la discussion juridique
   // et les demandes) restent a completer.
   assignation:
-    "**I. OBJET DE LA DEMANDE**\n\n\n\n**II. EXPOSÉ DES FAITS**\n\n\n\n**III. DISCUSSION JURIDIQUE**\n\n\n\n**EN CONSÉQUENCE**\n\n",
+    `**I. OBJET DE LA DEMANDE**\n\n${espace()}\n\n${espace()}\n\n**II. EXPOSÉ DES FAITS**\n\n${espace()}\n\n${espace()}\n\n**III. DISCUSSION JURIDIQUE**\n\n${espace()}\n\n${espace()}\n\n**EN CONSÉQUENCE**\n\n`,
   // La salutation d'ouverture ("Monsieur," / "Madame, Monsieur,") est deja
   // produite par le champ d'identite civilite_appel_destinataire (voir
   // documentFormalisme.ts) - un salut fixe ici en ferait un second, en
   // double. Seule la formule de politesse de cloture reste ici, comme
   // simple suggestion de depart entierement editable/supprimable.
-  mise_en_demeure: "\n\nVeuillez agréer, Madame, Monsieur, l'expression de mes salutations distinguées.",
+  mise_en_demeure: `${espace()}\n\n${espace()}\n\n${espace()}\n\n${espace()}\n\nVeuillez agréer, Madame, Monsieur, l'expression de mes salutations distinguées.`,
+  // Salutation deja produite par le champ destinataire (voir
+  // documentFormalisme.ts, cas "plainte") - un salut fixe ici en ferait un
+  // second, en double, et risquerait de contredire le vrai destinataire
+  // choisi (ex: "Procureur" alors que "Président" a ete selectionne).
   plainte:
-    "Monsieur le Procureur de la République,\n\n\n\nJe vous prie d'agréer, Monsieur le Procureur, l'expression de ma haute considération.",
+    `LES FAITS :\n\n${espace()}\n\n${espace()}\n\nFONDEMENTS :\n\n${espace()}\n\n${espace()}\n\nPAR CES MOTIFS\n\n${espace()}\n\n${espace()}\n\n`,
   contrat: "**CONTRAT**\n\nEntre les soussignés :\n\n1. [Partie 1]\n2. [Partie 2]\n\nIl a été convenu ce qui suit :\n\n",
-  notification_date: "\n\nVeuillez agréer, Madame, Monsieur, l'expression de mes salutations distinguées.",
+  notification_date: `${espace()}\n\n${espace()}\n\n${espace()}\n\n${espace()}\n\nVeuillez agréer, Madame, Monsieur, l'expression de mes salutations distinguées.`,
+  // Le titre "REQUÊTE", le bloc "POUR :"/"CONTRE :" et l'adresse au
+  // destinataire sont deja produits par le formalisme (voir
+  // documentFormalisme.ts, cas "requete") a partir de Action.champsDocument -
+  // les repeter ici ferait doublon (constate : "REQUÊTE" et l'adresse au
+  // destinataire apparaissaient deux fois a l'export).
   requete:
-    "**REQUÊTE**\n\nÀ Madame/Monsieur le Président,\n\n\n\nC'est pourquoi il est demandé qu'il plaise au tribunal de faire droit à la présente requête.",
+    `I- EXPOSÉ DES FAITS\n\n${espace()}\n\n${espace()}\n\nII- DISCUSSION JURIDIQUE\n\n${espace()}\n\n${espace()}\n\nIII- PAR CES MOTIFS\n\n${espace()}\n\n${espace()}\n\n`,
   projet_ordonnance: "**PROJET D'ORDONNANCE**\n\nNous, Président du Tribunal...\n\n",
   jurisprudence: "## Recherche de jurisprudence\n\n",
   recherche_juridique: "## Recherche juridique\n\n",

@@ -59,7 +59,7 @@ CREATE TABLE "cabinets" (
     "adresse" TEXT,
     "email_contact" TEXT,
     "police_documents" TEXT NOT NULL DEFAULT 'Times New Roman',
-    "taille_documents" INTEGER NOT NULL DEFAULT 11,
+    "taille_documents" INTEGER NOT NULL DEFAULT 13,
     "entete_url" TEXT,
     "veille_sujets" TEXT,
     "veille_active" BOOLEAN NOT NULL DEFAULT false,

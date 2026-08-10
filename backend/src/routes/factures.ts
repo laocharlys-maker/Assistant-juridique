@@ -274,7 +274,10 @@ facturesRouter.get("/api/factures/:id/pdf", requireAuth, requireAvocat, async (r
   }
 
   const cabinet = await prisma.cabinet.findUnique({ where: { id: req.auth!.cabinetId } });
-  const entete = await resolveEntete(req.auth!.cabinetId, true);
+  // Pas de case "insérer l'en-tête" sur les factures : tentative silencieuse,
+  // jamais bloquante.
+  const enteteResolution = await resolveEntete(req.auth!.cabinetId, true);
+  const entete = enteteResolution.ok ? enteteResolution.entete : undefined;
 
   const buffer = await buildFacturePdf({
     cabinetNom: cabinet?.nom ?? "",
@@ -312,7 +315,10 @@ facturesRouter.post("/api/factures/:id/envoyer", requireAuth, requireAvocat, asy
   }
 
   const cabinet = await prisma.cabinet.findUnique({ where: { id: req.auth!.cabinetId } });
-  const entete = await resolveEntete(req.auth!.cabinetId, true);
+  // Pas de case "insérer l'en-tête" sur les factures : tentative silencieuse,
+  // jamais bloquante.
+  const enteteResolution = await resolveEntete(req.auth!.cabinetId, true);
+  const entete = enteteResolution.ok ? enteteResolution.entete : undefined;
 
   const buffer = await buildFacturePdf({
     cabinetNom: cabinet?.nom ?? "",

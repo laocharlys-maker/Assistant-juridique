@@ -149,7 +149,7 @@ model Cabinet {
   // identique entre l'export Word (police libre) et l'export PDF (polices
   // standard PDFKit uniquement, sans police a embarquer).
   policeDocuments                     String    @default("Times New Roman") @map("police_documents")
-  tailleDocuments                     Int       @default(11) @map("taille_documents")
+  tailleDocuments                     Int       @default(13) @map("taille_documents")
   // Image d'en-tete (logo/bandeau) inseree en haut des documents, a la
   // demande (case a cocher), jamais automatiquement.
   enteteUrl                           String?   @map("entete_url")

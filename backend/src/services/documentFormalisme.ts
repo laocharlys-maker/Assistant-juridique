@@ -238,7 +238,7 @@ export function buildFormalisme(
       const annee = anneeEnLettres(new Date().getFullYear()).toUpperCase();
       return {
         avant: bloc(
-          centre("**ASSIGNATION**"),
+          titre(20, "ASSIGNATION"),
           `**L'AN ${annee}, et le ${ctx.dateLongue},**`,
           plein("À LA REQUÊTE DE :"),
           identiteClient,
@@ -304,9 +304,11 @@ export function buildFormalisme(
     }
 
     case "plainte": {
-      const civileTxt = s(c, "mode_redaction").includes("civile")
-        ? "avec constitution de partie civile"
-        : "";
+      // Case "Avec constitution de partie civile" (checkbox dediee, voir
+      // nouvelle-action.html) - avant ce champ, ce texte se basait sur
+      // mode_redaction.includes("civile"), un test toujours faux (l'enum ne
+      // contient que "avocat"/"plaignant") : jamais appliqué en pratique.
+      const civileTxt = s(c, "constitution_partie_civile") ? "avec constitution de partie civile" : "";
       const nomClientPlainte = s(c, "civilite_nom_client") || ctx.nomClient;
       const nomDefendeurPlainte = s(c, "civilite_nom_defendeur") || s(c, "nom_defendeur");
 
@@ -337,13 +339,17 @@ export function buildFormalisme(
       // cabinet, identite du plaignant en guise d'expediteur, "LES FAITS :"
       // / "FONDEMENTS :", demandes en liste a puces avec le verbe en gras).
       if (s(c, "mode_redaction") === "plaignant") {
+        // Reproduit le formalisme observe sur un document de reference fourni
+        // par l'utilisateur : pas d'identite du plaignant en tete (juste
+        // "Réf :", a completer a la main), pas de phrase figee annoncant le
+        // mis en cause ou la qualification (le plaignant les developpe
+        // lui-meme dans "LES FAITS :", voir le gabarit de redaction libre
+        // correspondant) et pas de formule de politesse de cloture generique
+        // avant la signature.
         return {
           avant: bloc(
             droite(`${ctx.ville}, le ${ctx.dateLongue}`),
-            `**${nomClientPlainte}**`,
-            s(c, "profession_client") && `**${s(c, "profession_client")}**`,
-            s(c, "nationalite_client") && `**De nationalité ${s(c, "nationalite_client")}**`,
-            s(c, "adresse_client") && `**Demeurant à : ${s(c, "adresse_client")}**`,
+            "Réf :",
             centre("À"),
             s(c, "destinataire") && centre(`**${s(c, "destinataire")}**`),
             // Pas d'espace apres "OBJET :" - reproduit tel quel le
@@ -351,21 +357,9 @@ export function buildFormalisme(
             `**OBJET :Plainte${civileTxt ? ` ${civileTxt} ` : " "}pour des faits de ${
               s(c, "qualification_infraction") || "..."
             }**`,
-            `${appelMagistrat},`,
-            `J'ai l'honneur de porter plainte entre vos mains contre le nommé **${nomDefendeurPlainte}**${
-              s(c, "nationalite_defendeur") ? `, de nationalité ${s(c, "nationalite_defendeur")}` : ""
-            }${
-              s(c, "adresse_defendeur") ? `, demeurant à **${s(c, "adresse_defendeur")}**` : ""
-            }, pour des faits de ${
-              s(c, "qualification_infraction") || "..."
-            } prévus et réprimés par le Code pénal en vigueur en République du Bénin.`
+            `${appelMagistrat},`
           ),
-          apres: bloc(
-            "Je me tiens à la disposition de vos services de police ou de gendarmerie pour toute audition ou confrontation nécessaire à la manifestation de la vérité.",
-            `Je vous prie d'agréer, ${appelMagistrat}, l'assurance de ma très haute considération.`,
-            retrait(5760, `**${nomClientPlainte}**`),
-            retrait(5760, "[Signature]")
-          ),
+          apres: bloc(retrait(5760, `**${nomClientPlainte}**`), retrait(5760, "[Signature]")),
         };
       }
 
@@ -408,7 +402,9 @@ export function buildFormalisme(
             }`,
           s(c, "qualification_infraction") && `**QUALIFICATION DES FAITS : ${s(c, "qualification_infraction")}**`,
           `${appelMagistrat},`,
-          `J'ai l'honneur d'intervenir par la présente en qualité de conseil de ${nomClientPlainte}, pour porter plainte entre vos mains contre ${nomDefendeurPlainte} pour les faits ci-dessus qualifiés.`
+          // "X" si le mis en cause n'est pas identifie (nom_defendeur
+          // desormais optionnel) - convention usuelle d'une plainte contre X.
+          `J'ai l'honneur d'intervenir par la présente en qualité de conseil de ${nomClientPlainte}, pour porter plainte entre vos mains contre ${nomDefendeurPlainte || "X"} pour les faits ci-dessus qualifiés.`
         ),
         apres: bloc(
           "Sous toutes réserves que de droit.",
@@ -443,7 +439,7 @@ export function buildFormalisme(
           s(c, "nom_cabinet"),
           s(c, "adresse_cabinet") && `**${s(c, "adresse_cabinet")}**`,
           espace(),
-          centre("A"),
+          centre("À"),
           centre(s(c, "destinataire")),
           espace(),
           s(c, "objet") && `**OBJET : ${s(c, "objet")}**`,
@@ -456,14 +452,16 @@ export function buildFormalisme(
           conseil,
           defendeur && "CONTRE :",
           defendeur,
-          s(c, "adresse_defendeur") && `Demeurant ${s(c, "adresse_defendeur")}`,
-          `À ${s(c, "civilite_appel_destinataire") || "Madame, Monsieur,"}`
+          s(c, "adresse_defendeur") && `Demeurant ${s(c, "adresse_defendeur")}`
+          // Pas de seconde ligne "À Madame, Monsieur," ici : deja adressee au
+          // destinataire choisi en tete de la requete (voir centre(destinataire)
+          // plus haut) - une seconde salutation generique ferait doublon.
         ),
         apres: bloc(
-          "Sous toutes réserves généralement quelconques.",
+          s(c, "piece_a_prevoir") && `BORDEREAU DES PIÈCES COMMUNIQUÉES\n\n${s(c, "piece_a_prevoir")}`,
+          "Sous toutes réserves que de droit.",
           centre(s(c, "nom_avocat") && `Maître ${s(c, "nom_avocat")}`),
-          centre("Avocat au Barreau du Bénin"),
-          s(c, "piece_a_prevoir") && `BORDEREAU DES PIÈCES COMMUNIQUÉES\n\n${s(c, "piece_a_prevoir")}`
+          centre("Avocat au Barreau du Bénin")
         ),
       };
     }
@@ -530,7 +528,7 @@ export function buildFormalisme(
           espace(),
           `**Aff : ${ctx.nomAffaire}**`,
           "**Objet : Conclusions**",
-          centre("**A**"),
+          centre("**À**"),
           s(c, "destinataire") && centre(`**${s(c, "destinataire")}**`),
           espace(),
           juridictionPhrase &&
@@ -584,10 +582,10 @@ export function buildFormalisme(
         s(c, "nom_juridiction") && `${articleJuridiction(s(c, "nom_juridiction"))} ${s(c, "nom_juridiction")}`;
       return {
         avant: bloc(
-          titre(18, "NOTE DE PLAIDOIRIE"),
+          titre(20, "NOTE DE PLAIDOIRIE"),
           espace(),
           `**Aff : ${ctx.nomAffaire}**`,
-          centre("**A**"),
+          centre("**À**"),
           s(c, "destinataire") && centre(`**${s(c, "destinataire")}**`),
           espace(),
           `**RG N° ${s(c, "numero_rg") || "…"} — Audience du ${ctx.dateAudienceLongue || ctx.dateLongue}**`,
@@ -616,7 +614,6 @@ export function buildFormalisme(
         ),
         apres: bloc(
           espace(),
-          "**Sous toutes réserves.**",
           centre(`Fait à ${ctx.ville}, le ${ctx.dateLongue}`),
           centre("(Signature de l'avocat)"),
           s(c, "nom_avocat") && centre(`**Maître ${s(c, "nom_avocat")}**`)

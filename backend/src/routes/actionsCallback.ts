@@ -71,7 +71,11 @@ actionsCallbackRouter.post("/api/actions/:id/envoyer", requireAuth, async (req, 
   if (!signatureResolution.ok) {
     return res.status(403).json({ error: signatureResolution.error });
   }
-  const entete = await resolveEntete(req.auth!.cabinetId, true);
+  // Pas de case "insérer l'en-tête" sur ce formulaire d'envoi (contrairement
+  // au téléchargement Word/PDF) : tentative silencieuse, jamais bloquante -
+  // l'avocat n'a jamais explicitement demandé un en-tête ici.
+  const enteteResolution = await resolveEntete(req.auth!.cabinetId, true);
+  const entete = enteteResolution.ok ? enteteResolution.entete : undefined;
 
   let pdfBuffer: Buffer;
   try {
