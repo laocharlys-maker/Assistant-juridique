@@ -66,6 +66,17 @@ function bloc(...lignes: (string | undefined | false)[]): string {
   return lignes.filter((l): l is string => !!l && l.trim().length > 0).join("\n\n");
 }
 
+// Developpe une civilite abregee ("M.", "Mme", "Mlle" - voir la liste
+// deroulante du champ "Civilite d'appel" en redaction libre) en sa forme
+// pleine ("Monsieur"...), pour un usage en salutation autonome ("Monsieur,",
+// "Veuillez agreer, Monsieur, ...") - jamais l'abreviation elle-meme, qui n'a
+// de sens que collee a un nom ("M. Agbo,"). Valeur non reconnue (ancienne
+// donnee en texte libre, avant la liste deroulante) renvoyee telle quelle.
+const CIVILITES_LONGUES: Record<string, string> = { "M.": "Monsieur", Mme: "Madame", Mlle: "Mademoiselle" };
+function civiliteLongue(abrev: string): string {
+  return CIVILITES_LONGUES[abrev] ?? abrev;
+}
+
 // Rend une liste de pieces (stockee en base sous forme d'une seule chaine
 // separee par des virgules - voir "pieces_prevoir" dans webActions.ts) en
 // liste a puces Markdown (voir le marqueur "- " dans markdownParse.ts),
@@ -282,15 +293,16 @@ export function buildFormalisme(
         avant: bloc(
           s(c, "nom_cabinet") && `**${s(c, "nom_cabinet")}**`,
           s(c, "adresse_cabinet") && `**${s(c, "adresse_cabinet")}**`,
-          "**Barreau du Bénin**",
           droite(`${ctx.ville}, le ${ctx.dateLongue}`),
-          s(c, "mode_notification"),
+          s(c, "mode_notification") && `**${s(c, "mode_notification")}**`,
+          espace(),
           retrait(4320, "**À l'attention de :**"),
           retrait(4320, `**${ligneDestinataire}**`),
           s(c, "profession_destinataire") && retrait(4320, `**${s(c, "profession_destinataire")}**`),
           s(c, "informations_destinataire") && retrait(4320, `**${s(c, "informations_destinataire")}**`),
-          s(c, "objet_mise_en_demeure") && `OBJET : ${s(c, "objet_mise_en_demeure")}`,
-          s(c, "civilite_appel_destinataire"),
+          espace(),
+          s(c, "objet_mise_en_demeure") && `**OBJET : ${s(c, "objet_mise_en_demeure")}**`,
+          s(c, "civilite_appel_destinataire") && civiliteLongue(s(c, "civilite_appel_destinataire")),
           // Phrase de liaison ecrite par l'IA pour introduire son texte -
           // sans objet en redaction libre, l'avocat redige lui-meme tout
           // le corps de la mise en demeure (voir le parametre redactionLibre).
@@ -302,7 +314,9 @@ export function buildFormalisme(
         apres: bloc(
           !redactionLibre && "Sous toutes réserves dont mon client entend se prévaloir en justice.",
           !redactionLibre &&
-            `Veuillez agréer, ${s(c, "civilite_appel_destinataire") || "Madame, Monsieur,"} l'expression de mes salutations distinguées.`,
+            `Veuillez agréer, ${
+              s(c, "civilite_appel_destinataire") ? civiliteLongue(s(c, "civilite_appel_destinataire")) : "Madame, Monsieur,"
+            } l'expression de mes salutations distinguées.`,
           s(c, "nom_avocat") && retrait(5040, `**Maître ${s(c, "nom_avocat")}**`),
           retrait(5040, "**Avocat au Barreau du Bénin**")
         ),
@@ -726,7 +740,9 @@ export function buildFormalisme(
         apres: bloc(
           !redactionLibre && "Nous vous remercions de l'attention que vous porterez à cette notification.",
           !redactionLibre &&
-            `Veuillez agréer, ${s(c, "civilite_appel_destinataire") || "Madame, Monsieur,"} l'expression de mes salutations distinguées.`,
+            `Veuillez agréer, ${
+              s(c, "civilite_appel_destinataire") ? civiliteLongue(s(c, "civilite_appel_destinataire")) : "Madame, Monsieur,"
+            } l'expression de mes salutations distinguées.`,
           s(c, "nom_avocat") && retrait(5760, `**Maître ${s(c, "nom_avocat")}**`),
           retrait(5760, "**Avocat au Barreau du Bénin**"),
           retrait(5760, "(Sceau du Cabinet)")

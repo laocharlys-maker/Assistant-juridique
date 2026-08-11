@@ -1788,7 +1788,12 @@
       ],
       mise_en_demeure: [
         { key: "destinataire", label: "Nom du destinataire", type: "text" },
-        { key: "civilite_appel_destinataire", label: "Civilité d'appel (optionnel)", type: "text", placeholder: "ex: Madame, Monsieur," },
+        {
+          key: "civilite_appel_destinataire",
+          label: "Civilité d'appel (optionnel)",
+          type: "select",
+          options: ["M.", "Mme", "Mlle"],
+        },
         { key: "profession_destinataire", label: "Profession du destinataire (optionnel)", type: "text" },
         { key: "informations_destinataire", label: "Informations complémentaires (optionnel)", type: "text" },
         {
