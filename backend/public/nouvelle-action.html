@@ -33,6 +33,11 @@
           <strong>Rédiger librement</strong>
           <span class="muted">Éditeur vide (ou gabarit minimal), sans formulaire ni appel IA</span>
         </button>
+        <button type="button" class="na-card" id="na-mode-transcrire">
+          <span class="icon-badge">📑</span>
+          <strong>Transcrire un document</strong>
+          <span class="muted">Extraire le texte d'une image ou d'un PDF scanné (reconnaissance de texte locale), à ajouter au dossier</span>
+        </button>
       </div>
     </div>
 
@@ -102,6 +107,39 @@
         </form>
         <datalist id="na-libre-juridictions-datalist"></datalist>
         <datalist id="na-libre-villes-datalist"></datalist>
+      </div>
+    </div>
+
+    <!-- Écran "Transcrire un document" (Lot 17) : 3e mode de Nouvelle action -
+         depose une piece (image/PDF scanne) sur un dossier, ce qui declenche
+         automatiquement l'OCR deja construit pour l'onglet "Pieces"
+         (routes/documentsDossier.ts + jobs/traitementOcr.ts) - aucune
+         nouvelle logique d'OCR ici, uniquement un nouveau point d'entree qui
+         resout/cree le dossier puis reutilise l'upload existant. -->
+    <div id="na-transcrire-screen" style="display:none;">
+      <p class="na-breadcrumb"><a href="#" id="na-breadcrumb-to-mode-3">Nouvelle action</a> › Transcrire un document</p>
+      <h1>Transcrire un document</h1>
+      <p class="muted">Dépose une image ou un PDF scanné : le texte est extrait automatiquement (reconnaissance de texte locale, aucun envoi à un service externe) puis rattaché au dossier, consultable dans l'onglet Pièces.</p>
+
+      <div id="na-transcrire-error" class="error"></div>
+      <div class="card">
+        <form id="na-transcrire-form">
+          <label>Numéro de dossier</label>
+          <input name="numero_dossier" list="dossiers-datalist" placeholder="Laisse vide si non applicable" />
+          <label>Nom de l'affaire</label>
+          <input name="nom_affaire" placeholder="Laisse vide si non applicable" />
+          <label>Nom du client</label>
+          <input name="nom_client" required />
+
+          <label style="margin-top:10px;">Document à transcrire</label>
+          <div id="na-transcrire-dropzone" class="pieces-dropzone">
+            Glisse un fichier ici, ou <label class="pieces-file-label">clique pour en choisir un<input type="file" id="na-transcrire-file-input" accept="image/jpeg,image/png,application/pdf" hidden /></label>
+            <p class="muted" style="margin:4px 0 0;">JPEG, PNG ou PDF scanné — 20 Mo max.</p>
+          </div>
+          <p class="muted" id="na-transcrire-fichier-choisi" style="margin-top:4px;"></p>
+
+          <button type="submit" style="margin-top:14px;">Transcrire ce document</button>
+        </form>
       </div>
     </div>
 
@@ -1696,6 +1734,7 @@
     const naCategoryScreen = document.getElementById("na-category-screen");
     const naFormScreen = document.getElementById("na-form-screen");
     const naLibreScreen = document.getElementById("na-libre-screen");
+    const naTranscrireScreen = document.getElementById("na-transcrire-screen");
     let naPendingDossier = null;
     // Lot 17 : texte OCR copie depuis l'onglet "Pieces" d'un dossier (voir
     // dossier.html, bouton "Copier vers un document en rédaction libre") -
@@ -1727,12 +1766,18 @@
       naCategoryScreen.style.display = name === "category" ? "block" : "none";
       naFormScreen.style.display = name === "form" ? "block" : "none";
       naLibreScreen.style.display = name === "libre" ? "block" : "none";
+      naTranscrireScreen.style.display = name === "transcrire" ? "block" : "none";
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
 
     // ---------- Lot 11 (Partie B) : choix de mode + rédaction libre ----------
     document.getElementById("na-mode-ia").addEventListener("click", () => naShowScreen("hub"));
     document.getElementById("na-mode-libre").addEventListener("click", () => naShowScreen("libre"));
+    document.getElementById("na-mode-transcrire").addEventListener("click", () => naShowScreen("transcrire"));
+    document.getElementById("na-breadcrumb-to-mode-3").addEventListener("click", (e) => {
+      e.preventDefault();
+      naShowScreen("mode");
+    });
     document.getElementById("na-breadcrumb-to-mode").addEventListener("click", (e) => {
       e.preventDefault();
       naShowScreen("mode");
@@ -2106,6 +2151,89 @@
       const naLibreOcrBanner = document.getElementById("na-libre-ocr-banner");
       if (naLibreOcrBanner) naLibreOcrBanner.style.display = "block";
     }
+
+    // ---------- Lot 17 : "Transcrire un document" (3e mode) ----------
+    // Meme mecanisme de depot que l'onglet "Pieces" (public/dossier.html,
+    // uploadPiece) : lecture cote navigateur en Data URL base64, upload vers
+    // POST /api/dossiers/:dossierId/documents (routes/documentsDossier.ts,
+    // Lot 15) qui declenche l'OCR automatiquement (Lot 17) - rien de
+    // nouveau cote stockage/OCR, uniquement un nouveau point d'entree.
+    const TYPES_TRANSCRIPTION_AUTORISES = ["image/jpeg", "image/png", "application/pdf"];
+    let naTranscrireFichier = null;
+    const naTranscrireDropzone = document.getElementById("na-transcrire-dropzone");
+    const naTranscrireFileInput = document.getElementById("na-transcrire-file-input");
+    const naTranscrireFichierChoisi = document.getElementById("na-transcrire-fichier-choisi");
+
+    function naTranscrireSelectionnerFichier(fichier) {
+      naTranscrireFichier = fichier;
+      naTranscrireFichierChoisi.textContent = fichier ? `Fichier sélectionné : ${fichier.name}` : "";
+    }
+    naTranscrireFileInput.addEventListener("change", () => {
+      if (naTranscrireFileInput.files[0]) naTranscrireSelectionnerFichier(naTranscrireFileInput.files[0]);
+    });
+    naTranscrireDropzone.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      naTranscrireDropzone.classList.add("pieces-dropzone-active");
+    });
+    naTranscrireDropzone.addEventListener("dragleave", () => {
+      naTranscrireDropzone.classList.remove("pieces-dropzone-active");
+    });
+    naTranscrireDropzone.addEventListener("drop", (e) => {
+      e.preventDefault();
+      naTranscrireDropzone.classList.remove("pieces-dropzone-active");
+      const fichier = e.dataTransfer.files[0];
+      if (fichier) naTranscrireSelectionnerFichier(fichier);
+    });
+
+    const naTranscrireForm = document.getElementById("na-transcrire-form");
+    const naTranscrireErrorEl = document.getElementById("na-transcrire-error");
+    naTranscrireForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      hideError(naTranscrireErrorEl);
+
+      if (!naTranscrireFichier) {
+        showError(naTranscrireErrorEl, "Choisis d'abord le fichier à transcrire.");
+        return;
+      }
+      if (!TYPES_TRANSCRIPTION_AUTORISES.includes(naTranscrireFichier.type)) {
+        showError(naTranscrireErrorEl, "Seuls les fichiers JPEG, PNG ou PDF peuvent être transcrits.");
+        return;
+      }
+
+      const fd = new FormData(naTranscrireForm);
+      const submitBtn = naTranscrireForm.querySelector('button[type="submit"]');
+      submitBtn.disabled = true;
+      try {
+        const { dossierId } = await apiFetch("/api/transcription/dossier", {
+          method: "POST",
+          body: {
+            numero_dossier: fd.get("numero_dossier") || undefined,
+            nom_affaire: fd.get("nom_affaire") || undefined,
+            nom_client: fd.get("nom_client"),
+          },
+        });
+
+        const fichierDataUrl = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = () => reject(new Error("Impossible de lire ce fichier."));
+          reader.readAsDataURL(naTranscrireFichier);
+        });
+
+        await apiFetch(`/api/dossiers/${dossierId}/documents`, {
+          method: "POST",
+          body: { nom: naTranscrireFichier.name, fichierDataUrl },
+        });
+
+        // Renvoie directement sur l'onglet Pieces du dossier : le badge de
+        // statut OCR (en_attente -> termine) et le bouton "Copier vers un
+        // document en rédaction libre" y sont deja geres (voir dossier.html).
+        window.location.href = `/dossier.html?id=${dossierId}`;
+      } catch (err) {
+        submitBtn.disabled = false;
+        showError(naTranscrireErrorEl, err.message);
+      }
+    });
 
     function naGoToForm(type) {
       const tabBtn = document.querySelector(`.tab[data-type="${type}"]`);
