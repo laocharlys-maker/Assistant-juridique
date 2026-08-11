@@ -702,6 +702,12 @@ header.app-topbar {
 .badge-evenement-echeance_procedure { background: var(--danger-tint); color: var(--danger); }
 .badge-evenement-autre { background: var(--hairline); color: var(--muted); }
 
+/* Lot 17 : statut de reconnaissance de texte (OCR) d'une piece de dossier. */
+.badge-ocr-en_attente { background: var(--hairline); color: var(--muted); }
+.badge-ocr-en_cours { background: var(--warning-tint); color: var(--warning); }
+.badge-ocr-termine { background: var(--success-tint); color: var(--success); }
+.badge-ocr-echec { background: var(--danger-tint); color: var(--danger); }
+
 /* Lot 15 : onglet "Pieces" (glisser-deposer). */
 .pieces-dropzone {
   border: 2px dashed var(--border);

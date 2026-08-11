@@ -625,8 +625,40 @@
       return `${(octets / (1024 * 1024)).toFixed(1)} Mo`;
     }
 
+    // Lot 17 - reconnaissance de texte (OCR) des pieces. Seuil d'avertissement
+    // "relecture manuelle recommandee" - doit rester coherent avec le
+    // commentaire equivalent cote serveur (services/ocr/moteurTesseract.ts
+    // n'impose pas de seuil, l'affichage seul le fait, volontairement ici
+    // uniquement pour rester ajustable sans redeploiement backend).
+    const OCR_SEUIL_CONFIANCE_AVERTISSEMENT = 70;
+    const OCR_STATUT_LABELS = {
+      en_attente: "OCR : en attente",
+      en_cours: "OCR : reconnaissance en cours…",
+      termine: "Texte reconnu disponible",
+      echec: "OCR : échec",
+    };
+
+    function badgeOcr(document) {
+      if (!document.ocrResultat) return "";
+      const label = OCR_STATUT_LABELS[document.ocrResultat.statut] || document.ocrResultat.statut;
+      return `<span class="badge badge-ocr-${document.ocrResultat.statut}">${label}</span>`;
+    }
+
+    function boutonsOcr(document) {
+      if (!document.ocrResultat) return "";
+      const boutons = [];
+      if (document.ocrResultat.statut === "termine") {
+        boutons.push(`<button type="button" class="ghost btn-sm" data-ocr-voir="${document.id}">Voir le texte reconnu</button>`);
+      }
+      if (document.ocrResultat.statut === "termine" || document.ocrResultat.statut === "echec") {
+        boutons.push(`<button type="button" class="ghost btn-sm" data-ocr-relancer="${document.id}">Relancer la reconnaissance</button>`);
+      }
+      return boutons.join("");
+    }
+
     let piecesDossierCourant = [];
     let piecesDossierId = null;
+    let ocrModalDocumentId = null;
 
     async function loadPiecesDossier(dossierId) {
       const section = document.getElementById("pieces-section");
@@ -641,10 +673,26 @@
             <p class="muted" style="margin:4px 0 0;">PDF, images, Word, texte — 20 Mo max par fichier.</p>
           </div>
           <p class="error" id="pieces-upload-error"></p>
+          <input type="search" id="pieces-recherche-input" placeholder="🔎 Rechercher dans le texte reconnu des pièces…" style="margin-top:12px;" autocomplete="off" />
+          <div id="pieces-recherche-resultats" style="display:none; margin-top:8px;"></div>
           <div id="pieces-list" style="margin-top:12px;"><p class="muted">Chargement…</p></div>
+        </div>
+        <div class="modal-overlay" id="ocr-modal" hidden>
+          <div class="modal-box" style="max-width:640px;">
+            <h2>Texte reconnu</h2>
+            <p class="muted" id="ocr-modal-meta"></p>
+            <p class="error visible" id="ocr-modal-warning" style="display:none;"></p>
+            <p class="error visible" id="ocr-modal-error" style="display:none;"></p>
+            <textarea id="ocr-modal-texte" readonly style="width:100%; min-height:320px; font-family:inherit; resize:vertical;"></textarea>
+            <div style="margin-top:14px; display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end;">
+              <button type="button" class="ghost" id="ocr-modal-copier">Copier vers un document en rédaction libre</button>
+              <button type="button" class="secondary" id="ocr-modal-fermer">Fermer</button>
+            </div>
+          </div>
         </div>`;
 
       wirePiecesUpload();
+      wirePiecesOcr();
       await rafraichirPiecesListe();
     }
 
@@ -670,10 +718,12 @@
           return `
           <div class="action-item">
             <span class="tag">${iconePiece(d.typeMime)} ${escapeHtml(d.nomOriginal)}</span>
+            ${badgeOcr(d)}
             <div class="muted">${formatTaille(d.tailleOctets)} — ajouté par ${escapeHtml(d.uploadePar.nom)} le ${new Date(d.createdAt).toLocaleString("fr-FR")}</div>
             <div style="margin-top:6px; display:flex; gap:8px; flex-wrap:wrap;">
               ${apercuPossible ? `<button type="button" class="ghost btn-sm" data-piece-apercu="${d.id}" data-piece-type="${d.typeMime}">Aperçu</button>` : ""}
               <button type="button" class="ghost btn-sm" data-piece-telecharger="${d.id}" data-piece-nom="${escapeHtml(d.nomOriginal)}">Télécharger</button>
+              ${boutonsOcr(d)}
               ${peutSupprimer ? `<button type="button" class="ghost btn-sm" data-piece-supprimer="${d.id}">Supprimer</button>` : ""}
             </div>
             <div id="piece-preview-${d.id}" hidden style="margin-top:8px;"></div>
@@ -681,6 +731,12 @@
         })
         .join("");
 
+      listEl.querySelectorAll("[data-ocr-voir]").forEach((btn) => {
+        btn.addEventListener("click", () => ouvrirModaleOcr(btn.dataset.ocrVoir));
+      });
+      listEl.querySelectorAll("[data-ocr-relancer]").forEach((btn) => {
+        btn.addEventListener("click", () => relancerOcrPiece(btn.dataset.ocrRelancer));
+      });
       listEl.querySelectorAll("[data-piece-apercu]").forEach((btn) => {
         btn.addEventListener("click", () => apercevoirPiece(btn.dataset.pieceApercu, btn.dataset.pieceType));
       });
@@ -769,6 +825,14 @@
             body: { nom: fichier.name, fichierDataUrl: reader.result },
           });
           await rafraichirPiecesListe();
+          // Lot 17 : le traitement OCR (s'il est declenche) se termine en
+          // tache de fond, generalement en quelques secondes pour une piece
+          // d'une page - un seul rafraichissement differe suffit a afficher
+          // le badge a jour sans mettre en place de polling continu (voir
+          // README-LOT17.md, "polling ou rafraichissement").
+          setTimeout(() => {
+            if (piecesDossierId) rafraichirPiecesListe();
+          }, 6000);
         } catch (err) {
           errorEl.textContent = err.message;
         }
@@ -777,6 +841,135 @@
         errorEl.textContent = "Impossible de lire ce fichier.";
       };
       reader.readAsDataURL(fichier);
+    }
+
+    // Lot 17 - recherche plein texte (OCR) + modale de detail. wirePiecesOcr
+    // est appelee une seule fois par chargement de l'onglet (voir
+    // loadPiecesDossier) : les elements qu'elle cable (modale, barre de
+    // recherche) sont statiques dans le gabarit, contrairement a la liste
+    // des pieces qui est reconstruite a chaque rafraichirPiecesListe().
+    function wirePiecesOcr() {
+      const modal = document.getElementById("ocr-modal");
+      const fermerBtn = document.getElementById("ocr-modal-fermer");
+      const copierBtn = document.getElementById("ocr-modal-copier");
+      if (fermerBtn) fermerBtn.addEventListener("click", fermerModaleOcr);
+      if (modal) {
+        modal.addEventListener("click", (e) => {
+          if (e.target === modal) fermerModaleOcr();
+        });
+      }
+      if (copierBtn) {
+        copierBtn.addEventListener("click", () => {
+          const texte = document.getElementById("ocr-modal-texte").value;
+          if (!texte || !ocrModalDocumentId) return;
+          // Point de depart editable, jamais une creation automatique :
+          // stocke le texte puis redirige vers "Nouvelle action", ou
+          // l'utilisateur choisit lui-meme le type de document, le
+          // dossier/client, et valide explicitement la creation (voir
+          // nouvelle-action.html).
+          sessionStorage.setItem("aurore_ocr_copie_redaction_libre", JSON.stringify({ texte }));
+          window.location.href = "/nouvelle-action.html";
+        });
+      }
+
+      const rechercheInput = document.getElementById("pieces-recherche-input");
+      if (rechercheInput) {
+        let rechercheTimer = null;
+        rechercheInput.addEventListener("input", () => {
+          clearTimeout(rechercheTimer);
+          rechercheTimer = setTimeout(() => rechercherDansPieces(rechercheInput.value), 300);
+        });
+      }
+    }
+
+    async function ouvrirModaleOcr(documentId) {
+      const modal = document.getElementById("ocr-modal");
+      const metaEl = document.getElementById("ocr-modal-meta");
+      const warningEl = document.getElementById("ocr-modal-warning");
+      const errorEl = document.getElementById("ocr-modal-error");
+      const texteEl = document.getElementById("ocr-modal-texte");
+      if (!modal) return;
+
+      ocrModalDocumentId = documentId;
+      metaEl.textContent = "Chargement…";
+      warningEl.style.display = "none";
+      errorEl.style.display = "none";
+      texteEl.value = "";
+      modal.hidden = false;
+
+      try {
+        const resultat = await apiFetch(`/api/documents/${documentId}/ocr`);
+        if (resultat.statut !== "termine") {
+          metaEl.textContent = "";
+          errorEl.textContent = resultat.messageErreur || "Le texte de cette pièce n'est pas encore disponible.";
+          errorEl.style.display = "block";
+          return;
+        }
+        const score = typeof resultat.scoreConfiance === "number" ? Math.round(resultat.scoreConfiance) : null;
+        metaEl.textContent = score === null ? "Score de confiance indisponible." : `Score de confiance : ${score}%`;
+        if (score !== null && score < OCR_SEUIL_CONFIANCE_AVERTISSEMENT) {
+          warningEl.textContent = "⚠️ Score de confiance faible — relecture manuelle recommandée avant toute utilisation de ce texte.";
+          warningEl.style.display = "block";
+        }
+        texteEl.value = resultat.texteExtrait || "";
+      } catch (err) {
+        metaEl.textContent = "";
+        errorEl.textContent = err.message;
+        errorEl.style.display = "block";
+      }
+    }
+
+    function fermerModaleOcr() {
+      const modal = document.getElementById("ocr-modal");
+      if (modal) modal.hidden = true;
+      ocrModalDocumentId = null;
+    }
+
+    async function relancerOcrPiece(documentId) {
+      try {
+        await apiFetch(`/api/documents/${documentId}/ocr/relancer`, { method: "POST" });
+        await rafraichirPiecesListe();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    async function rechercherDansPieces(terme) {
+      const resultatsEl = document.getElementById("pieces-recherche-resultats");
+      if (!resultatsEl) return;
+      const valeur = terme.trim();
+      if (valeur.length < 2) {
+        resultatsEl.style.display = "none";
+        resultatsEl.innerHTML = "";
+        return;
+      }
+
+      try {
+        const correspondances = await apiFetch(
+          `/api/dossiers/${piecesDossierId}/documents/recherche-ocr?q=${encodeURIComponent(valeur)}`
+        );
+        resultatsEl.style.display = "block";
+        if (correspondances.length === 0) {
+          resultatsEl.innerHTML = '<p class="muted">Aucune pièce ne contient ce terme dans son texte reconnu.</p>';
+          return;
+        }
+        resultatsEl.innerHTML = correspondances
+          .map(
+            (c) => `
+            <div class="action-item">
+              <span class="tag">${iconePiece(c.typeMime)} ${escapeHtml(c.nomOriginal)}</span>
+              <div class="muted" style="margin-top:4px;">…${escapeHtml(c.extrait)}…</div>
+              <button type="button" class="ghost btn-sm" style="margin-top:6px;" data-recherche-voir="${c.documentId}">Voir le texte reconnu</button>
+            </div>`
+          )
+          .join("");
+        resultatsEl.querySelectorAll("[data-recherche-voir]").forEach((btn) => {
+          btn.addEventListener("click", () => ouvrirModaleOcr(btn.dataset.rechercheVoir));
+        });
+      } catch (err) {
+        resultatsEl.style.display = "block";
+        resultatsEl.innerHTML = `<p class="error visible">${escapeHtml(err.message)}</p>`;
+      }
     }
 
     // Lot 12a : onglet "Agenda du dossier" - tous les Evenement lies (voir

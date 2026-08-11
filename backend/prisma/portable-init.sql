@@ -35,6 +35,9 @@ CREATE TYPE "TypeEvenement" AS ENUM ('audience', 'rdv', 'appel', 'tache', 'echea
 CREATE TYPE "SourceEvenement" AS ENUM ('manuel', 'role_audience', 'delai_calcule', 'sync_google', 'sync_caldav', 'email');
 
 -- CreateEnum
+CREATE TYPE "OcrStatut" AS ENUM ('en_attente', 'en_cours', 'termine', 'echec');
+
+-- CreateEnum
 CREATE TYPE "ProviderEmailExterne" AS ENUM ('gmail', 'imap');
 
 -- CreateEnum
@@ -216,6 +219,24 @@ CREATE TABLE "documents_dossier" (
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "documents_dossier_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "ocr_resultats" (
+    "id" TEXT NOT NULL,
+    "document_id" TEXT NOT NULL,
+    "cabinet_id" TEXT NOT NULL,
+    "dossier_id" TEXT NOT NULL,
+    "statut" "OcrStatut" NOT NULL DEFAULT 'en_attente',
+    "moteur" TEXT NOT NULL DEFAULT 'tesseract',
+    "texte_extrait" TEXT,
+    "score_confiance" DOUBLE PRECISION,
+    "message_erreur" TEXT,
+    "tentatives" INTEGER NOT NULL DEFAULT 0,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "ocr_resultats_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -523,6 +544,18 @@ CREATE INDEX "documents_dossier_dossier_id_idx" ON "documents_dossier"("dossier_
 CREATE INDEX "documents_dossier_cabinet_id_idx" ON "documents_dossier"("cabinet_id");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "ocr_resultats_document_id_key" ON "ocr_resultats"("document_id");
+
+-- CreateIndex
+CREATE INDEX "ocr_resultats_dossier_id_idx" ON "ocr_resultats"("dossier_id");
+
+-- CreateIndex
+CREATE INDEX "ocr_resultats_cabinet_id_idx" ON "ocr_resultats"("cabinet_id");
+
+-- CreateIndex
+CREATE INDEX "ocr_resultats_statut_idx" ON "ocr_resultats"("statut");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "connexions_email_externe_user_id_provider_key" ON "connexions_email_externe"("user_id", "provider");
 
 -- CreateIndex
@@ -647,6 +680,9 @@ ALTER TABLE "documents_dossier" ADD CONSTRAINT "documents_dossier_uploade_par_id
 
 -- AddForeignKey
 ALTER TABLE "documents_dossier" ADD CONSTRAINT "documents_dossier_email_origine_id_fkey" FOREIGN KEY ("email_origine_id") REFERENCES "emails_importes"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ocr_resultats" ADD CONSTRAINT "ocr_resultats_document_id_fkey" FOREIGN KEY ("document_id") REFERENCES "documents_dossier"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "connexions_email_externe" ADD CONSTRAINT "connexions_email_externe_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

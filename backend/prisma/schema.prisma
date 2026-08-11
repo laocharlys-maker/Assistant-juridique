@@ -509,10 +509,66 @@ model DocumentDossier {
   dossier      Dossier       @relation(fields: [dossierId], references: [id])
   uploadePar   User          @relation(fields: [uploadeParId], references: [id])
   emailOrigine EmailImporte? @relation(fields: [emailOrigineId], references: [id], onDelete: SetNull)
+  ocrResultat  OcrResultat?
 
   @@index([dossierId])
   @@index([cabinetId])
   @@map("documents_dossier")
+}
+
+// Lot 17 : resultat OCR (reconnaissance optique de caracteres) d'une piece
+// de dossier (DocumentDossier) - relation 1-1, cree "en_attente" des la
+// mise en file (voir jobs/traitementOcr.ts), jamais avant. Ce lot ne fait
+// JAMAIS transiter texteExtrait vers un LLM ni un service externe (voir
+// README-LOT17.md) : contrairement a Action.champsDocument (Lot 5), un
+// texte OCR est du texte libre non structure, sans garantie de
+// pseudonymisation fiable - meme logique de prudence que le corps des
+// emails au Lot 16.
+enum OcrStatut {
+  en_attente
+  en_cours
+  termine
+  echec
+}
+
+model OcrResultat {
+  id         String    @id @default(uuid())
+  // documentId unique => relation 1-1 stricte avec DocumentDossier. Cascade :
+  // la suppression d'une piece (Lot 15, DELETE /api/documents/:id) supprime
+  // son resultat OCR - un OcrResultat ne doit jamais survivre a la piece
+  // qu'il decrit.
+  documentId String    @unique @map("document_id")
+  // Denormalise depuis DocumentDossier (meme raisonnement que
+  // documents_dossier.cabinet_id/dossier_id : evite un join pour les
+  // controles d'acces et la recherche plein texte par dossier, voir
+  // routes/ocr.ts).
+  cabinetId  String    @map("cabinet_id")
+  dossierId  String    @map("dossier_id")
+  statut     OcrStatut @default(en_attente)
+  // Moteur ayant produit ce resultat - une seule valeur possible en V1
+  // ("tesseract"), mais colonne prevue des maintenant pour ne pas avoir a
+  // migrer si une V2 opt-in cloud (voir README-LOT17.md) est ajoutee un jour.
+  moteur         String   @default("tesseract")
+  // Chiffre au repos (AES-256-GCM, security/encryptionAtRest.ts - Lot 2bis,
+  // meme cle applicative que le reste du projet) - JAMAIS stocke en clair.
+  // Voir encryptField/decryptField, format "enc:v1:...".
+  texteExtrait   String?  @map("texte_extrait")
+  // 0-100, moyenne ponderee des scores de confiance Tesseract par page/mot
+  // (voir services/ocr/moteurTesseract.ts) - jamais laisse a null si
+  // statut = termine.
+  scoreConfiance Float?   @map("score_confiance")
+  // Message clair, jamais un stacktrace brut (voir services/ocr/moteurTesseract.ts).
+  messageErreur  String?  @map("message_erreur")
+  tentatives     Int      @default(0)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  document DocumentDossier @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([dossierId])
+  @@index([cabinetId])
+  @@index([statut])
+  @@map("ocr_resultats")
 }
 
 // Lot 16 : mailbox connectee par un utilisateur (OAuth2 Gmail individuel,

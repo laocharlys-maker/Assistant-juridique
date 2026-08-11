@@ -66,6 +66,15 @@
       <h1>Rédiger librement</h1>
       <p class="muted">Un éditeur vide (pré-rempli des sections d'usage) s'ouvrira sur la fiche du dossier — aucune génération IA. Les données ci-dessous ne servent qu'à composer l'en-tête du document (elles ne sont jamais rédigées à ta place).</p>
 
+      <!-- Lot 17 : banderole affichee uniquement si l'utilisateur arrive ici
+           via "Copier vers un document en rédaction libre" depuis le texte
+           OCR d'une piece (voir dossier.html) - contenuGenere sera alors le
+           texte copie plutot que le gabarit par defaut (voir texte_initial
+           plus bas dans ce script). -->
+      <p id="na-libre-ocr-banner" class="muted" style="display:none; padding:8px 12px; border:1px solid var(--border); border-radius:8px;">
+        📄 Le texte reconnu sur la pièce copiée sera utilisé comme contenu de départ de ce document — modifiable avant validation.
+      </p>
+
       <div id="na-libre-error" class="error"></div>
       <div class="card">
         <form id="na-libre-form">
@@ -1688,6 +1697,25 @@
     const naFormScreen = document.getElementById("na-form-screen");
     const naLibreScreen = document.getElementById("na-libre-screen");
     let naPendingDossier = null;
+    // Lot 17 : texte OCR copie depuis l'onglet "Pieces" d'un dossier (voir
+    // dossier.html, bouton "Copier vers un document en rédaction libre") -
+    // consomme (retire du sessionStorage) immediatement pour ne jamais
+    // pre-remplir un futur chargement de cette page par erreur. Jamais une
+    // insertion automatique : n'existe que si l'utilisateur a explicitement
+    // clique ce bouton juste avant.
+    let naTexteInitialOcr = null;
+    try {
+      const naOcrBrut = sessionStorage.getItem("aurore_ocr_copie_redaction_libre");
+      if (naOcrBrut) {
+        sessionStorage.removeItem("aurore_ocr_copie_redaction_libre");
+        const naOcrDonnees = JSON.parse(naOcrBrut);
+        if (naOcrDonnees && typeof naOcrDonnees.texte === "string" && naOcrDonnees.texte.trim()) {
+          naTexteInitialOcr = naOcrDonnees.texte;
+        }
+      }
+    } catch {
+      naTexteInitialOcr = null;
+    }
     // Charge une seule fois au demarrage de la page (voir l'IIFE d'init plus
     // bas) - annuaire cabinet-entier, jamais filtre, meme principe que
     // clientsAvecEmail/collegues dans js/envoiActions.js.
@@ -2047,8 +2075,10 @@
             prochaine_audience: speciaux.length > 0 ? fd.get("prochaine_audience") || undefined : undefined,
             pieces_prevoir: speciaux.length > 0 ? fd.get("pieces_prevoir") || undefined : undefined,
             champs_document: Object.keys(champsDocument).length > 0 ? champsDocument : undefined,
+            texte_initial: naTexteInitialOcr || undefined,
           },
         });
+        naTexteInitialOcr = null;
         // L'insertion effective de l'entete/signature ne se decide qu'au
         // telechargement Word/PDF (voir routes/documentExport.ts) - ces 2
         // parametres ne servent qu'a pre-cocher les memes cases sur la fiche
@@ -2065,6 +2095,17 @@
       }
     });
     naLibreMettreAJourChampsDynamiques();
+
+    // Lot 17 : arrivee depuis "Copier vers un document en rédaction libre" -
+    // ouvre directement l'ecran libre avec la banderole d'info (voir
+    // na-libre-ocr-banner ci-dessus), sans jamais soumettre quoi que ce soit
+    // automatiquement - l'utilisateur choisit toujours le type de document,
+    // le dossier/client puis valide lui-meme.
+    if (naTexteInitialOcr) {
+      naShowScreen("libre");
+      const naLibreOcrBanner = document.getElementById("na-libre-ocr-banner");
+      if (naLibreOcrBanner) naLibreOcrBanner.style.display = "block";
+    }
 
     function naGoToForm(type) {
       const tabBtn = document.querySelector(`.tab[data-type="${type}"]`);

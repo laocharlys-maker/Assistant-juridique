@@ -4,6 +4,7 @@ import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
 import { env } from "../config/env";
 import { enregistrerFichier, lireFichier, supprimerFichier } from "../services/stockageDocuments";
+import { enqueuerTraitementOcr } from "../jobs/traitementOcr";
 
 export const documentsDossierRouter = Router();
 
@@ -41,6 +42,11 @@ async function chargerDossierAccessible(dossierId: string, cabinetId: string) {
 
 const INCLUDE_STANDARD = {
   uploadePar: { select: { id: true, nom: true } },
+  // Lot 17 - statut/score uniquement (jamais texteExtrait, meme chiffre :
+  // pas besoin de le transporter tant que l'utilisateur n'ouvre pas la
+  // modale de detail, voir GET /api/documents/:id/ocr dans routes/ocr.ts)
+  // pour afficher un badge OCR sans requete supplementaire par piece.
+  ocrResultat: { select: { statut: true, scoreConfiance: true } },
 } as const;
 
 documentsDossierRouter.get("/api/dossiers/:dossierId/documents", requireAuth, async (req, res) => {
@@ -114,6 +120,17 @@ documentsDossierRouter.post("/api/dossiers/:dossierId/documents", requireAuth, a
   console.log(
     `[documents-dossier] upload : ${req.auth!.userId} -> document ${document.id} (${document.nomOriginal}, ${tailleOctets} octets) sur le dossier ${dossier.id}`
   );
+
+  // Lot 17 - hook additif, jamais attendu (`await`) ici : la reponse
+  // d'upload part immediatement, le traitement OCR (s'il est necessaire -
+  // voir enqueuerTraitementOcr()) se poursuit en tache de fond. `contenu`
+  // est deja dechiffre en memoire (issu de enregistrerFichier ci-dessus),
+  // reutilise tel quel pour eviter une relecture disque. Un echec ici ne
+  // doit jamais faire echouer l'upload lui-meme (voir catch interne de
+  // enqueuerTraitementOcr, jobs/traitementOcr.ts).
+  enqueuerTraitementOcr(document, contenu).catch((error) => {
+    console.error(`[documents-dossier] échec du déclenchement OCR pour le document ${document.id} :`, error instanceof Error ? error.message : error);
+  });
 
   return res.status(201).json(document);
 });

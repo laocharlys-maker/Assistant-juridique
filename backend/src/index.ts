@@ -409,6 +409,14 @@ async function main() {
     // automatiquement (voir services/emailIngestion/polling.ts).
     const { scheduleEmailPolling } = await import("./services/emailIngestion/polling");
     scheduleEmailPolling();
+
+    // Lot 17 : filet de securite pour les traitements OCR restes bloques
+    // (redemarrage serveur pendant un traitement) - toutes les 5 minutes,
+    // independant du mode de base de donnees. Le declenchement normal est
+    // immediat, en tache de fond, depuis routes/documentsDossier.ts (voir
+    // jobs/traitementOcr.ts pour la justification du choix).
+    const { scheduleOcrQueue } = await import("./jobs/traitementOcr");
+    scheduleOcrQueue();
   } catch (error) {
     if (stopPortableDatabase) {
       console.error("Echec du demarrage apres l'ouverture de Postgres portable - arret de Postgres avant de quitter...");

@@ -29,6 +29,12 @@ const redactionLibreSchema = z.object({
   prochaine_audience: z.string().trim().optional(),
   pieces_prevoir: z.string().trim().optional(),
   champs_document: z.record(z.string(), z.string()).optional(),
+  // Lot 17 - point de depart editable optionnel, copie depuis le texte OCR
+  // d'une piece de dossier (voir public/dossier.html, bouton "Copier vers un
+  // document en rédaction libre") : remplace le gabarit par defaut quand
+  // fourni. Jamais rempli automatiquement cote serveur - uniquement sur
+  // action explicite de l'utilisateur cote client (voir nouvelle-action.html).
+  texte_initial: z.string().trim().optional(),
 });
 
 // Chemin de creation alternatif complet au mode "generation IA"
@@ -76,7 +82,7 @@ actionsRedactionLibreRouter.post(
     }
     const dossier = dossierResult.dossier;
 
-    const contenuGenere = gabaritPour(parsed.data.type_action);
+    const contenuGenere = parsed.data.texte_initial || gabaritPour(parsed.data.type_action);
     const nomDocument = computeNomDocument({
       typeAction: parsed.data.type_action,
       nomClient: parsed.data.nom_client,
