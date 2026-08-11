@@ -350,6 +350,16 @@ describe.skipIf(!pgAvailable)("e2e : timer & feuilles de temps (Lot 14)", () => 
     }
   });
 
+  it("le temps déjà facturé disparaît de la vue « par dossier » (feuille de temps) une fois facturé", async () => {
+    const feuilleRes = await api(titulaireCookie, `/api/saisies-temps/feuille?dossierId=${dossierId}&groupBy=dossier`);
+    expect(feuilleRes.status).toBe(200);
+    const feuille = await feuilleRes.json();
+    // Tout le temps de ce dossier est desormais rattache a factureId (voir
+    // le test precedent) - la vue "par dossier" ne doit plus rien remonter
+    // pour ce dossier (jamais un total qui inclurait du temps deja facture).
+    expect(feuille.lignes.find((l) => l.cle === dossierId)).toBeUndefined();
+  });
+
   it("une saisie déjà facturée ne peut plus être modifiée ni supprimée", async () => {
     const facturees = await prisma.saisieTemps.findFirst({ where: { factureId } });
     expect(facturees).not.toBeNull();

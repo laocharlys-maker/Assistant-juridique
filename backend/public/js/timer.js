@@ -53,17 +53,20 @@
         <p class="muted">⏱ Un chronomètre est ${enPause ? "en pause" : "en cours"} sur ce dossier (${formatDureeAffichage(secondes)}) — pilote-le depuis le Header.${avertissement ? " Il tourne depuis plus de 4h, vérifie que tu ne l'as pas oublié en route." : ""}</p>`;
     }
 
-    const totalMinutes = saisiesDossier.reduce((acc, s) => acc + (s.dureeMinutes || 0), 0);
-    // Tout temps enregistre est facturable (pas de distinction "non
-    // facturable") - seul le temps deja rattache a une facture (factureId)
-    // est exclu du montant restant a facturer.
-    const nonFacturees = saisiesDossier.filter((s) => !s.factureId && s.dureeMinutes);
-    const totalAFacturer = nonFacturees.reduce((acc, s) => acc + (s.montant || 0), 0);
+    // Le temps deja rattache a une facture (factureId non nul) disparait de
+    // ce widget des qu'il est facture - seul le temps de travail non encore
+    // facture (y compris un chronometre encore actif, dureeMinutes null) y
+    // reste visible. Un temps facture se consulte desormais uniquement
+    // depuis la facture elle-meme (Facturation), plus ici.
+    const saisiesAffichees = saisiesDossier.filter((s) => !s.factureId);
+    const totalMinutes = saisiesAffichees.reduce((acc, s) => acc + (s.dureeMinutes || 0), 0);
+    const saisiesFacturables = saisiesAffichees.filter((s) => s.dureeMinutes);
+    const totalAFacturer = saisiesFacturables.reduce((acc, s) => acc + (s.montant || 0), 0);
     // Une saisie dont le montant est null n'a pas pu etre valorisee (taux
     // horaire absent au moment de la saisie, voir tauxHoraireApplique) -
     // signale-le plutot que de laisser le montant total silencieusement
     // incomplet.
-    const minutesSansTaux = nonFacturees
+    const minutesSansTaux = saisiesFacturables
       .filter((s) => s.montant === null || s.montant === undefined)
       .reduce((acc, s) => acc + s.dureeMinutes, 0);
 
@@ -89,20 +92,19 @@
         </form>
         <div style="margin-top:12px;">
           ${
-            saisiesDossier.length === 0
-              ? '<p class="muted">Aucune saisie de temps pour ce dossier pour l\'instant.</p>'
-              : saisiesDossier
+            saisiesAffichees.length === 0
+              ? '<p class="muted">Aucun temps non facturé pour ce dossier pour l\'instant.</p>'
+              : saisiesAffichees
                   .map(
                     (s) => `
               <div class="action-item">
                 <span class="tag">${escapeHtml(s.user.nom)}</span>
-                ${s.factureId ? '<span class="badge badge-payee">Facturé</span>' : ""}
                 <div>${s.dureeMinutes ? formatDureeCourte(s.dureeMinutes) : "en cours"}${typeof s.montant === "number" ? ` — ${s.montant.toLocaleString("fr-FR")} F CFA` : ""} — ${new Date(s.date).toLocaleDateString("fr-FR")}${s.description ? " — " + escapeHtml(s.description) : ""}</div>
               </div>`
                   )
                   .join("")
           }
-          <p style="margin-top:8px;"><strong>Total enregistré : ${formatDureeCourte(totalMinutes)}</strong></p>
+          <p style="margin-top:8px;"><strong>Total non facturé : ${formatDureeCourte(totalMinutes)}</strong></p>
         </div>
         ${
           (meCourant.role === "titulaire" || meCourant.role === "avocat") && totalAFacturer > 0

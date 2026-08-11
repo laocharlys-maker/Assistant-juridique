@@ -496,6 +496,15 @@ saisiesTempsRouter.get("/api/saisies-temps/feuille", requireAuth, async (req, re
       ...(userIds ? { userId: { in: userIds } } : {}),
       ...(dossierId ? { dossierId } : {}),
       ...(debut || fin ? { date: { ...(debut ? { gte: debut } : {}), ...(fin ? { lt: fin } : {}) } } : {}),
+      // Vue "par dossier" : exclut le temps deja facture (factureId non nul)
+      // - une ligne affichee ici doit toujours correspondre exactement a ce
+      // que "Facturer ce dossier" facturerait reellement (voir
+      // POST /api/factures/depuis-temps, meme filtre factureId: null),
+      // jamais un total qui inclurait du temps deja rattache a une facture
+      // existante. La vue "par collaborateur" reste, elle, un total de temps
+      // travaille tous statuts confondus (besoin de suivi different, non
+      // concerne par cette demande).
+      ...(groupBy === "dossier" ? { factureId: null } : {}),
     },
     include: { user: { select: { nom: true } }, dossier: { select: { numeroDossier: true, nomAffaire: true } } },
   });
