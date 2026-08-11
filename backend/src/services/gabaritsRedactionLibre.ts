@@ -32,7 +32,7 @@ export const GABARITS_REDACTION_LIBRE: Record<TypeAction, string> = {
   // dispositif (le formalisme reprend ensuite avec "Sous toutes reserves"/
   // la signature/le bordereau des pieces).
   conclusions:
-    "**1. EXPOSÉ DES FAITS ET DE LA PROCÉDURE**\n\n\n\n**2. DISCUSSION JURIDIQUE**\n\n\n\n**III. DISPOSITIF (« Par ces motifs »)**\n\n**PAR CES MOTIFS**\n\n\n\n**En conséquence :**\n\n",
+    `**1. EXPOSÉ DES FAITS ET DE LA PROCÉDURE**\n\n${espace()}\n\n${espace()}\n\n${espace()}\n\n${espace()}\n\n**2. DISCUSSION JURIDIQUE**\n\n${espace()}\n\n${espace()}\n\n${espace()}\n\n${espace()}\n\n**III. DISPOSITIF (« Par ces motifs »)**\n\n${espace()}\n\n${espace()}\n\n${espace()}\n\n${espace()}\n\n**PAR CES MOTIFS**\n\n\n\n**En conséquence :**\n\n`,
   // Le titre "NOTE DE PLAIDOIRIE" et la section "I. LES PARTIES" (identite
   // des parties/avocats) sont deja produits par le formalisme (voir
   // documentFormalisme.ts, cas "note_plaidoirie") a partir de

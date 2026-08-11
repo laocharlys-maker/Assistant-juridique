@@ -534,6 +534,15 @@ export function buildFormalisme(
           "**Objet : Conclusions**",
           centre("**À**"),
           s(c, "destinataire") && centre(`**${s(c, "destinataire")}**`),
+          // Juridiction (et chambre, si precisee) directement sous le
+          // destinataire - en plus de la phrase d'ouverture "PLAISE À..."
+          // plus bas, qui les mentionne aussi mais dans une formule figee :
+          // le bloc adresse doit rester lisible seul, sans devoir chercher
+          // l'information plus loin dans le document.
+          s(c, "nom_juridiction") &&
+            centre(
+              `**${s(c, "nom_juridiction")} de ${ctx.ville}${s(c, "nom_chambre") ? `, ${s(c, "nom_chambre")}` : ""}**`
+            ),
           espace(),
           juridictionPhrase &&
             `**PLAISE À MONSIEUR LE PRÉSIDENT ET MESDAMES ET MESSIEURS LES JUGES COMPOSANT ${juridictionPhrase} de ${ctx.ville}**`,

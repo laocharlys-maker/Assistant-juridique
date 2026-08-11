@@ -1738,6 +1738,20 @@
     // erreur. "notes" a en plus 3 champs speciaux (date_audience,
     // prochaine_audience, pieces_prevoir) qui sont des colonnes Action
     // dediees, pas des cles de champsDocument - voir naLibreChampsSpeciaux.
+    // Memes intitules que le formulaire "Conclusions" en mode IA (voir
+    // select #qualite_client plus haut) et que schemas/webForms.ts,
+    // QUALITE_PROCEDURALE.
+    const QUALITE_PROCEDURALE = [
+      "Demandeur",
+      "Défendeur",
+      "Intervenant volontaire",
+      "Intervenant forcé",
+      "Appelant",
+      "Intimé",
+      "Demandeur au pourvoi",
+      "Défendeur au pourvoi",
+    ];
+
     const CHAMPS_IDENTITE_REDACTION_LIBRE = {
       notes: [
         { key: "nom_juridiction", label: "Juridiction", type: "juridiction" },
@@ -1835,6 +1849,7 @@
       ],
       conclusions: [
         { key: "nom_juridiction", label: "Juridiction", type: "juridiction" },
+        { key: "nom_chambre", label: "Chambre (optionnel)", type: "text", placeholder: "ex: Chambre civile" },
         { key: "ville", label: "Ville (optionnel)", type: "ville" },
         {
           key: "destinataire",
@@ -1842,13 +1857,23 @@
           type: "select",
           options: ["M. le Président", "Mme la Présidente", "M. le Juge", "Mme la Juge"],
         },
-        { key: "qualite_client", label: "Qualité du client (optionnel)", type: "text" },
+        {
+          key: "qualite_client",
+          label: "Qualité du client (optionnel)",
+          type: "select",
+          options: QUALITE_PROCEDURALE,
+        },
         { key: "nationalite_client", label: "Nationalité du client (optionnel)", type: "text" },
         { key: "informations_client", label: "Informations sur le client (optionnel)", type: "text" },
         { key: "nom_avocat", label: "Avocat en charge (optionnel)", type: "text" },
         { key: "adresse_cabinet", label: "Adresse du cabinet (optionnel)", type: "text" },
         { key: "nom_partie_adverse", label: "Partie adverse (optionnel)", type: "text" },
-        { key: "qualite_partie_adverse", label: "Qualité de la partie adverse (optionnel)", type: "text" },
+        {
+          key: "qualite_partie_adverse",
+          label: "Qualité de la partie adverse (optionnel)",
+          type: "select",
+          options: QUALITE_PROCEDURALE,
+        },
         { key: "informations_partie_adverse", label: "Informations sur la partie adverse (optionnel)", type: "text" },
         { key: "nationalite_partie_adverse", label: "Nationalité de la partie adverse (optionnel)", type: "text" },
         { key: "piece_a_prevoir", label: "Pièces à prévoir (optionnel)", type: "text" },
