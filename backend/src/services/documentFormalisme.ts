@@ -360,18 +360,29 @@ export function buildFormalisme(
       // / "FONDEMENTS :", demandes en liste a puces avec le verbe en gras).
       if (s(c, "mode_redaction") === "plaignant") {
         // Reproduit le formalisme observe sur un document de reference fourni
-        // par l'utilisateur : pas d'identite du plaignant en tete (juste
-        // "Réf :", a completer a la main), pas de phrase figee annoncant le
-        // mis en cause ou la qualification (le plaignant les developpe
-        // lui-meme dans "LES FAITS :", voir le gabarit de redaction libre
+        // par l'utilisateur : identite du plaignant en tete (en haut a
+        // gauche, avant "Réf :"), pas de phrase figee annoncant le mis en
+        // cause ou la qualification (le plaignant les developpe lui-meme
+        // dans "LES FAITS :", voir le gabarit de redaction libre
         // correspondant) et pas de formule de politesse de cloture generique
         // avant la signature.
         return {
           avant: bloc(
             droite(`${ctx.ville}, le ${ctx.dateLongue}`),
+            `**${nomClientPlainte}**`,
+            s(c, "profession_client") && `**${s(c, "profession_client")}**`,
+            s(c, "nationalite_client") && `**De nationalité ${s(c, "nationalite_client")}**`,
+            s(c, "adresse_client") && `**Demeurant à : ${s(c, "adresse_client")}**`,
             "Réf :",
             centre("À"),
             s(c, "destinataire") && centre(`**${s(c, "destinataire")}**`),
+            // Juridiction (et chambre, si precisee) directement sous le
+            // destinataire - meme principe que pour les Conclusions/Note de
+            // plaidoirie/Assignation/Plainte (mode avocat).
+            s(c, "nom_juridiction") &&
+              centre(
+                `**${s(c, "nom_juridiction")} de ${ctx.ville}${s(c, "nom_chambre") ? `, ${s(c, "nom_chambre")}` : ""}**`
+              ),
             // Pas d'espace apres "OBJET :" - reproduit tel quel le
             // formalisme observe sur le document de reference.
             `**OBJET :Plainte${civileTxt ? ` ${civileTxt} ` : " "}pour des faits de ${
