@@ -1714,10 +1714,10 @@
       naShowScreen("mode");
     });
 
-    // Meme referentiel que TYPE_LABELS cote backend (utils/documentNaming.ts) -
-    // les 16 types existants, y compris ceux normalement auto-generes
-    // (veille_juridique) : rien n'empeche un avocat de rediger lui-meme un
-    // bulletin de veille hors du cycle automatique.
+    // Sous-ensemble de TYPE_LABELS cote backend (utils/documentNaming.ts) -
+    // recherches (jurisprudence/juridique), resume, traduction et veille
+    // juridique exclus : ces types sont intrinsequement generes/recherches,
+    // jamais rediges a la main.
     const TYPES_REDACTION_LIBRE = [
       ["notes", "Compte-rendu d'audience"],
       ["redac", "Plaidoirie"],
@@ -1730,11 +1730,6 @@
       ["notification_date", "Notification"],
       ["requete", "Requête"],
       ["projet_ordonnance", "Projet d'ordonnance"],
-      ["jurisprudence", "Recherche de jurisprudence"],
-      ["recherche_juridique", "Recherche juridique"],
-      ["resume_pdf", "Résumé de jurisprudence (PDF)"],
-      ["traduction", "Traduction FR ⇄ EN"],
-      ["veille_juridique", "Veille juridique"],
     ];
     document.getElementById("na-libre-type").innerHTML = TYPES_REDACTION_LIBRE.map(
       ([value, label]) => `<option value="${value}">${label}</option>`
