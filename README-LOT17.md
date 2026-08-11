@@ -70,16 +70,28 @@ de l'import dynamique. `pdf-to-png-converter` encapsule `pdfjs-dist` +
 compilation locale requise, contrairement à `node-canvas`/Cairo) — évite à la
 fois le problème ESM et le risque de build natif en environnement portable.
 
-**Risque d'empaquetage assumé, à valider avant diffusion** : ce lot ajoute
-pour la première fois une dépendance avec binaire natif compilé
-(`@napi-rs/canvas`, via `pdf-to-png-converter`) au projet — jusqu'ici toutes
-les dépendances (`docx`, `pdfkit`, `mammoth`...) étaient du JavaScript pur.
-`scripts/build-sea.js` (empaquetage en exécutable portable) n'a pas été
-modifié dans ce lot : il faut vérifier, avant toute diffusion, que le binaire
-natif de `@napi-rs/canvas` correspondant à la plateforme cible est bien inclus
-dans l'exécutable final (probablement via `node_modules` embarqué plutôt que
-le bundle esbuild qui ne gère que le JS) — c'est le risque principal identifié
-pour ce lot, cohérent avec l'estimation donnée en amont.
+**Risque d'empaquetage — confirmé puis corrigé après diffusion.** Ce lot
+ajoute pour la première fois une dépendance avec binaire natif compilé
+(`@napi-rs/canvas`, via `pdf-to-png-converter`) et un moteur WASM exécuté
+dans un thread séparé (`tesseract.js-core`, via `tesseract.js`) — jusqu'ici
+toutes les dépendances (`docx`, `pdfkit`, `mammoth`...) étaient du JavaScript
+pur. Le risque signalé ici s'est bien matérialisé en production dès le
+premier essai réel : `scripts/build-sea.js` bundlait `tesseract.js`/
+`pdf-to-png-converter` comme du JS pur via esbuild au lieu de les traiter
+comme des paquets externes à copier avec leurs assets — au premier appel OCR
+réel dans l'exécutable empaqueté, ce chargement cassait catastrophiquement
+et emportait tout le process backend (symptôme côté utilisateur : "Failed to
+fetch" puis blocage de l'app). Corrigé (voir le commit correspondant sur
+`scripts/build-sea.js`) : les deux paquets sont maintenant dans
+`EXTERNAL_PACKAGES_WITH_ASSETS`, avec une nouvelle fonction
+`resolvePackageJsonClosure()` pour calculer leur fermeture de dépendances —
+la sonde `require()` existante (`resolveRequireClosure`) ne convient pas ici,
+`pdfjs-dist` étant chargé par un `import()` ESM dynamique et
+`tesseract.js-core` dans un thread `worker_threads` séparé, tous deux
+invisibles depuis `require.cache` du processus principal (vérifié
+empiriquement). Validé en conditions réelles : build SEA complet local, puis
+`require()` des deux paquets depuis `dist-sea/node_modules/` (pas l'original)
+— rendu PDF→PNG et reconnaissance de texte réussis tous les deux.
 
 ## Seuil de détection "scanné vs texte natif"
 
