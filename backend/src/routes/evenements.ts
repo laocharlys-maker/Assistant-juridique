@@ -11,7 +11,10 @@ function peutVoirTouLeCabinet(role: string | undefined): boolean {
   return role === "titulaire" || role === "avocat";
 }
 
-const TYPES_EVENEMENT = ["audience", "rdv", "appel", "tache", "echeance_procedure", "autre"] as const;
+// Exporte : reutilise tel quel par routes/roleAudiences.ts (filtre par
+// types du "Role de la semaine") - source unique de la liste des types,
+// jamais une copie qui pourrait diverger.
+export const TYPES_EVENEMENT = ["audience", "rdv", "appel", "tache", "echeance_procedure", "autre"] as const;
 // Types creables/modifiables manuellement via ces routes - "audience" et
 // "echeance_procedure" restent exclusivement generes par evenementSync.ts
 // (RoleAudience/DelaiCalcul), pour ne jamais diverger silencieusement de

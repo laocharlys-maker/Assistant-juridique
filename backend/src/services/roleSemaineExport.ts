@@ -14,6 +14,22 @@ export interface RoleSemaineAudienceInput {
   diligences: string | null;
 }
 
+// Autres evenements (rdv/appel/tache/echeance_procedure/autre) - champs
+// generiques d'Evenement, sans commune mesure avec les champs riches d'une
+// audience (juridiction, parties...) : section separee du document, jamais
+// force dans le meme tableau (voir buildRoleSemainePdf/Word).
+export interface RoleSemaineEvenementInput {
+  // Libelle deja resolu (ex: "RDV", "Tâche") - ce module reste agnostique
+  // de l'enum TypeEvenement, resolu en amont par routes/roleAudiences.ts.
+  type: string;
+  titre: string;
+  dateDebut: Date;
+  dateFin: Date | null;
+  touteLaJournee: boolean;
+  lieu: string | null;
+  description: string | null;
+}
+
 export interface RoleSemaineExportInput {
   cabinetNom: string;
   cabinetAdresse: string | null;
@@ -23,9 +39,11 @@ export interface RoleSemaineExportInput {
   debut: Date;
   fin: Date;
   audiences: RoleSemaineAudienceInput[];
+  autresEvenements: RoleSemaineEvenementInput[];
 }
 
 const COLONNES = ["Heure", "Juridiction / Chambre / Procédure", "Parties", "Qualité procédurale", "Objet de la procédure", "Dernier motif / Diligences"];
+const COLONNES_AUTRES_EVENEMENTS = ["Heure", "Type", "Titre", "Lieu", "Description"];
 
 function formatHeure(date: Date): string {
   return date.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
@@ -58,6 +76,22 @@ function grouperParJour(audiences: RoleSemaineAudienceInput[]): { date: Date; au
     const key = a.dateAudience.toISOString().slice(0, 10);
     if (!parJour.has(key)) parJour.set(key, { date: a.dateAudience, audiences: [] });
     parJour.get(key)!.audiences.push(a);
+  }
+  return [...parJour.values()].sort((a, b) => a.date.getTime() - b.date.getTime());
+}
+
+function formatHeureEvenement(e: RoleSemaineEvenementInput): string {
+  return e.touteLaJournee ? "Toute la journée" : formatHeure(e.dateDebut);
+}
+
+function grouperEvenementsParJour(
+  evenements: RoleSemaineEvenementInput[]
+): { date: Date; evenements: RoleSemaineEvenementInput[] }[] {
+  const parJour = new Map<string, { date: Date; evenements: RoleSemaineEvenementInput[] }>();
+  for (const e of evenements) {
+    const key = e.dateDebut.toISOString().slice(0, 10);
+    if (!parJour.has(key)) parJour.set(key, { date: e.dateDebut, evenements: [] });
+    parJour.get(key)!.evenements.push(e);
   }
   return [...parJour.values()].sort((a, b) => a.date.getTime() - b.date.getTime());
 }
@@ -154,6 +188,74 @@ export async function buildRoleSemainePdf(input: RoleSemaineExportInput): Promis
       doc.moveDown(1.3);
     }
 
+    // Section separee (jamais mêlee au tableau des audiences ci-dessus, dont
+    // les colonnes riches - juridiction, parties... - n'ont pas d'equivalent
+    // pour un rdv/appel/tache) - memes principes de dessin, 5 colonnes.
+    if (input.autresEvenements.length > 0) {
+      const poidsColonnesAutres = [60, 90, 180, 130, 230];
+      const poidsTotalAutres = poidsColonnesAutres.reduce((a, b) => a + b, 0);
+      const largeursAutres = poidsColonnesAutres.map((p) => (p / poidsTotalAutres) * usableWidth);
+      largeursAutres[largeursAutres.length - 1] += usableWidth - largeursAutres.reduce((a, b) => a + b, 0);
+
+      if (doc.y > doc.page.height - doc.page.margins.bottom - 110) nouvellePage();
+      doc.moveDown(0.5);
+      doc.font("Helvetica-Bold").fontSize(13).fillColor("#000000");
+      centrer("AUTRES ÉVÉNEMENTS DE LA SEMAINE");
+      doc.moveDown(1);
+
+      const joursAutres = grouperEvenementsParJour(input.autresEvenements);
+
+      for (const jour of joursAutres) {
+        if (doc.y > doc.page.height - doc.page.margins.bottom - 110) nouvellePage();
+
+        doc.font("Helvetica-Bold").fontSize(11).fillColor("#000000");
+        centrer(formatDateLongue(jour.date).toUpperCase());
+        doc.moveDown(0.5);
+
+        let x = left;
+        const headerTop = doc.y;
+        doc.font("Helvetica-Bold").fontSize(9);
+        COLONNES_AUTRES_EVENEMENTS.forEach((col, i) => {
+          doc.text(col, x + 4, headerTop + 4, { width: largeursAutres[i] - 8 });
+          x += largeursAutres[i];
+        });
+        const headerHeight =
+          Math.max(...COLONNES_AUTRES_EVENEMENTS.map((col, i) => doc.heightOfString(col, { width: largeursAutres[i] - 8 }))) + 10;
+        doc.rect(left, headerTop, usableWidth, headerHeight).stroke();
+        x = left;
+        largeursAutres.forEach((l) => {
+          doc.moveTo(x, headerTop).lineTo(x, headerTop + headerHeight).stroke();
+          x += l;
+        });
+        doc.moveTo(x, headerTop).lineTo(x, headerTop + headerHeight).stroke();
+        doc.y = headerTop + headerHeight;
+
+        doc.font("Helvetica").fontSize(9);
+        for (const e of jour.evenements) {
+          if (doc.y > doc.page.height - doc.page.margins.bottom - 60) nouvellePage();
+
+          const valeurs = [formatHeureEvenement(e), e.type, e.titre, e.lieu || "", e.description || ""];
+          const rowTop = doc.y;
+          const hauteurs = valeurs.map((v, i) => doc.heightOfString(v, { width: largeursAutres[i] - 8 }));
+          const rowHeight = Math.max(...hauteurs) + 10;
+          x = left;
+          valeurs.forEach((v, i) => {
+            doc.text(v, x + 4, rowTop + 5, { width: largeursAutres[i] - 8 });
+            x += largeursAutres[i];
+          });
+          doc.rect(left, rowTop, usableWidth, rowHeight).stroke();
+          x = left;
+          largeursAutres.forEach((l) => {
+            doc.moveTo(x, rowTop).lineTo(x, rowTop + rowHeight).stroke();
+            x += l;
+          });
+          doc.moveTo(x, rowTop).lineTo(x, rowTop + rowHeight).stroke();
+          doc.y = rowTop + rowHeight;
+        }
+        doc.moveDown(1.3);
+      }
+    }
+
     doc.end();
   });
 }
@@ -215,6 +317,51 @@ export async function buildRoleSemaineWord(input: RoleSemaineExportInput): Promi
       })
     );
     elements.push(new Paragraph({ text: "", spacing: { after: 200 } }));
+  }
+
+  // Section separee (voir buildRoleSemainePdf pour la meme justification) :
+  // les champs riches d'une audience n'ont pas d'equivalent pour un
+  // rdv/appel/tache/echeance de procedure.
+  if (input.autresEvenements.length > 0) {
+    elements.push(
+      new Paragraph({
+        children: [new TextRun({ text: "AUTRES ÉVÉNEMENTS DE LA SEMAINE", bold: true, size: 26 })],
+        alignment: AlignmentType.CENTER,
+        spacing: { before: 300, after: 200 },
+      })
+    );
+
+    const joursAutres = grouperEvenementsParJour(input.autresEvenements);
+    for (const jour of joursAutres) {
+      elements.push(
+        new Paragraph({
+          children: [new TextRun({ text: formatDateLongue(jour.date).toUpperCase(), bold: true, size: 22 })],
+          alignment: AlignmentType.CENTER,
+          spacing: { before: 200, after: 120 },
+        })
+      );
+      elements.push(
+        new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          rows: [
+            new TableRow({ children: COLONNES_AUTRES_EVENEMENTS.map((c) => docxCell(c, { bold: true, shaded: true })) }),
+            ...jour.evenements.map(
+              (e) =>
+                new TableRow({
+                  children: [
+                    docxCell(formatHeureEvenement(e)),
+                    docxCell(e.type),
+                    docxCell(e.titre),
+                    docxCell(e.lieu || ""),
+                    docxCell(e.description || ""),
+                  ],
+                })
+            ),
+          ],
+        })
+      );
+      elements.push(new Paragraph({ text: "", spacing: { after: 200 } }));
+    }
   }
 
   const document = new Document({

@@ -5,12 +5,24 @@ import { requireAuth } from "../middleware/requireAuth";
 import { getAccessibleAvocatIds } from "../services/access";
 import { buildRoleSemainePdf, buildRoleSemaineWord } from "../services/roleSemaineExport";
 import { syncEvenementDepuisRoleAudience, supprimerEvenementDepuisRoleAudience } from "../services/evenementSync";
+import { TYPES_EVENEMENT } from "./evenements";
 
 export const roleAudiencesRouter = Router();
 
 function peutVoirTouLeCabinet(role: string | undefined): boolean {
   return role === "titulaire" || role === "avocat";
 }
+
+// Libelles francais des types d'Evenement (hors "audience", traitee a part
+// via RoleAudience - voir plus bas) pour la section "Autres evenements" du
+// Role de la semaine (JSON + export PDF/Word).
+const LIBELLES_TYPE_EVENEMENT: Record<string, string> = {
+  rdv: "RDV",
+  appel: "Appel",
+  tache: "Tâche",
+  echeance_procedure: "Échéance de procédure",
+  autre: "Autre",
+};
 
 // Lundi de la semaine contenant la date donnee (ou aujourd'hui par defaut).
 function lundiDeLaSemaine(date: Date): Date {
@@ -70,41 +82,63 @@ roleAudiencesRouter.get("/api/role-audiences", requireAuth, async (req, res) => 
   return res.json({ scope, debut: debut.toISOString(), fin: fin.toISOString(), audiences });
 });
 
-// Periode de la semaine SUR-prochaine (et non la semaine suivante, deja
-// visible depuis un moment via le calendrier) - l'idee est de laisser toute
-// la semaine a venir a l'avocat pour preparer ces audiences-la. Uniquement
-// pertinent du jeudi au dimanche : avant, la semaine sur-prochaine n'est pas
-// encore consideree comme "a preparer des maintenant" ; le lundi au
-// mercredi, on est deja dans la semaine qui la precede immediatement, donc
-// plus vraiment en amont.
-function calculerSemaineSurProchaine(): { debut: Date; fin: Date; disponible: boolean } {
-  const maintenant = new Date();
-  const jourSemaine = maintenant.getUTCDay(); // 0 = dimanche ... 6 = samedi
-  // TEMPORAIRE - filtre jour-de-semaine neutralise pour permettre un test
-  // immediat, a retablir (jourSemaine === 0 || jourSemaine >= 4) une fois
-  // le test termine.
-  void jourSemaine;
-  const disponible = true;
-
-  const debut = lundiDeLaSemaine(maintenant);
-  debut.setUTCDate(debut.getUTCDate() + 14);
+// Semaine SUIVANTE par defaut (jamais la semaine en cours) - point de depart
+// demande explicitement : le role de la semaine sert a preparer ce qui vient,
+// jamais ce qui est deja en cours. `debut` (n'importe quelle date de la
+// semaine visee) permet de naviguer vers une autre semaine (navigation
+// avant/arriere cote frontend) - contrairement a l'ancien comportement
+// ("semaine sur-prochaine", disponible seulement du jeudi au dimanche),
+// aucune restriction d'acces par jour de semaine : la navigation manuelle
+// par semaine rend ce garde-fou obsolete, l'avocat choisit lui-meme la
+// semaine qu'il consulte.
+function semaineDepuisRequete(req: { query: { debut?: unknown } }): { debut: Date; fin: Date } {
+  const debutParam = typeof req.query.debut === "string" ? new Date(req.query.debut) : null;
+  let reference: Date;
+  if (debutParam && !Number.isNaN(debutParam.getTime())) {
+    reference = debutParam;
+  } else {
+    reference = new Date();
+    reference.setUTCDate(reference.getUTCDate() + 7);
+  }
+  const debut = lundiDeLaSemaine(reference);
   const fin = new Date(debut);
-  fin.setUTCDate(fin.getUTCDate() + 5); // lundi a vendredi inclus
-
-  return { debut, fin, disponible };
+  fin.setUTCDate(fin.getUTCDate() + 7);
+  return { debut, fin };
 }
 
-async function chargerAudiencesSemaineSurProchaine(auth: NonNullable<Express.Request["auth"]>, scope: "mine" | "cabinet") {
-  const accessibleAvocatIds = scope === "mine" ? await getAccessibleAvocatIds(auth) : null;
-  const { debut, fin, disponible } = calculerSemaineSurProchaine();
+// Meme condition d'acces que GET /api/evenements (routes/evenements.ts,
+// Lot 12a) - dupliquee ici volontairement (chaque module de routes reste
+// autonome, meme convention que chargerDossierAccessible/chargerDocumentAccessible
+// ailleurs dans le projet) : un evenement est visible si son dossier
+// appartient a un avocat accessible, s'il n'a pas de dossier et a ete cree
+// par un avocat accessible (ou soi-meme), ou si l'utilisateur y est assigne.
+function accessConditionEvenements(auth: NonNullable<Express.Request["auth"]>, accessibleAvocatIds: string[] | null) {
+  if (!accessibleAvocatIds) return {};
+  return {
+    OR: [
+      { dossier: { createdBy: { in: accessibleAvocatIds } } },
+      { dossierId: null, createdById: { in: [...accessibleAvocatIds, auth.userId] } },
+      { assignes: { some: { userId: auth.userId } } },
+    ],
+  };
+}
 
-  if (!disponible) {
-    return { disponible: false as const, debut, fin, audiences: [] };
-  }
+// "Role de la semaine" - donnees riches (RoleAudience) pour la semaine
+// consultee (semaine suivante par defaut, navigable via `debut`). Les autres
+// evenements (rdv/appel/tache/echeance_procedure/autre) sont recuperes
+// separement par le frontend via GET /api/evenements (deja prevu pour ce
+// filtrage, Lot 12a) - jamais duplique ici.
+roleAudiencesRouter.get("/api/role-audiences/semaine", requireAuth, async (req, res) => {
+  const { auth } = req;
+  const requestedScope = req.query.scope === "cabinet" ? "cabinet" : "mine";
+  const scope = requestedScope === "cabinet" && peutVoirTouLeCabinet(auth!.role) ? "cabinet" : "mine";
+  const accessibleAvocatIds = scope === "mine" ? await getAccessibleAvocatIds(auth!) : null;
+
+  const { debut, fin } = semaineDepuisRequete(req);
 
   const audiences = await prisma.roleAudience.findMany({
     where: {
-      cabinetId: auth.cabinetId,
+      cabinetId: auth!.cabinetId,
       dateAudience: { gte: debut, lt: fin },
       ...(accessibleAvocatIds ? { createdBy: { in: accessibleAvocatIds } } : {}),
     },
@@ -115,37 +149,76 @@ async function chargerAudiencesSemaineSurProchaine(auth: NonNullable<Express.Req
     orderBy: { dateAudience: "asc" },
   });
 
-  return { disponible: true as const, debut, fin, audiences };
-}
-
-roleAudiencesRouter.get("/api/role-audiences/semaine-sur-prochaine", requireAuth, async (req, res) => {
-  const { auth } = req;
-  const requestedScope = req.query.scope === "cabinet" ? "cabinet" : "mine";
-  const scope = requestedScope === "cabinet" && peutVoirTouLeCabinet(auth!.role) ? "cabinet" : "mine";
-
-  const { disponible, debut, fin, audiences } = await chargerAudiencesSemaineSurProchaine(auth!, scope);
-
-  return res.json({
-    disponible,
-    scope,
-    debut: debut.toISOString(),
-    fin: fin.toISOString(),
-    audiences,
-  });
+  return res.json({ scope, debut: debut.toISOString(), fin: fin.toISOString(), audiences });
 });
 
-async function exportSemaineSurProchaine(req: Request, res: Response, format: "pdf" | "word") {
+// Types a inclure dans l'export (checkboxes cote frontend, "Tout" pre-coche
+// par defaut - voir role-semaine-hebdomadaire.html) - filtre invalide ou
+// absent => tous les types (comportement par defaut le plus sur).
+function typesSelectionnesDepuisRequete(req: { query: { types?: unknown } }): string[] {
+  if (typeof req.query.types !== "string" || req.query.types.trim() === "") {
+    return [...TYPES_EVENEMENT];
+  }
+  const demandes = req.query.types.split(",").map((t) => t.trim());
+  return TYPES_EVENEMENT.filter((t) => demandes.includes(t));
+}
+
+async function exportSemaine(req: Request, res: Response, format: "pdf" | "word") {
   const { auth } = req;
   const requestedScope = req.query.scope === "cabinet" ? "cabinet" : "mine";
   const scope = requestedScope === "cabinet" && peutVoirTouLeCabinet(auth!.role) ? "cabinet" : "mine";
+  const accessibleAvocatIds = scope === "mine" ? await getAccessibleAvocatIds(auth!) : null;
 
-  const { disponible, debut, fin, audiences } = await chargerAudiencesSemaineSurProchaine(auth!, scope);
-  if (!disponible || audiences.length === 0) {
-    return res.status(404).json({ error: "Aucune audience à exporter pour la semaine sur-prochaine." });
+  const { debut, fin } = semaineDepuisRequete(req);
+  const typesSelectionnes = typesSelectionnesDepuisRequete(req);
+  const inclureAudiences = typesSelectionnes.includes("audience");
+  const autresTypesSelectionnes = typesSelectionnes.filter((t) => t !== "audience");
+
+  const audiences = inclureAudiences
+    ? await prisma.roleAudience.findMany({
+        where: {
+          cabinetId: auth!.cabinetId,
+          dateAudience: { gte: debut, lt: fin },
+          ...(accessibleAvocatIds ? { createdBy: { in: accessibleAvocatIds } } : {}),
+        },
+        orderBy: { dateAudience: "asc" },
+      })
+    : [];
+
+  const autresEvenements =
+    autresTypesSelectionnes.length > 0
+      ? await prisma.evenement.findMany({
+          where: {
+            cabinetId: auth!.cabinetId,
+            type: { in: autresTypesSelectionnes as (typeof TYPES_EVENEMENT)[number][] },
+            dateDebut: { gte: debut, lt: fin },
+            ...accessConditionEvenements(auth!, accessibleAvocatIds),
+          },
+          orderBy: { dateDebut: "asc" },
+        })
+      : [];
+
+  if (audiences.length === 0 && autresEvenements.length === 0) {
+    return res.status(404).json({ error: "Aucun événement à exporter pour cette semaine." });
   }
 
   const cabinet = await prisma.cabinet.findUnique({ where: { id: auth!.cabinetId } });
-  const exportInput = { cabinetNom: cabinet?.nom ?? "", cabinetAdresse: cabinet?.adresse ?? null, debut, fin, audiences };
+  const exportInput = {
+    cabinetNom: cabinet?.nom ?? "",
+    cabinetAdresse: cabinet?.adresse ?? null,
+    debut,
+    fin,
+    audiences,
+    autresEvenements: autresEvenements.map((e) => ({
+      type: LIBELLES_TYPE_EVENEMENT[e.type] || e.type,
+      titre: e.titre,
+      dateDebut: e.dateDebut,
+      dateFin: e.dateFin,
+      touteLaJournee: e.touteLaJournee,
+      lieu: e.lieu,
+      description: e.description,
+    })),
+  };
 
   if (format === "pdf") {
     const buffer = await buildRoleSemainePdf(exportInput);
@@ -163,12 +236,8 @@ async function exportSemaineSurProchaine(req: Request, res: Response, format: "p
   return res.send(buffer);
 }
 
-roleAudiencesRouter.get("/api/role-audiences/semaine-sur-prochaine/pdf", requireAuth, (req, res) =>
-  exportSemaineSurProchaine(req, res, "pdf")
-);
-roleAudiencesRouter.get("/api/role-audiences/semaine-sur-prochaine/word", requireAuth, (req, res) =>
-  exportSemaineSurProchaine(req, res, "word")
-);
+roleAudiencesRouter.get("/api/role-audiences/semaine/pdf", requireAuth, (req, res) => exportSemaine(req, res, "pdf"));
+roleAudiencesRouter.get("/api/role-audiences/semaine/word", requireAuth, (req, res) => exportSemaine(req, res, "word"));
 
 // Suggestions : dossiers dont le dernier compte-rendu annonce une
 // "prochaine audience" tombant dans la semaine consultee, et qui n'ont pas

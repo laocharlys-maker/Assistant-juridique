@@ -8,12 +8,17 @@
   <link rel="stylesheet" href="/style.css" />
   <style>
     .role-hebdo-card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 24px; margin-bottom: 20px; box-shadow: var(--shadow-sm); }
-    .role-hebdo-table { width: 100%; border-collapse: collapse; margin-bottom: 24px; background: var(--panel); }
+    .role-hebdo-table { width: 100%; border-collapse: collapse; margin-bottom: 16px; background: var(--panel); }
     .role-hebdo-table th, .role-hebdo-table td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; vertical-align: top; font-size: 0.88rem; }
     .role-hebdo-table th { background: var(--panel-alt); color: var(--text-strong); }
     .role-hebdo-date-header { text-align: center; font-weight: 700; background: var(--accent-tint); padding: 10px; border: 1px solid var(--border); text-transform: uppercase; letter-spacing: 0.02em; }
+    .role-hebdo-autres { display: flex; flex-direction: column; gap: 8px; margin-bottom: 24px; }
+    .semaine-nav { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .semaine-nav-label { font-weight: 600; min-width: 220px; }
+    .semaine-filtres-types { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 10px; }
+    .semaine-filtres-types label { display: flex; align-items: center; gap: 6px; font-weight: 400; white-space: nowrap; }
     @media print {
-      .app-topbar, .sidebar, .no-print, .page-hero p, #period-actions { display: none !important; }
+      .app-topbar, .sidebar, .no-print, .page-hero p, #period-actions, #semaine-filtres { display: none !important; }
       .app-shell, .main-area { display: block !important; }
       .page { max-width: 100%; padding: 0; }
       body { background: #fff; }
@@ -25,10 +30,20 @@
     <div class="page-hero">
       <div class="eyebrow">Procédure</div>
       <h1>Rôle de la semaine</h1>
-      <p>Aperçu imprimable des audiences de la semaine sur-prochaine, disponible du jeudi au dimanche — pour laisser toute la semaine à venir à la préparation.</p>
+      <p>Audiences et événements de la semaine consultée — navigue entre les semaines et choisis les types d'événements à afficher.</p>
     </div>
 
     <div id="error" class="error"></div>
+
+    <div class="card" id="semaine-filtres">
+      <div class="semaine-nav">
+        <button type="button" class="ghost" id="semaine-precedente-btn">◀ Semaine précédente</button>
+        <span class="semaine-nav-label" id="semaine-nav-label">Semaine…</span>
+        <button type="button" class="ghost" id="semaine-suivante-btn">Semaine suivante ▶</button>
+        <button type="button" class="secondary" id="semaine-reset-btn" style="margin-left:auto;">Revenir à la semaine suivante</button>
+      </div>
+      <div class="semaine-filtres-types" id="semaine-filtres-types"></div>
+    </div>
 
     <div id="content"><p class="muted">Chargement…</p></div>
   </div>
@@ -84,6 +99,31 @@
 
     const JOURS_LETTRES = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
 
+    // Types d'evenement pris en charge (voir routes/evenements.ts,
+    // TYPES_EVENEMENT) - "audience" a part car source de donnees riche
+    // (RoleAudience) distincte des 5 autres (Evenement generique).
+    const TYPES_LABELS = {
+      audience: "Audiences",
+      rdv: "RDV",
+      appel: "Appels",
+      tache: "Tâches",
+      echeance_procedure: "Échéances de procédure",
+      autre: "Autres",
+    };
+    // Forme singuliere - badge d'un evenement precis (voir renderContenu) :
+    // "Échéances de procédure" ne se derive pas correctement d'un simple
+    // retrait du "s" final (le pluriel n'est pas en fin de chaine), d'ou une
+    // table dediee plutot qu'une transformation par regex.
+    const TYPES_LABELS_SINGULIER = {
+      audience: "Audience",
+      rdv: "RDV",
+      appel: "Appel",
+      tache: "Tâche",
+      echeance_procedure: "Échéance de procédure",
+      autre: "Autre",
+    };
+    const TYPES_ORDRE = ["audience", "rdv", "appel", "tache", "echeance_procedure", "autre"];
+
     function toLocalDateStr(d) {
       const y = d.getFullYear();
       const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -103,55 +143,131 @@
       return `Audience du ${jour} ${jourMois} ${mois} ${annee}`.toUpperCase();
     }
 
-    let dernieresAudiences = [];
+    function formatJourGenerique(date) {
+      const jour = JOURS_LETTRES[date.getDay()];
+      const jourMois = date.getDate();
+      const mois = date.toLocaleDateString("fr-FR", { month: "long" });
+      return `${jour} ${jourMois} ${mois}`.toUpperCase();
+    }
 
-    async function load() {
+    let dernieresAudiences = [];
+    // Lundi de la semaine actuellement consultee (Date, minuit UTC) - null
+    // tant que la premiere reponse serveur n'est pas arrivee (le serveur
+    // fixe la valeur par defaut : semaine suivante, voir routes/roleAudiences.ts).
+    let semaineDebut = null;
+    // Types coches - "Tout" par defaut (voir demande explicite).
+    let typesSelectionnes = new Set(TYPES_ORDRE);
+
+    function renderFiltresTypes() {
+      const el = document.getElementById("semaine-filtres-types");
+      el.innerHTML = TYPES_ORDRE.map(
+        (t) => `
+        <label>
+          <input type="checkbox" data-type-filtre="${t}" ${typesSelectionnes.has(t) ? "checked" : ""} />
+          ${TYPES_LABELS[t]}
+        </label>`
+      ).join("");
+      el.querySelectorAll("[data-type-filtre]").forEach((cb) => {
+        cb.addEventListener("change", () => {
+          if (cb.checked) typesSelectionnes.add(cb.dataset.typeFiltre);
+          else typesSelectionnes.delete(cb.dataset.typeFiltre);
+          renderContenu();
+        });
+      });
+    }
+
+    // Construite au moment du clic (jamais mise en cache) : reflete toujours
+    // la semaine et les types actuellement selectionnes, y compris juste
+    // apres un changement de filtre sans rechargement (voir renderContenu()).
+    function urlExport(format) {
+      const debutIso = semaineDebut.toISOString();
+      const types = [...typesSelectionnes].join(",");
+      return `/api/role-audiences/semaine/${format}?debut=${encodeURIComponent(debutIso)}&types=${encodeURIComponent(types)}`;
+    }
+
+    function majLabelSemaine() {
+      if (!semaineDebut) return;
+      const dernierJour = new Date(semaineDebut);
+      dernierJour.setDate(dernierJour.getDate() + 6);
+      const fmt = (d) => d.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+      document.getElementById("semaine-nav-label").textContent = `Semaine du ${fmt(semaineDebut)} au ${fmt(dernierJour)}`;
+    }
+
+    let audiencesCourantes = [];
+    let evenementsCourants = [];
+
+    async function chargerSemaine() {
       const errorEl = document.getElementById("error");
       hideError(errorEl);
       const contentEl = document.getElementById("content");
       contentEl.innerHTML = '<p class="muted">Chargement…</p>';
       try {
-        const data = await apiFetch("/api/role-audiences/semaine-sur-prochaine");
+        const paramsAudiences = semaineDebut ? `?debut=${encodeURIComponent(semaineDebut.toISOString())}` : "";
+        const dataAudiences = await apiFetch(`/api/role-audiences/semaine${paramsAudiences}`);
 
-        if (!data.disponible) {
-          const debut = new Date(data.debut);
-          const finAffichee = new Date(data.fin);
-          finAffichee.setDate(finAffichee.getDate() - 1);
-          contentEl.innerHTML = `
-            <div class="card">
-              <p class="muted" style="margin:0;">Le rôle de la semaine sur-prochaine (${debut.toLocaleDateString("fr-FR")} – ${finAffichee.toLocaleDateString("fr-FR")}) n'est disponible que du <strong>jeudi au dimanche</strong>. Reviens à partir de jeudi.</p>
-            </div>`;
-          return;
-        }
+        semaineDebut = new Date(dataAudiences.debut);
+        const fin = new Date(dataAudiences.fin);
 
-        dernieresAudiences = data.audiences;
+        const dataEvenements = await apiFetch(
+          `/api/evenements?debut=${encodeURIComponent(semaineDebut.toISOString())}&fin=${encodeURIComponent(fin.toISOString())}&scope=${dataAudiences.scope}`
+        );
 
-        if (data.audiences.length === 0) {
-          contentEl.innerHTML = `<div class="card"><p class="muted" style="margin:0;">Aucune audience programmée pour la semaine sur-prochaine pour l'instant.</p></div>`;
-          return;
-        }
+        audiencesCourantes = dataAudiences.audiences;
+        dernieresAudiences = audiencesCourantes;
+        // "audience" deja couvert par audiencesCourantes (donnees riches) -
+        // jamais duplique via la liste generique des evenements.
+        evenementsCourants = dataEvenements.evenements.filter((e) => e.type !== "audience");
 
-        const parJour = new Map();
-        data.audiences.forEach((a) => {
-          const key = toLocalDateStr(new Date(a.dateAudience));
-          if (!parJour.has(key)) parJour.set(key, []);
-          parJour.get(key).push(a);
-        });
+        majLabelSemaine();
+        renderContenu();
+      } catch (err) {
+        showError(errorEl, err.message);
+        contentEl.innerHTML = "";
+      }
+    }
 
-        const jours = Array.from(parJour.keys()).sort();
+    function renderContenu() {
+      const contentEl = document.getElementById("content");
 
-        contentEl.innerHTML = `
-          <div id="period-actions" style="display:flex; align-items:center; justify-content:flex-end; gap:10px; margin-bottom:16px;">
-            <button type="button" class="secondary" id="print-btn" style="margin-top:0;">Imprimer</button>
-            <button type="button" class="secondary" id="telecharger-pdf-btn" style="margin-top:0;">Télécharger PDF</button>
-            <button type="button" class="secondary" id="telecharger-word-btn" style="margin-top:0;">Télécharger Word</button>
-          </div>
-          <div class="role-hebdo-card">
-            ${jours
-              .map((jourKey) => {
-                const audiencesDuJour = parJour.get(jourKey);
-                const dateJour = new Date(audiencesDuJour[0].dateAudience);
-                return `
+      const afficherAudiences = typesSelectionnes.has("audience");
+      const audiencesAffichees = afficherAudiences ? audiencesCourantes : [];
+      const evenementsAffiches = evenementsCourants.filter((e) => typesSelectionnes.has(e.type));
+
+      if (audiencesAffichees.length === 0 && evenementsAffiches.length === 0) {
+        contentEl.innerHTML = `<div class="card"><p class="muted" style="margin:0;">Aucun événement pour cette semaine, avec les types actuellement sélectionnés.</p></div>`;
+        return;
+      }
+
+      const parJour = new Map();
+      const cleJour = (iso) => toLocalDateStr(new Date(iso));
+      audiencesAffichees.forEach((a) => {
+        const key = cleJour(a.dateAudience);
+        if (!parJour.has(key)) parJour.set(key, { audiences: [], evenements: [] });
+        parJour.get(key).audiences.push(a);
+      });
+      evenementsAffiches.forEach((e) => {
+        const key = cleJour(e.dateDebut);
+        if (!parJour.has(key)) parJour.set(key, { audiences: [], evenements: [] });
+        parJour.get(key).evenements.push(e);
+      });
+
+      const jours = Array.from(parJour.keys()).sort();
+
+      contentEl.innerHTML = `
+        <div id="period-actions" style="display:flex; align-items:center; justify-content:flex-end; gap:10px; margin-bottom:16px;">
+          <button type="button" class="secondary" id="print-btn" style="margin-top:0;">Imprimer</button>
+          <button type="button" class="secondary" id="telecharger-pdf-btn" style="margin-top:0;">Télécharger PDF</button>
+          <button type="button" class="secondary" id="telecharger-word-btn" style="margin-top:0;">Télécharger Word</button>
+        </div>
+        <div class="role-hebdo-card">
+          ${jours
+            .map((jourKey) => {
+              const { audiences: audiencesDuJour, evenements: evenementsDuJour } = parJour.get(jourKey);
+              const dateJour = new Date(audiencesDuJour[0] ? audiencesDuJour[0].dateAudience : evenementsDuJour[0].dateDebut);
+              return `
+              ${
+                audiencesDuJour.length > 0
+                  ? `
                 <table class="role-hebdo-table">
                   <thead>
                     <tr><th colspan="7" class="role-hebdo-date-header">${escapeHtml(formatEnTeteJour(dateJour))}</th></tr>
@@ -181,40 +297,69 @@
                       )
                       .join("")}
                   </tbody>
-                </table>`;
-              })
-              .join("")}
-          </div>
-        `;
+                </table>`
+                  : `<p class="role-hebdo-date-header" style="margin:0 0 10px;">${escapeHtml(formatJourGenerique(dateJour))}</p>`
+              }
+              ${
+                evenementsDuJour.length > 0
+                  ? `<div class="role-hebdo-autres">
+                    ${evenementsDuJour
+                      .map(
+                        (e) => `
+                      <div class="action-item">
+                        <span class="tag">${escapeHtml(e.titre)}</span>
+                        <span class="badge badge-evenement-${e.type}">${TYPES_LABELS_SINGULIER[e.type] || e.type}</span>
+                        <div>${e.touteLaJournee ? "Toute la journée" : formatHeure(e.dateDebut)}${e.lieu ? " — " + escapeHtml(e.lieu) : ""}</div>
+                        ${e.description ? `<p class="muted" style="margin:4px 0 0;">${escapeHtml(e.description)}</p>` : ""}
+                      </div>`
+                      )
+                      .join("")}
+                  </div>`
+                  : ""
+              }
+            `;
+            })
+            .join("")}
+        </div>
+      `;
 
-        document.getElementById("print-btn").addEventListener("click", () => window.print());
-        // Jamais un simple <a href> vers une route API authentifiee : sans
-        // effet dans la webview desktop (Tauri) - meme raisonnement que
-        // partout ailleurs dans l'app (voir js/api.js, downloadFile()) :
-        // fetch + blob + lien ephemere declenche par script, jamais une
-        // navigation directe.
-        document.getElementById("telecharger-pdf-btn").addEventListener("click", async () => {
-          try {
-            await downloadFile("/api/role-audiences/semaine-sur-prochaine/pdf", "role-de-la-semaine.pdf");
-          } catch (err) {
-            showError(errorEl, err.message);
-          }
-        });
-        document.getElementById("telecharger-word-btn").addEventListener("click", async () => {
-          try {
-            await downloadFile("/api/role-audiences/semaine-sur-prochaine/word", "role-de-la-semaine.docx");
-          } catch (err) {
-            showError(errorEl, err.message);
-          }
-        });
-        contentEl.querySelectorAll("[data-modifier]").forEach((btn) => {
-          btn.addEventListener("click", () => ouvrirEdition(btn.dataset.modifier));
-        });
-      } catch (err) {
-        showError(errorEl, err.message);
-        contentEl.innerHTML = "";
-      }
+      document.getElementById("print-btn").addEventListener("click", () => window.print());
+      // Jamais un simple <a href> vers une route API authentifiee : sans
+      // effet dans la webview desktop (Tauri) - meme raisonnement que
+      // partout ailleurs dans l'app (voir js/api.js, downloadFile()) :
+      // fetch + blob + lien ephemere declenche par script, jamais une
+      // navigation directe.
+      document.getElementById("telecharger-pdf-btn").addEventListener("click", async () => {
+        try {
+          await downloadFile(urlExport("pdf"), "role-de-la-semaine.pdf");
+        } catch (err) {
+          showError(document.getElementById("error"), err.message);
+        }
+      });
+      document.getElementById("telecharger-word-btn").addEventListener("click", async () => {
+        try {
+          await downloadFile(urlExport("word"), "role-de-la-semaine.docx");
+        } catch (err) {
+          showError(document.getElementById("error"), err.message);
+        }
+      });
+      contentEl.querySelectorAll("[data-modifier]").forEach((btn) => {
+        btn.addEventListener("click", () => ouvrirEdition(btn.dataset.modifier));
+      });
     }
+
+    document.getElementById("semaine-precedente-btn").addEventListener("click", () => {
+      semaineDebut.setDate(semaineDebut.getDate() - 7);
+      chargerSemaine();
+    });
+    document.getElementById("semaine-suivante-btn").addEventListener("click", () => {
+      semaineDebut.setDate(semaineDebut.getDate() + 7);
+      chargerSemaine();
+    });
+    document.getElementById("semaine-reset-btn").addEventListener("click", () => {
+      semaineDebut = null;
+      chargerSemaine();
+    });
 
     const editModal = document.getElementById("edit-modal");
 
@@ -259,7 +404,7 @@
           },
         });
         editModal.hidden = true;
-        load();
+        chargerSemaine();
       } catch (err) {
         showError(errorEl, err.message);
       }
@@ -269,7 +414,8 @@
       const me = await requireSession();
       if (!me) return;
       initLayout(me);
-      load();
+      renderFiltresTypes();
+      chargerSemaine();
     })();
   </script>
 </body>
