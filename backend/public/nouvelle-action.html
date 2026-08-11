@@ -1240,6 +1240,12 @@
       const me = await requireSession();
       if (!me) return;
       initLayout(me);
+      try {
+        naHuissiersDisponibles = await apiFetch("/api/huissiers");
+      } catch {
+        // Non bloquant : le champ affichera juste "aucun huissier enregistré".
+        naHuissiersDisponibles = [];
+      }
       populateSelect(document.getElementById("notes-juridiction"), JURIDICTIONS_BENIN);
       populateSelect(document.getElementById("plainte-juridiction"), JURIDICTIONS_BENIN);
       populateSelect(document.getElementById("plainte-ville"), VILLES_BENIN);
@@ -1682,6 +1688,10 @@
     const naFormScreen = document.getElementById("na-form-screen");
     const naLibreScreen = document.getElementById("na-libre-screen");
     let naPendingDossier = null;
+    // Charge une seule fois au demarrage de la page (voir l'IIFE d'init plus
+    // bas) - annuaire cabinet-entier, jamais filtre, meme principe que
+    // clientsAvecEmail/collegues dans js/envoiActions.js.
+    let naHuissiersDisponibles = [];
 
     function naShowScreen(name) {
       naModeScreen.style.display = name === "mode" ? "block" : "none";
@@ -1769,7 +1779,7 @@
         { key: "nom_defendeur", label: "Défendeur (partie assignée)", type: "text" },
         { key: "adresse_defendeur", label: "Adresse du défendeur (optionnel)", type: "text" },
         { key: "nom_avocat", label: "Avocat en charge", type: "text" },
-        { key: "nom_huissier", label: "Huissier / Commissaire de justice", type: "text" },
+        { key: "nom_huissier", label: "Huissier / Commissaire de justice", type: "huissier" },
         { key: "adresse_cabinet", label: "Adresse du cabinet (optionnel)", type: "text" },
         { key: "profession_client", label: "Profession du client (optionnel)", type: "text" },
         { key: "nationalite_client", label: "Nationalité du client (optionnel)", type: "text" },
@@ -1977,6 +1987,19 @@
       }
       if (champ.type === "checkbox") {
         return `<label style="display:flex; align-items:center; gap:6px; font-weight:400;"><input type="checkbox" name="${champ.key}" id="${inputId}" style="width:auto;" /> ${champ.label}</label>`;
+      }
+      // Annuaire des huissiers du cabinet (Paramètres) - jamais un champ
+      // texte libre : evite un nom mal saisi qui ne correspondrait a aucun
+      // huissier reellement enregistre (voir /api/huissiers).
+      if (champ.type === "huissier") {
+        const options = naHuissiersDisponibles
+          .map((h) => `<option value="${escapeHtmlAttr(h.nom)}">${escapeHtmlAttr(h.nom)}</option>`)
+          .join("");
+        const vide =
+          naHuissiersDisponibles.length === 0
+            ? '<option value="" disabled>— Aucun huissier enregistré (Paramètres → Huissiers) —</option>'
+            : '<option value="">— Choisir un huissier —</option>';
+        return `<label>${champ.label}</label><select name="${champ.key}" id="${inputId}">${vide}${options}</select>`;
       }
       return `<label>${champ.label}</label><input name="${champ.key}" id="${inputId}" ${champ.placeholder ? `placeholder="${escapeHtmlAttr(champ.placeholder)}"` : ""} />`;
     }

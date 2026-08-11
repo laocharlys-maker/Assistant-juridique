@@ -259,7 +259,13 @@ export function buildFormalisme(
           "**TRÈS IMPORTANT — AVERTISSEMENT AU DÉFENDEUR :**",
           "Conformément à la loi, vous êtes tenu de constituer un avocat dans un délai de 15 jours à compter de la date du présent acte pour vous représenter. À défaut, un jugement pourra être rendu contre vous sur les seuls éléments fournis par votre adversaire."
         ),
-        apres: bloc(plein("SOUS TOUTES RÉSERVES"), `Fait à ${ctx.ville}, le ${ctx.dateLongue}`),
+        apres: bloc(
+          plein("SOUS TOUTES RÉSERVES"),
+          espace(),
+          `Fait à ${ctx.ville}, le ${ctx.dateLongue}`,
+          s(c, "nom_avocat") && centre(`**Maître ${s(c, "nom_avocat")}**`),
+          centre("Avocat au Barreau du Bénin")
+        ),
       };
     }
 
