@@ -737,12 +737,13 @@ export function buildFormalisme(
         avant: bloc(
           s(c, "nom_cabinet") && `**${s(c, "nom_cabinet")}**`,
           s(c, "adresse_cabinet") && `**${s(c, "adresse_cabinet")}**`,
-          "**Barreau du Bénin**",
           droite(`${ctx.ville}, le ${ctx.dateLongue}`),
-          s(c, "mode_notification"),
+          s(c, "mode_notification") && `**${s(c, "mode_notification")}**`,
+          espace(),
           destinataireNotif && retrait(4320, "**À l'attention de :**"),
           destinataireNotif && retrait(4320, `**${destinataireNotif}**`),
           s(c, "adresse_destinataire") && retrait(4320, `**${s(c, "adresse_destinataire")}**`),
+          espace(),
           s(c, "objet") && `**OBJET : ${s(c, "objet")}**`,
           s(c, "civilite_appel_destinataire"),
           // Phrase de liaison ecrite par l'IA pour introduire son texte -
