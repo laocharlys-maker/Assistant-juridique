@@ -399,9 +399,15 @@ export function buildFormalisme(
           droite(`${ctx.ville}, le ${ctx.dateLongue}`),
           s(c, "nom_cabinet") && `**${s(c, "nom_cabinet")}**`,
           s(c, "adresse_cabinet") && `**${s(c, "adresse_cabinet")}**`,
-          "**Barreau du Bénin**",
           centre("À"),
           s(c, "destinataire") && centre(`**${s(c, "destinataire")}**`),
+          // Juridiction (et chambre, si precisee) directement sous le
+          // destinataire - meme principe que pour les Conclusions/Note de
+          // plaidoirie : le bloc adresse doit rester lisible seul.
+          s(c, "nom_juridiction") &&
+            centre(
+              `**${s(c, "nom_juridiction")} de ${ctx.ville}${s(c, "nom_chambre") ? `, ${s(c, "nom_chambre")}` : ""}**`
+            ),
           // "Contre X pour Y" repete ici l'identite du mis en cause et la
           // qualification des faits (deja detaillees plus bas dans le bloc
           // CONTRE et etaient avant repetees une 3e fois dans une phrase
