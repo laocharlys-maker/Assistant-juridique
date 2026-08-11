@@ -600,6 +600,14 @@ export function buildFormalisme(
           `**Aff : ${ctx.nomAffaire}**`,
           centre("**À**"),
           s(c, "destinataire") && centre(`**${s(c, "destinataire")}**`),
+          // Juridiction (et chambre, si precisee) directement sous le
+          // destinataire - meme principe que pour les Conclusions : le bloc
+          // adresse doit rester lisible seul, sans devoir chercher
+          // l'information dans la phrase d'ouverture "PLAISE À..." plus bas.
+          s(c, "nom_juridiction") &&
+            centre(
+              `**${s(c, "nom_juridiction")} de ${ctx.ville}${s(c, "nom_chambre") ? `, ${s(c, "nom_chambre")}` : ""}**`
+            ),
           espace(),
           `**RG N° ${s(c, "numero_rg") || "…"} — Audience du ${ctx.dateAudienceLongue || ctx.dateLongue}**`,
           espace(),

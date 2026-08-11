@@ -1880,6 +1880,7 @@
       ],
       note_plaidoirie: [
         { key: "nom_juridiction", label: "Juridiction", type: "juridiction" },
+        { key: "nom_chambre", label: "Chambre (optionnel)", type: "text", placeholder: "ex: Chambre civile" },
         { key: "ville", label: "Ville (optionnel)", type: "ville" },
         { key: "numero_rg", label: "Numéro RG (optionnel)", type: "text" },
         {
@@ -1888,13 +1889,23 @@
           type: "select",
           options: ["M. le Président", "Mme la Présidente", "M. le Juge", "Mme la Juge"],
         },
-        { key: "qualite_client", label: "Qualité du client (optionnel)", type: "text" },
+        {
+          key: "qualite_client",
+          label: "Qualité du client (optionnel)",
+          type: "select",
+          options: QUALITE_PROCEDURALE,
+        },
         { key: "profession_client", label: "Profession du client (optionnel)", type: "text" },
         { key: "informations_client", label: "Informations sur le client (optionnel)", type: "text" },
         { key: "nom_avocat", label: "Avocat en charge (optionnel)", type: "text" },
         { key: "adresse_cabinet", label: "Adresse du cabinet (optionnel)", type: "text" },
         { key: "nom_partie_adverse", label: "Partie adverse (optionnel)", type: "text" },
-        { key: "qualite_partie_adverse", label: "Qualité de la partie adverse (optionnel)", type: "text" },
+        {
+          key: "qualite_partie_adverse",
+          label: "Qualité de la partie adverse (optionnel)",
+          type: "select",
+          options: QUALITE_PROCEDURALE,
+        },
         { key: "profession_partie_adverse", label: "Profession de la partie adverse (optionnel)", type: "text" },
         { key: "informations_partie_adverse", label: "Informations sur la partie adverse (optionnel)", type: "text" },
         { key: "nom_avocat_partie_adverse", label: "Avocat de la partie adverse (optionnel)", type: "text" },
