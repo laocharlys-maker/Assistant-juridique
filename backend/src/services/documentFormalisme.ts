@@ -462,17 +462,34 @@ export function buildFormalisme(
         ? `, agissant en qualité de ${s(c, "qualite_representant")}`
         : "";
       const conseil = s(c, "nom_avocat")
-        ? `Ayant pour Conseil Maître ${s(c, "nom_avocat")}, Avocat au Barreau du Bénin${
+        ? `ayant pour Conseil Maître ${s(c, "nom_avocat")}, Avocat au Barreau du Bénin${
             s(c, "adresse_cabinet")
               ? `, y demeurant élisant domicile en son cabinet sis ${s(c, "adresse_cabinet")}.`
               : "."
           }`
         : "";
+      // Identite du client et de la partie adverse chacune sur une seule
+      // ligne (nom, nationalite, adresse/informations, conseil separes par
+      // des virgules) - voir document de reference fourni par l'utilisateur,
+      // jamais une ligne par information.
+      const identiteClientRequete = ligne(
+        `${s(c, "civilite_nom_client") || ctx.nomClient}${qualiteClient}`,
+        s(c, "nationalite_client") && `de nationalité ${s(c, "nationalite_client")}`,
+        s(c, "informations_client"),
+        conseil
+      );
       const defendeur = ligne(
         s(c, "civilite_nom_defendeur") || s(c, "nom_defendeur"),
         s(c, "profession_defendeur"),
-        s(c, "nationalite_defendeur") && `de nationalité ${s(c, "nationalite_defendeur")}`
+        s(c, "nationalite_defendeur") && `de nationalité ${s(c, "nationalite_defendeur")}`,
+        s(c, "adresse_defendeur") && `demeurant ${s(c, "adresse_defendeur")}`
       );
+      // Destinataire + juridiction sur une seule ligne centree (ex: "M. le
+      // Président du Tribunal de Première Instance de Cotonou") - voir
+      // document de reference fourni par l'utilisateur.
+      const destinataireRequete = s(c, "nom_juridiction")
+        ? `${s(c, "destinataire")} ${possessifJuridiction(s(c, "nom_juridiction"))} ${s(c, "nom_juridiction")} de ${ctx.ville}`
+        : s(c, "destinataire");
       return {
         avant: bloc(
           droite(`Fait à ${ctx.ville}, le ${ctx.dateLongue}`),
@@ -481,25 +498,30 @@ export function buildFormalisme(
           s(c, "adresse_cabinet") && `**${s(c, "adresse_cabinet")}**`,
           espace(),
           centre("À"),
-          centre(s(c, "destinataire")),
+          centre(destinataireRequete),
           espace(),
           s(c, "objet") && `**OBJET : ${s(c, "objet")}**`,
           espace(),
           "REQUÊTE",
           "POUR :",
-          `${s(c, "civilite_nom_client") || ctx.nomClient}${qualiteClient}`,
-          s(c, "nationalite_client") && `De nationalité ${s(c, "nationalite_client")}`,
-          s(c, "informations_client"),
-          conseil,
+          identiteClientRequete,
           defendeur && "CONTRE :",
-          defendeur,
-          s(c, "adresse_defendeur") && `Demeurant ${s(c, "adresse_defendeur")}`
+          defendeur
           // Pas de seconde ligne "À Madame, Monsieur," ici : deja adressee au
           // destinataire choisi en tete de la requete (voir centre(destinataire)
           // plus haut) - une seconde salutation generique ferait doublon.
         ),
         apres: bloc(
-          s(c, "piece_a_prevoir") && `BORDEREAU DES PIÈCES COMMUNIQUÉES\n\n${s(c, "piece_a_prevoir")}`,
+          // Liste a puces (une piece par ligne, saisies separees par des
+          // virgules dans le formulaire) plutot que le texte brut tel que
+          // saisi - voir document de reference fourni par l'utilisateur.
+          s(c, "piece_a_prevoir") &&
+            `BORDEREAU DES PIÈCES COMMUNIQUÉES\n\n${s(c, "piece_a_prevoir")
+              .split(",")
+              .map((p) => p.trim())
+              .filter(Boolean)
+              .map((item) => `- ${item}`)
+              .join("\n")}`,
           "Sous toutes réserves que de droit.",
           centre(s(c, "nom_avocat") && `Maître ${s(c, "nom_avocat")}`),
           centre("Avocat au Barreau du Bénin")
