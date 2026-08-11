@@ -143,8 +143,8 @@
         contentEl.innerHTML = `
           <div id="period-actions" style="display:flex; align-items:center; justify-content:flex-end; gap:10px; margin-bottom:16px;">
             <button type="button" class="secondary" id="print-btn" style="margin-top:0;">Imprimer</button>
-            <a class="secondary" href="/api/role-audiences/semaine-sur-prochaine/pdf">Télécharger PDF</a>
-            <a class="secondary" href="/api/role-audiences/semaine-sur-prochaine/word">Télécharger Word</a>
+            <button type="button" class="secondary" id="telecharger-pdf-btn" style="margin-top:0;">Télécharger PDF</button>
+            <button type="button" class="secondary" id="telecharger-word-btn" style="margin-top:0;">Télécharger Word</button>
           </div>
           <div class="role-hebdo-card">
             ${jours
@@ -188,6 +188,25 @@
         `;
 
         document.getElementById("print-btn").addEventListener("click", () => window.print());
+        // Jamais un simple <a href> vers une route API authentifiee : sans
+        // effet dans la webview desktop (Tauri) - meme raisonnement que
+        // partout ailleurs dans l'app (voir js/api.js, downloadFile()) :
+        // fetch + blob + lien ephemere declenche par script, jamais une
+        // navigation directe.
+        document.getElementById("telecharger-pdf-btn").addEventListener("click", async () => {
+          try {
+            await downloadFile("/api/role-audiences/semaine-sur-prochaine/pdf", "role-de-la-semaine.pdf");
+          } catch (err) {
+            showError(errorEl, err.message);
+          }
+        });
+        document.getElementById("telecharger-word-btn").addEventListener("click", async () => {
+          try {
+            await downloadFile("/api/role-audiences/semaine-sur-prochaine/word", "role-de-la-semaine.docx");
+          } catch (err) {
+            showError(errorEl, err.message);
+          }
+        });
         contentEl.querySelectorAll("[data-modifier]").forEach((btn) => {
           btn.addEventListener("click", () => ouvrirEdition(btn.dataset.modifier));
         });
