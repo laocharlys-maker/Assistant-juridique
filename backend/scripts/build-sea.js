@@ -46,7 +46,27 @@ const SEA_PATHS_FILE = path.join(WORK_DIR, "lib", "seaPaths.js");
 // __dirname au runtime (fonts, moteur natif...) : on ne peut pas les
 // inliner dans le bundle, on les garde donc "externes" pour esbuild et on
 // les copie telles quelles a cote de l'executable (voir copyCompanionFiles).
-const EXTERNAL_PACKAGES_WITH_ASSETS = ["@prisma/client", "pdfkit"];
+const EXTERNAL_PACKAGES_WITH_ASSETS = ["@prisma/client", "pdfkit", "tesseract.js", "pdf-to-png-converter"];
+
+// Sous-ensemble de EXTERNAL_PACKAGES_WITH_ASSETS dont la fermeture de
+// dependances (paquets transitifs a copier - voir copyCompanionFiles) est
+// calculee via resolvePackageJsonClosure() plutot que resolveRequireClosure() :
+// verifie empiriquement (bug de production constate - "Failed to fetch"
+// suivi d'un crash du backend des qu'une transcription reelle est lancee),
+// resolveRequireClosure() (require() reel + inspection de require.cache) ne
+// voit PAS les paquets suivants, tous deux structurellement invisibles
+// depuis le processus principal :
+//   - pdfjs-dist, charge par pdf-to-png-converter via un import() dynamique
+//     ESM (pdfjs-dist est ESM-only depuis sa v3) - require.cache ne suit que
+//     les modules CommonJS, jamais le graphe ESM.
+//   - tesseract.js-core (moteur OCR WASM), charge par tesseract.js DANS un
+//     thread worker_threads separe - chaque Worker a son propre registre de
+//     modules, egalement invisible depuis le require.cache du thread
+//     principal qui execute ce script de build.
+// resolvePackageJsonClosure() contourne les deux problemes en lisant
+// directement dependencies/optionalDependencies de chaque package.json,
+// recursivement, sans jamais executer le code des paquets.
+const EXTERNAL_PACKAGES_DEEP_CLOSURE = ["tesseract.js", "pdf-to-png-converter"];
 
 function log(step) {
   console.log(`\n[build-sea] ${step}`);
@@ -517,7 +537,16 @@ function copyCompanionFiles() {
   // directement par notre code.
   copyDir(path.join(ROOT, "node_modules", ".prisma", "client"), path.join(outNodeModules, ".prisma", "client"));
 
-  for (const relPackageDir of resolveRequireClosure(EXTERNAL_PACKAGES_WITH_ASSETS)) {
+  const packagesViaRequireProbe = EXTERNAL_PACKAGES_WITH_ASSETS.filter(
+    (pkg) => !EXTERNAL_PACKAGES_DEEP_CLOSURE.includes(pkg)
+  );
+  const fermetureRequireProbe = resolveRequireClosure(packagesViaRequireProbe);
+  const fermeturePackageJson = resolvePackageJsonClosure(EXTERNAL_PACKAGES_DEEP_CLOSURE);
+  console.log(
+    `[build-sea] ${fermetureRequireProbe.length} paquet(s) via sonde require() (${packagesViaRequireProbe.join(", ")}), ` +
+      `${fermeturePackageJson.length} paquet(s) via fermeture package.json (${EXTERNAL_PACKAGES_DEEP_CLOSURE.join(", ")}).`
+  );
+  for (const relPackageDir of [...fermetureRequireProbe, ...fermeturePackageJson]) {
     copyDir(path.join(ROOT, "node_modules", relPackageDir), path.join(outNodeModules, relPackageDir));
   }
 }
@@ -558,6 +587,41 @@ function resolveRequireClosure(packageNames) {
   `;
   const output = execFileSync(process.execPath, ["-e", probeScript], { cwd: ROOT, encoding: "utf8" });
   return JSON.parse(output);
+}
+
+/**
+ * Fermeture de dependances calculee a partir des package.json (dependencies +
+ * optionalDependencies), recursivement - jamais en executant le code des
+ * paquets (voir EXTERNAL_PACKAGES_DEEP_CLOSURE pour pourquoi
+ * resolveRequireClosure() ne convient pas ici). Une dependance absente de
+ * node_modules est silencieusement ignoree : cas normal des variantes de
+ * plateforme d'un paquet natif optionalDependencies (@napi-rs/canvas publie
+ * un paquet par plateforme - npm n'installe reellement, sur la machine de
+ * build, que celle qui correspond a l'OS/arch courants).
+ *
+ * Limite assumee (a la difference de resolveRequireClosure) : suppose une
+ * arborescence node_modules a plat, sans nesting (node_modules/pkg/node_modules/sous-pkg) -
+ * verifie empiriquement vrai pour la fermeture complete de tesseract.js et
+ * pdf-to-png-converter dans ce projet au moment d'ecrire ce commentaire. A
+ * revoir si un futur `npm install` introduit un conflit de version forcant
+ * un nesting dans cette branche de l'arbre de dependances.
+ */
+function resolvePackageJsonClosure(packageNames) {
+  const resolved = new Set();
+  const queue = [...packageNames];
+  while (queue.length > 0) {
+    const name = queue.shift();
+    if (resolved.has(name)) continue;
+    const pkgJsonPath = path.join(ROOT, "node_modules", name, "package.json");
+    if (!fs.existsSync(pkgJsonPath)) continue;
+    resolved.add(name);
+    const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, "utf8"));
+    const deps = { ...(pkgJson.dependencies || {}), ...(pkgJson.optionalDependencies || {}) };
+    for (const depName of Object.keys(deps)) {
+      if (!resolved.has(depName)) queue.push(depName);
+    }
+  }
+  return [...resolved];
 }
 
 /**
