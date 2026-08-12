@@ -132,11 +132,8 @@
           <input name="nom_client" required />
 
           <label style="margin-top:10px;">Document à transcrire</label>
-          <div id="na-transcrire-dropzone" class="pieces-dropzone">
-            Glisse un fichier ici, ou <label class="pieces-file-label">clique pour en choisir un<input type="file" id="na-transcrire-file-input" accept="image/jpeg,image/png,application/pdf" hidden /></label>
-            <p class="muted" style="margin:4px 0 0;">JPEG, PNG ou PDF scanné — 20 Mo max.</p>
-          </div>
-          <p class="muted" id="na-transcrire-fichier-choisi" style="margin-top:4px;"></p>
+          <input name="document" type="file" accept="image/jpeg,image/png,application/pdf" required />
+          <p class="muted" style="margin:4px 0 0;">JPEG, PNG ou PDF scanné — 20 Mo max.</p>
 
           <button type="submit" style="margin-top:14px;">Transcrire ce document</button>
         </form>
@@ -2153,37 +2150,15 @@
     }
 
     // ---------- Lot 17 : "Transcrire un document" (3e mode) ----------
-    // Meme mecanisme de depot que l'onglet "Pieces" (public/dossier.html,
-    // uploadPiece) : lecture cote navigateur en Data URL base64, upload vers
+    // Meme pattern deja eprouve sur CETTE page pour "Resume PDF"/"Traduction"
+    // (input file visible dans le formulaire, lu via FormData + readFileAsDataUrl
+    // - voir plus bas) - PAS le mecanisme zone de depot/input cache utilise
+    // dans l'onglet "Pieces" (public/dossier.html), qui s'est avere ne pas
+    // fonctionner de facon fiable ici. Upload final vers
     // POST /api/dossiers/:dossierId/documents (routes/documentsDossier.ts,
-    // Lot 15) qui declenche l'OCR automatiquement (Lot 17) - rien de
+    // Lot 15), qui declenche l'OCR automatiquement (Lot 17) - rien de
     // nouveau cote stockage/OCR, uniquement un nouveau point d'entree.
     const TYPES_TRANSCRIPTION_AUTORISES = ["image/jpeg", "image/png", "application/pdf"];
-    let naTranscrireFichier = null;
-    const naTranscrireDropzone = document.getElementById("na-transcrire-dropzone");
-    const naTranscrireFileInput = document.getElementById("na-transcrire-file-input");
-    const naTranscrireFichierChoisi = document.getElementById("na-transcrire-fichier-choisi");
-
-    function naTranscrireSelectionnerFichier(fichier) {
-      naTranscrireFichier = fichier;
-      naTranscrireFichierChoisi.textContent = fichier ? `Fichier sélectionné : ${fichier.name}` : "";
-    }
-    naTranscrireFileInput.addEventListener("change", () => {
-      if (naTranscrireFileInput.files[0]) naTranscrireSelectionnerFichier(naTranscrireFileInput.files[0]);
-    });
-    naTranscrireDropzone.addEventListener("dragover", (e) => {
-      e.preventDefault();
-      naTranscrireDropzone.classList.add("pieces-dropzone-active");
-    });
-    naTranscrireDropzone.addEventListener("dragleave", () => {
-      naTranscrireDropzone.classList.remove("pieces-dropzone-active");
-    });
-    naTranscrireDropzone.addEventListener("drop", (e) => {
-      e.preventDefault();
-      naTranscrireDropzone.classList.remove("pieces-dropzone-active");
-      const fichier = e.dataTransfer.files[0];
-      if (fichier) naTranscrireSelectionnerFichier(fichier);
-    });
 
     const naTranscrireForm = document.getElementById("na-transcrire-form");
     const naTranscrireErrorEl = document.getElementById("na-transcrire-error");
@@ -2191,16 +2166,17 @@
       e.preventDefault();
       hideError(naTranscrireErrorEl);
 
-      if (!naTranscrireFichier) {
+      const fd = new FormData(naTranscrireForm);
+      const fichier = fd.get("document");
+      if (!fichier || fichier.size === 0) {
         showError(naTranscrireErrorEl, "Choisis d'abord le fichier à transcrire.");
         return;
       }
-      if (!TYPES_TRANSCRIPTION_AUTORISES.includes(naTranscrireFichier.type)) {
+      if (!TYPES_TRANSCRIPTION_AUTORISES.includes(fichier.type)) {
         showError(naTranscrireErrorEl, "Seuls les fichiers JPEG, PNG ou PDF peuvent être transcrits.");
         return;
       }
 
-      const fd = new FormData(naTranscrireForm);
       const submitBtn = naTranscrireForm.querySelector('button[type="submit"]');
       submitBtn.disabled = true;
       try {
@@ -2213,16 +2189,11 @@
           },
         });
 
-        const fichierDataUrl = await new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result);
-          reader.onerror = () => reject(new Error("Impossible de lire ce fichier."));
-          reader.readAsDataURL(naTranscrireFichier);
-        });
+        const fichierDataUrl = await readFileAsDataUrl(fichier);
 
         await apiFetch(`/api/dossiers/${dossierId}/documents`, {
           method: "POST",
-          body: { nom: naTranscrireFichier.name, fichierDataUrl },
+          body: { nom: fichier.name, fichierDataUrl },
         });
 
         // Renvoie directement sur l'onglet Pieces du dossier : le badge de

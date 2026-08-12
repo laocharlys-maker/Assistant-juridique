@@ -261,7 +261,7 @@ async function initHeaderChrono(me) {
     };
 
     el.innerHTML = `
-      <span class="header-chrono-badge" title="Chronomètre ${enPause ? "en pause" : "en cours"} — dossier ${escapeHtmlHeaderChrono(chronoActif.dossier.numeroDossier)}">${enPause ? "⏸" : "⏱"} <span id="header-chrono-temps"></span> <span>· ${escapeHtmlHeaderChrono(chronoActif.dossier.numeroDossier)}${enPause ? " (en pause)" : ""}</span></span>
+      <span class="header-chrono-badge${enPause ? "" : " header-chrono-badge-actif"}" title="Chronomètre ${enPause ? "en pause" : "en cours"} — dossier ${escapeHtmlHeaderChrono(chronoActif.dossier.numeroDossier)}">${enPause ? "⏸" : "⏱"} <span id="header-chrono-temps"></span> <span>· ${escapeHtmlHeaderChrono(chronoActif.dossier.numeroDossier)}${enPause ? " (en pause)" : ""}</span></span>
       <button type="button" id="header-chrono-pauseresume-btn" class="ghost btn-sm" style="padding:5px 12px; margin:0;" aria-label="${enPause ? "Reprendre" : "Mettre en pause"} le chronomètre" title="${enPause ? "Reprendre" : "Mettre en pause"} le chronomètre">${enPause ? "Reprendre" : "Pause"}</button>
       <button type="button" id="header-chrono-stop-btn" class="danger btn-sm" style="padding:5px 12px; margin:0;" aria-label="Arrêter le chronomètre" title="Arrêter le chronomètre">Arrêter</button>
     `;

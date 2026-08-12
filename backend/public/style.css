@@ -594,7 +594,29 @@ header.app-topbar {
   white-space: nowrap;
 }
 .header-chrono-badge #header-chrono-temps { font-variant-numeric: tabular-nums; }
+/* Chrono EN COURS (jamais en pause) : vert plein, pour attirer l'oeil sans
+   ambiguite - reste sur l'accent neutre pendant la pause (voir le modificateur
+   ci-dessous), volontairement distinct pour que l'etat "ca tourne encore"
+   saute aux yeux depuis n'importe quelle page. */
+.header-chrono-badge.header-chrono-badge-actif { background: var(--success); color: #ffffff; }
 #header-chrono-stop-btn { padding: 5px; }
+/* Boutons du chrono du Header : couleurs pleines dediees (jamais les styles
+   .ghost/.danger partages ailleurs dans l'app) - Pause en jaune (attention,
+   action reversible), Arreter en rouge (action definitive pour cette saisie).
+   Selecteurs par id : priment sur .ghost/.danger sans avoir a toucher ces
+   classes partagees. */
+#header-chrono-pauseresume-btn {
+  background: var(--warning);
+  color: #1a1400;
+  border: 1px solid var(--warning);
+}
+#header-chrono-pauseresume-btn:hover { filter: brightness(1.08); }
+#header-chrono-stop-btn {
+  background: var(--danger);
+  color: #ffffff;
+  border: 1px solid var(--danger);
+}
+#header-chrono-stop-btn:hover { filter: brightness(1.08); }
 @media (max-width: 640px) {
   .header-chrono-badge span:last-child { display: none; }
 }
