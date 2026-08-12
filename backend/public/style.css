@@ -705,6 +705,13 @@ header.app-topbar {
   margin: 8px 0 0;
 }
 
+/* Puce cliquable "module actif/inactif" - utilisee par admin-plateforme.html
+   (reglage plateforme, par cabinet) et collaborateurs.html (reglage
+   titulaire, par collaborateur, Lot 18). */
+.module-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border); font-size: 0.78rem; cursor: pointer; user-select: none; background: var(--panel); }
+.module-chip.actif { background: var(--success-tint); color: var(--success); border-color: transparent; }
+.module-chip.inactif { background: var(--hairline); color: var(--muted); }
+
 .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-bottom: 24px; }
 .stat-card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 18px 20px; box-shadow: var(--shadow-sm); }
 .stat-card .stat-label { color: var(--muted); font-size: 0.85rem; }

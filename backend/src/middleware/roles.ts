@@ -33,8 +33,12 @@ export function requireSuperAdmin(req: Request, res: Response, next: NextFunctio
 }
 
 // Bloque l'acces a un module que la plateforme a desactive pour ce cabinet
-// (formule souscrite) - a poser sur les routeurs correspondant a un module
-// vendable separement (factures, jurisprudence, delais...).
+// (formule souscrite), OU que le titulaire a retire pour CE collaborateur
+// precis (User.modulesDesactives) - deux reglages independants, verifies
+// tous les deux : le premier (plateforme) prime toujours, le second
+// (titulaire) ne peut jamais l'outrepasser, uniquement restreindre en plus.
+// A poser sur les routeurs correspondant a un module vendable separement
+// (factures, jurisprudence, delais...).
 export function requireModule(cle: string) {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     // Sans try/catch, une erreur Postgres ici (middleware partage par tous
@@ -52,6 +56,16 @@ export function requireModule(cle: string) {
         res.status(403).json({ error: "Ce module n'est pas activé pour votre cabinet. Contactez l'administrateur de la plateforme." });
         return;
       }
+
+      const user = await prisma.user.findUnique({
+        where: { id: req.auth!.userId },
+        select: { modulesDesactives: true },
+      });
+      if (user?.modulesDesactives.includes(cle)) {
+        res.status(403).json({ error: "Ce module n'est pas activé pour ton compte. Contacte le titulaire du cabinet." });
+        return;
+      }
+
       next();
     } catch (error) {
       console.error(`Erreur verification du module "${cle}" :`, error);

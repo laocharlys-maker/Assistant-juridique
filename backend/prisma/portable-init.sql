@@ -104,6 +104,7 @@ CREATE TABLE "users" (
     "signature_url" TEXT,
     "partage_signature_actif" BOOLEAN NOT NULL DEFAULT false,
     "acces_tous_dossiers" BOOLEAN NOT NULL DEFAULT false,
+    "modules_desactives" TEXT[] DEFAULT ARRAY[]::TEXT[],
     "recoit_veille" BOOLEAN NOT NULL DEFAULT true,
     "actif" BOOLEAN NOT NULL DEFAULT true,
     "last_login_at" TIMESTAMP(3),

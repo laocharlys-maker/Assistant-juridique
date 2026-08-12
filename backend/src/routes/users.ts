@@ -5,6 +5,7 @@ import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
 import { requireAdmin, requireAvocat } from "../middleware/roles";
 import { hashPassword } from "../services/auth";
+import { MODULES_DISPONIBLES } from "./admin";
 
 export const usersRouter = Router();
 
@@ -52,6 +53,7 @@ usersRouter.get("/api/users", requireAuth, requireAvocat, async (req, res) => {
       accesTousDossiers: true,
       actif: true,
       tauxHoraireDefaut: true,
+      modulesDesactives: true,
       responsable: { select: { id: true, nom: true } },
       accesAccordes: { select: { avocat: { select: { id: true, nom: true } } } },
     },
@@ -256,6 +258,34 @@ usersRouter.patch(
     return res.json({ ok: true });
   }
 );
+
+// Le titulaire choisit, pour CE collaborateur precis, les modules retires
+// (en plus du reglage plateforme, jamais au-dessus - voir requireModule,
+// middleware/roles.ts) - jamais pour un avocat/titulaire, qui garde toujours
+// l'acces complet accorde par la plateforme.
+const modulesDesactivesSchema = z.object({
+  modulesDesactives: z.array(z.enum(MODULES_DISPONIBLES)),
+});
+
+usersRouter.patch("/api/users/:id/modules", requireAuth, requireAdmin, async (req, res) => {
+  const parsed = modulesDesactivesSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Requête invalide", details: parsed.error.issues });
+  }
+
+  const collaborateur = await prisma.user.findFirst({
+    where: { id: req.params.id, cabinetId: req.auth!.cabinetId, role: "collaborateur" },
+  });
+  if (!collaborateur) {
+    return res.status(404).json({ error: "Collaborateur introuvable dans ce cabinet" });
+  }
+
+  await prisma.user.update({
+    where: { id: collaborateur.id },
+    data: { modulesDesactives: parsed.data.modulesDesactives },
+  });
+  return res.json({ ok: true });
+});
 
 // Lot 14 : taux horaire par defaut (FCFA/heure), INDIVIDUEL - reserve a
 // l'admin (gouvernance des tarifs du cabinet, meme principe que les autres

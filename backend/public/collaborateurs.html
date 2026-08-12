@@ -81,6 +81,20 @@
     let me = null;
     const filtre = new URLSearchParams(window.location.search).get("filtre");
 
+    // Memes cles que MODULES_DISPONIBLES (routes/admin.ts) - le reglage
+    // titulaire ci-dessous (par collaborateur) s'applique EN PLUS du
+    // reglage plateforme (admin-plateforme.html, par cabinet), jamais
+    // au-dessus : un module deja retire par la plateforme reste retire
+    // quel que soit ce reglage.
+    const MODULES = [
+      { key: "nouvelle_action", label: "Nouvelle action" },
+      { key: "documents_generes", label: "Documents générés" },
+      { key: "facturation", label: "Facturation" },
+      { key: "veille_juridique", label: "Veille juridique" },
+      { key: "jurisprudence", label: "Jurisprudence" },
+      { key: "delais", label: "Délais" },
+    ];
+
     function iconBtn({ icon, tooltip, dataset, isOn, isDanger }) {
       const svgInner = document.getElementById("icon-svgs").content.querySelector(`[data-icon="${icon}"]`).innerHTML;
       const attrs = Object.entries(dataset).map(([k, v]) => `data-${k}="${v}"`).join(" ");
@@ -206,6 +220,19 @@
                 ? `<input type="number" min="1" data-taux-horaire="${u.id}" value="${u.tauxHoraireDefaut ?? ""}" placeholder="Taux horaire (F CFA)" style="width:170px; margin:0;" />`
                 : "";
 
+            // Reglage titulaire uniquement : quels modules ce collaborateur
+            // precis peut voir, en plus du reglage plateforme (jamais au-dela,
+            // voir requireModule, middleware/roles.ts).
+            const moduleChips =
+              me.role === "titulaire"
+                ? `<div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;">
+                    ${MODULES.map((m) => {
+                      const actifModule = !(u.modulesDesactives || []).includes(m.key);
+                      return `<span class="module-chip ${actifModule ? "actif" : "inactif"}" data-toggle-user-module="${u.id}" data-module-key="${m.key}">${actifModule ? "✓" : "✕"} ${escapeHtml(m.label)}</span>`;
+                    }).join("")}
+                  </div>`
+                : "";
+
             return `
             <div class="dossier-item">
               <div>
@@ -216,6 +243,7 @@
                   ${u.accesTousDossiers ? " · accès à tous les dossiers du cabinet" : ""}
                   ${u.actif === false ? ' · <span style="color:var(--danger);">Compte désactivé</span>' : ""}
                 </div>
+                ${moduleChips}
               </div>
               <div class="icon-action-row">${reassignSelect}${tauxHoraireInput}${actions.join("")}</div>
             </div>`;
@@ -331,6 +359,26 @@
             } catch (err) {
               showError(document.getElementById("error"), err.message);
               loadUsers();
+            }
+          });
+        });
+
+        listEl.querySelectorAll("[data-toggle-user-module]").forEach((chip) => {
+          chip.addEventListener("click", async () => {
+            const userId = chip.dataset.toggleUserModule;
+            const user = users.find((u) => u.id === userId);
+            const key = chip.dataset.moduleKey;
+            const actuelles = user.modulesDesactives || [];
+            const estActif = !actuelles.includes(key);
+            const nouvelleListe = estActif ? [...actuelles, key] : actuelles.filter((k) => k !== key);
+            try {
+              await apiFetch(`/api/users/${userId}/modules`, {
+                method: "PATCH",
+                body: { modulesDesactives: nouvelleListe },
+              });
+              loadUsers();
+            } catch (err) {
+              showError(document.getElementById("error"), err.message);
             }
           });
         });

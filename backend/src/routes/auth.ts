@@ -164,6 +164,7 @@ authRouter.get("/api/auth/me", requireAuth, async (req, res) => {
       telephone: true,
       adresse: true,
       dateArrivee: true,
+      modulesDesactives: true,
       responsable: { select: { nom: true, signatureUrl: true } },
       cabinet: { select: { modulesDesactives: true } },
     },
@@ -179,7 +180,14 @@ authRouter.get("/api/auth/me", requireAuth, async (req, res) => {
     ...user,
     responsable: user.responsable ? { nom: user.responsable.nom } : null,
     peutUtiliserSignatureResponsable,
-    modulesDesactives: user.cabinet.modulesDesactives,
+    // Union cabinet + individuel : le frontend (layout.js, filtre des
+    // NAV_ITEMS) n'a besoin de connaitre qu'une seule liste "modules
+    // indisponibles", jamais l'origine de la restriction - le reglage
+    // titulaire (User.modulesDesactives) ne fait jamais reapparaitre un
+    // module deja retire par la plateforme, uniquement en restreindre en
+    // plus (voir middleware/roles.ts, requireModule, pour la meme regle
+    // cote serveur).
+    modulesDesactives: [...new Set([...user.cabinet.modulesDesactives, ...user.modulesDesactives])],
     cabinet: undefined,
   });
 });
