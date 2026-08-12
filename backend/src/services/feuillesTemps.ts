@@ -66,6 +66,48 @@ export function agregerParCollaborateur(saisies: SaisiePourAgregation[]): LigneA
   return agreger(saisies, (s) => s.userId, (s) => s.userNom);
 }
 
+export interface SousLigneDossier {
+  dossierId: string;
+  dossierLabel: string;
+  dureeMinutes: number;
+  montant: number;
+}
+
+export interface LigneCollaborateurDetaillee extends LigneAgregee {
+  dossiers: SousLigneDossier[];
+}
+
+/** Variante detaillee de agregerParCollaborateur : chaque collaborateur
+ * garde son total (identique a agregerParCollaborateur), mais expose EN
+ * PLUS la repartition par dossier (nom + numero, deja dans dossierLabel) -
+ * utilisee uniquement par l'affichage ecran de la vue "Par collaborateur"
+ * (routes/saisiesTemps.ts, format=json), jamais par l'export PDF ni par
+ * agregerParCollaborateur elle-meme, qui restent inchanges. */
+export function agregerParCollaborateurAvecDossiers(saisies: SaisiePourAgregation[]): LigneCollaborateurDetaillee[] {
+  const parUser = new Map<string, LigneCollaborateurDetaillee>();
+  for (const s of saisies) {
+    if (!parUser.has(s.userId)) {
+      parUser.set(s.userId, { cle: s.userId, label: s.userNom, dureeMinutes: 0, montant: 0, dossiers: [] });
+    }
+    const ligne = parUser.get(s.userId)!;
+    const montant = calculerMontant(s.dureeMinutes, s.tauxHoraireApplique);
+    ligne.dureeMinutes += s.dureeMinutes;
+    ligne.montant += montant;
+
+    let sousLigne = ligne.dossiers.find((d) => d.dossierId === s.dossierId);
+    if (!sousLigne) {
+      sousLigne = { dossierId: s.dossierId, dossierLabel: s.dossierLabel, dureeMinutes: 0, montant: 0 };
+      ligne.dossiers.push(sousLigne);
+    }
+    sousLigne.dureeMinutes += s.dureeMinutes;
+    sousLigne.montant += montant;
+  }
+
+  const lignes = [...parUser.values()];
+  lignes.forEach((l) => l.dossiers.sort((a, b) => a.dossierLabel.localeCompare(b.dossierLabel, "fr")));
+  return lignes.sort((a, b) => a.label.localeCompare(b.label, "fr"));
+}
+
 /** Agregation par dossier - base directe de "Facturer ce dossier" (voir
  * routes/factures.ts) et utile pour visualiser le temps total investi sur
  * une affaire, tous collaborateurs confondus. */

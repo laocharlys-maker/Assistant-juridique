@@ -212,4 +212,34 @@ describe.skipIf(!pgAvailable)("e2e : reconnaissance de texte (OCR) des pièces (
     const res = await api(autreCabinetCookie, `/api/documents/${documentImageId}/ocr/relancer`, { method: "POST" });
     expect(res.status).toBe(404);
   });
+
+  it("export PDF du texte reconnu : succès pour une pièce dont l'OCR est terminé", async () => {
+    const res = await api(titulaireCookie, `/api/documents/${documentImageId}/ocr/pdf`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toBe("application/pdf");
+    const buffer = Buffer.from(await res.arrayBuffer());
+    expect(buffer.subarray(0, 4).toString()).toBe("%PDF");
+  });
+
+  it("export Word du texte reconnu : succès pour une pièce dont l'OCR est terminé", async () => {
+    const res = await api(titulaireCookie, `/api/documents/${documentImageId}/ocr/word`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toBe(
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    );
+    const buffer = Buffer.from(await res.arrayBuffer());
+    expect(buffer.subarray(0, 2).toString()).toBe("PK");
+  });
+
+  it("export PDF/Word échoue proprement pour une pièce sans texte reconnu", async () => {
+    const resPdf = await api(titulaireCookie, `/api/documents/${documentWordId}/ocr/pdf`);
+    expect(resPdf.status).toBe(404);
+    const resWord = await api(titulaireCookie, `/api/documents/${documentWordId}/ocr/word`);
+    expect(resWord.status).toBe(404);
+  });
+
+  it("un utilisateur d'un autre cabinet ne peut pas exporter le texte reconnu de cette pièce", async () => {
+    const res = await api(autreCabinetCookie, `/api/documents/${documentImageId}/ocr/pdf`);
+    expect(res.status).toBe(404);
+  });
 });

@@ -80,11 +80,19 @@ async function chargerFeuille() {
   }
 }
 
-// "Facturer ce dossier" n'a de sens qu'en vue "Par dossier" (la ligne
-// correspond alors a un dossier, l.cle = dossierId - voir agregerParDossier
-// cote serveur) et uniquement pour un avocat/titulaire (meme permission que
-// POST /api/factures/depuis-temps, requireAvocat cote serveur) : un
-// collaborateur ne peut pas creer de facture.
+// "Facturer ce temps" n'a de sens qu'a l'echelle d'UN dossier (le serveur
+// facture toujours par dossier, voir POST /api/factures/depuis-temps) et
+// uniquement pour un avocat/titulaire (meme permission cote serveur,
+// requireAvocat) : un collaborateur ne peut pas creer de facture. En vue
+// "Par dossier", chaque ligne EST deja un dossier (l.cle = dossierId, voir
+// agregerParDossier). En vue "Par collaborateur", chaque ligne est une
+// PERSONNE (total tous ses dossiers confondus - inchange) mais expose
+// desormais une sous-liste par dossier (l.dossiers, voir
+// agregerParCollaborateurAvecDossiers cote serveur) : c'est sur CES
+// sous-lignes que "Facturer ce temps" apparait, jamais sur le total de la
+// personne elle-meme (facturer "tout ce qu'un collaborateur a fait, tous
+// dossiers confondus" n'a pas de sens, une facture est toujours pour un
+// seul dossier/client).
 function renderFeuille(lignes) {
   const bodyEl = document.getElementById("feuille-body");
   if (!lignes || lignes.length === 0) {
@@ -92,20 +100,39 @@ function renderFeuille(lignes) {
     return;
   }
 
-  const peutFacturer = groupBy === "dossier" && peutVoirEquipe();
+  const peutFacturer = peutVoirEquipe();
 
   let totalDuree = 0;
   let totalMontant = 0;
+
+  function ligneDossierHtml(dossier) {
+    return `
+      <div class="action-item" style="margin-left:20px; background:var(--panel-alt);">
+        <span class="tag">${escapeHtml(dossier.dossierLabel)}</span>
+        <div>${formatDureeCourte(dossier.dureeMinutes)} — ${dossier.montant.toLocaleString("fr-FR")} F CFA</div>
+        ${peutFacturer ? `<button type="button" class="secondary btn-sm" data-facturer="${dossier.dossierId}" style="margin-top:6px;">Facturer ce temps</button>` : ""}
+      </div>`;
+  }
 
   const lignesHtml = lignes
     .map((l) => {
       totalDuree += l.dureeMinutes;
       totalMontant += l.montant;
+
+      if (groupBy === "collaborateur" && l.dossiers) {
+        return `
+          <div class="action-item">
+            <span class="tag">${escapeHtml(l.label)}</span>
+            <div><strong>${formatDureeCourte(l.dureeMinutes)}</strong> — ${l.montant.toLocaleString("fr-FR")} F CFA</div>
+          </div>
+          ${l.dossiers.map(ligneDossierHtml).join("")}`;
+      }
+
       return `
         <div class="action-item">
           <span class="tag">${escapeHtml(l.label)}</span>
           <div><strong>${formatDureeCourte(l.dureeMinutes)}</strong> — ${l.montant.toLocaleString("fr-FR")} F CFA</div>
-          ${peutFacturer ? `<button type="button" class="secondary btn-sm" data-facturer="${l.cle}" style="margin-top:6px;">Facturer ce dossier</button>` : ""}
+          ${peutFacturer ? `<button type="button" class="secondary btn-sm" data-facturer="${l.cle}" style="margin-top:6px;">Facturer ce temps</button>` : ""}
         </div>`;
     })
     .join("");

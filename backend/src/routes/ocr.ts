@@ -3,6 +3,7 @@ import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
 import { decryptField } from "../security/encryptionAtRest";
 import { relancerOcr } from "../jobs/traitementOcr";
+import { buildOcrTextePdf, buildOcrTexteWord } from "../services/ocr/ocrTexteExport";
 
 export const ocrRouter = Router();
 
@@ -45,6 +46,73 @@ ocrRouter.get("/api/documents/:id/ocr", requireAuth, async (req, res) => {
     texteExtrait: ocrResultat.statut === "termine" ? decryptField(ocrResultat.texteExtrait) : null,
     updatedAt: ocrResultat.updatedAt,
   });
+});
+
+async function chargerResultatOcrTermine(documentId: string, cabinetId: string) {
+  const document = await chargerDocumentAccessible(documentId, cabinetId);
+  if (!document) {
+    return { ok: false as const, status: 404, error: "Document introuvable" };
+  }
+
+  const ocrResultat = await prisma.ocrResultat.findUnique({ where: { documentId: document.id } });
+  if (!ocrResultat || ocrResultat.statut !== "termine") {
+    return { ok: false as const, status: 404, error: "Aucun texte reconnu disponible pour cette pièce." };
+  }
+
+  return { ok: true as const, document, ocrResultat, texteExtrait: decryptField(ocrResultat.texteExtrait) || "" };
+}
+
+function nomFichierExportOcr(nomOriginal: string, extension: string): string {
+  const sansExtension = nomOriginal.replace(/\.[^./]+$/, "").trim();
+  return `${sansExtension || "piece"}-texte-reconnu.${extension}`;
+}
+
+// Export du texte reconnu en PDF/Word (Lot 17 suite) - jamais le formalisme
+// juridique de services/documentExport.ts (voir services/ocr/ocrTexteExport.ts),
+// un texte OCR n'etant pas un acte redige par le cabinet. Meme regle d'acces
+// que la consultation du texte (chargerDocumentAccessible ci-dessus).
+ocrRouter.get("/api/documents/:id/ocr/pdf", requireAuth, async (req, res) => {
+  const resultat = await chargerResultatOcrTermine(req.params.id, req.auth!.cabinetId);
+  if (!resultat.ok) {
+    return res.status(resultat.status).json({ error: resultat.error });
+  }
+
+  const cabinet = await prisma.cabinet.findUnique({ where: { id: req.auth!.cabinetId } });
+  const buffer = await buildOcrTextePdf({
+    cabinetNom: cabinet?.nom ?? "",
+    nomOriginal: resultat.document.nomOriginal,
+    scoreConfiance: resultat.ocrResultat.scoreConfiance,
+    texteExtrait: resultat.texteExtrait,
+  });
+
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader(
+    "Content-Disposition",
+    `attachment; filename="${encodeURIComponent(nomFichierExportOcr(resultat.document.nomOriginal, "pdf"))}"`
+  );
+  return res.send(buffer);
+});
+
+ocrRouter.get("/api/documents/:id/ocr/word", requireAuth, async (req, res) => {
+  const resultat = await chargerResultatOcrTermine(req.params.id, req.auth!.cabinetId);
+  if (!resultat.ok) {
+    return res.status(resultat.status).json({ error: resultat.error });
+  }
+
+  const cabinet = await prisma.cabinet.findUnique({ where: { id: req.auth!.cabinetId } });
+  const buffer = await buildOcrTexteWord({
+    cabinetNom: cabinet?.nom ?? "",
+    nomOriginal: resultat.document.nomOriginal,
+    scoreConfiance: resultat.ocrResultat.scoreConfiance,
+    texteExtrait: resultat.texteExtrait,
+  });
+
+  res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+  res.setHeader(
+    "Content-Disposition",
+    `attachment; filename="${encodeURIComponent(nomFichierExportOcr(resultat.document.nomOriginal, "docx"))}"`
+  );
+  return res.send(buffer);
 });
 
 // Relance manuelle - jamais bloquante (voir relancerOcr(), traitement en

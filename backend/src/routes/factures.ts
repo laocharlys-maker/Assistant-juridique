@@ -190,7 +190,15 @@ facturesRouter.get("/api/factures", requireAuth, requireAvocat, async (req, res)
     orderBy: { createdAt: "desc" },
   });
 
-  return res.json(factures);
+  // Les factures non encore payees ("brouillon"/"envoyee") remontent toujours
+  // au-dessus de celles deja payees - Array.prototype.sort est stable (Node),
+  // donc l'ordre par date de creation (deja applique par Prisma ci-dessus)
+  // est conserve A L'INTERIEUR de chacun des deux groupes, jamais recalcule.
+  const facturesTriees = [...factures].sort(
+    (a, b) => Number(a.statut === "payee") - Number(b.statut === "payee")
+  );
+
+  return res.json(facturesTriees);
 });
 
 // Pop-up "Factures en attente de paiement" (tableau de bord) : factures

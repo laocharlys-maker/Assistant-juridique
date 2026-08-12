@@ -6,6 +6,7 @@ import { requireModule } from "../middleware/roles";
 import { SaisieTemps } from "@prisma/client";
 import {
   agregerParCollaborateur,
+  agregerParCollaborateurAvecDossiers,
   agregerParDossier,
   buildFeuilleTempsPdf,
   SaisiePourAgregation,
@@ -496,25 +497,28 @@ saisiesTempsRouter.get("/api/saisies-temps/feuille", requireAuth, async (req, re
       ...(userIds ? { userId: { in: userIds } } : {}),
       ...(dossierId ? { dossierId } : {}),
       ...(debut || fin ? { date: { ...(debut ? { gte: debut } : {}), ...(fin ? { lt: fin } : {}) } } : {}),
-      // Vue "par dossier" : exclut le temps deja facture (factureId non nul)
-      // - une ligne affichee ici doit toujours correspondre exactement a ce
-      // que "Facturer ce dossier" facturerait reellement (voir
-      // POST /api/factures/depuis-temps, meme filtre factureId: null),
-      // jamais un total qui inclurait du temps deja rattache a une facture
-      // existante. La vue "par collaborateur" reste, elle, un total de temps
-      // travaille tous statuts confondus (besoin de suivi different, non
-      // concerne par cette demande).
-      ...(groupBy === "dossier" ? { factureId: null } : {}),
+      // Exclut le temps deja facture (factureId non nul) - une ligne (ou
+      // sous-ligne par dossier en vue "par collaborateur", voir
+      // agregerParCollaborateurAvecDossiers) affichee ici doit toujours
+      // correspondre exactement a ce que "Facturer ce temps" facturerait
+      // reellement (POST /api/factures/depuis-temps, meme filtre
+      // factureId: null) - jamais un total qui inclurait du temps deja
+      // rattache a une facture existante, quelle que soit la vue.
+      factureId: null,
     },
     include: { user: { select: { nom: true } }, dossier: { select: { numeroDossier: true, nomAffaire: true } } },
   });
 
   const saisies = saisiesBrutes.map(versSaisiePourAgregation).filter((s): s is SaisiePourAgregation => s !== null);
-  const lignes = groupBy === "dossier" ? agregerParDossier(saisies) : agregerParCollaborateur(saisies);
 
   if (format === "json") {
-    return res.json({ groupBy, lignes });
+    if (groupBy === "collaborateur") {
+      return res.json({ groupBy, lignes: agregerParCollaborateurAvecDossiers(saisies) });
+    }
+    return res.json({ groupBy, lignes: agregerParDossier(saisies) });
   }
+
+  const lignes = groupBy === "dossier" ? agregerParDossier(saisies) : agregerParCollaborateur(saisies);
 
   const cabinet = await prisma.cabinet.findUnique({ where: { id: req.auth!.cabinetId } });
   const intitulePeriode =

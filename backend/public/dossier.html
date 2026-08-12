@@ -689,6 +689,8 @@
             <p class="error visible" id="ocr-modal-error" style="display:none;"></p>
             <textarea id="ocr-modal-texte" readonly style="width:100%; min-height:320px; font-family:inherit; resize:vertical;"></textarea>
             <div style="margin-top:14px; display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end;">
+              <button type="button" class="ghost" id="ocr-modal-pdf">Télécharger PDF</button>
+              <button type="button" class="ghost" id="ocr-modal-word">Télécharger Word</button>
               <button type="button" class="ghost" id="ocr-modal-copier">Copier vers un document en rédaction libre</button>
               <button type="button" class="secondary" id="ocr-modal-fermer">Fermer</button>
             </div>
@@ -892,6 +894,29 @@
           // nouvelle-action.html).
           sessionStorage.setItem("aurore_ocr_copie_redaction_libre", JSON.stringify({ texte }));
           window.location.href = "/nouvelle-action.html";
+        });
+      }
+
+      const pdfBtn = document.getElementById("ocr-modal-pdf");
+      if (pdfBtn) {
+        pdfBtn.addEventListener("click", async () => {
+          if (!ocrModalDocumentId) return;
+          try {
+            await downloadFile(`/api/documents/${ocrModalDocumentId}/ocr/pdf`, "texte-reconnu.pdf");
+          } catch (err) {
+            alert(err.message);
+          }
+        });
+      }
+      const wordBtn = document.getElementById("ocr-modal-word");
+      if (wordBtn) {
+        wordBtn.addEventListener("click", async () => {
+          if (!ocrModalDocumentId) return;
+          try {
+            await downloadFile(`/api/documents/${ocrModalDocumentId}/ocr/word`, "texte-reconnu.docx");
+          } catch (err) {
+            alert(err.message);
+          }
         });
       }
 

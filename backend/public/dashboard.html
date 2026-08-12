@@ -30,6 +30,25 @@
     <div class="card">
       <div id="dossiers-list"><p class="muted">Chargement…</p></div>
     </div>
+
+    <!-- Lot 17 (suite) - vue "Documents transcrits" : memes actions que
+         l'onglet "Pieces" d'un dossier (public/dossier.html), sans y
+         renvoyer - modale de detail statique, cablee une seule fois. -->
+    <div class="modal-overlay" id="ocr-modal" hidden>
+      <div class="modal-box" style="max-width:640px;">
+        <h2>Texte reconnu</h2>
+        <p class="muted" id="ocr-modal-meta"></p>
+        <p class="error visible" id="ocr-modal-warning" style="display:none;"></p>
+        <p class="error visible" id="ocr-modal-error" style="display:none;"></p>
+        <textarea id="ocr-modal-texte" readonly style="width:100%; min-height:320px; font-family:inherit; resize:vertical;"></textarea>
+        <div style="margin-top:14px; display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end;">
+          <button type="button" class="ghost" id="ocr-modal-pdf">Télécharger PDF</button>
+          <button type="button" class="ghost" id="ocr-modal-word">Télécharger Word</button>
+          <button type="button" class="ghost" id="ocr-modal-copier">Copier vers un document en rédaction libre</button>
+          <button type="button" class="secondary" id="ocr-modal-fermer">Fermer</button>
+        </div>
+      </div>
+    </div>
   </div>
   <script src="/js/api.js"></script>
   <script src="/js/layout.js"></script>
@@ -190,9 +209,9 @@
     // termine (voir /api/documents?vue=transcriptions, dossiers.ts) - liste
     // plate (pas de regroupement par type, contrairement a
     // renderDocumentsByType : une piece scannee n'a pas de "type" d'acte).
-    // Le detail du texte reconnu (modale, score, relance) reste uniquement
-    // sur la fiche dossier (onglet Pieces) - jamais duplique ici, le lien
-    // renvoie simplement vers le dossier.
+    // Memes actions que l'onglet "Pieces" de la fiche dossier (Aperçu,
+    // Télécharger, Voir le texte reconnu, Relancer la reconnaissance) -
+    // directement ici, sans devoir naviguer vers le dossier.
     function renderTranscriptions(pieces) {
       const listEl = document.getElementById("dossiers-list");
       if (pieces.length === 0) {
@@ -214,15 +233,158 @@
           // a garder synchronise si ce seuil est ajuste un jour.
           const avertissement = score !== null && score < 70 ? ' <span class="badge badge-ocr-echec">⚠️ à relire</span>' : "";
           const scoreTexte = score !== null ? ` · confiance ${score}%` : "";
+          const apercuPossible = p.typeMime === "application/pdf" || p.typeMime.startsWith("image/");
           return `
         <div class="dossier-item">
           <div>
-            <div>${iconeTranscription(p.typeMime)} <a href="/dossier.html?id=${p.dossier.id}">${escapeHtml(p.nomOriginal)}</a>${badgeCloture}${badgeEcheance}${avertissement}</div>
+            <div>${iconeTranscription(p.typeMime)} <strong>${escapeHtml(p.nomOriginal)}</strong>${badgeCloture}${badgeEcheance}${avertissement}</div>
             <div class="meta">${meta}${scoreTexte}</div>
+            <div style="margin-top:6px; display:flex; gap:8px; flex-wrap:wrap;">
+              ${apercuPossible ? `<button type="button" class="ghost btn-sm" data-piece-apercu="${p.id}" data-piece-type="${p.typeMime}">Aperçu</button>` : ""}
+              <button type="button" class="ghost btn-sm" data-piece-telecharger="${p.id}" data-piece-nom="${escapeHtml(p.nomOriginal)}">Télécharger</button>
+              <button type="button" class="ghost btn-sm" data-ocr-voir="${p.id}">Voir le texte reconnu</button>
+              <button type="button" class="ghost btn-sm" data-ocr-relancer="${p.id}">Relancer la reconnaissance</button>
+              <a class="secondary btn-sm" href="/dossier.html?id=${p.dossier.id}" style="text-decoration:none;">Ouvrir le dossier</a>
+            </div>
+            <div id="piece-preview-${p.id}" hidden style="margin-top:8px;"></div>
           </div>
         </div>`;
         })
         .join("");
+
+      listEl.querySelectorAll("[data-piece-apercu]").forEach((btn) => {
+        btn.addEventListener("click", () => apercevoirTranscription(btn.dataset.pieceApercu, btn.dataset.pieceType));
+      });
+      listEl.querySelectorAll("[data-piece-telecharger]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          try {
+            await downloadFile(`/api/documents/${btn.dataset.pieceTelecharger}`, btn.dataset.pieceNom);
+          } catch (err) {
+            alert(err.message);
+          }
+        });
+      });
+      listEl.querySelectorAll("[data-ocr-voir]").forEach((btn) => {
+        btn.addEventListener("click", () => ouvrirModaleOcr(btn.dataset.ocrVoir));
+      });
+      listEl.querySelectorAll("[data-ocr-relancer]").forEach((btn) => {
+        btn.addEventListener("click", () => relancerOcrTranscription(btn.dataset.ocrRelancer));
+      });
+    }
+
+    // Memes fonctions (aperçu inline, modale de detail OCR) que l'onglet
+    // "Pieces" de la fiche dossier (public/dossier.html) - dupliquees ici
+    // volontairement (page distincte, pas de module JS partage entre pages
+    // dans ce projet) pour eviter d'avoir a naviguer vers le dossier juste
+    // pour consulter/relancer une transcription.
+    async function apercevoirTranscription(id, typeMime) {
+      const previewEl = document.getElementById(`piece-preview-${id}`);
+      if (!previewEl) return;
+      if (!previewEl.hidden) {
+        previewEl.hidden = true;
+        previewEl.innerHTML = "";
+        return;
+      }
+      try {
+        const response = await fetch(`/api/documents/${id}?inline=1`, { credentials: "include" });
+        if (!response.ok) throw new Error("Aperçu indisponible.");
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        previewEl.innerHTML = typeMime.startsWith("image/")
+          ? `<img src="${url}" style="max-width:100%; border-radius:8px;" />`
+          : `<iframe src="${url}" style="width:100%; height:500px; border:1px solid var(--border); border-radius:8px;"></iframe>`;
+        previewEl.hidden = false;
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    let ocrModalDocumentId = null;
+    const OCR_SEUIL_CONFIANCE_AVERTISSEMENT = 70;
+
+    async function ouvrirModaleOcr(documentId) {
+      const modal = document.getElementById("ocr-modal");
+      const metaEl = document.getElementById("ocr-modal-meta");
+      const warningEl = document.getElementById("ocr-modal-warning");
+      const errorEl = document.getElementById("ocr-modal-error");
+      const texteEl = document.getElementById("ocr-modal-texte");
+      if (!modal) return;
+
+      ocrModalDocumentId = documentId;
+      metaEl.textContent = "Chargement…";
+      warningEl.style.display = "none";
+      errorEl.style.display = "none";
+      texteEl.value = "";
+      modal.hidden = false;
+
+      try {
+        const resultat = await apiFetch(`/api/documents/${documentId}/ocr`);
+        if (resultat.statut !== "termine") {
+          metaEl.textContent = "";
+          errorEl.textContent = resultat.messageErreur || "Le texte de cette pièce n'est pas encore disponible.";
+          errorEl.style.display = "block";
+          return;
+        }
+        const score = typeof resultat.scoreConfiance === "number" ? Math.round(resultat.scoreConfiance) : null;
+        metaEl.textContent = score === null ? "Score de confiance indisponible." : `Score de confiance : ${score}%`;
+        if (score !== null && score < OCR_SEUIL_CONFIANCE_AVERTISSEMENT) {
+          warningEl.textContent = "⚠️ Score de confiance faible — relecture manuelle recommandée avant toute utilisation de ce texte.";
+          warningEl.style.display = "block";
+        }
+        texteEl.value = resultat.texteExtrait || "";
+      } catch (err) {
+        metaEl.textContent = "";
+        errorEl.textContent = err.message;
+        errorEl.style.display = "block";
+      }
+    }
+
+    function fermerModaleOcr() {
+      const modal = document.getElementById("ocr-modal");
+      if (modal) modal.hidden = true;
+      ocrModalDocumentId = null;
+    }
+
+    async function relancerOcrTranscription(documentId) {
+      try {
+        await apiFetch(`/api/documents/${documentId}/ocr/relancer`, { method: "POST" });
+        loadListe();
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    function wireOcrModal() {
+      const modal = document.getElementById("ocr-modal");
+      if (!modal) return;
+      document.getElementById("ocr-modal-fermer").addEventListener("click", fermerModaleOcr);
+      modal.addEventListener("click", (e) => {
+        if (e.target === modal) fermerModaleOcr();
+      });
+      document.getElementById("ocr-modal-copier").addEventListener("click", () => {
+        const texte = document.getElementById("ocr-modal-texte").value;
+        if (!texte || !ocrModalDocumentId) return;
+        // Point de depart editable, jamais une creation automatique - meme
+        // mecanisme que dossier.html.
+        sessionStorage.setItem("aurore_ocr_copie_redaction_libre", JSON.stringify({ texte }));
+        window.location.href = "/nouvelle-action.html";
+      });
+      document.getElementById("ocr-modal-pdf").addEventListener("click", async () => {
+        if (!ocrModalDocumentId) return;
+        try {
+          await downloadFile(`/api/documents/${ocrModalDocumentId}/ocr/pdf`, "texte-reconnu.pdf");
+        } catch (err) {
+          alert(err.message);
+        }
+      });
+      document.getElementById("ocr-modal-word").addEventListener("click", async () => {
+        if (!ocrModalDocumentId) return;
+        try {
+          await downloadFile(`/api/documents/${ocrModalDocumentId}/ocr/word`, "texte-reconnu.docx");
+        } catch (err) {
+          alert(err.message);
+        }
+      });
     }
 
     function applyDossiersSearch() {
@@ -254,6 +416,7 @@
       if (!me) return;
       initLayout(me);
       document.getElementById("greeting").textContent = `Bienvenue ${me.nom}`;
+      wireOcrModal();
 
       currentUserRole = me.role;
       // Charge une seule fois (jamais filtre par dossier, voir

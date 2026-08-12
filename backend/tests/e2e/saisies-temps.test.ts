@@ -317,6 +317,23 @@ describe.skipIf(!pgAvailable)("e2e : timer & feuilles de temps (Lot 14)", () => 
     expect(feuille.lignes[0].dureeMinutes).toBeGreaterThanOrEqual(45);
   });
 
+  it("la vue « par collaborateur » détaille le temps par dossier (nom + numéro), en plus du total", async () => {
+    const res = await api(titulaireCookie, "/api/saisies-temps/feuille?groupBy=collaborateur");
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    const ligneCollaborateur = body.lignes.find((l: { cle: string }) => l.cle === collaborateurId);
+    expect(ligneCollaborateur).toBeDefined();
+    expect(Array.isArray(ligneCollaborateur.dossiers)).toBe(true);
+    const sousLigneDossier = ligneCollaborateur.dossiers.find((d: { dossierId: string }) => d.dossierId === dossierId);
+    expect(sousLigneDossier).toBeDefined();
+    // dossierLabel = "<numeroDossier> — <nomAffaire>" (voir versSaisiePourAgregation).
+    expect(sousLigneDossier.dossierLabel).toContain("—");
+    // Le total de la personne doit correspondre a la somme de ses sous-lignes
+    // par dossier (coherence attendue par l'affichage, voir feuilles-temps.js).
+    const sommeDossiers = ligneCollaborateur.dossiers.reduce((acc: number, d: { dureeMinutes: number }) => acc + d.dureeMinutes, 0);
+    expect(sommeDossiers).toBe(ligneCollaborateur.dureeMinutes);
+  });
+
   let factureId: string;
 
   it("« Facturer ce dossier » génère une facture correcte à partir de tout le temps non encore facturé", async () => {
@@ -358,6 +375,14 @@ describe.skipIf(!pgAvailable)("e2e : timer & feuilles de temps (Lot 14)", () => 
     // le test precedent) - la vue "par dossier" ne doit plus rien remonter
     // pour ce dossier (jamais un total qui inclurait du temps deja facture).
     expect(feuille.lignes.find((l) => l.cle === dossierId)).toBeUndefined();
+  });
+
+  it("le temps déjà facturé disparaît aussi de la sous-ligne « par dossier » de la vue « par collaborateur »", async () => {
+    const res = await api(titulaireCookie, "/api/saisies-temps/feuille?groupBy=collaborateur");
+    const body = await res.json();
+    const ligneCollaborateur = body.lignes.find((l: { cle: string }) => l.cle === collaborateurId);
+    const sousLigneDossier = ligneCollaborateur?.dossiers.find((d: { dossierId: string }) => d.dossierId === dossierId);
+    expect(sousLigneDossier).toBeUndefined();
   });
 
   it("une saisie déjà facturée ne peut plus être modifiée ni supprimée", async () => {
