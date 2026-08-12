@@ -137,6 +137,29 @@ header.topbar nav a:hover { color: var(--accent); }
   box-shadow: var(--shadow-sm);
 }
 
+/* Fiche dossier : nom du dossier + "Temps passé" sur une meme ligne, dans la
+   meme carte (voir dossier.html) - separateur vertical discret entre les
+   deux, jamais une seconde carte empilee en dessous. Le widget lui-meme
+   (js/timer.js) rend son contenu directement dans .dossier-header-timer,
+   sans plus s'envelopper dans son propre .card (deja a l'interieur de
+   celui-ci). */
+.dossier-header-row { display: flex; align-items: flex-start; gap: 32px; flex-wrap: wrap; }
+.dossier-header-info { flex: 1 1 320px; min-width: 280px; }
+.dossier-header-timer {
+  flex: 1 1 280px;
+  min-width: 260px;
+  padding-left: 32px;
+  border-left: 1px solid var(--border);
+}
+@media (max-width: 780px) {
+  .dossier-header-timer {
+    padding-left: 0;
+    border-left: none;
+    border-top: 1px solid var(--border);
+    padding-top: 20px;
+  }
+}
+
 h1 { font-family: var(--font-display); font-weight: 600; font-size: 1.65rem; margin-top: 0; color: var(--text-strong); }
 h2 { font-family: var(--font-display); font-weight: 600; font-size: 1.2rem; color: var(--text-strong); }
 .action-form h3 {

@@ -70,53 +70,57 @@
       .filter((s) => s.montant === null || s.montant === undefined)
       .reduce((acc, s) => acc + s.dureeMinutes, 0);
 
+    // Rendu directement dans #timer-section (voir dossier.html,
+    // .dossier-header-timer) - plus de <div class="card"> propre a ce
+    // widget : il vit desormais dans la meme carte que le nom du dossier,
+    // a droite, separe par un simple filet vertical (CSS). Contenu/logique
+    // interne inchange.
     el.innerHTML = `
-      <div class="card">
-        <h2 style="margin-top:0;">Temps passé</h2>
-        ${widgetChrono}
-        <div style="margin-top:10px;">
-          <button type="button" class="ghost btn-sm" id="timer-toggle-manuel-btn">+ Ajouter une saisie manuelle</button>
+      <h2 style="margin-top:0;">Temps passé</h2>
+      ${widgetChrono}
+      <div style="margin-top:10px;">
+        <button type="button" class="ghost btn-sm" id="timer-toggle-manuel-btn">+ Ajouter une saisie manuelle</button>
+      </div>
+      <form id="timer-manuel-form" class="edit-panel" hidden style="margin-top:8px;">
+        <label>Date</label>
+        <input type="date" name="date" required value="${new Date().toISOString().slice(0, 10)}" />
+        <label>Durée (en minutes)</label>
+        <input type="number" name="dureeMinutes" min="1" required placeholder="ex: 90" />
+        <label>Description (optionnel)</label>
+        <input name="description" />
+        <p class="error" id="timer-manuel-error"></p>
+        <div class="edit-panel-actions">
+          <button type="submit" class="btn-sm">Enregistrer</button>
+          <button type="button" class="ghost btn-sm" id="timer-cancel-manuel-btn">Annuler</button>
         </div>
-        <form id="timer-manuel-form" class="edit-panel" hidden style="margin-top:8px;">
-          <label>Date</label>
-          <input type="date" name="date" required value="${new Date().toISOString().slice(0, 10)}" />
-          <label>Durée (en minutes)</label>
-          <input type="number" name="dureeMinutes" min="1" required placeholder="ex: 90" />
-          <label>Description (optionnel)</label>
-          <input name="description" />
-          <p class="error" id="timer-manuel-error"></p>
-          <div class="edit-panel-actions">
-            <button type="submit" class="btn-sm">Enregistrer</button>
-            <button type="button" class="ghost btn-sm" id="timer-cancel-manuel-btn">Annuler</button>
-          </div>
-        </form>
-        <div style="margin-top:12px;">
-          ${
-            saisiesAffichees.length === 0
-              ? '<p class="muted">Aucun temps non facturé pour ce dossier pour l\'instant.</p>'
-              : saisiesAffichees
-                  .map(
-                    (s) => `
-              <div class="action-item">
-                <span class="tag">${escapeHtml(s.user.nom)}</span>
-                <div>${s.dureeMinutes ? formatDureeCourte(s.dureeMinutes) : "en cours"}${typeof s.montant === "number" ? ` — ${s.montant.toLocaleString("fr-FR")} F CFA` : ""} — ${new Date(s.date).toLocaleDateString("fr-FR")}${s.description ? " — " + escapeHtml(s.description) : ""}</div>
-              </div>`
-                  )
-                  .join("")
-          }
-          <p style="margin-top:8px;"><strong>Total non facturé : ${formatDureeCourte(totalMinutes)}</strong></p>
-        </div>
+      </form>
+      <div style="margin-top:12px;">
         ${
-          (meCourant.role === "titulaire" || meCourant.role === "avocat") && totalAFacturer > 0
-            ? `<button type="button" class="secondary" id="timer-facturer-btn">Facturer le temps passé (${totalAFacturer.toLocaleString("fr-FR")} F CFA)</button>`
-            : ""
+          saisiesAffichees.length === 0
+            ? '<p class="muted">Aucun temps non facturé pour ce dossier pour l\'instant.</p>'
+            : saisiesAffichees
+                .map(
+                  (s) => `
+            <div class="action-item">
+              <span class="tag">${escapeHtml(s.user.nom)}</span>
+              <div>${s.dureeMinutes ? formatDureeCourte(s.dureeMinutes) : "en cours"}${typeof s.montant === "number" ? ` — ${s.montant.toLocaleString("fr-FR")} F CFA` : ""} — ${new Date(s.date).toLocaleDateString("fr-FR")}${s.description ? " — " + escapeHtml(s.description) : ""}</div>
+            </div>`
+                )
+                .join("")
         }
-        ${
-          minutesSansTaux > 0
-            ? `<p class="muted" style="margin-top:8px;">${formatDureeCourte(minutesSansTaux)} non valorisé — taux horaire non renseigné (à renseigner par l'administrateur dans Équipe &gt; Collaborateurs).</p>`
-            : ""
-        }
-      </div>`;
+        <p style="margin-top:8px;"><strong>Total non facturé : ${formatDureeCourte(totalMinutes)}</strong></p>
+      </div>
+      ${
+        (meCourant.role === "titulaire" || meCourant.role === "avocat") && totalAFacturer > 0
+          ? `<button type="button" class="secondary" id="timer-facturer-btn">Facturer le temps passé (${totalAFacturer.toLocaleString("fr-FR")} F CFA)</button>`
+          : ""
+      }
+      ${
+        minutesSansTaux > 0
+          ? `<p class="muted" style="margin-top:8px;">${formatDureeCourte(minutesSansTaux)} non valorisé — taux horaire non renseigné (à renseigner par l'administrateur dans Équipe &gt; Collaborateurs).</p>`
+          : ""
+      }
+    `;
 
     wireEvents();
   }

@@ -257,29 +257,33 @@
 
         contentEl.innerHTML = `
           <div class="card">
-            <span class="badge badge-${dossier.statutTag}">${STATUT_TAG_LABELS[dossier.statutTag] || dossier.statutTag}</span>
-            <h1>${escapeHtml(dossier.numeroDossier)} — ${escapeHtml(dossier.nomAffaire)}</h1>
-            <p class="muted">Client : ${escapeHtml(dossier.nomClient)} · Juridiction : ${escapeHtml(dossier.nomJuridiction || "non précisée")}${dossier.nomChambre ? " (" + escapeHtml(dossier.nomChambre) + ")" : ""} · créé par ${escapeHtml(dossier.creePar.nom)}</p>
-            ${dossier.archivedAt ? `<p class="muted">Archivé automatiquement le ${formatDateLongue(dossier.archivedAt)} — toujours consultable, réactivable via "Rouvrir le dossier".</p>` : ""}
-            ${
-              currentDossierEstRecherche
-                ? ""
-                : `${
-                    me.role !== "collaborateur"
-                      ? `<button type="button" class="secondary" id="toggle-cloture-btn" data-statut="${dossier.statut}">
-                          ${dossier.statut === "cloture" ? "Rouvrir le dossier" : "Clôturer le dossier"}
-                        </button>`
-                      : ""
-                  }
-                  ${
-                    me.role === "titulaire" || me.role === "avocat"
-                      ? `<a class="secondary" href="/factures.html?dossierId=${dossier.id}" style="display:inline-block; text-decoration:none; padding:6px 12px; border-radius:6px; margin-left:8px;">Facturer ce dossier</a>`
-                      : ""
-                  }
-                  <a class="secondary" href="/delais-calculateur.html?dossierId=${dossier.id}" style="display:inline-block; text-decoration:none; padding:6px 12px; border-radius:6px; margin-left:8px;">Calculer un délai</a>`
-            }
+            <div class="dossier-header-row">
+              <div class="dossier-header-info">
+                <span class="badge badge-${dossier.statutTag}">${STATUT_TAG_LABELS[dossier.statutTag] || dossier.statutTag}</span>
+                <h1>${escapeHtml(dossier.numeroDossier)} — ${escapeHtml(dossier.nomAffaire)}</h1>
+                <p class="muted">Client : ${escapeHtml(dossier.nomClient)} · Juridiction : ${escapeHtml(dossier.nomJuridiction || "non précisée")}${dossier.nomChambre ? " (" + escapeHtml(dossier.nomChambre) + ")" : ""} · créé par ${escapeHtml(dossier.creePar.nom)}</p>
+                ${dossier.archivedAt ? `<p class="muted">Archivé automatiquement le ${formatDateLongue(dossier.archivedAt)} — toujours consultable, réactivable via "Rouvrir le dossier".</p>` : ""}
+                ${
+                  currentDossierEstRecherche
+                    ? ""
+                    : `${
+                        me.role !== "collaborateur"
+                          ? `<button type="button" class="secondary" id="toggle-cloture-btn" data-statut="${dossier.statut}">
+                              ${dossier.statut === "cloture" ? "Rouvrir le dossier" : "Clôturer le dossier"}
+                            </button>`
+                          : ""
+                      }
+                      ${
+                        me.role === "titulaire" || me.role === "avocat"
+                          ? `<a class="secondary" href="/factures.html?dossierId=${dossier.id}" style="display:inline-block; text-decoration:none; padding:6px 12px; border-radius:6px; margin-left:8px;">Facturer ce dossier</a>`
+                          : ""
+                      }
+                      <a class="secondary" href="/delais-calculateur.html?dossierId=${dossier.id}" style="display:inline-block; text-decoration:none; padding:6px 12px; border-radius:6px; margin-left:8px;">Calculer un délai</a>`
+                }
+              </div>
+              ${currentDossierEstRecherche ? "" : '<div class="dossier-header-timer" id="timer-section"></div>'}
+            </div>
           </div>
-          <div id="timer-section"></div>
           <h2>Historique (${dossier.actions.length})</h2>
           <div id="actions-list"></div>
           <div id="agenda-section"></div>
@@ -696,6 +700,15 @@
       await rafraichirPiecesListe();
     }
 
+    // Lot 17 : tant qu'au moins une piece est encore en_attente/en_cours,
+    // rafraichirPiecesListe se replanifie elle-meme dans quelques secondes -
+    // la duree reelle d'un traitement OCR varie fortement (image simple:
+    // quelques secondes ; PDF multi-pages: potentiellement plus d'une
+    // minute), donc jamais un delai fixe unique. Un seul minuteur actif a la
+    // fois (jamais plusieurs chaines qui s'accumulent si upload/relance sont
+    // declenches coup sur coup).
+    let piecesOcrPollTimeoutId = null;
+
     async function rafraichirPiecesListe() {
       const listEl = document.getElementById("pieces-list");
       if (!listEl) return;
@@ -704,6 +717,20 @@
       } catch (err) {
         listEl.innerHTML = `<p class="error visible">${escapeHtml(err.message)}</p>`;
         return;
+      }
+
+      if (piecesOcrPollTimeoutId) {
+        clearTimeout(piecesOcrPollTimeoutId);
+        piecesOcrPollTimeoutId = null;
+      }
+      const ocrEnCours = piecesDossierCourant.some(
+        (d) => d.ocrResultat && (d.ocrResultat.statut === "en_attente" || d.ocrResultat.statut === "en_cours")
+      );
+      if (ocrEnCours) {
+        piecesOcrPollTimeoutId = setTimeout(() => {
+          piecesOcrPollTimeoutId = null;
+          if (piecesDossierId) rafraichirPiecesListe();
+        }, 4000);
       }
 
       if (piecesDossierCourant.length === 0) {
@@ -824,15 +851,11 @@
             method: "POST",
             body: { nom: fichier.name, fichierDataUrl: reader.result },
           });
+          // Le traitement OCR (s'il est declenche) se termine en tache de
+          // fond - rafraichirPiecesListe() se replanifie elle-meme tant que
+          // le statut reste en_attente/en_cours (voir sa definition), pas
+          // besoin d'un minuteur separe ici.
           await rafraichirPiecesListe();
-          // Lot 17 : le traitement OCR (s'il est declenche) se termine en
-          // tache de fond, generalement en quelques secondes pour une piece
-          // d'une page - un seul rafraichissement differe suffit a afficher
-          // le badge a jour sans mettre en place de polling continu (voir
-          // README-LOT17.md, "polling ou rafraichissement").
-          setTimeout(() => {
-            if (piecesDossierId) rafraichirPiecesListe();
-          }, 6000);
         } catch (err) {
           errorEl.textContent = err.message;
         }
