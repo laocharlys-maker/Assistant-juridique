@@ -125,7 +125,7 @@ function initLayout(me) {
         <span></span><span></span><span></span>
       </button>
       <img src="/logo-aurore-header.png" alt="" class="brand-logo" onerror="this.style.display='none'" />
-      <span class="brand-word">AURORE, ASSISTANTE JURIDIQUE</span>
+      <span class="brand-word">GESTION COMPLÈTE DE CABINET D'AVOCAT</span>
       <span id="header-chrono" class="header-chrono" hidden></span>
     </div>
     <div class="topbar-right">

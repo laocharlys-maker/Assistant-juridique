@@ -80,6 +80,16 @@
       return formatDateLongue(iso);
     }
 
+    // Meme seuil que computeStatutTags (routes/dossiers.ts), deja utilise
+    // pour l'etiquette "Échéance proche" sur les dossiers (dashboard.html,
+    // dossier.html) - un delai calcule deja depasse (enJours < 0) n'est PAS
+    // etiquete ici, meme convention que cote serveur.
+    const SEUIL_ECHEANCE_PROCHE_JOURS = 7;
+    function estEcheanceProche(dateLimiteIso) {
+      const enJours = (new Date(dateLimiteIso).getTime() - Date.now()) / (24 * 60 * 60 * 1000);
+      return enJours >= 0 && enJours <= SEUIL_ECHEANCE_PROCHE_JOURS;
+    }
+
     const errorEl = document.getElementById("error");
     const resultEl = document.getElementById("result");
     const typeSelect = document.getElementById("delai-type-select");
@@ -126,7 +136,7 @@
           .map(
             (c) => `
           <div class="action-item">
-            <span class="tag">${escapeHtml(c.delaiType.nom)}${c.dossier ? " · " + escapeHtml(c.dossier.numeroDossier) : ""}</span>
+            <span class="tag">${escapeHtml(c.delaiType.nom)}${c.dossier ? " · " + escapeHtml(c.dossier.numeroDossier) : ""}</span>${estEcheanceProche(c.dateLimite) ? ' <span class="badge badge-echeance_proche">Échéance proche</span>' : ""}
             <div>Départ : ${formatDate(c.dateDepart)} → <strong>Date limite : ${formatDate(c.dateLimite)}</strong></div>
             <p class="muted">Calculé par ${escapeHtml(c.createdBy.nom)} le ${new Date(c.createdAt).toLocaleString("fr-FR")}</p>
           </div>`
