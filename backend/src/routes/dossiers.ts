@@ -146,7 +146,41 @@ dossiersRouter.get("/api/documents", requireAuth, requireModule("documents_gener
         ? "traductions"
         : vueParam === "archives"
           ? "archives"
-          : "dossiers";
+          : vueParam === "transcriptions"
+            ? "transcriptions"
+            : "dossiers";
+
+  // "Documents transcrits" (Lot 17) : pas des Action, mais des DocumentDossier
+  // (pieces de dossier) dont l'OCR est termine - forme totalement differente
+  // des autres vues (nomOriginal/typeMime plutot que typeAction/nomDocument),
+  // d'ou une branche a part plutot que de forcer ces deux modeles dans la
+  // meme requete Prisma.
+  if (vue === "transcriptions") {
+    const pieces = await prisma.documentDossier.findMany({
+      where: {
+        cabinetId: auth!.cabinetId,
+        ocrResultat: { statut: "termine" },
+        ...(accessibleAvocatIds ? { dossier: { createdBy: { in: accessibleAvocatIds } } } : {}),
+      },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        nomOriginal: true,
+        typeMime: true,
+        createdAt: true,
+        dossier: { select: { id: true, numeroDossier: true, nomAffaire: true, nomClient: true, statut: true } },
+        uploadePar: { select: { nom: true } },
+        ocrResultat: { select: { scoreConfiance: true } },
+      },
+    });
+    const dossierIdsPieces = [...new Set(pieces.map((p) => p.dossier.id))];
+    const tagsPieces = await computeStatutTags(dossierIdsPieces);
+    const piecesAvecTag = pieces.map((p) => ({
+      ...p,
+      dossier: { ...p.dossier, statutTag: p.dossier.statut === "cloture" ? "cloture" : tagsPieces.get(p.dossier.id) || "a_jour" },
+    }));
+    return res.json({ scope, vue, documents: piecesAvecTag });
+  }
 
   const documents = await prisma.action.findMany({
     where: {

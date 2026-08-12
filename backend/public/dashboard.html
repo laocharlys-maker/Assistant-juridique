@@ -16,6 +16,7 @@
       <button class="tab active" data-vue="dossiers">Dossiers</button>
       <button class="tab" data-vue="recherches">Recherches</button>
       <button class="tab" data-vue="traductions">Documents traduits</button>
+      <button class="tab" data-vue="transcriptions">Documents transcrits</button>
       <button class="tab" data-vue="archives">Archives</button>
     </div>
 
@@ -63,7 +64,18 @@
     };
 
     function estVueDossierPourScope(vue) {
-      return vue === "dossiers" || vue === "archives";
+      return vue === "dossiers" || vue === "archives" || vue === "transcriptions";
+    }
+
+    // Meme table d'icones que public/dossier.html (onglet Pieces) - dupliquee
+    // ici volontairement (petit helper cote client, pas de module JS partage
+    // entre pages dans ce projet).
+    const TYPE_ICONES_TRANSCRIPTIONS = {
+      "application/pdf": "📄",
+    };
+    function iconeTranscription(typeMime) {
+      if (typeMime.startsWith("image/")) return "🖼️";
+      return TYPE_ICONES_TRANSCRIPTIONS[typeMime] || "📎";
     }
 
     async function loadListe() {
@@ -88,7 +100,11 @@
           peutVoirCabinet && estVueDossierPourScope(appliedVue) ? "flex" : "none";
         currentDocuments = documents;
         document.getElementById("dossiers-search").value = "";
-        renderDocumentsByType(documents);
+        if (currentVue === "transcriptions") {
+          renderTranscriptions(documents);
+        } else {
+          renderDocumentsByType(documents);
+        }
       } catch (err) {
         listEl.innerHTML = `<p class="error visible">${escapeHtml(err.message)}</p>`;
       }
@@ -170,19 +186,61 @@
       }
     }
 
+    // "Documents transcrits" (Lot 17) : pieces de dossier dont l'OCR est
+    // termine (voir /api/documents?vue=transcriptions, dossiers.ts) - liste
+    // plate (pas de regroupement par type, contrairement a
+    // renderDocumentsByType : une piece scannee n'a pas de "type" d'acte).
+    // Le detail du texte reconnu (modale, score, relance) reste uniquement
+    // sur la fiche dossier (onglet Pieces) - jamais duplique ici, le lien
+    // renvoie simplement vers le dossier.
+    function renderTranscriptions(pieces) {
+      const listEl = document.getElementById("dossiers-list");
+      if (pieces.length === 0) {
+        listEl.innerHTML = '<p class="muted">Aucun document transcrit pour l\'instant.</p>';
+        return;
+      }
+
+      listEl.innerHTML = pieces
+        .map((p) => {
+          const date = formatDateLongue(p.createdAt);
+          const meta = `${escapeHtml(p.dossier.numeroDossier)} — ${escapeHtml(p.dossier.nomAffaire)} · ${date} · ajouté par ${escapeHtml(p.uploadePar.nom)}`;
+          const badgeCloture = p.dossier.statut === "cloture" ? ' <span class="tag">Clôturé</span>' : "";
+          const badgeEcheance =
+            p.dossier.statutTag === "echeance_proche"
+              ? ' <span class="badge badge-echeance_proche">Échéance proche</span>'
+              : "";
+          const score = typeof p.ocrResultat.scoreConfiance === "number" ? Math.round(p.ocrResultat.scoreConfiance) : null;
+          // Seuil identique a OCR_SEUIL_CONFIANCE_AVERTISSEMENT (public/dossier.html) -
+          // a garder synchronise si ce seuil est ajuste un jour.
+          const avertissement = score !== null && score < 70 ? ' <span class="badge badge-ocr-echec">⚠️ à relire</span>' : "";
+          const scoreTexte = score !== null ? ` · confiance ${score}%` : "";
+          return `
+        <div class="dossier-item">
+          <div>
+            <div>${iconeTranscription(p.typeMime)} <a href="/dossier.html?id=${p.dossier.id}">${escapeHtml(p.nomOriginal)}</a>${badgeCloture}${badgeEcheance}${avertissement}</div>
+            <div class="meta">${meta}${scoreTexte}</div>
+          </div>
+        </div>`;
+        })
+        .join("");
+    }
+
     function applyDossiersSearch() {
       const terme = document.getElementById("dossiers-search").value.trim().toLowerCase();
+      const render = currentVue === "transcriptions" ? renderTranscriptions : renderDocumentsByType;
       if (!terme) {
-        renderDocumentsByType(currentDocuments);
+        render(currentDocuments);
         return;
       }
       const filtres = currentDocuments.filter((doc) => {
         const numero = (doc.dossier.numeroDossier || "").toLowerCase();
         const nom = (doc.dossier.nomAffaire || "").toLowerCase();
-        const titre = (doc.nomDocument || "").toLowerCase();
+        // nomDocument (Action) ou nomOriginal (piece transcrite, Lot 17) -
+        // au plus un des deux est renseigne selon currentVue.
+        const titre = (doc.nomDocument || doc.nomOriginal || "").toLowerCase();
         return numero.includes(terme) || nom.includes(terme) || titre.includes(terme);
       });
-      renderDocumentsByType(filtres);
+      render(filtres);
     }
 
     function escapeHtml(str) {

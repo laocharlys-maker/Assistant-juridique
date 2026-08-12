@@ -208,6 +208,11 @@ function initLayout(me) {
   // (throttle localStorage), reserve aux avocats/titulaire (memes roles que
   // /api/factures/rappels, voir requireAvocat).
   initFacturesRappel(me);
+
+  // Pop-up "Evenements du jour" - une fois par jour maximum (meme mecanisme
+  // de throttle localStorage que initFacturesRappel ci-dessus), reserve aux
+  // roles ayant un agenda (titulaire/avocat/collaborateur).
+  initPopupEvenementsDuJour(me);
 }
 
 function escapeHtmlHeaderChrono(str) {
@@ -431,4 +436,103 @@ function afficherPopupFacturesRappel(factures) {
       }
     });
   });
+}
+
+// Meme cle par utilisateur que factureRappelStorageKey ci-dessus (poste
+// partage possible en mode reseau) - purement un throttle d'affichage
+// cote navigateur, jamais une donnee metier persistee cote serveur.
+function popupEvenementsStorageKey(me) {
+  return `aurore-popup-evenements-dernier-${me.id}`;
+}
+
+function popupEvenementsDejaAffiche(me) {
+  const aujourdHui = new Date().toISOString().slice(0, 10);
+  return localStorage.getItem(popupEvenementsStorageKey(me)) === aujourdHui;
+}
+
+function popupEvenementsMarquerAffiche(me) {
+  const aujourdHui = new Date().toISOString().slice(0, 10);
+  localStorage.setItem(popupEvenementsStorageKey(me), aujourdHui);
+}
+
+// Memes libelles que AGENDA_TYPE_LABELS (public/dossier.html) - dupliques
+// ici volontairement (petit helper cote client, pas de module JS partage
+// entre pages dans ce projet).
+const TYPES_EVENEMENT_LABELS_JOUR = {
+  audience: "Audience",
+  rdv: "RDV",
+  appel: "Appel",
+  tache: "Tâche",
+  echeance_procedure: "Échéance de procédure",
+  autre: "Autre",
+};
+
+// Meme ordre d'appel que initFacturesRappel : ne marque "vu aujourd'hui" que
+// si la pop-up a reellement ete affichee (au moins un evenement) - une
+// journee vide re-interroge a chaque chargement de page (peu couteux), pour
+// ne jamais rater un evenement ajoute plus tard dans la meme journee.
+async function initPopupEvenementsDuJour(me) {
+  if (me.role !== "titulaire" && me.role !== "avocat" && me.role !== "collaborateur") return;
+  if (popupEvenementsDejaAffiche(me)) return;
+
+  let evenements;
+  try {
+    const debut = new Date();
+    debut.setHours(0, 0, 0, 0);
+    const fin = new Date(debut);
+    fin.setDate(fin.getDate() + 1);
+    const data = await apiFetch(
+      `/api/evenements?debut=${encodeURIComponent(debut.toISOString())}&fin=${encodeURIComponent(fin.toISOString())}`
+    );
+    evenements = data.evenements;
+  } catch {
+    // Erreur reseau ponctuelle - jamais bloquant, on reessaiera au prochain
+    // chargement de page.
+    return;
+  }
+  if (!evenements || evenements.length === 0) return;
+
+  popupEvenementsMarquerAffiche(me);
+  afficherPopupEvenementsDuJour(evenements);
+}
+
+function afficherPopupEvenementsDuJour(evenements) {
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay";
+  overlay.id = "evenements-jour-overlay";
+
+  const tries = [...evenements].sort((a, b) => new Date(a.dateDebut) - new Date(b.dateDebut));
+
+  function ligneHtml(e) {
+    const date = new Date(e.dateDebut);
+    const heure = e.touteLaJournee
+      ? "Toute la journée"
+      : date.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+    return `
+      <div class="action-item">
+        <span class="tag">${heure}</span>
+        <span class="badge badge-evenement-${e.type}">${TYPES_EVENEMENT_LABELS_JOUR[e.type] || e.type}</span>
+        <div>${escapeHtmlHeaderChrono(e.titre)}${e.lieu ? " — " + escapeHtmlHeaderChrono(e.lieu) : ""}</div>
+      </div>`;
+  }
+
+  const dateAujourdHui = new Date().toLocaleDateString("fr-FR", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
+  overlay.innerHTML = `
+    <div class="modal-box">
+      <h2>Événements du jour</h2>
+      <p class="muted" style="text-transform:capitalize; margin-top:-8px;">${dateAujourdHui}</p>
+      <div>${tries.map(ligneHtml).join("")}</div>
+      <div style="display:flex; gap:10px; margin-top:18px;">
+        <button type="button" id="evenements-jour-ok-btn">OK</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  overlay.querySelector("#evenements-jour-ok-btn").addEventListener("click", () => overlay.remove());
 }

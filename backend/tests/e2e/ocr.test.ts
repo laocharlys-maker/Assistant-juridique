@@ -162,6 +162,25 @@ describe.skipIf(!pgAvailable)("e2e : reconnaissance de texte (OCR) des pièces (
     expect(res.status).toBe(404);
   });
 
+  it("« Documents transcrits » (Documents générés) liste la pièce transcrite, jamais celle sans OCR", async () => {
+    const res = await api(titulaireCookie, "/api/documents?vue=transcriptions");
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.vue).toBe("transcriptions");
+    expect(body.documents.some((d: { id: string }) => d.id === documentImageId)).toBe(true);
+    expect(body.documents.some((d: { id: string }) => d.id === documentWordId)).toBe(false);
+    const piece = body.documents.find((d: { id: string }) => d.id === documentImageId);
+    expect(piece.nomOriginal).toBe("scan-piece.jpg");
+    expect(piece.ocrResultat.scoreConfiance).toBe(42);
+  });
+
+  it("un utilisateur d'un autre cabinet ne voit pas cette pièce dans « Documents transcrits »", async () => {
+    const res = await api(autreCabinetCookie, "/api/documents?vue=transcriptions");
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.documents.some((d: { id: string }) => d.id === documentImageId)).toBe(false);
+  });
+
   it("la recherche plein texte retrouve la pièce via un terme présent uniquement dans le texte OCR", async () => {
     const res = await api(titulaireCookie, `/api/dossiers/${dossierId}/documents/recherche-ocr?q=MOTUNIQUEDETEST`);
     expect(res.status).toBe(200);
