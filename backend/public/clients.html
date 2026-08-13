@@ -473,6 +473,7 @@
         closeEmailModal();
       } catch (err) {
         showError(modalErrorEl, err.message || "Impossible de lire la pièce jointe");
+      } finally {
         submitBtn.disabled = false;
       }
     });
