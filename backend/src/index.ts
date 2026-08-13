@@ -12,6 +12,7 @@ import {
   BUNDLED_SMTP_USER,
   BUNDLED_SMTP_PASSWORD,
   BUNDLED_SMTP_FROM_EMAIL,
+  BUNDLED_BREVO_API_KEY,
   BUNDLED_GOOGLE_CALENDAR_OAUTH_CLIENT_ID,
   BUNDLED_GOOGLE_CALENDAR_OAUTH_CLIENT_SECRET,
 } from "./config/bundledExternalServiceKeys";
@@ -105,6 +106,11 @@ async function main() {
     }
     if (!process.env.SMTP_FROM_EMAIL && BUNDLED_SMTP_FROM_EMAIL) {
       process.env.SMTP_FROM_EMAIL = BUNDLED_SMTP_FROM_EMAIL;
+    }
+    // Lot 19 : cle de l'API REST Brevo (services/mailer.ts) - meme mecanisme
+    // que les cles ci-dessus.
+    if (!process.env.BREVO_API_KEY && BUNDLED_BREVO_API_KEY) {
+      process.env.BREVO_API_KEY = BUNDLED_BREVO_API_KEY;
     }
 
     // Invalide toute session existante a CHAQUE demarrage de l'app desktop -

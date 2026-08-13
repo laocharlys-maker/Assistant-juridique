@@ -27,6 +27,10 @@ export const BUNDLED_SMTP_HOST: string | undefined = undefined;
 export const BUNDLED_SMTP_USER: string | undefined = undefined;
 export const BUNDLED_SMTP_PASSWORD: string | undefined = undefined;
 export const BUNDLED_SMTP_FROM_EMAIL: string | undefined = undefined;
+// Lot 19 : cle de l'API REST Brevo (remplace l'envoi SMTP, voir
+// services/mailer.ts) - BUNDLED_SMTP_HOST/USER/PASSWORD ci-dessus ne sont
+// plus lues par mailer.ts mais restent definies sans effet.
+export const BUNDLED_BREVO_API_KEY: string | undefined = undefined;
 // Lot 12b : credentials OAuth2 Google de l'application Aurore elle-meme (pas
 // un token utilisateur - ceux-la restent individuels, stockes chiffres par
 // utilisateur dans ConnexionCalendrierExterne). Meme mecanisme que les cles
