@@ -31,6 +31,34 @@ export interface MailResult {
   error?: string;
 }
 
+// Certains clients mail (Gmail notamment, comportement documente et
+// reproduit en conditions reelles) ignorent l'en-tete Reply-To et
+// pre-remplissent "Repondre" avec l'adresse technique partagee
+// (SMTP_FROM_EMAIL) plutot que celle du cabinet. Tant qu'aucun mecanisme de
+// renvoi automatique fiable n'est en place (voir tentative Lot 18, mise en
+// pause : Brevo reecrit le Message-ID cote serveur, rendant le matching
+// In-Reply-To/References inoperant en SMTP simple), on affiche l'adresse en
+// clair dans le corps du message - le destinataire peut alors la copier
+// manuellement si "Repondre" se trompe.
+function ligneContact(replyToEmail: string | null): string | null {
+  if (!replyToEmail) return null;
+  return `Pour nous contacter directement : ${replyToEmail}`;
+}
+
+// Exportees uniquement pour les tests unitaires (voir __tests__/mailer.test.ts) -
+// jamais appelees ailleurs que dans ce fichier.
+export function texteAvecContact(texte: string, replyToEmail: string | null): string {
+  const ligne = ligneContact(replyToEmail);
+  return ligne ? `${texte}\n\n${ligne}` : texte;
+}
+
+export function htmlAvecContact(html: string, replyToEmail: string | null): string {
+  const ligne = ligneContact(replyToEmail);
+  if (!ligne) return html;
+  const paragraphe = `<p>${ligne}</p>`;
+  return html.includes("</body>") ? html.replace("</body>", `${paragraphe}</body>`) : `${html}${paragraphe}`;
+}
+
 // Envoi direct du document (Word/PDF genere localement, formalisme complet)
 // au destinataire, via Brevo. Remplace l'ancien circuit n8n -> Google Docs
 // (voir "REVERT TEMPORAIRE" retire de actionsCallback.ts) : le PDF local
@@ -47,7 +75,10 @@ export async function sendDocumentEmail(input: DocumentEmailInput): Promise<Mail
       to: input.destinataireEmail,
       replyTo: input.replyToEmail ?? undefined,
       subject: `${input.cabinetNom} - ${input.nomAffaire}`,
-      text: `Veuillez trouver ci-joint le document relatif à l'affaire "${input.nomAffaire}".`,
+      text: texteAvecContact(
+        `Veuillez trouver ci-joint le document relatif à l'affaire "${input.nomAffaire}".`,
+        input.replyToEmail
+      ),
       attachments: [input.attachment],
     });
     return { ok: true };
@@ -86,8 +117,8 @@ export async function sendEmail(input: EmailInput): Promise<MailResult> {
       to: input.destinataireEmail,
       replyTo: input.replyToEmail ?? undefined,
       subject: input.subject,
-      text: input.text,
-      html: input.html,
+      text: input.text ? texteAvecContact(input.text, input.replyToEmail) : input.text,
+      html: input.html ? htmlAvecContact(input.html, input.replyToEmail) : input.html,
       attachments: input.attachments,
     });
     return { ok: true };
