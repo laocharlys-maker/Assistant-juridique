@@ -93,6 +93,10 @@ jobs:
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
           SMTP_FROM_EMAIL: ${{ secrets.SMTP_FROM_EMAIL }}
+          # Lot 19 : cle de l'API REST Brevo (remplace l'envoi SMTP, voir
+          # services/mailer.ts) - SMTP_HOST/USER/PASSWORD ci-dessus restent
+          # injectees sans effet (retour en arriere possible, voir mailer.ts).
+          BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
           # Lot 12b : credentials OAuth2 Google (calendrier externe + Gmail,
           # Lot 16, qui reutilise le meme client OAuth) - ajoutes ici pour
           # que ce step reste synchronise avec les exports reellement
@@ -114,6 +118,7 @@ jobs:
             BUNDLED_SMTP_USER        = Literal $env:SMTP_USER
             BUNDLED_SMTP_PASSWORD    = Literal $env:SMTP_PASSWORD
             BUNDLED_SMTP_FROM_EMAIL  = Literal $env:SMTP_FROM_EMAIL
+            BUNDLED_BREVO_API_KEY    = Literal $env:BREVO_API_KEY
             BUNDLED_GOOGLE_CALENDAR_OAUTH_CLIENT_ID     = Literal $env:GOOGLE_CALENDAR_OAUTH_CLIENT_ID
             BUNDLED_GOOGLE_CALENDAR_OAUTH_CLIENT_SECRET = Literal $env:GOOGLE_CALENDAR_OAUTH_CLIENT_SECRET
           }
@@ -127,7 +132,7 @@ jobs:
           }
           $lines += ""
           Set-Content -Path src/config/bundledExternalServiceKeys.ts -Value ($lines -join "`n") -Encoding utf8
-          foreach ($name in @("GEMINI_API_KEY","GROQ_API_KEY","TAVILY_API_KEY","SMTP_HOST","SMTP_USER","SMTP_PASSWORD","SMTP_FROM_EMAIL","GOOGLE_CALENDAR_OAUTH_CLIENT_ID","GOOGLE_CALENDAR_OAUTH_CLIENT_SECRET")) {
+          foreach ($name in @("GEMINI_API_KEY","GROQ_API_KEY","TAVILY_API_KEY","SMTP_HOST","SMTP_USER","SMTP_PASSWORD","SMTP_FROM_EMAIL","BREVO_API_KEY","GOOGLE_CALENDAR_OAUTH_CLIENT_ID","GOOGLE_CALENDAR_OAUTH_CLIENT_SECRET")) {
             $present = -not [string]::IsNullOrEmpty([Environment]::GetEnvironmentVariable($name))
             Write-Output "$name injectee : $present"
           }

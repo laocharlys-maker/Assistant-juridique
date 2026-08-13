@@ -54,16 +54,25 @@ const envSchema = z
     // redirection autorisee dans Google Cloud Console.
     GMAIL_INGESTION_OAUTH_REDIRECT_URI: z.string().optional(),
 
-    // SMTP (Brevo) - envoi direct des documents et emails, canal externe
+    // Email (Brevo) - envoi direct des documents et emails, canal externe
     // unique (voir README-LOT8TER.md - l'ancien circuit n8n est retire).
     // Adresse d'expedition unique pour tous les cabinets (domaine Aurore
     // verifie via SPF/DKIM chez Brevo) ; le nom affiche et le Reply-To
     // varient par cabinet (voir cabinetContact.ts).
+    //
+    // Lot 19 : l'envoi passe desormais par l'API REST Brevo (BREVO_API_KEY,
+    // voir services/mailer.ts) plutot que par SMTP (Nodemailer) - le relais
+    // SMTP de Brevo reecrivait le Message-ID cote serveur, rendant tout
+    // matching fiable impossible. SMTP_HOST/PORT/USER/PASSWORD ne sont plus
+    // lus par mailer.ts mais restent definis ici (secrets deja en place,
+    // aucune raison de les purger) ; SMTP_FROM_EMAIL reste utilisee comme
+    // adresse d'expedition ("sender") de l'API REST.
     SMTP_HOST: z.string().optional(),
     SMTP_PORT: z.coerce.number().optional(),
     SMTP_USER: z.string().optional(),
     SMTP_PASSWORD: z.string().optional(),
     SMTP_FROM_EMAIL: z.string().optional(),
+    BREVO_API_KEY: z.string().optional(),
 
     SESSION_SECRET: z
       .string()
