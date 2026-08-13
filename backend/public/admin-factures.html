@@ -70,6 +70,7 @@
             if (!email) return;
             try {
               await apiFetch(`/api/admin/factures/${btn.dataset.envoyerAbonnement}/envoyer`, { method: "POST", body: { email } });
+              showToast("Facture envoyée par email.");
               renderFacturesList(cabinetId, listEl);
             } catch (err) {
               showError(document.getElementById("error"), err.message);

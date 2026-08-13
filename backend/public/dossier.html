@@ -1475,6 +1475,7 @@
           method: "POST",
           body: { email, avecSignature, positionSignature },
         });
+        showToastAfterReload("Email envoyé.");
         window.location.reload();
       } catch (err) {
         alert(err.message);

@@ -45,6 +45,25 @@ function showToast(message) {
 }
 
 /**
+ * Variante de showToast() pour les actions suivies d'un window.location.reload()
+ * immediat (ex: envoi d'un document depuis la fiche dossier) : un showToast()
+ * classique n'aurait pas le temps de s'afficher avant que le rechargement ne
+ * detruise le DOM. Le message est memorise avant le rechargement, puis
+ * consomme et affiche une seule fois au prochain chargement de page (voir
+ * l'IIFE juste en dessous).
+ */
+function showToastAfterReload(message) {
+  sessionStorage.setItem("aurore_toast_apres_rechargement", message);
+}
+
+(function () {
+  const message = sessionStorage.getItem("aurore_toast_apres_rechargement");
+  if (!message) return;
+  sessionStorage.removeItem("aurore_toast_apres_rechargement");
+  document.addEventListener("DOMContentLoaded", () => showToast(message));
+})();
+
+/**
  * Telecharge un fichier binaire (Word/PDF...) genere par une route API
  * authentifiee. JAMAIS via un simple `<a href target="_blank">` : dans la
  * webview desktop (Tauri), l'ouverture d'une "nouvelle fenetre" declenchee

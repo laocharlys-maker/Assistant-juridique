@@ -471,6 +471,7 @@
           },
         });
         closeEmailModal();
+        showToast("Email envoyé.");
       } catch (err) {
         showError(modalErrorEl, err.message || "Impossible de lire la pièce jointe");
       } finally {

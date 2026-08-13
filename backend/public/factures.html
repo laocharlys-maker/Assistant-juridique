@@ -188,6 +188,7 @@
       if (!email) return;
       try {
         await apiFetch(`/api/factures/${id}/envoyer`, { method: "POST", body: { email } });
+        showToast("Facture envoyée par email.");
         loadFactures();
       } catch (err) {
         showError(errorEl, err.message);
