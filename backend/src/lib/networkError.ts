@@ -16,15 +16,28 @@ export function isNetworkFetchError(error: unknown): boolean {
 }
 
 /**
- * Quota/facturation Gemini epuise (constate en usage reel : "429 Too Many
- * Requests" + "Your prepayment credits are depleted", @google/generative-ai
- * leve alors un GoogleGenerativeAIFetchError avec `status: 429`) - jamais un
- * bug de l'application, mais un compte AI Studio a recharger
- * (https://ai.studio/projects). Verifie `status` (propriete simple, fiable
- * meme dans un bundle SEA obfusque) plutot qu'un `instanceof` sur la classe
- * de la librairie tierce - voir le meme choix documente dans
- * configurationError.ts pour la raison exacte.
+ * Quota/limite de debit epuise cote fournisseur IA (constate en usage reel
+ * sous deux formes : "429 Too Many Requests" + "Your prepayment credits are
+ * depleted" via @google/generative-ai - GoogleGenerativeAIFetchError avec
+ * `status: 429` -, et "429 rate_limit_exceeded" via Groq - plafond de
+ * tokens/minute de l'offre gratuite "on_demand", pas un manque de credit -
+ * meme forme d'erreur `status: 429`). Jamais un bug de l'application.
+ * Verifie `status` (propriete simple, fiable meme dans un bundle SEA
+ * obfusque) plutot qu'un `instanceof` sur la classe de la librairie tierce -
+ * voir le meme choix documente dans configurationError.ts pour la raison
+ * exacte.
+ *
+ * IMPORTANT : cette fonction ne dit PAS quel fournisseur a repondu 429 (le
+ * fournisseur actif differe selon le type d'action, voir
+ * routes/webActions.ts, ACTIONS_FORCANT_ANTHROPIC) - un appelant qui
+ * connait le fournisseur precis pour son propre contexte (ex:
+ * routes/jurisprudenceBase.ts, ou seul Gemini est jamais appele pour les
+ * embeddings) peut le nommer explicitement dans son message ; un appelant
+ * generique (ex: le catch-all de POST /api/actions/web, qui couvre tous les
+ * types d'action et donc potentiellement Groq, Anthropic ou Gemini) ne doit
+ * JAMAIS nommer un fournisseur specifique au risque d'induire l'utilisateur
+ * en erreur sur lequel recharger.
  */
-export function isGeminiQuotaError(error: unknown): boolean {
+export function isProviderQuotaError(error: unknown): boolean {
   return typeof error === "object" && error !== null && (error as { status?: unknown }).status === 429;
 }

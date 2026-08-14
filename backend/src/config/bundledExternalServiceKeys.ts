@@ -22,6 +22,10 @@
  */
 export const BUNDLED_GEMINI_API_KEY: string | undefined = undefined;
 export const BUNDLED_GROQ_API_KEY: string | undefined = undefined;
+// Recherche juridique, recherche/resume de jurisprudence et veille
+// juridique : forcent Anthropic (voir services/llm/index.ts,
+// getAnthropicProviderForced) - decision AzoMedIA du 2026-08-14.
+export const BUNDLED_ANTHROPIC_API_KEY: string | undefined = undefined;
 export const BUNDLED_TAVILY_API_KEY: string | undefined = undefined;
 export const BUNDLED_SMTP_HOST: string | undefined = undefined;
 export const BUNDLED_SMTP_USER: string | undefined = undefined;

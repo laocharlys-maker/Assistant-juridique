@@ -4,6 +4,7 @@ import { createAnthropicProvider } from "./anthropic";
 import { createGroqProvider } from "./groq";
 
 let cachedProvider: LlmProvider | null = null;
+let cachedAnthropicProvider: LlmProvider | null = null;
 
 /**
  * Lit process.env.LLM_PROVIDER directement, JAMAIS via l'instance `env` de
@@ -37,6 +38,23 @@ export function getLlmProvider(): LlmProvider {
   }
 
   return cachedProvider;
+}
+
+/**
+ * Recherche juridique, recherche/resume de jurisprudence et veille
+ * juridique : forcent Anthropic (Claude) quel que soit LLM_PROVIDER,
+ * decision AzoMedIA du 2026-08-14 (Groq restait sur ces actions plus
+ * gourmandes en tokens - recherches longues, sources multiples - et
+ * atteignait regulierement son plafond de tokens/minute sur l'offre
+ * gratuite "on_demand"). Toutes les autres actions restent sur
+ * getLlmProvider() ci-dessus (Groq par defaut en mode desktop), inchange.
+ * Cache separe de `cachedProvider` : les deux fonctions doivent pouvoir
+ * cohabiter sans que l'une n'ecrase le resultat mis en cache de l'autre.
+ */
+export function getAnthropicProviderForced(): LlmProvider {
+  if (cachedAnthropicProvider) return cachedAnthropicProvider;
+  cachedAnthropicProvider = createAnthropicProvider();
+  return cachedAnthropicProvider;
 }
 
 export { LlmOutputError } from "./types";

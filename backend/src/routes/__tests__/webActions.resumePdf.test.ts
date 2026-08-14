@@ -40,6 +40,9 @@ vi.mock("../../middleware/rateLimit", () => ({
 
 vi.mock("../../services/llm", () => ({
   getLlmProvider: () => ({ redact: vi.fn().mockResolvedValue("stub") }),
+  // resume_pdf force Anthropic (voir routes/webActions.ts, ACTIONS_FORCANT_ANTHROPIC) -
+  // meme stub, seul le résumé généré par summarizeLongText (mocké ci-dessous) compte ici.
+  getAnthropicProviderForced: () => ({ redact: vi.fn().mockResolvedValue("stub") }),
 }));
 
 const summarizeLongTextMock = vi.hoisted(() => vi.fn());

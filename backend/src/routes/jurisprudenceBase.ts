@@ -4,7 +4,7 @@ import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
 import { requireModule } from "../middleware/roles";
 import { isMissingConfigurationError } from "../lib/configurationError";
-import { isNetworkFetchError, isGeminiQuotaError } from "../lib/networkError";
+import { isNetworkFetchError, isProviderQuotaError } from "../lib/networkError";
 import { indexerDecision } from "../services/jurisprudence/indexerDecision";
 import { extraireTextePdf, pdfBufferDepuisDataUrl } from "../services/pdfExtraction";
 import { lirePdfJurisprudence, supprimerPdfJurisprudence } from "../services/jurisprudence/stockagePdf";
@@ -97,10 +97,14 @@ jurisprudenceBaseRouter.post("/api/jurisprudence-base", requireAuth, async (req,
         error: "Impossible de contacter le service d'IA (vérifiez votre connexion internet), puis réessayez.",
       });
     }
-    if (isGeminiQuotaError(error)) {
-      console.error("[jurisprudence] indexation impossible, quota Gemini epuise :", error);
+    if (isProviderQuotaError(error)) {
+      // embedText() (services/embeddings.ts) appelle TOUJOURS Gemini, quel
+      // que soit le fournisseur choisi ailleurs (voir services/llm/index.ts)
+      // - nommer Gemini ici est donc exact, contrairement au catch-all
+      // generique de routes/webActions.ts (voir isProviderQuotaError).
+      console.error("[jurisprudence] indexation impossible, quota Gemini (embeddings) epuise :", error);
       return res.status(503).json({
-        error: "Le quota de l'API IA utilisée pour l'indexation est épuisé. Contactez le support AzoMedIA pour recharger le compte.",
+        error: "Le quota de l'API Gemini utilisée pour l'indexation (embeddings) est épuisé ou limité. Contactez le support AzoMedIA pour recharger le compte Gemini.",
       });
     }
     console.error("Erreur ajout jurisprudence :", error);

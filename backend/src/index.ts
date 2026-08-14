@@ -7,6 +7,7 @@ import cron from "node-cron";
 import {
   BUNDLED_GEMINI_API_KEY,
   BUNDLED_GROQ_API_KEY,
+  BUNDLED_ANTHROPIC_API_KEY,
   BUNDLED_TAVILY_API_KEY,
   BUNDLED_SMTP_HOST,
   BUNDLED_SMTP_USER,
@@ -85,6 +86,9 @@ async function main() {
     }
     if (!process.env.GROQ_API_KEY && BUNDLED_GROQ_API_KEY) {
       process.env.GROQ_API_KEY = BUNDLED_GROQ_API_KEY;
+    }
+    if (!process.env.ANTHROPIC_API_KEY && BUNDLED_ANTHROPIC_API_KEY) {
+      process.env.ANTHROPIC_API_KEY = BUNDLED_ANTHROPIC_API_KEY;
     }
     if (!process.env.TAVILY_API_KEY && BUNDLED_TAVILY_API_KEY) {
       process.env.TAVILY_API_KEY = BUNDLED_TAVILY_API_KEY;
@@ -205,7 +209,7 @@ async function main() {
       { env },
       { app },
       { prisma },
-      { getLlmProvider },
+      { getAnthropicProviderForced },
       { runVeillePourTousLesCabinets },
       { runRetentionJobs },
       { runRoleSemaineRecapPourTousLesCabinets },
@@ -353,15 +357,18 @@ async function main() {
     cron.schedule(
       "0 7 * * 1",
       () => {
-        // getLlmProvider() peut lever une MissingConfigurationError de
-        // facon SYNCHRONE (cle API absente) - AVANT meme que
+        // getAnthropicProviderForced() peut lever une MissingConfigurationError
+        // de facon SYNCHRONE (cle API absente) - AVANT meme que
         // runVeillePourTousLesCabinets(...) ne soit appelee, donc avant que
         // le .catch() ci-dessous existe. Sans ce try/catch local, une telle
         // erreur echapperait a ce .catch() et remonterait comme exception
         // non rattrapee depuis ce callback cron (voir le meme probleme
-        // corrige dans routes/webActions.ts, getLlmProviderSafe).
+        // corrige dans routes/webActions.ts, getLlmProviderSafe). Force
+        // Anthropic (decision AzoMedIA du 2026-08-14) - meme raisonnement
+        // que la recherche/resume de jurisprudence : Groq atteignait son
+        // plafond de tokens/minute sur ces recherches longues.
         try {
-          runVeillePourTousLesCabinets(getLlmProvider()).catch((error) => {
+          runVeillePourTousLesCabinets(getAnthropicProviderForced()).catch((error) => {
             console.error("Erreur lors de l'execution de la veille juridique hebdomadaire :", error);
           });
         } catch (error) {

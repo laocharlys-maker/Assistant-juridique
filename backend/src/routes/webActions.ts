@@ -4,9 +4,9 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
 import { requireModule } from "../middleware/roles";
-import { getLlmProvider, LlmProvider } from "../services/llm";
+import { getLlmProvider, getAnthropicProviderForced, LlmProvider } from "../services/llm";
 import { isMissingConfigurationError } from "../lib/configurationError";
-import { isNetworkFetchError, isGeminiQuotaError } from "../lib/networkError";
+import { isNetworkFetchError, isProviderQuotaError } from "../lib/networkError";
 import { logAuditStep } from "../services/audit";
 import { espace } from "../services/documentFormalisme";
 import { webActionFormSchema } from "../schemas/webForms";
@@ -354,19 +354,29 @@ function composeDestinataire(
   return `${civilite} ${connecteur} ${juridiction}${ville ? ` de ${ville}` : ""}`;
 }
 
+// Recherche juridique, recherche/resume de jurisprudence : forcent Anthropic
+// (voir services/llm/index.ts, getAnthropicProviderForced) - decision
+// AzoMedIA du 2026-08-14, Groq atteignait regulierement son plafond de
+// tokens/minute sur ces actions (recherches longues, sources multiples).
+const ACTIONS_FORCANT_ANTHROPIC = new Set<WebActionForm["type_action"]>([
+  "jurisprudence",
+  "recherche_juridique",
+  "resume_pdf",
+]);
+
 /**
- * getLlmProvider() leve une MissingConfigurationError (cle API du
- * fournisseur actif absente) de facon synchrone, AVANT tout traitement -
- * jamais rattrapee automatiquement par Express (pas de gestion native des
- * rejets de promesse d'un handler async en Express 4), donc chaque route
- * qui l'appelle doit le faire via ce wrapper plutot que directement.
- * Renvoie null (et a deja envoye la reponse 503) en cas de configuration
- * manquante ; propage toute autre erreur (vraiment inattendue, jamais
- * documentee comme degradation attendue).
+ * getLlmProvider()/getAnthropicProviderForced() levent une
+ * MissingConfigurationError (cle API du fournisseur actif absente) de facon
+ * synchrone, AVANT tout traitement - jamais rattrapee automatiquement par
+ * Express (pas de gestion native des rejets de promesse d'un handler async
+ * en Express 4), donc chaque route qui les appelle doit le faire via ce
+ * wrapper plutot que directement. Renvoie null (et a deja envoye la reponse
+ * 503) en cas de configuration manquante ; propage toute autre erreur
+ * (vraiment inattendue, jamais documentee comme degradation attendue).
  */
-function getLlmProviderSafe(res: Response): LlmProvider | null {
+function getLlmProviderSafe(res: Response, typeAction?: WebActionForm["type_action"]): LlmProvider | null {
   try {
-    return getLlmProvider();
+    return typeAction && ACTIONS_FORCANT_ANTHROPIC.has(typeAction) ? getAnthropicProviderForced() : getLlmProvider();
   } catch (error) {
     if (isMissingConfigurationError(error)) {
       console.error("[llm] fournisseur IA non configure :", error.message);
@@ -426,7 +436,7 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
   }
   const form = parsed.data;
   const { auth } = req;
-  const llm = getLlmProviderSafe(res);
+  const llm = getLlmProviderSafe(res, form.type_action);
   if (!llm) return;
 
   const debutMois = new Date();
@@ -2190,10 +2200,18 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
         error: "Impossible de contacter le service d'IA (vérifiez votre connexion internet), puis réessayez.",
       });
     }
-    if (isGeminiQuotaError(error)) {
-      console.error("[jurisprudence] recherche impossible, quota Gemini epuise :", error);
+    if (isProviderQuotaError(error)) {
+      // Catch-all commun a TOUS les types d'action (voir la fin de ce
+      // handler) - le fournisseur reellement en cause differe selon
+      // l'action (Anthropic pour jurisprudence/recherche_juridique/
+      // resume_pdf, Groq pour le reste, Gemini pour les embeddings - voir
+      // ACTIONS_FORCANT_ANTHROPIC et services/llm/index.ts). Message et log
+      // volontairement generiques : nommer un fournisseur precis ici serait
+      // faux la moitie du temps et induirait l'utilisateur en erreur sur
+      // lequel recharger (constate en usage reel - voir isProviderQuotaError).
+      console.error(`[${form.type_action}] generation impossible, quota/limite de debit IA atteint :`, error);
       return res.status(503).json({
-        error: "Le quota de l'API IA utilisée pour la recherche dans la base du cabinet est épuisé. Contactez le support AzoMedIA pour recharger le compte.",
+        error: "Le quota ou la limite de débit de l'IA utilisée pour cette action est atteint. Réessaie dans quelques instants ; si le problème persiste, contacte le support AzoMedIA.",
       });
     }
     console.error("Erreur inattendue sur /api/actions/web", error);
