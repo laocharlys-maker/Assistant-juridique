@@ -1,3 +1,6 @@
+import { prisma } from "../../lib/prisma";
+import { extraireGroupeIdDuLienInterne, pdfJurisprudenceExiste } from "./stockagePdf";
+
 /**
  * Lot 13 - verification d'accessibilite d'un lien vers une decision de
  * justice, avant de l'afficher a l'avocat. `fetch` natif uniquement (pas de
@@ -5,6 +8,13 @@
  * echoue ou ne repond pas un statut concluant (certains serveurs bloquent
  * HEAD sans bloquer GET). Timeout court, cache en memoire de courte duree
  * (voir README-LOT13.md, "politique de cache").
+ *
+ * Passerelle resume PDF -> jurisprudence : un lien peut aussi etre INTERNE
+ * (format /api/jurisprudence-base/:groupeId/document, voir stockagePdf.ts)
+ * plutot qu'une URL web classique. Ce cas est verifie par un test
+ * d'existence du fichier stocke localement, JAMAIS par une requete HTTP
+ * sortante (il n'y a rien a joindre sur le reseau - le document vit sur ce
+ * meme poste/serveur).
  */
 
 export interface VerificationLien {
@@ -74,9 +84,27 @@ function urlValide(url: string): boolean {
   }
 }
 
+async function verifierLienInterne(groupeId: string): Promise<VerificationLien> {
+  const pdf = await prisma.jurisprudencePdf.findUnique({ where: { groupeId } });
+  if (!pdf) {
+    return { accessible: false, erreur: "Document interne introuvable", verifieA: Date.now() };
+  }
+  const existe = await pdfJurisprudenceExiste(pdf.nomFichier);
+  return existe
+    ? { accessible: true, statut: 200, verifieA: Date.now() }
+    : { accessible: false, erreur: "Fichier interne manquant sur disque", verifieA: Date.now() };
+}
+
 export async function verifierLien(url: string): Promise<VerificationLien> {
   const enCache = cache.get(url);
   if (enCache && !estExpire(enCache)) return enCache;
+
+  const groupeIdInterne = extraireGroupeIdDuLienInterne(url);
+  if (groupeIdInterne) {
+    const resultat = await verifierLienInterne(groupeIdInterne);
+    cache.set(url, resultat);
+    return resultat;
+  }
 
   if (!urlValide(url)) {
     const resultat: VerificationLien = { accessible: false, erreur: "URL invalide", verifieA: Date.now() };

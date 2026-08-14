@@ -181,6 +181,7 @@
         <p class="muted" id="result-meta"></p>
         <div id="result-text" class="md-content"></div>
         <div id="result-sources" style="display:none; margin-bottom:12px;"></div>
+        <div id="result-jurisprudence-indexation" style="display:none; margin-bottom:12px;"></div>
         <div id="result-downloads" style="display:none; margin-bottom:12px;">
           <a id="result-word-link" href="#" style="margin-right:12px;">Télécharger en Word</a>
           <a id="result-pdf-link" href="#">Télécharger en PDF</a>
@@ -1206,6 +1207,19 @@
         <input name="pdf" type="file" accept="application/pdf" required />
         <label>Contexte (optionnel)</label>
         <textarea name="contexte" placeholder="ex: précision sur ce que tu cherches dans ce document"></textarea>
+        <label style="display:flex; align-items:center; gap:8px; font-weight:400;">
+          <input type="checkbox" name="ajouter_jurisprudence" style="width:auto;" />
+          Ajouter aussi cette décision à ma base de jurisprudence
+        </label>
+        <div id="resume-pdf-jurisprudence-fields" style="display:none;">
+          <label>Référence exacte (ex: Arrêt n° 12/2024 CCJA du 15/03/2024)</label>
+          <input name="jurisprudence_reference" placeholder="Référence de la décision" />
+          <label>Juridiction</label>
+          <input name="jurisprudence_juridiction" placeholder="ex: CCJA, Cour d'Appel de Cotonou" />
+          <label>Date de la décision</label>
+          <input name="jurisprudence_date_decision" type="date" />
+          <p class="muted" style="margin-top:-4px;">À remplir avant de générer le résumé — la décision sera indexée avec le texte brut du PDF (jamais le résumé) et restera citable dans les recherches de jurisprudence.</p>
+        </div>
         <button type="submit">Générer le résumé</button>
         <p class="muted" style="margin-top:8px;">Pour les documents longs (10-20 pages), le document est découpé et résumé par étapes avant la synthèse finale. Uniquement les informations présentes dans le document sont utilisées.</p>
       </form>
@@ -2413,6 +2427,7 @@
     const resultMetaEl = document.getElementById("result-meta");
     const resultTextEl = document.getElementById("result-text");
     const resultSourcesEl = document.getElementById("result-sources");
+    const resultJurisprudenceIndexationEl = document.getElementById("result-jurisprudence-indexation");
     const resultDownloadsEl = document.getElementById("result-downloads");
     const resultWordLink = document.getElementById("result-word-link");
     const resultPdfLink = document.getElementById("result-pdf-link");
@@ -2477,6 +2492,22 @@
       resultSourcesEl.style.display = "block";
     }
 
+    // Passerelle resume PDF -> jurisprudence : confirme a l'avocat si la
+    // decision a bien ete ajoutee a la base (case cochee sur le formulaire),
+    // ou signale l'echec sans faire disparaitre le resume deja genere
+    // ci-dessus (voir routes/webActions.ts, "resume_pdf").
+    function renderJurisprudenceIndexation(indexation) {
+      if (!indexation) {
+        resultJurisprudenceIndexationEl.style.display = "none";
+        resultJurisprudenceIndexationEl.innerHTML = "";
+        return;
+      }
+      resultJurisprudenceIndexationEl.innerHTML = indexation.ok
+        ? `<p class="muted">✅ Décision ajoutée à la base de jurisprudence (${indexation.chunkCount} bloc${indexation.chunkCount > 1 ? "s" : ""} indexé${indexation.chunkCount > 1 ? "s" : ""}). <a href="${escapeHtmlAttr(indexation.lien)}" target="_blank" rel="noopener">Consulter le PDF</a></p>`
+        : `<p class="error visible" style="margin:0;">${escapeHtmlAttr(indexation.erreur)}</p>`;
+      resultJurisprudenceIndexationEl.style.display = "block";
+    }
+
     async function submitForm(type, payload, submitButton) {
       hideError(errorEl);
       resultEl.style.display = "none";
@@ -2486,6 +2517,7 @@
         resultMetaEl.textContent = "Texte généré. Télécharge le document ci-dessous (Word ou PDF), ou retrouve-le sur la fiche du dossier pour le valider et l'envoyer.";
         resultTextEl.innerHTML = renderMarkdown(res.contenu);
         renderSourcesJurisprudence(res.sourcesJurisprudence);
+        renderJurisprudenceIndexation(res.jurisprudenceIndexation);
         if (res.actionId) {
           resultWordLink.dataset.url = `/api/actions/${res.actionId}/word`;
           resultPdfLink.dataset.url = `/api/actions/${res.actionId}/pdf`;
@@ -2944,6 +2976,10 @@
       });
     }
 
+    forms.resume_pdf.querySelector('input[name="ajouter_jurisprudence"]').addEventListener("change", (e) => {
+      document.getElementById("resume-pdf-jurisprudence-fields").style.display = e.target.checked ? "block" : "none";
+    });
+
     forms.resume_pdf.addEventListener("submit", async (e) => {
       e.preventDefault();
       const fd = new FormData(forms.resume_pdf);
@@ -2952,12 +2988,25 @@
         showError(errorEl, "Choisis un fichier PDF");
         return;
       }
+      const ajouterJurisprudence = fd.get("ajouter_jurisprudence") === "on";
+      if (ajouterJurisprudence && !fd.get("jurisprudence_reference")) {
+        showError(errorEl, "Renseigne la référence de la décision pour l'ajouter à la base de jurisprudence");
+        return;
+      }
       const submitButton = forms.resume_pdf.querySelector('button[type="submit"]');
       try {
         const pdfDataUrl = await readFileAsDataUrl(file);
         await submitForm(
           "resume_pdf",
-          { pdfDataUrl, contexte: fd.get("contexte") || undefined },
+          {
+            pdfDataUrl,
+            pdfNomOriginal: file.name || undefined,
+            contexte: fd.get("contexte") || undefined,
+            ajouterJurisprudence: ajouterJurisprudence || undefined,
+            jurisprudenceReference: fd.get("jurisprudence_reference") || undefined,
+            jurisprudenceJuridiction: fd.get("jurisprudence_juridiction") || undefined,
+            jurisprudenceDateDecision: fd.get("jurisprudence_date_decision") || undefined,
+          },
           submitButton
         );
       } catch (err) {

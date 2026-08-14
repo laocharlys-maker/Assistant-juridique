@@ -8,6 +8,7 @@ describe("stockageDocuments", () => {
   let enregistrerFichier: typeof import("../stockageDocuments").enregistrerFichier;
   let lireFichier: typeof import("../stockageDocuments").lireFichier;
   let supprimerFichier: typeof import("../stockageDocuments").supprimerFichier;
+  let existeFichier: typeof import("../stockageDocuments").existeFichier;
   let _lireFichierBrutPourTests: typeof import("../stockageDocuments")._lireFichierBrutPourTests;
 
   beforeAll(async () => {
@@ -17,7 +18,7 @@ describe("stockageDocuments", () => {
     // %APPDATA%/Aurore.
     fakeAppData = fs.mkdtempSync(path.join(os.tmpdir(), "aurore-test-stockage-documents-"));
     process.env.APPDATA = fakeAppData;
-    ({ enregistrerFichier, lireFichier, supprimerFichier, _lireFichierBrutPourTests } = await import(
+    ({ enregistrerFichier, lireFichier, supprimerFichier, existeFichier, _lireFichierBrutPourTests } = await import(
       "../stockageDocuments"
     ));
   });
@@ -65,6 +66,17 @@ describe("stockageDocuments", () => {
 
     // Deuxieme suppression (fichier deja absent) - ne doit jamais lever.
     await expect(supprimerFichier(dossierId, nomFichier)).resolves.toBeUndefined();
+  });
+
+  it("existeFichier : reflète l'écriture et la suppression sans lire/déchiffrer le contenu", async () => {
+    const dossierId = "dossier-test-existe";
+    await expect(existeFichier(dossierId, "jamais-ecrit.enc")).resolves.toBe(false);
+
+    const { nomFichier } = await enregistrerFichier(dossierId, Buffer.from("présent"));
+    await expect(existeFichier(dossierId, nomFichier)).resolves.toBe(true);
+
+    await supprimerFichier(dossierId, nomFichier);
+    await expect(existeFichier(dossierId, nomFichier)).resolves.toBe(false);
   });
 
   it("isole les fichiers par dossier (deux dossiers différents, aucune collision)", async () => {

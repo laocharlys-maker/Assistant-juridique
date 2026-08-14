@@ -1174,3 +1174,20 @@ model JurisprudenceChunk {
   @@index([groupeId])
   @@map("jurisprudence_chunks")
 }
+
+// Passerelle resume PDF -> base de jurisprudence : metadonnees du PDF
+// stocke de facon chiffree (voir services/jurisprudence/stockagePdf.ts,
+// reutilise stockageDocuments.ts du Lot 15) quand l'avocat coche "Ajouter
+// aussi cette decision a ma base de jurisprudence" sur le formulaire de
+// resume PDF. Une seule ligne par decision (par groupeId), meme si la
+// decision a ete decoupee en plusieurs JurisprudenceChunk - le fichier
+// physique est unique, seul son texte est chunke.
+model JurisprudencePdf {
+  groupeId     String   @id @map("groupe_id")
+  nomFichier   String   @map("nom_fichier")
+  nomOriginal  String   @map("nom_original")
+  tailleOctets Int      @map("taille_octets")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@map("jurisprudence_pdfs")
+}

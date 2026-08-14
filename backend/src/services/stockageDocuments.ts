@@ -109,3 +109,19 @@ export async function supprimerFichier(dossierId: string, nomFichier: string): P
 export function _lireFichierBrutPourTests(dossierId: string, nomFichier: string): Buffer {
   return fs.readFileSync(cheminFichier(dossierId, nomFichier));
 }
+
+/**
+ * Verifie l'existence du fichier sur disque, sans le lire ni le dechiffrer -
+ * utilise notamment par la verification de lien interne (voir
+ * services/jurisprudence/verifierLien.ts) : un lien vers un document stocke
+ * ici doit etre "verifie" par un test d'existence local, jamais par une
+ * requete HTTP sortante.
+ */
+export async function existeFichier(dossierId: string, nomFichier: string): Promise<boolean> {
+  try {
+    await fsPromises.access(cheminFichier(dossierId, nomFichier));
+    return true;
+  } catch {
+    return false;
+  }
+}

@@ -24,7 +24,18 @@ const prismaMock = vi.hoisted(() => ({
     updateMany: vi.fn(),
     deleteMany: vi.fn(),
   },
+  // Passerelle resume PDF -> jurisprudence : DELETE verifie aussi si un PDF
+  // stocke est associe au groupe supprime (voir jurisprudenceBase.ts).
+  jurisprudencePdf: {
+    findUnique: vi.fn(),
+    delete: vi.fn(),
+  },
   $transaction: vi.fn(),
+}));
+
+vi.mock("../../services/jurisprudence/stockagePdf", () => ({
+  lirePdfJurisprudence: vi.fn(),
+  supprimerPdfJurisprudence: vi.fn(),
 }));
 
 vi.mock("../../lib/prisma", () => ({ prisma: prismaMock }));
@@ -67,6 +78,7 @@ async function api(path: string, options: { method?: string; body?: unknown; hea
 beforeEach(() => {
   vi.clearAllMocks();
   embedTextMock.mockResolvedValue([0.1, 0.2, 0.3]);
+  prismaMock.jurisprudencePdf.findUnique.mockResolvedValue(null);
   // $transaction (interactive) : execute le callback avec un "tx" factice
   // exposant $executeRawUnsafe - meme comportement observable que le vrai
   // Prisma pour ce que jurisprudenceBase.ts en fait (jamais de vrai
@@ -277,5 +289,29 @@ describe("DELETE /api/jurisprudence-base/:id", () => {
     const body = (await res.json()) as { chunksSupprimes: number };
     expect(body.chunksSupprimes).toBe(0);
     expect(prismaMock.jurisprudenceChunk.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it("supprime aussi le PDF stocké et sa métadonnée quand la décision provient de la passerelle resume PDF -> jurisprudence", async () => {
+    const { supprimerPdfJurisprudence } = await import("../../services/jurisprudence/stockagePdf");
+    prismaMock.jurisprudenceChunk.findUnique.mockResolvedValue({ id: "chunk-3", groupeId: "groupe-avec-pdf" });
+    prismaMock.jurisprudenceChunk.deleteMany.mockResolvedValue({ count: 2 });
+    prismaMock.jurisprudencePdf.findUnique.mockResolvedValue({ groupeId: "groupe-avec-pdf", nomFichier: "fichier.enc" });
+
+    const res = await api("/api/jurisprudence-base/chunk-3", { method: "DELETE" });
+
+    expect(res.status).toBe(200);
+    expect(supprimerPdfJurisprudence).toHaveBeenCalledWith("fichier.enc");
+    expect(prismaMock.jurisprudencePdf.delete).toHaveBeenCalledWith({ where: { groupeId: "groupe-avec-pdf" } });
+  });
+
+  it("ne touche jamais JurisprudencePdf pour une décision sans PDF associé (corpus saisi manuellement)", async () => {
+    prismaMock.jurisprudenceChunk.findUnique.mockResolvedValue({ id: "chunk-4", groupeId: "groupe-sans-pdf" });
+    prismaMock.jurisprudenceChunk.deleteMany.mockResolvedValue({ count: 1 });
+    prismaMock.jurisprudencePdf.findUnique.mockResolvedValue(null);
+
+    const res = await api("/api/jurisprudence-base/chunk-4", { method: "DELETE" });
+
+    expect(res.status).toBe(200);
+    expect(prismaMock.jurisprudencePdf.delete).not.toHaveBeenCalled();
   });
 });

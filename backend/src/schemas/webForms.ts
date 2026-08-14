@@ -254,7 +254,20 @@ export const resumePdfFormSchema = z.object({
   type_action: z.literal("resume_pdf"),
   // Data URL base64 "data:application/pdf;base64,...."
   pdfDataUrl: z.string().regex(/^data:application\/pdf;base64,/),
+  // Nom d'origine du fichier - jamais utilise pour nommer le fichier
+  // physique stocke (voir services/stockageDocuments.ts), uniquement une
+  // metadonnee d'affichage/telechargement.
+  pdfNomOriginal: z.string().optional(),
   contexte: z.string().optional(),
+  // Passerelle resume PDF -> base de jurisprudence : si cochee, le PDF est
+  // aussi stocke durablement et indexe dans JurisprudenceChunk (voir
+  // routes/webActions.ts). Les champs jurisprudence_* ne sont valides que
+  // dans ce cas - verifie manuellement dans la route (jamais via
+  // .superRefine() ici, incompatible avec z.discriminatedUnion en dessous).
+  ajouterJurisprudence: z.boolean().optional(),
+  jurisprudenceReference: z.string().optional(),
+  jurisprudenceJuridiction: z.string().optional(),
+  jurisprudenceDateDecision: z.string().optional(),
 });
 
 export const traductionFormSchema = z.object({

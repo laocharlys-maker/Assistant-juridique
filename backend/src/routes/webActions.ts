@@ -1,4 +1,5 @@
 import { Router, Response } from "express";
+import crypto from "node:crypto";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
@@ -49,6 +50,8 @@ import { rechercherJurisprudenceTavily } from "../services/jurisprudence/recherc
 import { rechercherJuridiqueTavily } from "../services/recherche-juridique/rechercheTavily";
 import { summarizeLongText } from "../services/resumePdf";
 import { extraireTextePdf, pdfBufferDepuisDataUrl } from "../services/pdfExtraction";
+import { indexerDecision } from "../services/jurisprudence/indexerDecision";
+import { stockerPdfJurisprudence, supprimerPdfJurisprudence, construireLienInterneDocument } from "../services/jurisprudence/stockagePdf";
 import { translateText, extractTextFromDocument } from "../services/traduction";
 import { aiActionsLimiter } from "../middleware/rateLimit";
 import { formatDateLongue } from "../utils/dateFormat";
@@ -1331,6 +1334,70 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
       const redigé = await summarizeLongText(llm, texteExtrait, form.contexte);
       const nomAffaire = form.contexte?.slice(0, 120) || "Résumé de document PDF";
 
+      // Passerelle resume PDF -> base de jurisprudence (case a cocher du
+      // formulaire) : stocke le PDF de facon chiffree et durable (reutilise
+      // stockageDocuments.ts du Lot 15 via stockagePdf.ts) et l'indexe dans
+      // JurisprudenceChunk (reutilise nettoyerTexte/chunkerTexte du Lot 18
+      // via indexerDecision.ts) - UNIQUEMENT au moment de ce depot initial,
+      // jamais apres coup (aucun etat temporaire a purger differemment). Le
+      // contenu indexe est TOUJOURS le texte brut extrait ci-dessus, jamais
+      // le resume genere par le LLM : le resume reste un affichage de
+      // confort cote avocat, distinct du contenu indexe pour la recherche.
+      let jurisprudenceIndexation: Record<string, unknown> | undefined;
+      if (form.ajouterJurisprudence) {
+        if (!form.jurisprudenceReference?.trim()) {
+          return res.status(400).json({
+            error: "La référence de la décision est requise pour l'ajouter à la base de jurisprudence",
+          });
+        }
+        const groupeId = crypto.randomUUID();
+        const lienInterne = construireLienInterneDocument(groupeId);
+        let fichierStocke: { nomFichier: string; tailleOctets: number } | null = null;
+        try {
+          fichierStocke = await stockerPdfJurisprudence(pdfBuffer);
+          await prisma.jurisprudencePdf.create({
+            data: {
+              groupeId,
+              nomFichier: fichierStocke.nomFichier,
+              nomOriginal: form.pdfNomOriginal?.trim() || "document.pdf",
+              tailleOctets: fichierStocke.tailleOctets,
+            },
+          });
+          const resultat = await indexerDecision({
+            source: form.jurisprudenceJuridiction?.trim() || "Décision importée (PDF)",
+            reference: form.jurisprudenceReference.trim(),
+            juridiction: form.jurisprudenceJuridiction?.trim() || null,
+            dateDecision: form.jurisprudenceDateDecision?.trim() || null,
+            contenuBrut: texteExtrait,
+            lien: lienInterne,
+            groupeId,
+          });
+          jurisprudenceIndexation = { ok: true, lien: lienInterne, ...resultat };
+        } catch (error) {
+          // Jamais d'etat intermediaire : si l'indexation echoue en cours de
+          // route (ex: quota Gemini epuise), le fichier stocke et sa
+          // metadonnee sont retires - le resume ci-dessus a deja ete genere
+          // avec succes et reste renvoye normalement a l'avocat, seul l'ajout
+          // a la base de jurisprudence est signale en echec (effet secondaire
+          // optionnel, ne doit jamais faire perdre le resume demande).
+          console.error("[resume_pdf] échec de l'ajout à la base de jurisprudence :", error);
+          if (fichierStocke) {
+            await supprimerPdfJurisprudence(fichierStocke.nomFichier).catch(() => {});
+          }
+          await prisma.jurisprudencePdf.deleteMany({ where: { groupeId } }).catch(() => {});
+          await prisma.jurisprudenceChunk.deleteMany({ where: { groupeId } }).catch(() => {});
+          jurisprudenceIndexation = {
+            ok: false,
+            erreur: isMissingConfigurationError(error)
+              ? "Indexation impossible : configuration manquante (clé API) sur ce poste. Le résumé a tout de même été généré."
+              : "Échec de l'ajout à la base de jurisprudence. Le résumé a tout de même été généré.",
+          };
+        }
+      }
+      if (jurisprudenceIndexation) {
+        extraWebhookFields = { jurisprudenceIndexation };
+      }
+
       // Resume PDF : pas forcement lie a un dossier existant.
       const dossier = await prisma.dossier.upsert({
         where: {
@@ -2054,6 +2121,10 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
       // pour affichage immediat du bloc "Source" sans devoir rouvrir le
       // document - absent (undefined) pour tout autre type d'action.
       sourcesJurisprudence: extraWebhookFields.sourcesJurisprudence,
+      // Passerelle resume PDF -> jurisprudence : resultat de l'ajout a la
+      // base (ok/erreur, lien interne) - absent (undefined) si la case
+      // n'etait pas cochee ou pour tout autre type d'action.
+      jurisprudenceIndexation: extraWebhookFields.jurisprudenceIndexation,
     });
   } catch (error) {
     if (error instanceof OrphanTokenError) {

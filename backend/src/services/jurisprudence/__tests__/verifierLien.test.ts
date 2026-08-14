@@ -1,9 +1,20 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+
+const prismaMock = vi.hoisted(() => ({ jurisprudencePdf: { findUnique: vi.fn() } }));
+vi.mock("../../../lib/prisma", () => ({ prisma: prismaMock }));
+
+const pdfJurisprudenceExisteMock = vi.hoisted(() => vi.fn());
+vi.mock("../stockagePdf", async () => {
+  const reel = await vi.importActual<typeof import("../stockagePdf")>("../stockagePdf");
+  return { ...reel, pdfJurisprudenceExiste: pdfJurisprudenceExisteMock };
+});
+
 import { verifierLien, verifierLiens, _viderCachePourTests } from "../verifierLien";
 
 describe("verifierLien", () => {
   beforeEach(() => {
     _viderCachePourTests();
+    vi.clearAllMocks();
   });
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -96,5 +107,39 @@ describe("verifierLien", () => {
     expect(resultats.size).toBe(2);
     expect(fetchMock).toHaveBeenCalledTimes(2); // deduplique, pas 3
     expect(maxParalleles).toBeGreaterThan(1); // execute en parallele, pas en sequence
+  });
+
+  describe("lien interne (passerelle resume PDF -> jurisprudence)", () => {
+    it("un lien interne vers un PDF existant est accessible SANS aucune requête HTTP sortante", async () => {
+      const fetchMock = vi.fn();
+      vi.stubGlobal("fetch", fetchMock);
+      prismaMock.jurisprudencePdf.findUnique.mockResolvedValue({ groupeId: "g1", nomFichier: "abc.enc" });
+      pdfJurisprudenceExisteMock.mockResolvedValue(true);
+
+      const resultat = await verifierLien("/api/jurisprudence-base/g1/document");
+
+      expect(resultat.accessible).toBe(true);
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(pdfJurisprudenceExisteMock).toHaveBeenCalledWith("abc.enc");
+    });
+
+    it("un lien interne dont le fichier a disparu du disque est inaccessible", async () => {
+      prismaMock.jurisprudencePdf.findUnique.mockResolvedValue({ groupeId: "g2", nomFichier: "manquant.enc" });
+      pdfJurisprudenceExisteMock.mockResolvedValue(false);
+
+      const resultat = await verifierLien("/api/jurisprudence-base/g2/document");
+
+      expect(resultat.accessible).toBe(false);
+      expect(resultat.erreur).toContain("manquant");
+    });
+
+    it("un lien interne sans métadonnée en base (décision supprimée) est inaccessible", async () => {
+      prismaMock.jurisprudencePdf.findUnique.mockResolvedValue(null);
+
+      const resultat = await verifierLien("/api/jurisprudence-base/g-inexistant/document");
+
+      expect(resultat.accessible).toBe(false);
+      expect(pdfJurisprudenceExisteMock).not.toHaveBeenCalled();
+    });
   });
 });

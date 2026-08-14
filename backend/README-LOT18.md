@@ -207,6 +207,111 @@ Déroulé et résultat :
 Base de test et script de vérification supprimés après coup (jamais
 commis, jamais de trace dans le corpus réel du cabinet).
 
+## 8. Passerelle résumé PDF → base de jurisprudence
+
+Objectif additionnel : le traitement `resume_pdf` (`routes/webActions.ts`)
+traitait le PDF uploadé **uniquement en mémoire**, jamais persisté. Ce lot
+ajoute la persistance **au moment du dépôt initial uniquement** (jamais
+après coup) — aucun état temporaire à purger différemment.
+
+**Formulaire (`public/nouvelle-action.html`)** : case à cocher "Ajouter
+aussi cette décision à ma base de jurisprudence" sur le formulaire de
+résumé PDF. Si cochée, affiche immédiatement les champs référence
+(obligatoire) / juridiction / date de la décision — les mêmes que
+`jurisprudence-base.html` — à remplir par l'avocat **avant** de soumettre.
+
+**Traitement (`routes/webActions.ts`, branche `resume_pdf`)** — un seul
+appel, un seul traitement du PDF :
+1. Extraction du texte (`pdf-parse`, inchangé) et génération du résumé
+   (LLM, inchangé) — comportement identique dans tous les cas.
+2. **Si la case était cochée**, dans la même requête : génère un `groupeId`,
+   construit le lien interne (`construireLienInterneDocument`), stocke le
+   PDF chiffré (`services/jurisprudence/stockagePdf.ts`, qui réutilise
+   `stockageDocuments.ts` du Lot 15 via un "bucket" conventionnel
+   `"jurisprudence-base"` — aucun `Dossier` applicatif créé), crée la ligne
+   `JurisprudencePdf` (nouveau modèle, une ligne par décision/`groupeId`),
+   puis appelle `indexerDecision()` (nettoyage → chunking → embedding →
+   insertion, **extrait de `jurisprudenceBase.ts` dans
+   `services/jurisprudence/indexerDecision.ts`** pour être partagé par les
+   deux points d'entrée sans dupliquer la logique).
+3. Le champ `contenu` indexé est **toujours le texte brut extrait, nettoyé**
+   — jamais le résumé généré par le LLM, qui reste un affichage de confort
+   distinct (voir `indexerDecision()`, paramètre `contenuBrut` explicite).
+4. **Si la case n'est pas cochée** : rien de stocké, rien en base au-delà du
+   résumé habituel — comportement strictement inchangé (vérifié par test,
+   voir ci-dessous).
+5. **Échec de l'indexation en cours de route** (ex: quota Gemini épuisé
+   après le stockage du fichier) : nettoyage explicite (fichier physique +
+   ligne `JurisprudencePdf` + éventuels chunks déjà insérés retirés), le
+   résumé reste néanmoins généré et renvoyé normalement à l'avocat — l'ajout
+   à la base de jurisprudence est un effet secondaire optionnel, son échec
+   ne doit jamais faire perdre le résumé demandé. Le résultat
+   (`jurisprudenceIndexation: { ok, erreur? }`) est renvoyé au frontend, qui
+   affiche une confirmation ou un message d'erreur explicite sans faire
+   disparaître le résumé déjà affiché.
+
+**Consultation du PDF stocké** : nouvelle route interne
+`GET /api/jurisprudence-base/:groupeId/document` (authentifiée, même
+protection de module que le reste de `jurisprudenceBase.ts`), qui déchiffre
+et sert le fichier. C'est **cette route**, jamais une URL web, qui est
+enregistrée comme champ `lien` des chunks créés.
+
+**`verifierLien.ts` (Lot 13) étendu** : un lien au format
+`/api/jurisprudence-base/:groupeId/document` est désormais reconnu comme
+**interne** (`extraireGroupeIdDuLienInterne`) et vérifié par un **test
+d'existence du fichier stocké** (`pdfJurisprudenceExiste`, via
+`stockageDocuments.ts`) — **jamais par une requête HTTP sortante**, il n'y a
+rien à joindre sur le réseau. Toute URL web classique continue de suivre le
+chemin HTTP existant, inchangé.
+
+**Suppression cohérente** : `DELETE /api/jurisprudence-base/:id` (section 4)
+retire désormais aussi le PDF stocké et sa métadonnée `JurisprudencePdf`
+quand la décision supprimée en a un — jamais de PDF chiffré orphelin sur
+disque après suppression d'une décision issue de cette passerelle.
+
+**Migration additive** : `20260814010000_jurisprudence_pdf` — nouvelle table
+`jurisprudence_pdfs` (`groupe_id` en clé primaire, `nom_fichier`,
+`nom_original`, `taille_octets`, `created_at`). Aucun impact sur le corpus
+existant (une décision saisie manuellement ou important un PDF juste comme
+confort de saisie, voir section 5, n'a jamais de ligne dans cette table).
+
+**Tests** — `src/routes/__tests__/webActions.resumePdf.test.ts` (route-level,
+mêmes principes que la section 6 : Prisma/LLM/embeddings/stockage mockés,
+HTTP réel sur un serveur Express minimal) :
+- case décochée → aucun fichier stocké, aucune métadonnée créée, `embedText`
+  jamais appelé.
+- case cochée sans référence → `400` explicite, rien de stocké.
+- case cochée avec référence → stockage + indexation en un seul appel,
+  contenu inséré = texte brut extrait (**jamais** le résumé généré),
+  `jurisprudenceIndexation.lien` au format interne attendu.
+- échec de l'indexation (embedding en erreur) → résumé quand même renvoyé,
+  fichier stocké et métadonnées nettoyés (aucun état orphelin).
+
+Complétés par :
+- `services/jurisprudence/__tests__/stockagePdf.test.ts` (3 tests) : aller-
+  retour lien interne ↔ `groupeId`, rejet des URL web classiques et des
+  formats proches mais invalides.
+- `services/jurisprudence/__tests__/indexerDecision.test.ts` (3 tests) :
+  génération automatique du `groupeId` vs réutilisation d'un `groupeId`
+  fourni par l'appelant, contenu inséré = texte nettoyé (jamais transformé).
+- `services/jurisprudence/__tests__/verifierLien.test.ts` (+3 tests) : lien
+  interne accessible sans requête HTTP, fichier manquant sur disque,
+  métadonnée absente (décision déjà supprimée).
+- `src/services/__tests__/stockageDocuments.test.ts` (+1 test) :
+  `existeFichier()` reflète écriture/suppression sans déchiffrer.
+- `src/routes/__tests__/jurisprudenceBase.test.ts` (+2 tests) : `DELETE`
+  retire bien le PDF stocké associé, et ne touche jamais `JurisprudencePdf`
+  pour une décision sans PDF (corpus saisi manuellement).
+
+Suite complète : `396` tests passent (`6` skips préexistants, sans rapport
+avec ce lot), `tsc --noEmit` et `npm run lint` propres sur tous les fichiers
+touchés (les 5 erreurs de lint préexistantes ailleurs dans le projet sont
+inchangées). Un seul échec observé sur la suite complète —
+`tests/e2e/network-mode.test.ts` (timeout de hook au démarrage d'un second
+serveur) — sans rapport avec ce lot (aucune référence à jurisprudence/
+resume_pdf/stockagePdf dans ce fichier), reproductible même hors de toute
+modification de ce lot en relançant la suite complète sous charge.
+
 ## Contraintes respectées
 
 - Pas de champ `cabinetId` ajouté (base globale, cohérent avec le reste du
@@ -214,6 +319,12 @@ commis, jamais de trace dans le corpus réel du cabinet).
 - Permissions d'accès inchangées (titulaire/avocat/collaborateur, tous
   autorisés) — aucune raison de sécurité concrète identifiée pour les
   restreindre.
-- `grounding.ts`/`verifierLien.ts` non modifiés.
-- Import PDF : confort de saisie uniquement, même chemin de validation que
-  la saisie manuelle, jamais de soumission automatique.
+- `grounding.ts` non modifié. `verifierLien.ts` étendu (section 8,
+  passerelle resté PDF → jurisprudence) pour reconnaître un lien interne
+  et le vérifier par test d'existence de fichier — son chemin HTTP existant
+  pour les URL web classiques reste, lui, strictement inchangé.
+- Import PDF (section 5) : confort de saisie uniquement, même chemin de
+  validation que la saisie manuelle, jamais de soumission automatique.
+- Passerelle résumé PDF → jurisprudence (section 8) : persistance
+  uniquement au moment du dépôt initial, jamais d'état intermédiaire ni de
+  purge différée ; contenu indexé toujours le texte brut, jamais le résumé.

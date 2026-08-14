@@ -1,15 +1,13 @@
 import { Router } from "express";
-import crypto from "node:crypto";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
 import { requireModule } from "../middleware/roles";
-import { embedText, toVectorLiteral } from "../services/embeddings";
 import { isMissingConfigurationError } from "../lib/configurationError";
 import { isNetworkFetchError, isGeminiQuotaError } from "../lib/networkError";
-import { nettoyerTexte } from "../services/jurisprudence/nettoyerTexte";
-import { chunkerTexte } from "../services/jurisprudence/chunkerTexte";
+import { indexerDecision } from "../services/jurisprudence/indexerDecision";
 import { extraireTextePdf, pdfBufferDepuisDataUrl } from "../services/pdfExtraction";
+import { lirePdfJurisprudence, supprimerPdfJurisprudence } from "../services/jurisprudence/stockagePdf";
 
 export const jurisprudenceBaseRouter = Router();
 
@@ -61,41 +59,6 @@ const createEntrySchema = z.object({
   lien: z.string().url("Le lien doit être une URL valide (https://...)").optional().or(z.literal("")),
 });
 
-/**
- * Construit la requete SQL parametree (jamais d'interpolation de valeur
- * utilisateur dans la chaine SQL elle-meme - voir README-LOT18.md, audit
- * de securite prealable a ce lot) pour l'insertion d'UN chunk. Exportee
- * pour permettre un test direct de la non-vulnerabilite a l'injection SQL
- * sans avoir besoin d'une base Postgres reelle (voir __tests__).
- */
-export function construireInsertionChunk(params: {
-  id: string;
-  source: string;
-  reference: string;
-  juridiction: string | null;
-  dateDecision: string | null;
-  contenu: string;
-  lien: string | null;
-  groupeId: string;
-  vectorLiteral: string;
-}): { sql: string; params: unknown[] } {
-  return {
-    sql: `INSERT INTO jurisprudence_chunks (id, source, reference, juridiction, date_decision, contenu, lien, groupe_id, embedding, created_at)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::vector, now())`,
-    params: [
-      params.id,
-      params.source,
-      params.reference,
-      params.juridiction,
-      params.dateDecision,
-      params.contenu,
-      params.lien,
-      params.groupeId,
-      params.vectorLiteral,
-    ],
-  };
-}
-
 jurisprudenceBaseRouter.post("/api/jurisprudence-base", requireAuth, async (req, res) => {
   const parsed = createEntrySchema.safeParse(req.body);
   if (!parsed.success) {
@@ -104,47 +67,19 @@ jurisprudenceBaseRouter.post("/api/jurisprudence-base", requireAuth, async (req,
   const { source, reference, juridiction, dateDecision, contenu, lien } = parsed.data;
 
   try {
-    // Lot 18 : nettoyage (espaces multiples, mots coupes par la mise en
-    // page, en-tetes/pieds de page repetes - voir nettoyerTexte.ts) PUIS
-    // decoupage en chunks si le contenu nettoye depasse le seuil (voir
-    // chunkerTexte.ts) - une decision courte reste un seul chunk, comme
-    // avant ce lot.
-    const texteNettoye = nettoyerTexte(contenu);
-    const chunks = chunkerTexte(texteNettoye);
-    const groupeId = crypto.randomUUID();
-
-    // Transaction : soit TOUS les chunks d'une decision sont inseres, soit
-    // aucun (jamais un groupe partiellement insere si l'embedding d'un
-    // chunk intermediaire echoue - ex: quota Gemini epuise en cours de
-    // route sur une tres longue decision).
-    const idsCrees = await prisma.$transaction(async (tx) => {
-      const ids: string[] = [];
-      for (const chunkContenu of chunks) {
-        // Embedding sequentiel (jamais Promise.all) : evite de rafaler
-        // plusieurs appels Gemini en parallele pour une seule decision,
-        // memes contraintes de quota que le reste du projet (voir
-        // services/veilleJuridique.ts, boucle par theme).
-        const embedding = await embedText(`${reference}\n${chunkContenu}`);
-        const vectorLiteral = toVectorLiteral(embedding);
-        const id = crypto.randomUUID();
-        const { sql, params } = construireInsertionChunk({
-          id,
-          source,
-          reference,
-          juridiction: juridiction ?? null,
-          dateDecision: dateDecision ?? null,
-          contenu: chunkContenu,
-          lien: lien || null,
-          groupeId,
-          vectorLiteral,
-        });
-        await tx.$executeRawUnsafe(sql, ...params);
-        ids.push(id);
-      }
-      return ids;
+    // Lot 18 : nettoyage puis decoupage en chunks (voir
+    // services/jurisprudence/indexerDecision.ts, partagee avec la
+    // passerelle resume PDF -> jurisprudence de routes/webActions.ts).
+    const { groupeId, ids: idsCrees, chunkCount } = await indexerDecision({
+      source,
+      reference,
+      juridiction: juridiction ?? null,
+      dateDecision: dateDecision ?? null,
+      contenuBrut: contenu,
+      lien: lien || null,
     });
 
-    return res.status(201).json({ ids: idsCrees, groupeId, chunkCount: idsCrees.length });
+    return res.status(201).json({ ids: idsCrees, groupeId, chunkCount });
   } catch (error) {
     // MissingConfigurationError (cle Gemini absente - embedText() en a
     // besoin quel que soit LLM_PROVIDER, voir embeddings.ts) distingue du
@@ -194,6 +129,32 @@ jurisprudenceBaseRouter.post("/api/jurisprudence-base/extraire-pdf", requireAuth
     return res.status(400).json({ error: extraction.error });
   }
   return res.json({ texte: extraction.texte });
+});
+
+// Passerelle resume PDF -> jurisprudence : consultation du PDF stocke de
+// facon chiffree pour une decision donnee (voir
+// services/jurisprudence/stockagePdf.ts). C'est CETTE route, jamais une URL
+// web, qui est enregistree comme champ "lien" du/des JurisprudenceChunk
+// crees par routes/webActions.ts quand la case "Ajouter aussi cette
+// decision a ma base de jurisprudence" est cochee.
+jurisprudenceBaseRouter.get("/api/jurisprudence-base/:groupeId/document", requireAuth, async (req, res) => {
+  try {
+    const pdf = await prisma.jurisprudencePdf.findUnique({ where: { groupeId: req.params.groupeId } });
+    if (!pdf) {
+      return res.status(404).json({ error: "Document introuvable" });
+    }
+    const buffer = await lirePdfJurisprudence(pdf.nomFichier);
+    // Nom d'origine saisi par l'avocat au moment de l'upload - jamais
+    // recopie tel quel dans un en-tete HTTP (CR/LF pourraient y etre
+    // interpretes comme un debut de nouvel en-tete).
+    const nomSur = pdf.nomOriginal.replace(/[\r\n"]/g, "");
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="${nomSur}"`);
+    return res.send(buffer);
+  } catch (error) {
+    console.error("Erreur lecture document jurisprudence :", error);
+    return res.status(500).json({ error: "Impossible de lire le document (voir logs serveur)" });
+  }
 });
 
 const updateLienSchema = z.object({
@@ -267,6 +228,19 @@ jurisprudenceBaseRouter.delete("/api/jurisprudence-base/:id", requireAuth, async
       return res.json({ ok: true, chunksSupprimes: 0 });
     }
     const deleted = await prisma.jurisprudenceChunk.deleteMany({ where: filtre });
+
+    // Passerelle resume PDF -> jurisprudence : si cette decision provient
+    // d'un PDF stocke (voir services/jurisprudence/stockagePdf.ts), son
+    // fichier chiffre et sa metadonnee doivent disparaitre avec elle -
+    // jamais de PDF orphelin sur disque apres suppression de la decision.
+    if ("groupeId" in filtre) {
+      const pdf = await prisma.jurisprudencePdf.findUnique({ where: { groupeId: filtre.groupeId } });
+      if (pdf) {
+        await supprimerPdfJurisprudence(pdf.nomFichier);
+        await prisma.jurisprudencePdf.delete({ where: { groupeId: filtre.groupeId } });
+      }
+    }
+
     return res.json({ ok: true, chunksSupprimes: deleted.count });
   } catch (error) {
     console.error("Erreur suppression jurisprudence :", error);
