@@ -1,6 +1,5 @@
 import { Router, Response } from "express";
 import { z } from "zod";
-import pdfParse from "pdf-parse";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
 import { requireModule } from "../middleware/roles";
@@ -49,6 +48,7 @@ import { construireSourcesDisponibles, formatSourcesPourPrompt, validerEtFiltrer
 import { rechercherJurisprudenceTavily } from "../services/jurisprudence/rechercheTavily";
 import { rechercherJuridiqueTavily } from "../services/recherche-juridique/rechercheTavily";
 import { summarizeLongText } from "../services/resumePdf";
+import { extraireTextePdf, pdfBufferDepuisDataUrl } from "../services/pdfExtraction";
 import { translateText, extractTextFromDocument } from "../services/traduction";
 import { aiActionsLimiter } from "../middleware/rateLimit";
 import { formatDateLongue } from "../utils/dateFormat";
@@ -1321,23 +1321,12 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
         argumentaire: redigé,
       };
     } else if (form.type_action === "resume_pdf") {
-      const base64Data = form.pdfDataUrl.replace(/^data:application\/pdf;base64,/, "");
-      const pdfBuffer = Buffer.from(base64Data, "base64");
-
-      let texteExtrait: string;
-      try {
-        const parsed = await pdfParse(pdfBuffer);
-        texteExtrait = parsed.text.trim();
-      } catch (error) {
-        console.error("Erreur extraction texte PDF :", error);
-        return res.status(400).json({ error: "Impossible de lire ce PDF (fichier corrompu ou non supporté)" });
+      const pdfBuffer = pdfBufferDepuisDataUrl(form.pdfDataUrl);
+      const extraction = await extraireTextePdf(pdfBuffer);
+      if (!extraction.ok) {
+        return res.status(400).json({ error: extraction.error });
       }
-
-      if (texteExtrait.length === 0) {
-        return res
-          .status(400)
-          .json({ error: "Aucun texte détecté dans ce PDF (peut-être un scan sans OCR)" });
-      }
+      const texteExtrait = extraction.texte;
 
       const redigé = await summarizeLongText(llm, texteExtrait, form.contexte);
       const nomAffaire = form.contexte?.slice(0, 120) || "Résumé de document PDF";

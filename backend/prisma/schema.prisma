@@ -1159,6 +1159,18 @@ model JurisprudenceChunk {
   // source a l'affichage (services/jurisprudence/grounding.ts), jamais
   // affiche sans lien verifie.
   lien         String?
+  // Lot 18 : identifiant partage par tous les chunks issus d'une meme
+  // soumission du formulaire (une decision longue peut desormais etre
+  // decoupee en plusieurs lignes JurisprudenceChunk - voir
+  // services/jurisprudence/chunkerTexte.ts). Genere systematiquement a
+  // l'insertion (y compris pour une decision courte restant un seul
+  // chunk), pour que PATCH /api/jurisprudence-base/:id (modification du
+  // lien) puisse mettre a jour TOUS les chunks d'une meme decision en une
+  // seule operation plutot qu'un seul. Nullable : le corpus indexe avant
+  // ce lot n'a pas ce champ renseigne (repli sur une mise a jour par id
+  // seul dans ce cas, voir jurisprudenceBase.ts).
+  groupeId     String?                @map("groupe_id")
 
+  @@index([groupeId])
   @@map("jurisprudence_chunks")
 }

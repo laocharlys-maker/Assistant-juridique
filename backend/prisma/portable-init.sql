@@ -504,6 +504,7 @@ CREATE TABLE "jurisprudence_chunks" (
     "embedding" vector,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "lien" TEXT,
+    "groupe_id" TEXT,
 
     CONSTRAINT "jurisprudence_chunks_pkey" PRIMARY KEY ("id")
 );
@@ -627,6 +628,9 @@ CREATE INDEX "commentaires_revision_action_id_idx" ON "commentaires_revision"("a
 
 -- CreateIndex
 CREATE INDEX "audit_logs_action_id_idx" ON "audit_logs"("action_id");
+
+-- CreateIndex
+CREATE INDEX "jurisprudence_chunks_groupe_id_idx" ON "jurisprudence_chunks"("groupe_id");
 
 -- AddForeignKey
 ALTER TABLE "huissiers" ADD CONSTRAINT "huissiers_cabinet_id_fkey" FOREIGN KEY ("cabinet_id") REFERENCES "cabinets"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

@@ -39,7 +39,13 @@
           <label>Lien vers la décision (recommandé — une source sans lien n'est jamais citée dans une recherche)</label>
           <input name="lien" type="url" placeholder="https://..." />
           <label>Contenu / résumé (le plus complet possible)</label>
+          <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
+            <label for="pdf-import-input" class="secondary btn-sm" style="cursor:pointer; margin:0;">Importer depuis un PDF</label>
+            <input type="file" id="pdf-import-input" accept="application/pdf" style="display:none;" />
+            <span id="pdf-import-status" class="muted"></span>
+          </div>
           <textarea name="contenu" required minlength="20" style="min-height:160px;"></textarea>
+          <p class="muted" style="margin-top:-4px;">L'import PDF ne fait que pré-remplir ce champ — relis et corrige le texte avant d'indexer, rien n'est envoyé automatiquement.</p>
           <button type="submit">Indexer dans la base</button>
         </form>
       </div>
@@ -124,6 +130,40 @@
     });
 
     const errorEl = document.getElementById("error");
+
+    function readFileAsDataUrl(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(file);
+      });
+    }
+
+    // Confort de saisie uniquement : pre-remplit le champ "contenu" avec le
+    // texte extrait du PDF - jamais de soumission automatique, l'avocat
+    // relit et corrige avant de cliquer "Indexer dans la base" lui-meme.
+    const pdfImportInput = document.getElementById("pdf-import-input");
+    const pdfImportStatus = document.getElementById("pdf-import-status");
+    pdfImportInput.addEventListener("change", async () => {
+      const file = pdfImportInput.files[0];
+      if (!file) return;
+      pdfImportStatus.textContent = "Extraction du texte en cours…";
+      try {
+        const pdfDataUrl = await readFileAsDataUrl(file);
+        const { texte } = await apiFetch("/api/jurisprudence-base/extraire-pdf", {
+          method: "POST",
+          body: { pdfDataUrl },
+        });
+        document.querySelector('#create-form textarea[name="contenu"]').value = texte;
+        pdfImportStatus.textContent = "Texte importé — relis-le avant d'indexer.";
+      } catch (err) {
+        pdfImportStatus.textContent = "";
+        showError(errorEl, err.message);
+      } finally {
+        pdfImportInput.value = "";
+      }
+    });
     document.getElementById("create-form").addEventListener("submit", async (e) => {
       e.preventDefault();
       hideError(errorEl);
