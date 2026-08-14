@@ -192,6 +192,47 @@ describe("validerEtFiltrerCitations", () => {
 
     expect(verifierLienFn).toHaveBeenCalledTimes(1);
   });
+
+  it("régression JURIS-1786731229315 - format non conforme '[Source N]' (sans REF:) : 0 citation reconnue MAIS un avertissement explicite est loggé", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const sources = construireSourcesDisponibles([cabinetMatch], []);
+    const texteLlm = "La Cour Suprême a jugé que... (Arrêt n° 12/2024) [Source 1]. Cela confirme la tendance.";
+
+    const resultat = await validerEtFiltrerCitations(texteLlm, sources, accessible);
+
+    // Comportement inchangé pour le texte/sourcesValidees/rejets (le marqueur
+    // non conforme n'est reconnu par aucun pattern, donc rien n'est retiré ni
+    // validé) - seul le log est nouveau.
+    expect(resultat.texte).toBe(texteLlm);
+    expect(resultat.sourcesValidees).toHaveLength(0);
+    expect(resultat.rejets).toHaveLength(0);
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy.mock.calls[0][0]).toContain("0 citation reconnue");
+    expect(warnSpy.mock.calls[0][0]).toContain("[Source 1]");
+    warnSpy.mockRestore();
+  });
+
+  it("aucun avertissement loggé si le texte ne contient aucun indice de citation non conforme (Test 6 - cas normal sans jurisprudence à citer)", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const sources = construireSourcesDisponibles([cabinetMatch], []);
+    const texteLlm = "Analyse générale du sujet, sans décision précise à citer pour l'instant.";
+
+    await validerEtFiltrerCitations(texteLlm, sources, accessible);
+
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
+  it("aucun avertissement 'format non conforme' quand des citations SONT reconnues mais rejetées (ne doit jamais dupliquer l'avertissement existant)", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const sources = construireSourcesDisponibles([cabinetMatch], []);
+    const texteLlm = "Une décision fictive [REF: Source 7] appuie ce raisonnement.";
+
+    await validerEtFiltrerCitations(texteLlm, sources, accessible);
+
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
 });
 
 // Type-only import guard - garantit que SourceDisponible reste exporte et

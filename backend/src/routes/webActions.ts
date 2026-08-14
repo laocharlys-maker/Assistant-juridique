@@ -364,6 +364,16 @@ const ACTIONS_FORCANT_ANTHROPIC = new Set<WebActionForm["type_action"]>([
   "resume_pdf",
 ]);
 
+// Constate en usage reel (dossier JURIS-1786731229315) : le defaut de
+// redact() (8192 tokens, voir services/llm/anthropic.ts) coupait la fiche de
+// jurisprudence en plein milieu d'une phrase avant d'atteindre les 2500-3000
+// mots vises par JURISPRUDENCE_SYSTEM_PROMPT - le francais juridique dense
+// combine au Markdown (titres, tableaux) et aux marqueurs de citation
+// consomme davantage de tokens de sortie qu'une prose simple. Uniquement
+// cette action (voir CONTRAINTES du prompt : les autres types de document
+// gardent le defaut de redact(), jamais surcharge ici).
+const MAX_TOKENS_JURISPRUDENCE = 16000;
+
 /**
  * getLlmProvider()/getAnthropicProviderForced() levent une
  * MissingConfigurationError (cle API du fournisseur actif absente) de facon
@@ -1226,7 +1236,8 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
           theme: form.theme,
           juridictions: form.juridictions ?? [],
           sources: formatSourcesPourPrompt(sourcesDisponibles),
-        })
+        }),
+        { maxTokens: MAX_TOKENS_JURISPRUDENCE }
       );
 
       // Lot 13 - grounding strict + liens reels : retire toute citation qui
@@ -1234,13 +1245,34 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
       // lien est absent/inaccessible ; jamais de blocage de la reponse
       // (voir README-LOT13.md) - seules les citations non verifiees sont
       // retirees, le reste de l'analyse reste affiche normalement.
-      const { texte: redigé, sourcesValidees } = await validerEtFiltrerCitations(redigéBrut, sourcesDisponibles);
+      const { texte: redigéGrounde, sourcesValidees, rejets } = await validerEtFiltrerCitations(
+        redigéBrut,
+        sourcesDisponibles
+      );
       // Conserve les sources validees (reference/juridiction/date/lien) pour
       // que le frontend affiche un bloc "Source" distinct du texte d'analyse
       // (objectif 4 du Lot 13) - jamais recalcule a la volee a la relecture,
       // fige au moment de la generation comme le reste de champsDocument.
       if (sourcesValidees.length > 0) {
         extraWebhookFields = { sourcesJurisprudence: sourcesValidees };
+      }
+
+      // Constate en usage reel (dossier JURIS-1786731229315) : si des
+      // sources etaient disponibles mais qu'AUCUNE citation n'a ete reconnue
+      // par grounding.ts (format non conforme produit par le LLM, ex.
+      // "[Source N]" sans "REF:"), le document ressortait sans aucun lien ET
+      // sans aucune trace visible de ce probleme - un avocat pouvait s'en
+      // servir sans jamais savoir que le sourcage avait echoue. Distinct du
+      // cas "citations reconnues mais rejetees" (rejets.length > 0), deja
+      // signale par grounding.ts lui-meme directement dans le texte - jamais
+      // duplique ici.
+      let redigé = redigéGrounde;
+      if (sourcesDisponibles.length > 0 && sourcesValidees.length === 0 && rejets.length === 0) {
+        console.warn(
+          `[jurisprudence] 0 citation reconnue alors que ${sourcesDisponibles.length} source(s) etaient disponibles (dossier a verifier manuellement, voir README-LOT13.md).`
+        );
+        redigé +=
+          "\n\n> ⚠️ Aucune citation n'a pu être validée automatiquement pour ce document malgré des sources disponibles — vérifiez les références manuellement avant utilisation.";
       }
 
       // Recherche de jurisprudence : pas forcement liee a un dossier existant.

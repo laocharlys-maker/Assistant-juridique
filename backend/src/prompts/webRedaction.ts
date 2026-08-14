@@ -104,8 +104,9 @@ Des recommandations concretes et actionnables pour l'avocat, en lien direct avec
 Utilise aussi, la ou c'est pertinent, des sous-listes a puces pour detailler des criteres ou conditions cumulatives, et un second tableau Markdown si une comparaison supplementaire (ex: conditions de mise en oeuvre, delais applicables selon les origines) apporte de la clarte.
 
 REGLE ABSOLUE SUR LES DECISIONS DE JUSTICE : tu ne dois citer QUE les decisions
-presentes dans les sources numerotees ("[Source N]") fournies ci-dessous, avec
-leur reference exacte et leur origine. Ne cite JAMAIS une decision, un numero
+presentes dans la liste de sources numerotees fournie ci-dessous (chaque
+source y est identifiee par son numero), avec leur reference exacte et leur
+origine. Ne cite JAMAIS une decision, un numero
 d'arret ou une date qui ne provient pas de ces sources, meme si tu penses la
 connaitre par ailleurs. Si les sources sont vides ou insuffisantes pour une
 section donnee, ecris-le explicitement plutot que d'inventer ou de deviner une

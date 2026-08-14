@@ -67,6 +67,17 @@ export class AnthropicProvider implements LlmProvider {
       messages: [{ role: "user", content: userPrompt }],
     });
 
+    // Constate en usage reel (dossier JURIS-1786731229315) : une reponse
+    // tronquee en plein milieu d'une phrase n'avait jusqu'ici aucune preuve
+    // directe dans les logs (seule une deduction a partir du symptome etait
+    // possible). stop_reason "max_tokens" signale explicitement une
+    // troncature par la limite de sortie - a distinguer de "end_turn" (fin
+    // naturelle). Journalise pour TOUS les appels redact(), pas seulement
+    // jurisprudence (voir routes/webActions.ts, MAX_TOKENS_JURISPRUDENCE).
+    console.log(
+      `[llm-anthropic] redact termine : stop_reason=${message.stop_reason}, output_tokens=${message.usage.output_tokens}, input_tokens=${message.usage.input_tokens}, max_tokens=${options?.maxTokens ?? 8192}`
+    );
+
     const textBlock = message.content.find(
       (block): block is Anthropic.TextBlock => block.type === "text"
     );

@@ -66,6 +66,15 @@ export interface ResultatGrounding {
 
 const REF_PATTERN = /\[REF:\s*Source\s+(\d+)\]/gi;
 const URL_PATTERN = /https?:\/\/\S+/gi;
+// Detecte un marqueur de citation "presque correct" mais non conforme (ex:
+// "[Source 3]" sans le prefixe "REF:" impose par le prompt - voir
+// JURISPRUDENCE_SYSTEM_PROMPT, "FORMAT OBLIGATOIRE DE CITATION"). Le "["
+// doit immediatement preceder "Source" : ne matche donc jamais a l'interieur
+// d'un marqueur conforme "[REF: Source N]" (le caractere juste avant "Source"
+// y est un espace, jamais "["). Sert uniquement a diagnostiquer/logger un
+// echec de grounding qui serait sinon totalement silencieux (voir
+// validerEtFiltrerCitations ci-dessous) - ne remplace jamais REF_PATTERN.
+const FORMAT_NON_CONFORME_PATTERN = /\[Source\s+\d+\]/gi;
 
 /** Construit la liste unifiee et numerotee des sources effectivement
  * recuperees (base RAG du cabinet, puis resultats Tavily) - une seule
@@ -133,6 +142,29 @@ function logRejet(rejet: CitationRejetee): void {
 }
 
 /**
+ * Constate en usage reel (dossier JURIS-1786731229315) : quand le LLM
+ * n'utilise AUCUN marqueur conforme "[REF: Source N]", validerEtFiltrerCitations
+ * n'a litteralement rien a traiter (indexCites vide) - jusqu'ici totalement
+ * silencieux (aucun log, aucun avertissement dans le texte, voir
+ * logRejet ci-dessus qui ne se declenche que pour une citation reconnue puis
+ * rejetee). Avertit explicitement des que ce cas se produit ET qu'un indice
+ * de citation non conforme est detecte dans le texte (voir
+ * FORMAT_NON_CONFORME_PATTERN) - permet de diagnostiquer une derive du LLM
+ * (ex: "[Source N]" sans "REF:") avec preuve directe plutot que par
+ * deduction a partir du symptome (aucun lien affiche).
+ */
+function logFormatNonConformeSiPresent(texteLlm: string): void {
+  const occurrences = [...texteLlm.matchAll(FORMAT_NON_CONFORME_PATTERN)];
+  if (occurrences.length === 0) return;
+  const premiereOccurrence = occurrences[0].index ?? 0;
+  const debut = Math.max(0, premiereOccurrence - 40);
+  const extrait = texteLlm.slice(debut, premiereOccurrence + 60).replace(/\s+/g, " ").trim();
+  console.warn(
+    `[jurisprudence-grounding] 0 citation reconnue (format "[REF: Source N]" attendu), mais format non conforme detecte (${occurrences.length} occurrence(s) de "[Source N]" sans "REF:") - extrait : "...${extrait}..."`
+  );
+}
+
+/**
  * Valide et filtre les citations d'une reponse LLM par rapport aux sources
  * effectivement recuperees pour cette requete precise. Ne bloque jamais la
  * reponse : un texte sans aucune citation valide reste affiche tel quel
@@ -146,6 +178,10 @@ export async function validerEtFiltrerCitations(
   const indexCites = new Set<number>();
   for (const match of texteLlm.matchAll(REF_PATTERN)) {
     indexCites.add(Number(match[1]));
+  }
+
+  if (indexCites.size === 0) {
+    logFormatNonConformeSiPresent(texteLlm);
   }
 
   const decisions = new Map<number, { source: SourceDisponible | null; motif: MotifRejetCitation | null }>();
