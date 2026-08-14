@@ -45,7 +45,6 @@ import {
 } from "../prompts/webRedaction";
 import { ActionOutput } from "../schemas/action";
 import { searchJurisprudence } from "../services/rag";
-import { formatWebSearchContext } from "../services/tavily";
 import { construireSourcesDisponibles, formatSourcesPourPrompt, validerEtFiltrerCitations } from "../services/jurisprudence/grounding";
 import { rechercherJurisprudenceTavily } from "../services/jurisprudence/rechercheTavily";
 import { rechercherJuridiqueTavily } from "../services/recherche-juridique/rechercheTavily";
@@ -1270,13 +1269,24 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
       // appel de secours sans restriction de domaine uniquement si la
       // couverture est insuffisante.
       const resultats = await rechercherJuridiqueTavily(form.question);
-      const redigé = await llm.redact(
+      // Meme liste numerotee [Source N] et meme grounding strict que la
+      // Recherche de jurisprudence (Lot 13, construireSourcesDisponibles/
+      // validerEtFiltrerCitations, services/jurisprudence/grounding.ts) -
+      // aucun chunk RAG cabinet ici (recherche_juridique n'utilise pas le
+      // RAG jurisprudence), uniquement les resultats Tavily.
+      const sourcesDisponibles = construireSourcesDisponibles([], resultats);
+      const redigéBrut = await llm.redact(
         RECHERCHE_JURIDIQUE_SYSTEM_PROMPT,
         buildRechercheJuridiqueUserPrompt({
           question: form.question,
-          resultatsRecherche: formatWebSearchContext(resultats),
+          resultatsRecherche: formatSourcesPourPrompt(sourcesDisponibles),
         })
       );
+
+      const { texte: redigé, sourcesValidees } = await validerEtFiltrerCitations(redigéBrut, sourcesDisponibles);
+      if (sourcesValidees.length > 0) {
+        extraWebhookFields = { sourcesJurisprudence: sourcesValidees };
+      }
 
       // Recherche juridique : pas forcement liee a un dossier existant.
       const dossier = await prisma.dossier.upsert({
