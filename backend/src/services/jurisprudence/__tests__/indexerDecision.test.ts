@@ -84,4 +84,41 @@ describe("indexerDecision", () => {
     expect(contenuInsere).not.toContain("   ");
     expect(contenuInsere).toContain("texte brut avec des espaces multiples à nettoyer");
   });
+
+  it("calcule tous les embeddings AVANT d'ouvrir la transaction (régression P2028 : timeout Prisma 5000ms dépassé par un embedContent lent)", async () => {
+    const ordre: string[] = [];
+    embedTextMock.mockImplementation(async () => {
+      ordre.push("embedText");
+      return [0.1, 0.2];
+    });
+    prismaMock.$transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
+      ordre.push("transaction:debut");
+      const resultat = await fn({ $executeRawUnsafe: vi.fn() });
+      ordre.push("transaction:fin");
+      return resultat;
+    });
+
+    // Contenu long -> plusieurs chunks, donc plusieurs appels embedText.
+    const paragraphe = "Un paragraphe de décision juridique suffisamment long pour peser dans le découpage. ".repeat(15);
+    const contenuLong = Array.from({ length: 6 }, () => paragraphe).join("\n\n");
+
+    await indexerDecision({
+      source: "OHADA",
+      reference: "Arrêt n° 4/2026",
+      juridiction: null,
+      dateDecision: null,
+      contenuBrut: contenuLong,
+      lien: null,
+    });
+
+    const dernierEmbedTextIndex = ordre.lastIndexOf("embedText");
+    const debutTransactionIndex = ordre.indexOf("transaction:debut");
+    expect(dernierEmbedTextIndex).toBeGreaterThan(-1);
+    expect(debutTransactionIndex).toBeGreaterThan(-1);
+    // Tous les embedText() ont lieu AVANT le tout premier accès à la
+    // transaction - jamais un appel réseau (potentiellement plusieurs
+    // secondes, avec retry) exécuté à l'intérieur, qui expirerait le
+    // timeout par défaut d'une transaction Prisma interactive (5000ms).
+    expect(dernierEmbedTextIndex).toBeLessThan(debutTransactionIndex);
+  });
 });

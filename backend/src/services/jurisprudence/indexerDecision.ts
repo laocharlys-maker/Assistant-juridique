@@ -78,19 +78,33 @@ export async function indexerDecision(input: IndexerDecisionInput): Promise<Inde
   const chunks = chunkerTexte(texteNettoye);
   const groupeId = input.groupeId ?? crypto.randomUUID();
 
+  // Embeddings calcules HORS transaction, AVANT tout acces DB : chaque appel
+  // embedText() est un aller-retour reseau vers Gemini (avec retry -
+  // withTransientRetry, voir services/embeddings.ts - donc potentiellement
+  // plusieurs secondes). Une transaction Prisma interactive a un timeout par
+  // defaut de 5000ms ; constate en usage reel, un seul embedding un peu lent
+  // suffisait a la faire expirer ("P2028 Transaction already closed") et a
+  // faire echouer TOUTE l'indexation, meme les chunks deja inseres avec
+  // succes. Ne jamais faire dependre une transaction DB d'un appel reseau
+  // externe lent - la transaction ci-dessous ne fait plus QUE des insertions
+  // (rapides), largement sous ce delai quel que soit le nombre de chunks.
+  //
+  // Sequentiel (jamais Promise.all) : evite de rafaler plusieurs appels
+  // Gemini en parallele pour une seule decision, memes contraintes de quota
+  // que le reste du projet (voir services/veilleJuridique.ts, boucle par
+  // theme).
+  const chunksAvecEmbedding: { contenu: string; vectorLiteral: string }[] = [];
+  for (const chunkContenu of chunks) {
+    const embedding = await embedText(`${input.reference}\n${chunkContenu}`);
+    chunksAvecEmbedding.push({ contenu: chunkContenu, vectorLiteral: toVectorLiteral(embedding) });
+  }
+
   // Transaction : soit TOUS les chunks d'une decision sont inseres, soit
-  // aucun (jamais un groupe partiellement insere si l'embedding d'un chunk
-  // intermediaire echoue - ex: quota Gemini epuise en cours de route sur
-  // une tres longue decision).
+  // aucun (jamais un groupe partiellement insere) - purement DB desormais,
+  // aucun appel reseau a l'interieur.
   const ids = await prisma.$transaction(async (tx) => {
     const idsInternes: string[] = [];
-    for (const chunkContenu of chunks) {
-      // Embedding sequentiel (jamais Promise.all) : evite de rafaler
-      // plusieurs appels Gemini en parallele pour une seule decision, memes
-      // contraintes de quota que le reste du projet (voir
-      // services/veilleJuridique.ts, boucle par theme).
-      const embedding = await embedText(`${input.reference}\n${chunkContenu}`);
-      const vectorLiteral = toVectorLiteral(embedding);
+    for (const { contenu, vectorLiteral } of chunksAvecEmbedding) {
       const id = crypto.randomUUID();
       const { sql, params } = construireInsertionChunk({
         id,
@@ -98,7 +112,7 @@ export async function indexerDecision(input: IndexerDecisionInput): Promise<Inde
         reference: input.reference,
         juridiction: input.juridiction,
         dateDecision: input.dateDecision,
-        contenu: chunkContenu,
+        contenu,
         lien: input.lien,
         groupeId,
         vectorLiteral,
