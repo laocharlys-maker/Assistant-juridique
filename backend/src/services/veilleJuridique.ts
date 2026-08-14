@@ -1,9 +1,9 @@
 import { prisma } from "../lib/prisma";
 import { LlmProvider } from "./llm/types";
-import { searchWeb, formatWebSearchContext } from "./tavily";
+import { searchWeb } from "./tavily";
 import { sendEmail } from "./mailer";
 import { logAuditStep } from "./audit";
-import { splitSujets, periodeLabel } from "./veilleJuridiqueUtils";
+import { splitSujets, periodeLabel, filtrerResultatsRecents, formatSourcesVeillePourPrompt } from "./veilleJuridiqueUtils";
 import { buildVeilleEmailHtml } from "./veilleJuridiqueEmail";
 import {
   VEILLE_JURIDIQUE_SYSTEM_PROMPT,
@@ -12,7 +12,13 @@ import {
 
 export { splitSujets, periodeLabel };
 
-export async function runVeilleForCabinet(cabinetId: string, llm: LlmProvider): Promise<void> {
+// Nombre de jours en arriere couverts par la veille - transmis a la fois a
+// Tavily (days, avec topic "news") et au filtrage programmatique cote
+// serveur (jamais uniquement l'un ou l'autre : Tavily peut renvoyer un
+// resultat sans date exploitable, filtre localement en plus).
+const JOURS_COUVERTS = 7;
+
+export async function runVeilleForCabinet(cabinetId: string, llm: LlmProvider, maintenant = new Date()): Promise<void> {
   const cabinet = await prisma.cabinet.findUnique({ where: { id: cabinetId } });
   if (!cabinet || !cabinet.actif || !cabinet.veilleActive || !cabinet.veilleSujets?.trim()) return;
   // Module desactive par la plateforme (formule ne l'incluant pas) : prime
@@ -25,11 +31,30 @@ export async function runVeilleForCabinet(cabinetId: string, llm: LlmProvider): 
   const titulaire = await prisma.user.findFirst({ where: { cabinetId, role: "titulaire" } });
   if (!titulaire) return;
 
-  const periode = periodeLabel();
+  const periode = periodeLabel(maintenant);
   const themeResultats = [];
   for (const theme of themes) {
-    const resultats = await searchWeb(`actualite juridique ${theme} Benin cette semaine`, 5, undefined, "week");
-    themeResultats.push({ theme, resultatsRecherche: formatWebSearchContext(resultats) });
+    // topic "news" + days (plutot que time_range sur le topic "general"
+    // implicite) : bien plus susceptible de renvoyer une date de
+    // publication exploitable par theme - voir services/tavily.ts.
+    const resultatsBruts = await searchWeb(`actualite juridique ${theme} Benin`, 8, undefined, undefined, {
+      topic: "news",
+      days: JOURS_COUVERTS,
+    });
+    // Filtrage programmatique en plus du parametre Tavily : un resultat
+    // sans published_date exploitable, ou hors des JOURS_COUVERTS derniers
+    // jours, n'atteint jamais le prompt - jamais laisse au LLM le soin de
+    // deviner la fraicheur depuis le texte brut. Applique INDEPENDAMMENT
+    // par theme (jamais mele aux autres themes).
+    const { retenus, recus, apresFiltrage } = filtrerResultatsRecents(resultatsBruts, maintenant, JOURS_COUVERTS);
+    // Jamais de donnee client sensible : uniquement le cabinet (id opaque),
+    // le theme suivi (deja connu du cabinet lui-meme) et des comptes - pour
+    // detecter un theme qui ne remonte quasiment jamais de resultats
+    // recents (formulation ou theme a ajuster cote cabinet).
+    console.log(
+      `[veille-juridique] cabinet=${cabinetId} theme="${theme}" reçus=${recus} retenus=${apresFiltrage}`
+    );
+    themeResultats.push({ theme, resultatsRecherche: formatSourcesVeillePourPrompt(retenus) });
   }
 
   const digest = await llm.redact(

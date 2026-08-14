@@ -106,11 +106,11 @@ export function construireSourcesDisponibles(
   return sources;
 }
 
-/** Formate la liste unifiee pour le prompt utilisateur - remplace, pour la
- * recherche de jurisprudence uniquement, les appels separes a
- * formatJurisprudenceContext()/formatWebSearchContext() (tous deux
- * inchanges, toujours utilises tels quels ailleurs - veille juridique,
- * recherche juridique generale). */
+/** Formate la liste unifiee pour le prompt utilisateur - utilisee par la
+ * Recherche de jurisprudence ET la Recherche juridique generale (meme
+ * grounding Lot 13 pour les deux, voir routes/webActions.ts). La Veille
+ * juridique a son propre formateur, sans grounding (voir
+ * services/veilleJuridiqueUtils.ts, formatSourcesVeillePourPrompt). */
 export function formatSourcesPourPrompt(sources: SourceDisponible[]): string {
   if (sources.length === 0) {
     return "Aucune source recuperee pour cette recherche.";

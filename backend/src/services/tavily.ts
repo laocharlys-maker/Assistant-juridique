@@ -22,7 +22,14 @@ export async function searchWeb(
   query: string,
   maxResults = 5,
   includeDomains?: string[],
-  timeRange?: "day" | "week" | "month" | "year"
+  timeRange?: "day" | "week" | "month" | "year",
+  // topic: "news" restreint Tavily a des sources d'actualite datees (bien
+  // plus susceptibles de renvoyer published_date que le topic "general"
+  // implicite) ; days ne s'applique qu'avec topic "news" (voir doc Tavily) -
+  // utilise par la veille juridique (services/veilleJuridique.ts) pour une
+  // fraicheur fiable, jamais par la jurisprudence/recherche juridique
+  // (topic "general" implicite, inchange pour elles).
+  options?: { topic?: "general" | "news"; days?: number }
 ): Promise<WebSearchResult[]> {
   // process.env directement, pas env.TAVILY_API_KEY (config/env.ts) - voir
   // services/llm/index.ts (resolveLlmProvider) et groq.ts/gemini.ts pour le
@@ -53,6 +60,8 @@ export async function searchWeb(
         include_answer: false,
         ...(includeDomains && includeDomains.length > 0 ? { include_domains: includeDomains } : {}),
         ...(timeRange ? { time_range: timeRange } : {}),
+        ...(options?.topic ? { topic: options.topic } : {}),
+        ...(options?.days !== undefined ? { days: options.days } : {}),
       }),
     });
 
@@ -85,19 +94,8 @@ export async function searchWeb(
 // largement suffisant pour que le LLM cite la source et son contenu.
 const LONGUEUR_MAX_EXTRAIT = 500;
 
-function tronquerExtrait(content: string): string {
+export function tronquerExtrait(content: string): string {
   if (content.length <= LONGUEUR_MAX_EXTRAIT) return content;
   return `${content.slice(0, LONGUEUR_MAX_EXTRAIT)}…`;
 }
 
-export function formatWebSearchContext(results: WebSearchResult[]): string {
-  if (results.length === 0) {
-    return "Aucun resultat de recherche web trouve pour cette question.";
-  }
-  return results
-    .map(
-      (r, i) =>
-        `[Source ${i + 1}] ${r.title}${r.publishedDate ? ` (publie le ${r.publishedDate})` : ""}\nURL : ${r.url}\n${tronquerExtrait(r.content)}`
-    )
-    .join("\n\n");
-}
