@@ -45,9 +45,10 @@ import {
 } from "../prompts/webRedaction";
 import { ActionOutput } from "../schemas/action";
 import { searchJurisprudence } from "../services/rag";
-import { searchWeb, formatWebSearchContext, WebSearchResult } from "../services/tavily";
+import { formatWebSearchContext } from "../services/tavily";
 import { construireSourcesDisponibles, formatSourcesPourPrompt, validerEtFiltrerCitations } from "../services/jurisprudence/grounding";
 import { rechercherJurisprudenceTavily } from "../services/jurisprudence/rechercheTavily";
+import { rechercherJuridiqueTavily } from "../services/recherche-juridique/rechercheTavily";
 import { summarizeLongText } from "../services/resumePdf";
 import { translateText, extractTextFromDocument } from "../services/traduction";
 import { aiActionsLimiter } from "../middleware/rateLimit";
@@ -304,47 +305,6 @@ export async function findOrCreateDossier(facts: {
     },
   });
   return { ok: true, dossier };
-}
-
-// Domaines de textes officiels et de doctrine reconnus pour le droit
-// beninois/OHADA - utilises par la Recherche juridique (droit general,
-// textes, doctrine), distincts des bases de decisions ci-dessus meme si
-// certains se recoupent (ohada.org, justice.gouv.bj).
-const RECHERCHE_JURIDIQUE_DOMAINES_CONFIANCE = [
-  "ohada.org",
-  "justice.gouv.bj",
-  "assemblee-nationale.bj",
-  "sgg.gouv.bj",
-  "droit-afrique.com",
-  "actualitesdroitohada.com",
-  "droit.cairn.info",
-];
-
-// Recherche Tavily en deux temps : une restreinte aux domaines de confiance
-// fournis, une generale pour completer (Tavily ne permet pas de "prioriser
-// puis se rabattre" en un seul appel - include_domains restreint totalement
-// les resultats). Les resultats des domaines de confiance sont places en
-// premier, dedupliques par URL avec la recherche generale. Utilisee
-// uniquement par la Recherche juridique generale ci-dessous - la Recherche
-// de jurisprudence a son propre mecanisme, par categorie d'origine (voir
-// services/jurisprudence/rechercheTavily.ts).
-async function searchWebPrioritaire(
-  queryDomainesConfiance: string,
-  queryGenerale: string,
-  domainesConfiance: string[]
-): Promise<WebSearchResult[]> {
-  const [prioritaires, generaux] = await Promise.all([
-    searchWeb(queryDomainesConfiance, 5, domainesConfiance),
-    searchWeb(queryGenerale, 5),
-  ]);
-  const urlsVues = new Set<string>();
-  const combines: WebSearchResult[] = [];
-  for (const resultat of [...prioritaires, ...generaux]) {
-    if (urlsVues.has(resultat.url)) continue;
-    urlsVues.add(resultat.url);
-    combines.push(resultat);
-  }
-  return combines;
 }
 
 // Genre grammatical des juridictions beninoises proposees dans le
@@ -1304,11 +1264,12 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
         argumentaire: redigé,
       };
     } else if (form.type_action === "recherche_juridique") {
-      const resultats = await searchWebPrioritaire(
-        form.question,
-        form.question,
-        RECHERCHE_JURIDIQUE_DOMAINES_CONFIANCE
-      );
+      // Recherche Tavily ciblee par categorie de sources officielles/doctrine
+      // (Benin, OHADA, doctrine/droit compare, France - voir
+      // services/recherche-juridique/rechercheTavily.ts), completee par un
+      // appel de secours sans restriction de domaine uniquement si la
+      // couverture est insuffisante.
+      const resultats = await rechercherJuridiqueTavily(form.question);
       const redigé = await llm.redact(
         RECHERCHE_JURIDIQUE_SYSTEM_PROMPT,
         buildRechercheJuridiqueUserPrompt({
