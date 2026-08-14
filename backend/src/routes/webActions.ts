@@ -47,6 +47,7 @@ import { ActionOutput } from "../schemas/action";
 import { searchJurisprudence } from "../services/rag";
 import { searchWeb, formatWebSearchContext, WebSearchResult } from "../services/tavily";
 import { construireSourcesDisponibles, formatSourcesPourPrompt, validerEtFiltrerCitations } from "../services/jurisprudence/grounding";
+import { rechercherJurisprudenceTavily } from "../services/jurisprudence/rechercheTavily";
 import { summarizeLongText } from "../services/resumePdf";
 import { translateText, extractTextFromDocument } from "../services/traduction";
 import { aiActionsLimiter } from "../middleware/rateLimit";
@@ -305,22 +306,6 @@ export async function findOrCreateDossier(facts: {
   return { ok: true, dossier };
 }
 
-// Domaines officiels/reconnus de jurisprudence beninoise et OHADA - a
-// interroger en priorite (recherche Tavily restreinte a ces domaines) avant
-// de completer avec une recherche web generale. Choisis avec l'avocat du
-// cabinet : bases de decisions structurees, pas de simples pages generalistes.
-const JURIDICTIONS_BENIN_DOMAINES_CONFIANCE = [
-  "tcc.justice.bj",
-  "coursupreme.bj",
-  "jurisprudencebenin.org",
-  "juricaf.org",
-  "ahjucaf.org",
-  "ohada.org",
-  "actualitesdroitohada.com",
-  "ca-cot.justice.bj",
-  "justice.gouv.bj",
-];
-
 // Domaines de textes officiels et de doctrine reconnus pour le droit
 // beninois/OHADA - utilises par la Recherche juridique (droit general,
 // textes, doctrine), distincts des bases de decisions ci-dessus meme si
@@ -339,7 +324,10 @@ const RECHERCHE_JURIDIQUE_DOMAINES_CONFIANCE = [
 // fournis, une generale pour completer (Tavily ne permet pas de "prioriser
 // puis se rabattre" en un seul appel - include_domains restreint totalement
 // les resultats). Les resultats des domaines de confiance sont places en
-// premier, dedupliques par URL avec la recherche generale.
+// premier, dedupliques par URL avec la recherche generale. Utilisee
+// uniquement par la Recherche juridique generale ci-dessous - la Recherche
+// de jurisprudence a son propre mecanisme, par categorie d'origine (voir
+// services/jurisprudence/rechercheTavily.ts).
 async function searchWebPrioritaire(
   queryDomainesConfiance: string,
   queryGenerale: string,
@@ -1246,16 +1234,14 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
         argumentaire: redigéMED,
       };
     } else if (form.type_action === "jurisprudence") {
-      // Recherche a plusieurs niveaux : Benin, zone OHADA, Afrique, France,
-      // reste de la francophonie, reste du monde, via le web (Tavily) -
-      // toujours effectuee. La base de jurisprudence propre au cabinet
-      // n'est incluse en plus que si explicitement cochee.
-      //
-      const webResults = await searchWebPrioritaire(
-        `${form.theme} jurisprudence Bénin`,
-        `jurisprudence ${form.theme} Bénin, zone OHADA, Afrique, France, francophonie`,
-        JURIDICTIONS_BENIN_DOMAINES_CONFIANCE
-      );
+      // Recherche a plusieurs niveaux : Benin, OHADA/CCJA, France, Afrique
+      // francophone elargie, via des appels Tavily paralleles cibles par
+      // categorie d'origine (voir services/jurisprudence/rechercheTavily.ts),
+      // completes par un appel de secours sans restriction de domaine
+      // uniquement si la couverture est insuffisante - toujours effectuee.
+      // La base de jurisprudence propre au cabinet n'est incluse en plus
+      // que si explicitement cochee.
+      const webResults = await rechercherJurisprudenceTavily(form.theme);
       const cabinetMatches = form.inclure_cabinet ? await searchJurisprudence(form.theme) : [];
       // Lot 13 : une seule liste de sources numerotee en continu (cabinet
       // puis web), pour que le marqueur "[REF: Source N]" impose au LLM

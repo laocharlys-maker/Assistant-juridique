@@ -29,6 +29,13 @@ export interface SourceDisponible {
   /** Extrait de contenu inclus dans le prompt (jamais utilise pour le
    * grounding lui-meme, uniquement pour reconstruire le texte source). */
   extrait: string;
+  /** Categorie Tavily d'origine (benin/ohada/france/afrique_francophone/
+   * ouvert) pour une source web - null pour une source cabinet, ou si
+   * l'appelant ne la fournit pas (voir rechercheTavily.ts). Champ interne
+   * uniquement : jamais inclus dans formatSourcesPourPrompt() (jamais
+   * expose au LLM autrement que via le classement deja present dans
+   * l'ordre des sources). */
+  categorieWeb: string | null;
 }
 
 export interface SourceValidee {
@@ -68,7 +75,7 @@ const URL_PATTERN = /https?:\/\/\S+/gi;
  * searchJurisprudence()/searchWeb() ont deja recupere. */
 export function construireSourcesDisponibles(
   cabinetMatches: JurisprudenceMatch[],
-  webResults: WebSearchResult[]
+  webResults: (WebSearchResult & { categorie?: string })[]
 ): SourceDisponible[] {
   const sources: SourceDisponible[] = [];
   let index = 1;
@@ -81,6 +88,7 @@ export function construireSourcesDisponibles(
       date: m.dateDecision,
       lien: m.lien,
       extrait: m.contenu,
+      categorieWeb: null,
     });
   }
   for (const r of webResults) {
@@ -92,6 +100,7 @@ export function construireSourcesDisponibles(
       date: r.publishedDate ?? null,
       lien: r.url,
       extrait: r.content,
+      categorieWeb: r.categorie ?? null,
     });
   }
   return sources;

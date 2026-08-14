@@ -204,5 +204,6 @@ const _sourceExemple: SourceDisponible = {
   date: null,
   lien: null,
   extrait: "",
+  categorieWeb: null,
 };
 void _sourceExemple;
