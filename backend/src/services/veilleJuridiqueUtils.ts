@@ -46,13 +46,21 @@ export function filtrerResultatsRecents(
   return { retenus, recus: resultats.length, apresFiltrage: retenus.length };
 }
 
-function dateIso(publishedDate: string): string {
-  return new Date(publishedDate).toISOString().slice(0, 10);
+// Format JJ-MM-AAAA (jamais l'ISO AAAA-MM-JJ ni le format long de
+// formatDateLongue) - lisible directement par un cabinet francophone dans
+// un marqueur de source compact, sans ambiguite avec le format americain
+// MM/JJ/AAAA. Composantes UTC (jamais locales) : coherent avec
+// estPublicationRecente ci-dessus, qui compare deja sur l'horodatage UTC.
+function dateJourMoisAnnee(publishedDate: string): string {
+  const date = new Date(publishedDate);
+  const jour = String(date.getUTCDate()).padStart(2, "0");
+  const mois = String(date.getUTCMonth() + 1).padStart(2, "0");
+  return `${jour}-${mois}-${date.getUTCFullYear()}`;
 }
 
 /** Formate les sources DEJA FILTREES (voir filtrerResultatsRecents) pour le
  * prompt utilisateur de la veille - chaque source affiche explicitement sa
- * date de publication au format structure "AAAA-MM-JJ" (jamais a deviner
+ * date de publication au format structure "JJ-MM-AAAA" (jamais a deviner
  * depuis le texte, voir VEILLE_JURIDIQUE_SYSTEM_PROMPT), ainsi que son URL -
  * necessaire pour que l'email hebdomadaire (buildVeilleEmailHtml) puisse
  * toujours citer un lien cliquable vers la source, comme avant ce
@@ -65,7 +73,7 @@ export function formatSourcesVeillePourPrompt(resultats: WebSearchResult[]): str
   return resultats
     .map(
       (r, i) =>
-        `[Source ${i + 1}] — publié le ${dateIso(r.publishedDate!)} — ${r.title} — ${r.url} — ${tronquerExtrait(r.content)}`
+        `[Source ${i + 1}] — publié le ${dateJourMoisAnnee(r.publishedDate!)} — ${r.title} — ${r.url} — ${tronquerExtrait(r.content)}`
     )
     .join("\n\n");
 }

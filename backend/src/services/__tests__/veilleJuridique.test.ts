@@ -97,9 +97,9 @@ describe("filtrerResultatsRecents", () => {
 });
 
 describe("formatSourcesVeillePourPrompt", () => {
-  it("affiche la date de publication au format structure AAAA-MM-JJ, avec l'URL", () => {
+  it("affiche la date de publication au format structure JJ-MM-AAAA, avec l'URL", () => {
     const texte = formatSourcesVeillePourPrompt([resultat("https://exemple.bj/a", "2026-08-12T15:30:00Z")]);
-    expect(texte).toContain("[Source 1] — publié le 2026-08-12 — Titre https://exemple.bj/a — https://exemple.bj/a");
+    expect(texte).toContain("[Source 1] — publié le 12-08-2026 — Titre https://exemple.bj/a — https://exemple.bj/a");
   });
 
   it("indique explicitement l'absence de resultat recent pour un theme (jamais un texte vide silencieux)", () => {
