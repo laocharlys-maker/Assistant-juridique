@@ -60,6 +60,34 @@
       return div.innerHTML;
     }
 
+    // Lot 18 (correctif) : une decision peut desormais correspondre a
+    // plusieurs lignes JurisprudenceChunk (voir services/jurisprudence/
+    // chunkerTexte.ts) - regroupe par groupeId (repli sur l'id pour le
+    // corpus indexe avant ce lot, groupeId absent = un groupe d'un seul
+    // chunk) pour retrouver un affichage d'un seul bloc par decision,
+    // equivalent a avant ce lot du point de vue de l'avocat.
+    function grouperParDecision(entries) {
+      const groupes = new Map();
+      for (const e of entries) {
+        const cle = e.groupeId || e.id;
+        if (!groupes.has(cle)) groupes.set(cle, []);
+        groupes.get(cle).push(e);
+      }
+      // entries arrive triee par createdAt DESC (voir GET cote serveur) :
+      // au sein d'un meme groupe, cet ordre est donc l'inverse de l'ordre
+      // d'insertion des chunks - remis a l'endroit pour l'apercu concatene.
+      return Array.from(groupes.values()).map((chunks) => chunks.slice().reverse());
+    }
+
+    const LONGUEUR_APERCU_MULTICHUNK = 600;
+    function apercuContenu(chunks) {
+      if (chunks.length === 1) return chunks[0].contenu;
+      const concatene = chunks.map((c) => c.contenu).join(" ");
+      return concatene.length > LONGUEUR_APERCU_MULTICHUNK
+        ? `${concatene.slice(0, LONGUEUR_APERCU_MULTICHUNK)}…`
+        : concatene;
+    }
+
     async function loadEntries() {
       const listEl = document.getElementById("entries-list");
       try {
@@ -68,25 +96,32 @@
           listEl.innerHTML = '<p class="muted">Aucune source indexée pour l\'instant — les recherches de jurisprudence indiqueront qu\'aucune source vérifiée n\'est disponible.</p>';
           return;
         }
-        listEl.innerHTML = entries
-          .map(
-            (e) => `
+        const groupes = grouperParDecision(entries);
+        listEl.innerHTML = groupes
+          .map((chunks) => {
+            const premier = chunks[0];
+            const multiChunks = chunks.length > 1;
+            // Le PATCH (lien) et le DELETE cascadent deja sur tout le
+            // groupe cote serveur (via groupeId) - n'importe quel id du
+            // groupe suffit comme point d'entree, le premier chunk convient.
+            const idPrincipal = premier.id;
+            return `
           <div class="action-item">
-            <span class="tag">${escapeHtml(e.source)}${e.juridiction ? " · " + escapeHtml(e.juridiction) : ""}</span>
-            <div><strong>${escapeHtml(e.reference)}</strong>${e.dateDecision ? " — " + escapeHtml(e.dateDecision) : ""}</div>
-            <pre>${escapeHtml(e.contenu)}</pre>
+            <span class="tag">${escapeHtml(premier.source)}${premier.juridiction ? " · " + escapeHtml(premier.juridiction) : ""}</span>
+            <div><strong>${escapeHtml(premier.reference)}</strong>${premier.dateDecision ? " — " + escapeHtml(premier.dateDecision) : ""}${multiChunks ? ` <span class="tag" style="margin-left:6px;">${chunks.length} chunks</span>` : ""}</div>
+            <pre>${escapeHtml(apercuContenu(chunks))}</pre>
             ${
-              e.lien
-                ? `<p class="muted">🔗 <a href="${escapeHtml(e.lien)}" target="_blank" rel="noopener">${escapeHtml(e.lien)}</a></p>`
+              premier.lien
+                ? `<p class="muted">🔗 <a href="${escapeHtml(premier.lien)}" target="_blank" rel="noopener">${escapeHtml(premier.lien)}</a></p>`
                 : `<p class="error visible" style="margin:6px 0;">Aucun lien renseigné — cette source ne sera jamais citée dans une recherche de jurisprudence (voir README-LOT13.md).</p>
-                   <form class="lien-form" data-lien-form="${e.id}" style="display:flex; gap:8px; align-items:flex-end; margin:6px 0;">
+                   <form class="lien-form" data-lien-form="${idPrincipal}" style="display:flex; gap:8px; align-items:flex-end; margin:6px 0;">
                      <div style="flex:1;"><label style="margin:0 0 4px;">Ajouter le lien</label><input name="lien" type="url" placeholder="https://..." required /></div>
                      <button type="submit" class="btn-sm">Enregistrer</button>
                    </form>`
             }
-            <button type="button" class="secondary" data-delete="${e.id}">Supprimer</button>
-          </div>`
-          )
+            <button type="button" class="secondary" data-delete="${idPrincipal}">Supprimer${multiChunks ? ` (${chunks.length} chunks)` : ""}</button>
+          </div>`;
+          })
           .join("");
         listEl.querySelectorAll("[data-delete]").forEach((btn) => {
           btn.addEventListener("click", async () => {

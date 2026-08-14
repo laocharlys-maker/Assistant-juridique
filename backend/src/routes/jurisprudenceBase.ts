@@ -201,16 +201,16 @@ const updateLienSchema = z.object({
 });
 
 /**
- * Determine le filtre a appliquer pour PATCH (mise a jour du lien) : si le
- * chunk cible appartient a un groupe (decision multi-chunkee, ou meme une
- * decision a un seul chunk mais indexee depuis ce lot - voir
- * jurisprudenceBase.ts POST, groupeId toujours genere desormais), tous les
- * chunks du groupe sont mis a jour ensemble. Repli sur une mise a jour par
- * id seul pour le corpus indexe AVANT ce lot (groupeId absent). Exportee
- * pure (aucun acces Prisma) pour un test direct de cette logique de
- * branchement.
+ * Determine le filtre a appliquer pour agir sur TOUS les chunks d'une meme
+ * decision (PATCH du lien, DELETE) : si le chunk cible appartient a un
+ * groupe (decision multi-chunkee, ou meme une decision a un seul chunk
+ * mais indexee depuis ce lot - voir jurisprudenceBase.ts POST, groupeId
+ * toujours genere desormais), TOUS les chunks du groupe sont vises.
+ * Repli sur l'id seul pour le corpus indexe AVANT ce lot (groupeId
+ * absent). Exportee pure (aucun acces Prisma) pour un test direct de
+ * cette logique de branchement, partagee par PATCH et DELETE.
  */
-export function construireFiltrePatchGroupe(
+export function construireFiltreGroupe(
   chunk: { id: string; groupeId: string | null } | null,
   idDemande: string
 ): { groupeId: string } | { id: string } | null {
@@ -223,7 +223,7 @@ export function construireFiltrePatchGroupe(
 // supprimer/reindexer - seul le lien change, jamais le contenu ni
 // l'embedding. Lot 18 : si la decision a ete decoupee en plusieurs chunks,
 // le lien de TOUS ses chunks est mis a jour en une seule operation (voir
-// construireFiltrePatchGroupe ci-dessus).
+// construireFiltreGroupe ci-dessus).
 jurisprudenceBaseRouter.patch("/api/jurisprudence-base/:id", requireAuth, async (req, res) => {
   const parsed = updateLienSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -234,7 +234,7 @@ jurisprudenceBaseRouter.patch("/api/jurisprudence-base/:id", requireAuth, async 
       where: { id: req.params.id },
       select: { id: true, groupeId: true },
     });
-    const filtre = construireFiltrePatchGroupe(chunk, req.params.id);
+    const filtre = construireFiltreGroupe(chunk, req.params.id);
     if (!filtre) {
       return res.status(404).json({ error: "Source introuvable" });
     }
@@ -252,9 +252,24 @@ jurisprudenceBaseRouter.patch("/api/jurisprudence-base/:id", requireAuth, async 
   }
 });
 
+// Lot 18 (correctif) : supprime TOUS les chunks de la meme decision, pas
+// seulement celui vise par :id - une decision multi-chunkee ne doit
+// jamais laisser de chunks orphelins apres suppression (voir
+// construireFiltreGroupe ci-dessus, meme logique que PATCH).
 jurisprudenceBaseRouter.delete("/api/jurisprudence-base/:id", requireAuth, async (req, res) => {
-  await prisma.jurisprudenceChunk.delete({ where: { id: req.params.id } }).catch((error) => {
+  try {
+    const chunk = await prisma.jurisprudenceChunk.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, groupeId: true },
+    });
+    const filtre = construireFiltreGroupe(chunk, req.params.id);
+    if (!filtre) {
+      return res.json({ ok: true, chunksSupprimes: 0 });
+    }
+    const deleted = await prisma.jurisprudenceChunk.deleteMany({ where: filtre });
+    return res.json({ ok: true, chunksSupprimes: deleted.count });
+  } catch (error) {
     console.error("Erreur suppression jurisprudence :", error);
-  });
-  return res.json({ ok: true });
+    return res.status(500).json({ error: "Impossible de supprimer la source (voir logs serveur)" });
+  }
 });

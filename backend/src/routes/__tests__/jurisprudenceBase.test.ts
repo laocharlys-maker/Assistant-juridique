@@ -22,7 +22,7 @@ const prismaMock = vi.hoisted(() => ({
     findMany: vi.fn(),
     findUnique: vi.fn(),
     updateMany: vi.fn(),
-    delete: vi.fn(),
+    deleteMany: vi.fn(),
   },
   $transaction: vi.fn(),
 }));
@@ -241,12 +241,41 @@ describe("PATCH /api/jurisprudence-base/:id - décision multi-chunkée", () => {
 });
 
 describe("DELETE /api/jurisprudence-base/:id", () => {
-  it("supprime le chunk demandé par id", async () => {
-    prismaMock.jurisprudenceChunk.delete.mockResolvedValue({});
+  it("supprime le chunk demandé quand la décision n'a qu'un seul chunk (legacy, groupeId absent)", async () => {
+    prismaMock.jurisprudenceChunk.findUnique.mockResolvedValue({ id: "chunk-1", groupeId: null });
+    prismaMock.jurisprudenceChunk.deleteMany.mockResolvedValue({ count: 1 });
 
     const res = await api("/api/jurisprudence-base/chunk-1", { method: "DELETE" });
 
     expect(res.status).toBe(200);
-    expect(prismaMock.jurisprudenceChunk.delete).toHaveBeenCalledWith({ where: { id: "chunk-1" } });
+    const body = (await res.json()) as { chunksSupprimes: number };
+    expect(body.chunksSupprimes).toBe(1);
+    expect(prismaMock.jurisprudenceChunk.deleteMany).toHaveBeenCalledWith({ where: { id: "chunk-1" } });
+  });
+
+  it("supprime TOUS les chunks d'une décision multi-chunkée, aucune ligne orpheline (régression Lot 18)", async () => {
+    prismaMock.jurisprudenceChunk.findUnique.mockResolvedValue({ id: "chunk-2", groupeId: "groupe-xyz" });
+    prismaMock.jurisprudenceChunk.deleteMany.mockResolvedValue({ count: 4 });
+
+    const res = await api("/api/jurisprudence-base/chunk-2", { method: "DELETE" });
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { chunksSupprimes: number };
+    expect(body.chunksSupprimes).toBe(4);
+    expect(prismaMock.jurisprudenceChunk.deleteMany).toHaveBeenCalledWith({ where: { groupeId: "groupe-xyz" } });
+    // Jamais un DELETE par id seul quand un groupeId est disponible - sinon
+    // les 3 autres chunks du groupe resteraient orphelins.
+    expect(prismaMock.jurisprudenceChunk.deleteMany).not.toHaveBeenCalledWith({ where: { id: "chunk-2" } });
+  });
+
+  it("répond proprement (aucune suppression) si le chunk demandé n'existe déjà plus", async () => {
+    prismaMock.jurisprudenceChunk.findUnique.mockResolvedValue(null);
+
+    const res = await api("/api/jurisprudence-base/inexistant", { method: "DELETE" });
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { chunksSupprimes: number };
+    expect(body.chunksSupprimes).toBe(0);
+    expect(prismaMock.jurisprudenceChunk.deleteMany).not.toHaveBeenCalled();
   });
 });

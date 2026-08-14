@@ -96,18 +96,23 @@ corpus indexé **avant** ce lot (`groupeId` = `NULL`), repli automatique sur
 une mise à jour par `id` seul — comportement identique à avant ce lot,
 aucune régression sur les données existantes.
 
-`DELETE` reste inchangé (suppression par `id` seul, jamais par groupe) —
-non demandé par ce lot. **Limite connue, documentée mais non corrigée
-ici** : supprimer un seul chunk d'une décision multi-chunkée laisse les
-autres chunks du groupe en place (orphelins d'un groupe incomplet). À
-traiter dans un lot séparé si jugé nécessaire.
+**Correctif (suite du Lot 18)** : `DELETE /api/jurisprudence-base/:id`
+utilise désormais la même fonction de résolution de filtre que `PATCH`
+(`construireFiltreGroupe`, partagée) — supprime **tous** les chunks du
+groupe en une seule opération (`deleteMany({ where: { groupeId } })`),
+jamais un seul chunk orphelin. Repli sur l'`id` seul pour le corpus
+indexé avant ce lot (`groupeId` = `NULL`), même logique que `PATCH`.
 
-**Autre limite connue (UI, non corrigée ici)** : `GET /api/jurisprudence-base`
-renvoie toujours un enregistrement par chunk (jamais regroupé). Une
-décision longue apparaît donc désormais comme plusieurs blocs distincts
-dans la liste "Sources déjà indexées", partageant la même référence. Le
-prompt initial ne demandait pas de refonte de cet affichage — non traité
-pour rester dans le périmètre demandé.
+**Correctif frontend (suite du Lot 18)** : `jurisprudence-base.html`
+regroupe désormais l'affichage par décision (`groupeId`, repli sur `id`
+pour le corpus legacy) — un seul bloc visuel par décision, comme avant ce
+lot. Une décision à un seul chunk affiche son contenu intégral, inchangé.
+Une décision multi-chunkée affiche un indicateur "N chunks" à côté de la
+référence, et un aperçu résumé (concaténation des chunks, tronquée à 600
+caractères) plutôt que le texte complet de chaque chunk. Le bouton
+"Supprimer" et le formulaire d'ajout de lien utilisent l'`id` du premier
+chunk du groupe — le backend cascade déjà sur tout le groupe, aucun autre
+changement nécessaire.
 
 ## 5. Import PDF (confort de saisie)
 
@@ -145,7 +150,9 @@ serveur Express minimal ne montant que ce routeur, requêtes HTTP réelles
   placeholders `$1..$9`), uniquement comme paramètre lié.
 - PATCH sur une décision multi-chunkée (tous les chunks du groupe mis à
   jour) et sur le corpus legacy sans `groupeId` (repli par id).
-- DELETE.
+- DELETE, y compris sur une décision multi-chunkée : supprime **tous** les
+  chunks du groupe, aucune ligne orpheline (régression corrigée dans ce
+  même lot).
 
 Complétés par des tests unitaires purs (aucune base requise) :
 - `services/jurisprudence/__tests__/nettoyerTexte.test.ts` (8 tests) :
@@ -156,10 +163,49 @@ Complétés par des tests unitaires purs (aucune base requise) :
   seuil respecté, découpage effectif au-delà, aucun chunk hors limite,
   chevauchement vérifié entre deux chunks consécutifs.
 
-**218 tests unitaires + 7 tests route-level passent**, `tsc --noEmit` et
+**218 tests unitaires + 9 tests route-level passent** (7 initiaux + 2
+ajoutés pour la cascade DELETE multi-chunks), `tsc --noEmit` et
 `npm run lint` propres (mêmes 5 erreurs préexistantes, aucune nouvelle).
 Aucune régression sur `services/jurisprudence/grounding.ts`/`verifierLien.ts`
 (Lot 13) — non modifiés, tests existants toujours au vert.
+
+## 7. Vérification manuelle avec pgvector réel (non mocké)
+
+Faite après coup, comme demandé, en environnement de dev réel — jamais
+contre la base du cabinet : création d'une base Postgres **isolée et
+jetable** (`aurore_lot18_verif`) sur le même serveur portable pgvector que
+l'installation desktop de développement (binaires `vendor/postgres/win-x64`,
+extension `vector` réellement compilée, contrairement au cluster des
+tests e2e — voir section 6), schéma appliqué depuis
+`prisma/portable-init.sql` à jour (Lot 18 inclus), backend lancé en
+conditions réelles (`tsx src/index.ts` équivalent) avec une vraie
+`GEMINI_API_KEY`.
+
+Déroulé et résultat :
+
+1. **`POST /api/jurisprudence-base`** avec un vrai texte de décision
+   (bail commercial, clause résolutoire) → `201`, `chunkCount: 1`,
+   `groupeId` généré.
+2. **Vérification directe en base** (`pg_typeof`, `vector_dims`) :
+   ```
+   embedding_type = 'vector'   embedding_non_null = true   dimensions = 3072
+   ```
+   Confirme un vrai embedding Gemini (`gemini-embedding-001`, 3072
+   dimensions par défaut sans `outputDimensionality` — cohérent avec la
+   section 3), jamais `NULL`, correctement typé `vector` (pas du texte ou
+   un tableau générique).
+3. **Recherche par similarité** (`searchJurisprudence()`, la même
+   fonction utilisée par le Lot 13/Recherche de jurisprudence) : la
+   décision de test est retrouvée (1 résultat, distance ≈ 0.41) via une
+   requête reformulée différemment de la saisie d'origine — confirme que
+   la chaîne complète indexation → recherche fonctionne de bout en bout
+   avec un vrai embedding, pas seulement au niveau structure de données.
+4. **`DELETE`** sur ce chunk de test → `chunksSupprimes: 1`, `0` ligne
+   restante pour ce `groupeId` — confirme le correctif de la section 4 en
+   conditions réelles, pas seulement mocké.
+
+Base de test et script de vérification supprimés après coup (jamais
+commis, jamais de trace dans le corpus réel du cabinet).
 
 ## Contraintes respectées
 
