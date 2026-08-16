@@ -122,8 +122,15 @@ async function ouvrirLienExterne(url) {
       window.open(url, "_blank", "noopener,noreferrer");
     }
   } catch (err) {
-    console.error("[lien-externe] impossible d'ouvrir le lien :", err);
-    showToast(`Impossible d'ouvrir ce lien automatiquement. Adresse : ${url}`);
+    // err peut etre soit une Error JS classique (repli window.open, rare),
+    // soit directement la chaine renvoyee par le cote Rust (Result<(),
+    // String> -> la valeur Err() est le rejet tel quel, jamais enveloppee
+    // dans une Error) - toujours extraire un texte lisible, jamais
+    // afficher "[object Object]".
+    const detail =
+      typeof err === "string" ? err : err && typeof err.message === "string" ? err.message : JSON.stringify(err);
+    console.error("[lien-externe] impossible d'ouvrir le lien :", detail);
+    showToast(`Impossible d'ouvrir ce lien : ${detail}`);
   }
 }
 

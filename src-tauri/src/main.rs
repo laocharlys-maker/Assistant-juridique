@@ -87,17 +87,29 @@ fn app_url() -> String {
 /// Rejette explicitement tout ce qui n'est pas http/https : jamais de
 /// `file://` (fuite du systeme de fichiers local) ni d'un autre schema
 /// pouvant declencher un handler installe inattendu - les seuls appelants
-/// (sources de jurisprudence, WhatsApp) n'ont besoin que de web classique.
+/// (sources de jurisprudence) n'ont besoin que de web classique.
 #[tauri::command]
 fn ouvrir_lien_externe(url: String) -> Result<(), String> {
+    // Journalise CHAQUE appel (pas seulement les echecs) dans
+    // aurore-shell.log : seul moyen de diagnostiquer a distance si la
+    // commande est meme atteinte (probleme de capability/ACL cote Tauri) ou
+    // si elle echoue plus loin (validation, open::that_detached) - un simple
+    // toast cote JS ne suffit pas a distinguer les deux sans cette trace.
+    log_line(&format!("[lien-externe] ouverture demandee : {url}"));
     if !url.starts_with("http://") && !url.starts_with("https://") {
+        log_line("[lien-externe] refuse : schema non http(s).");
         return Err("Lien refuse : seuls http:// et https:// sont autorises.".to_string());
     }
     // that_detached (jamais that()) : ne bloque JAMAIS ce thread de commande
     // en attendant que le navigateur ouvert se ferme - garanti sur toutes
     // les plateformes par la crate, alors que le comportement de that() a
     // pu varier selon la plateforme/le navigateur cible par le passe.
-    open::that_detached(&url).map_err(|err| format!("impossible d'ouvrir le lien : {err}"))
+    let resultat = open::that_detached(&url).map_err(|err| format!("impossible d'ouvrir le lien : {err}"));
+    match &resultat {
+        Ok(()) => log_line("[lien-externe] ouverture reussie."),
+        Err(err) => log_line(&format!("[lien-externe] ECHEC : {err}")),
+    }
+    resultat
 }
 
 fn main() {
