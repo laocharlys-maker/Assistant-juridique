@@ -316,13 +316,19 @@ async function ouvrirDetail(evenement) {
   extraEl.hidden = true;
 
   // Une audience (fusion Calendrier / Calendrier Audiences) s'edite et se
-  // supprime directement ici, via /api/role-audiences - seule une echeance
-  // de delai calculee reste generee-seule (source de verite = les delais).
+  // supprime directement ici, via /api/role-audiences. Un evenement cree
+  // depuis la confirmation d'un email ("Boite de reception") se comporte
+  // comme un evenement manuel (voir routes/evenements.ts, meme garde-fou
+  // cote serveur) : rien ne le resynchronise depuis l'email d'origine apres
+  // coup. Seule une echeance de delai calculee reste generee-seule (source
+  // de verite = les delais) : la modifier ici serait ecrasee sans avertissement
+  // au prochain recalcul du delai.
   const estManuel = evenement.source === "manuel";
   const estAudience = evenement.source === "role_audience";
-  document.getElementById("cal-detail-modifier-btn").hidden = !(estManuel || estAudience);
-  document.getElementById("cal-detail-supprimer-btn").hidden = !(estManuel || estAudience);
-  if (!estManuel && !estAudience) {
+  const estEmail = evenement.source === "email";
+  document.getElementById("cal-detail-modifier-btn").hidden = !(estManuel || estAudience || estEmail);
+  document.getElementById("cal-detail-supprimer-btn").hidden = !(estManuel || estAudience || estEmail);
+  if (!estManuel && !estAudience && !estEmail) {
     assignesEl.textContent += `${assignesEl.textContent ? " — " : ""}Généré automatiquement depuis le calcul de délais : modifie-le depuis les Délais.`;
   }
 

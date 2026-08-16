@@ -207,7 +207,14 @@ evenementsRouter.patch("/api/evenements/:id", requireAuth, async (req, res) => {
   if (!existing) {
     return res.status(404).json({ error: "Événement introuvable" });
   }
-  if (existing.source !== "manuel") {
+  // "email" (evenement cree depuis "Boite de reception" - confirmation
+  // explicite d'un rendez-vous detecte dans un email, voir emailIngestion.ts,
+  // POST .../confirmer-evenement) est traite comme "manuel" ici : contrairement
+  // a "role_audience"/"delai_calcule", aucun job ne re-synchronise un
+  // evenement "email" depuis son origine apres coup - une fois cree, il est
+  // fonctionnellement equivalent a un evenement manuel, rien ne peut le faire
+  // diverger silencieusement d'une source qui continuerait a exister.
+  if (existing.source !== "manuel" && existing.source !== "email") {
     return res.status(409).json({
       error: "Cet événement est généré automatiquement : modifie-le depuis son origine (rôle de la semaine ou délais).",
     });
@@ -288,7 +295,10 @@ evenementsRouter.delete("/api/evenements/:id", requireAuth, async (req, res) => 
   if (!existing) {
     return res.status(404).json({ error: "Événement introuvable" });
   }
-  if (existing.source !== "manuel") {
+  // Meme raisonnement que PATCH ci-dessus : "email" est traite comme
+  // "manuel", aucune resynchronisation ne pourrait entrer en conflit avec
+  // une suppression manuelle.
+  if (existing.source !== "manuel" && existing.source !== "email") {
     return res.status(409).json({
       error: "Cet événement est généré automatiquement : supprime-le depuis son origine (rôle de la semaine ou délais).",
     });
