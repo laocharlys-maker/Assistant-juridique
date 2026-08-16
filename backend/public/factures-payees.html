@@ -71,10 +71,11 @@
             <p style="margin:0;"><strong>Facture normalisée attachée</strong>${f.factureNormaliseeNumero ? ` — n° ${escapeHtml(f.factureNormaliseeNumero)}` : ""}</p>
             <p class="muted" style="margin:4px 0;">Payée le ${formatDate(f.factureNormaliseeDatePaiement)}</p>
             <div style="display:flex; gap:8px; flex-wrap:wrap;">
-              <a class="secondary" href="#" data-voir-normalisee="${f.id}" data-numero="${escapeHtml(f.factureNormaliseeNomOriginal || "facture-normalisee.pdf")}" style="text-decoration:none; margin:0;">Voir le PDF</a>
+              <button type="button" class="secondary btn-sm" data-apercu-normalisee="${f.id}">Aperçu du PDF</button>
               <button type="button" class="secondary btn-sm" data-modifier-normalisee="${f.id}">Modifier</button>
               <button type="button" class="danger btn-sm" data-retirer-normalisee="${f.id}">Retirer</button>
             </div>
+            <div id="apercu-normalisee-${f.id}" hidden></div>
           </div>`
         : `
           <div style="margin-top:8px;">
@@ -89,8 +90,37 @@
           <div>${escapeHtml(f.description)}</div>
           <p><strong>${f.appliquerTva ? `${formatMontant(f.montant)} HT — ${formatMontant(montantTtc)} TTC (TVA 18%)` : formatMontant(f.montant)}</strong></p>
           <p class="muted">Émise le ${formatDate(f.dateEmission)} par ${escapeHtml(f.creePar?.nom || "-")} · payée le ${formatDate(f.payeeAt)}</p>
+          <div style="margin-top:8px;">
+            <button type="button" class="secondary btn-sm" data-apercu-facture="${f.id}">Aperçu de la facture</button>
+          </div>
+          <div id="apercu-facture-${f.id}" hidden></div>
           ${normaliseeHtml}
         </div>`;
+    }
+
+    // Apercu inline (fetch + blob + <iframe>, jamais window.open/target="_blank"
+    // - sans effet dans la webview desktop Tauri, voir js/api.js) - meme
+    // pattern que apercevoirPiece() de dossier.html. Un clic sur un apercu
+    // deja ouvert le referme (bascule), pas de nouvel appel reseau inutile.
+    async function toggleApercu(containerId, url) {
+      const el = document.getElementById(containerId);
+      if (!el) return;
+      if (!el.hidden) {
+        el.hidden = true;
+        el.innerHTML = "";
+        return;
+      }
+      el.hidden = false;
+      el.innerHTML = '<p class="muted">Chargement de l\'aperçu…</p>';
+      try {
+        const response = await fetch(url, { credentials: "include" });
+        if (!response.ok) throw new Error("Aperçu indisponible.");
+        const blob = await response.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        el.innerHTML = `<iframe src="${objectUrl}" style="width:100%; height:500px; border:1px solid var(--border); border-radius:8px; margin-top:8px;"></iframe>`;
+      } catch (err) {
+        el.innerHTML = `<p class="error visible">${escapeHtml(err.message)}</p>`;
+      }
     }
 
     async function chargerFactures() {
@@ -112,18 +142,13 @@
         listeEl.querySelectorAll("[data-retirer-normalisee]").forEach((btn) => {
           btn.addEventListener("click", () => retirerNormalisee(btn.dataset.retirerNormalisee));
         });
-        // downloadFile() (voir js/api.js) plutot qu'un href+target="_blank" -
-        // sans effet dans la webview desktop, meme raison que partout
-        // ailleurs dans l'app (voir commentaire detaille dans api.js).
-        listeEl.querySelectorAll("[data-voir-normalisee]").forEach((link) => {
-          link.addEventListener("click", async (event) => {
-            event.preventDefault();
-            try {
-              await downloadFile(`/api/factures/${link.dataset.voirNormalisee}/facture-normalisee`, link.dataset.numero);
-            } catch (err) {
-              showError(errorEl, err.message);
-            }
-          });
+        listeEl.querySelectorAll("[data-apercu-facture]").forEach((btn) => {
+          const id = btn.dataset.apercuFacture;
+          btn.addEventListener("click", () => toggleApercu(`apercu-facture-${id}`, `/api/factures/${id}/pdf`));
+        });
+        listeEl.querySelectorAll("[data-apercu-normalisee]").forEach((btn) => {
+          const id = btn.dataset.apercuNormalisee;
+          btn.addEventListener("click", () => toggleApercu(`apercu-normalisee-${id}`, `/api/factures/${id}/facture-normalisee?inline=1`));
         });
       } catch (err) {
         listeEl.innerHTML = `<p class="error visible">${escapeHtml(err.message)}</p>`;
