@@ -99,6 +99,23 @@ describe("obtenirContenuComplet", () => {
 
     await expect(obtenirContenuComplet(connexion(), "msg-3")).rejects.toThrow(/HTTP 404/);
   });
+
+  it("préserve les paragraphes du HTML (jamais tout aplati sur une seule ligne comme l'extrait de contexte)", async () => {
+    const { obtenirContenuComplet } = await import("../gmailClient");
+    const html = "<p>Premier paragraphe.</p><p>Deuxième paragraphe.</p><p>Troisième.<br/>Suite sur une nouvelle ligne.</p>";
+    fetchMock.mockResolvedValueOnce(
+      reponseJson({
+        internalDate: "1700000000000",
+        payload: { mimeType: "text/html", body: { data: Buffer.from(html, "utf8").toString("base64url") } },
+      })
+    );
+
+    const texte = await obtenirContenuComplet(connexion(), "msg-4");
+
+    expect(texte).toBe(
+      "Premier paragraphe.\n\nDeuxième paragraphe.\n\nTroisième.\nSuite sur une nouvelle ligne."
+    );
+  });
 });
 
 describe("envoyerReponse", () => {

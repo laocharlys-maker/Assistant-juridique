@@ -198,6 +198,39 @@ function htmlVersTexte(html: string): string {
     .trim();
 }
 
+/**
+ * Comme htmlVersTexte ci-dessus, mais destine a l'AFFICHAGE COMPLET d'un
+ * email (bouton "Lire", voir obtenirContenuComplet plus bas) - preserve les
+ * sauts de ligne/paragraphes au lieu de tout aplatir sur une seule ligne.
+ * htmlVersTexte fait cet aplatissement DELIBEREMENT pour fabriquer un court
+ * extrait de contexte compact (corpsTexte, utilise par detectionDate.ts) -
+ * reutiliser cette meme fonction pour un email entier rendait la lecture
+ * complete illisible (constate en usage reel : un mail HTML normalement mis
+ * en page ressortait comme un unique bloc de texte sans aucune separation).
+ * Jamais de HTML brut renvoye au client - toujours du texte pur converti
+ * ici, meme raisonnement de securite que htmlVersTexte (evite tout risque
+ * d'injection si ce texte est un jour insere dans le DOM sans passer par
+ * textContent).
+ */
+function htmlVersTexteLisible(html: string): string {
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|div|tr|li|h[1-6]|table)>/gi, "\n\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/[ \t]+/g, " ")
+    .replace(/[ \t]*\n[ \t]*/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 interface ExtractionCorps {
   textePlain?: string;
   texteHtml?: string;
@@ -316,7 +349,11 @@ export async function obtenirContenuComplet(
   const detail = (await res.json()) as GmailMessageDetail;
   const extraction: ExtractionCorps = { pieces: [] };
   if (detail.payload) explorerParties(detail.payload, extraction);
-  return extraction.textePlain || (extraction.texteHtml ? htmlVersTexte(extraction.texteHtml) : "");
+  // htmlVersTexteLisible (jamais htmlVersTexte, qui aplatit tout sur une
+  // seule ligne pour un extrait compact) : ici c'est l'email complet qui va
+  // etre affiche a l'avocat, la mise en page (paragraphes) doit rester
+  // lisible.
+  return extraction.textePlain || (extraction.texteHtml ? htmlVersTexteLisible(extraction.texteHtml) : "");
 }
 
 /** Encodage RFC 2047 ("encoded-word") d'un en-tete pouvant contenir des

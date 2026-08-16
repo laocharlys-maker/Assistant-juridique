@@ -1,12 +1,19 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Permissions de la fenetre principale Aurore : fonctionnalites core par defaut + execution du sidecar backend Node SEA + verification/installation de mises a jour (Lot 8, geree entierement cote Rust, voir updater.rs).",
+  "description": "Permissions de la fenetre principale Aurore : fonctionnalites core par defaut + execution du sidecar backend Node SEA + verification/installation de mises a jour (Lot 8, geree entierement cote Rust, voir updater.rs) + ouverture de liens externes (sources de jurisprudence) dans le navigateur systeme.",
   "windows": ["main"],
   "permissions": [
     "core:default",
     "shell:allow-execute",
     "updater:default",
-    "dialog:default"
+    "dialog:default",
+    {
+      "identifier": "shell:allow-open",
+      "allow": [
+        { "url": "https://**" },
+        { "url": "http://**" }
+      ]
+    }
   ]
 }

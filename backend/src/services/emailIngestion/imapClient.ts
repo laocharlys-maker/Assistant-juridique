@@ -103,6 +103,37 @@ function htmlVersTexte(html: string): string {
     .trim();
 }
 
+/**
+ * Comme htmlVersTexte ci-dessus, mais destine a l'AFFICHAGE COMPLET d'un
+ * email (bouton "Lire", voir obtenirContenuComplet plus bas) - preserve les
+ * sauts de ligne/paragraphes au lieu de tout aplatir sur une seule ligne.
+ * htmlVersTexte fait cet aplatissement DELIBEREMENT pour fabriquer un court
+ * extrait de contexte compact (corpsTexte, utilise par detectionDate.ts) -
+ * reutiliser cette meme fonction pour un email entier rendait la lecture
+ * complete illisible (constate en usage reel : un mail HTML normalement mis
+ * en page ressortait comme un unique bloc de texte sans aucune separation).
+ * Jamais de HTML brut renvoye au client - toujours du texte pur converti
+ * ici, meme raisonnement de securite que htmlVersTexte.
+ */
+function htmlVersTexteLisible(html: string): string {
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|div|tr|li|h[1-6]|table)>/gi, "\n\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/[ \t]+/g, " ")
+    .replace(/[ \t]*\n[ \t]*/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 async function lireFluxEnBuffer(stream: NodeJS.ReadableStream): Promise<Buffer> {
   const morceaux: Buffer[] = [];
   for await (const morceau of stream) {
@@ -116,6 +147,18 @@ async function lireFluxEnBuffer(stream: NodeJS.ReadableStream): Promise<Buffer> 
  * par numero de sequence). `download()` d'imapflow decode automatiquement
  * l'encodage de transfert (base64/quoted-printable) et le charset du corps
  * texte - jamais besoin de le refaire manuellement ici.
+ *
+ * Reessaie automatiquement (jusqu'a 3 tentatives, court delai croissant) en
+ * cas d'erreur "Connection not available" (code NoConnection d'imapflow) -
+ * constate en usage reel UNIQUEMENT lors du polling automatique planifie
+ * (services/emailIngestion/polling.ts, toutes les 5 minutes), jamais lors
+ * d'une action interactive de l'utilisateur ("Lire"/"Répondre", voir
+ * obtenirContenuComplet/envoyerReponse ci-dessous, qui reussissent
+ * systematiquement) - hypothese la plus probable : une limite du nombre de
+ * connexions IMAP simultanees cote fournisseur (Yahoo notamment), le cycle
+ * de polling planifie pouvant tomber pendant que l'utilisateur a lui-meme
+ * une session IMAP active. Toute AUTRE erreur (authentification,
+ * configuration, hote injoignable...) remonte immediatement, sans reessai.
  */
 export async function listerEmailsRecents(
   connexion: ConnexionEmailExterne,
@@ -123,6 +166,26 @@ export async function listerEmailsRecents(
 ): Promise<EmailRecu[]> {
   const identifiants = identifiantsDe(connexion);
   const maxResultats = options.maxResultats ?? 20;
+  const TENTATIVES_MAX = 3;
+
+  let derniereErreur: unknown;
+  for (let tentative = 1; tentative <= TENTATIVES_MAX; tentative++) {
+    try {
+      return await listerEmailsRecentsUneFois(identifiants, maxResultats);
+    } catch (error) {
+      derniereErreur = error;
+      const code = (error as { code?: string })?.code;
+      if (code !== "NoConnection" || tentative === TENTATIVES_MAX) throw error;
+      console.warn(
+        `[imap] connexion indisponible (tentative ${tentative}/${TENTATIVES_MAX}) - nouvel essai dans ${tentative * 2}s...`
+      );
+      await new Promise((resolve) => setTimeout(resolve, tentative * 2000));
+    }
+  }
+  throw derniereErreur;
+}
+
+async function listerEmailsRecentsUneFois(identifiants: IdentifiantsImap, maxResultats: number): Promise<EmailRecu[]> {
   const client = await ouvrirClient(identifiants);
   try {
     const lock = await client.getMailboxLock("INBOX");
@@ -225,7 +288,11 @@ export async function obtenirContenuComplet(connexion: ConnexionEmailExterne, id
       if (!repere.partTexte) return "";
       const { content } = await client.download(uid, repere.partTexte, { uid: true });
       const brut = (await lireFluxEnBuffer(content)).toString("utf8");
-      return repere.partTexteEstHtml ? htmlVersTexte(brut) : brut;
+      // htmlVersTexteLisible (jamais htmlVersTexte, qui aplatit tout sur une
+      // seule ligne pour un extrait compact) : ici c'est l'email complet qui
+      // va etre affiche a l'avocat, la mise en page (paragraphes) doit
+      // rester lisible.
+      return repere.partTexteEstHtml ? htmlVersTexteLisible(brut) : brut;
     } finally {
       lock.release();
     }
