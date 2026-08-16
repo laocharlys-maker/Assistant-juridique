@@ -62,6 +62,25 @@
   DetailPrint "Fermeture d'une eventuelle instance d'Aurore deja en cours..."
   nsExec::ExecToLog 'taskkill /F /IM aurore-backend.exe /T'
   Pop $0
+  ; BUG CORRIGE (constate le 2026-08-16, cause du blocage silencieux
+  ; d'une reinstallation par-dessus une instance en cours) : le processus
+  ; reel s'appelle aurore-desktop.exe (nom du crate Rust, src-tauri/Cargo.toml
+  ; `name = "aurore-desktop"`, aucun mainBinaryName ne le redefinit dans
+  ; tauri.conf.json) - PAS "Aurore.exe" (qui n'existe nulle part, seulement
+  ; le productName utilise pour le raccourci/titre de fenetre). Ce taskkill
+  ; visant un nom de process inexistant echouait TOUJOURS silencieusement
+  ; (voir commentaire ci-dessus sur l'echec silencieux, delibere pour le cas
+  ; "Aurore pas lance" - mais qui masquait aussi ce vrai bug de nom errone) :
+  ; le process principal restait donc actif pendant l'installation, verrouillant
+  ; aurore-desktop.exe et faisant echouer TOUT le reste de la copie de
+  ; fichiers des le premier fichier verrouille rencontre - explique une
+  ; reinstallation "reussie" en apparence (aucune erreur affichee a
+  ; l'installeur) mais n'ayant EN REALITE rien copie du tout.
+  nsExec::ExecToLog 'taskkill /F /IM aurore-desktop.exe /T'
+  Pop $0
+  ; Conserve en plus, au cas ou un futur changement de tauri.conf.json
+  ; (mainBinaryName) renommerait un jour le binaire en Aurore.exe - echec
+  ; silencieux sans consequence si ce nom ne correspond a rien, comme prevu.
   nsExec::ExecToLog 'taskkill /F /IM Aurore.exe /T'
   Pop $0
   ; Laisse Windows liberer les handles de fichiers juste apres la
@@ -89,6 +108,10 @@
   ; suppression de fichier verrouille si Aurore tourne encore au moment de
   ; la desinstallation.
   nsExec::ExecToLog 'taskkill /F /IM aurore-backend.exe /T'
+  Pop $0
+  ; aurore-desktop.exe : voir le commentaire "BUG CORRIGE" de
+  ; NSIS_HOOK_PREINSTALL ci-dessus (meme correction, meme raison).
+  nsExec::ExecToLog 'taskkill /F /IM aurore-desktop.exe /T'
   Pop $0
   nsExec::ExecToLog 'taskkill /F /IM Aurore.exe /T'
   Pop $0
