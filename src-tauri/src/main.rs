@@ -151,7 +151,27 @@ fn main() {
                 // La coquille desktop est TOUJOURS en mode standalone/local
                 // (Lot 2) : Postgres portable est initialise/demarre par le
                 // sidecar lui-meme, jamais une DATABASE_URL de VPS.
-                .env("DATABASE_MODE", "portable");
+                .env("DATABASE_MODE", "portable")
+                // Constate en conditions reelles (2026-08-16) : un antivirus
+                // (Kaspersky, mais le meme probleme existe avec d'autres -
+                // Avast, ESET, Bitdefender, ou un proxy d'entreprise) qui
+                // "analyse le trafic chiffre" intercepte les connexions
+                // TLS/IMAP sortantes (ex: imap.mail.yahoo.com:993) et les
+                // re-signe avec son PROPRE certificat racine, installe dans
+                // le magasin de certificats Windows mais PAS dans la liste
+                // de CA embarquee par defaut dans Node (Node n'utilise pas
+                // le magasin systeme par defaut) - la connexion echoue avec
+                // "self-signed certificate in certificate chain", meme si le
+                // vrai serveur distant est parfaitement legitime. Verifie
+                // empiriquement : le meme test de connexion TLS reussit avec
+                // ce flag et echoue sans. --use-system-ca (stable depuis
+                // Node 22) fait confiance, EN PLUS de la liste Node
+                // integree, a tout ce que Windows lui-meme considere comme
+                // une autorite de certification de confiance - resout ce cas
+                // pour n'importe quel antivirus/proxy similaire chez
+                // n'importe quel futur cabinet, sans jamais desactiver la
+                // verification TLS elle-meme (rejectUnauthorized reste actif).
+                .env("NODE_OPTIONS", "--use-system-ca");
             let (mut rx, child) = match sidecar_command.spawn() {
                 Ok(result) => result,
                 Err(err) => {

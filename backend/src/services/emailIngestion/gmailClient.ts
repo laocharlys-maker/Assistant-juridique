@@ -230,6 +230,14 @@ export async function listerEmailsRecents(
   const maxResultats = options.maxResultats ?? 20;
   const listeRes = await gmailFetch(connexion, `/messages?maxResults=${maxResultats}&labelIds=INBOX`);
   if (!listeRes.ok) {
+    // Corps de la reponse Google journalise (jamais expose a l'utilisateur,
+    // seulement dans aurore-shell.log) : le message utilisateur "HTTP 403"
+    // seul ne permet pas de distinguer une API non activee ("Gmail API has
+    // not been used in project...") d'un scope insuffisant ou d'un jeton
+    // revoque - constate concretement le 2026-08-16, diagnostic impossible
+    // sans cette information.
+    const corpsErreur = await listeRes.text().catch(() => "");
+    console.error(`[gmail] echec de listage des emails (HTTP ${listeRes.status}) : ${corpsErreur}`);
     throw new Error(`Gmail : échec de listage des emails (HTTP ${listeRes.status})`);
   }
   const liste = (await listeRes.json()) as { messages?: Array<{ id: string }> };
