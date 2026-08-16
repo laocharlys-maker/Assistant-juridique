@@ -1,6 +1,6 @@
 [package]
 name = "aurore-desktop"
-version = "1.0.0"
+version = "1.0.1"
 description = "Coquille desktop Tauri pour Aurore : lance le backend Express/TS empaquete en executable Node SEA comme sidecar et affiche son interface dans une webview."
 edition = "2021"
 
@@ -36,3 +36,15 @@ tauri-plugin-dialog = "2"
 # Client HTTP synchrone minimal (pas de runtime async a gerer) pour le
 # health-check du sidecar avant d'afficher l'interface reelle.
 ureq = "2"
+# Ouverture d'un lien externe (sources de jurisprudence, WhatsApp...) avec le
+# navigateur par defaut du systeme - voir main.rs, commande
+# ouvrir_lien_externe. JAMAIS via `<a href target="_blank">` cote HTML : la
+# webview desktop (WebView2) n'a aucun gestionnaire pour une "nouvelle
+# fenetre" (main.rs n'ecoute que CloseRequested), le clic ne produit alors
+# STRICTEMENT AUCUN EFFET (voir public/js/api.js, downloadFile()). Choix de
+# la crate `open` (et non tauri-plugin-shell::open, deja present pour le
+# sidecar) plutot qu'une invocation `cmd /C start <url>` maison : passe par
+# ShellExecuteW de facon structuree, sans reinterpretation par un shell -
+# une URL contenant des caracteres speciaux (&, |, ^...) ne peut donc pas
+# etre detournee en injection de commande.
+open = "5"

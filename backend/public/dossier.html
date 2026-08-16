@@ -1089,7 +1089,7 @@
             <div class="source-block">
               <div><strong>${escapeHtml(s.reference)}</strong></div>
               <div class="muted">${escapeHtml(s.juridiction || (s.origine === "web" ? "source web" : "juridiction non précisée"))}${s.date ? " — " + escapeHtml(s.date) : ""}</div>
-              <a href="${escapeHtml(s.lien)}" target="_blank" rel="noopener">${escapeHtml(s.lien)}</a>
+              <a href="${escapeHtml(s.lien)}" class="lien-externe" rel="noopener">${escapeHtml(s.lien)}</a>
             </div>`
             )
             .join("")}

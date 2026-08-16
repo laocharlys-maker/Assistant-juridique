@@ -112,7 +112,7 @@
             <pre>${escapeHtml(apercuContenu(chunks))}</pre>
             ${
               premier.lien
-                ? `<p class="muted">🔗 <a href="${escapeHtml(premier.lien)}" target="_blank" rel="noopener">${escapeHtml(premier.lien)}</a></p>`
+                ? `<p class="muted">🔗 <a href="${escapeHtml(premier.lien)}" class="lien-externe" rel="noopener">${escapeHtml(premier.lien)}</a></p>`
                 : `<p class="error visible" style="margin:6px 0;">Aucun lien renseigné — cette source ne sera jamais citée dans une recherche de jurisprudence (voir README-LOT13.md).</p>
                    <form class="lien-form" data-lien-form="${idPrincipal}" style="display:flex; gap:8px; align-items:flex-end; margin:6px 0;">
                      <div style="flex:1;"><label style="margin:0 0 4px;">Ajouter le lien</label><input name="lien" type="url" placeholder="https://..." required /></div>

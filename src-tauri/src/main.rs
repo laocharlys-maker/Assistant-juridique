@@ -74,11 +74,38 @@ fn app_url() -> String {
     format!("http://127.0.0.1:{BACKEND_PORT}/")
 }
 
+/// Ouvre une URL http(s) externe avec le navigateur par defaut du systeme -
+/// seul moyen fiable de rendre un lien cliquable dans la webview desktop
+/// (voir commentaire de la dependance `open` dans Cargo.toml et
+/// public/js/api.js, ouvrirLienExterne()). Commande d'application classique
+/// (pas un plugin) : invocable depuis le JS sans entree dans capabilities/
+/// default.json, uniquement via `window.__TAURI__.core.invoke(...)`
+/// (necessite `app.withGlobalTauri: true`, voir tauri.conf.json - ce projet
+/// n'a pas de bundler JS pour injecter le paquet npm @tauri-apps/api dans
+/// public/js/).
+///
+/// Rejette explicitement tout ce qui n'est pas http/https : jamais de
+/// `file://` (fuite du systeme de fichiers local) ni d'un autre schema
+/// pouvant declencher un handler installe inattendu - les seuls appelants
+/// (sources de jurisprudence, WhatsApp) n'ont besoin que de web classique.
+#[tauri::command]
+fn ouvrir_lien_externe(url: String) -> Result<(), String> {
+    if !url.starts_with("http://") && !url.starts_with("https://") {
+        return Err("Lien refuse : seuls http:// et https:// sont autorises.".to_string());
+    }
+    // that_detached (jamais that()) : ne bloque JAMAIS ce thread de commande
+    // en attendant que le navigateur ouvert se ferme - garanti sur toutes
+    // les plateformes par la crate, alors que le comportement de that() a
+    // pu varier selon la plateforme/le navigateur cible par le passe.
+    open::that_detached(&url).map_err(|err| format!("impossible d'ouvrir le lien : {err}"))
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
+        .invoke_handler(tauri::generate_handler![ouvrir_lien_externe])
         .manage(SidecarState(Mutex::new(None)))
         .setup(|app| {
             let handle = app.handle().clone();

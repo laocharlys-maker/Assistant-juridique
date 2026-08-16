@@ -101,6 +101,45 @@ async function downloadFile(url, fallbackFilename) {
   showToast(`Téléchargement lancé : ${filename} — voir votre dossier Téléchargements.`);
 }
 
+/**
+ * Ouvre un lien externe (source de jurisprudence, WhatsApp...) avec le
+ * navigateur par defaut du systeme. Meme raison que downloadFile()
+ * ci-dessus : `<a href target="_blank">` n'a strictement aucun effet dans
+ * la webview desktop Tauri. Passe par la commande Rust ouvrir_lien_externe
+ * (voir src-tauri/src/main.rs) via window.__TAURI__.core.invoke - exposee
+ * globalement par `app.withGlobalTauri: true` (tauri.conf.json), seule
+ * option sans bundler JS pour ces scripts charges en balise <script> brute.
+ * En dehors du contexte Tauri (page ouverte dans un navigateur classique,
+ * ex: developpement), window.__TAURI__ est absent : repli sur
+ * window.open(), comportement normal d'un navigateur.
+ */
+async function ouvrirLienExterne(url) {
+  if (!url) return;
+  try {
+    if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === "function") {
+      await window.__TAURI__.core.invoke("ouvrir_lien_externe", { url });
+    } else {
+      window.open(url, "_blank", "noopener,noreferrer");
+    }
+  } catch (err) {
+    console.error("[lien-externe] impossible d'ouvrir le lien :", err);
+    showToast(`Impossible d'ouvrir ce lien automatiquement. Adresse : ${url}`);
+  }
+}
+
+// Delegation globale (une seule fois, sur document) plutot qu'un
+// addEventListener par lien genere dynamiquement : couvre tout lien
+// `class="lien-externe"` insere par n'importe quelle page via innerHTML
+// (sources de jurisprudence, WhatsApp...), y compris ceux ajoutes apres
+// coup (resultat de recherche, etc.), sans avoir a re-brancher un listener
+// a chaque rendu.
+document.addEventListener("click", (event) => {
+  const lien = event.target.closest("a.lien-externe");
+  if (!lien) return;
+  event.preventDefault();
+  ouvrirLienExterne(lien.getAttribute("href"));
+});
+
 async function apiFetch(path, options = {}) {
   const response = await fetch(path, {
     ...options,

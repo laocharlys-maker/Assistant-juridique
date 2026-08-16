@@ -2484,7 +2484,7 @@
           <div class="source-block">
             <div><strong>${escapeHtmlAttr(s.reference)}</strong></div>
             <div class="muted">${escapeHtmlAttr(s.juridiction || (s.origine === "web" ? "source web" : "juridiction non précisée"))}${s.date ? " — " + escapeHtmlAttr(s.date) : ""}</div>
-            <a href="${escapeHtmlAttr(s.lien)}" target="_blank" rel="noopener">${escapeHtmlAttr(s.lien)}</a>
+            <a href="${escapeHtmlAttr(s.lien)}" class="lien-externe" rel="noopener">${escapeHtmlAttr(s.lien)}</a>
           </div>`
           )
           .join("")}
@@ -2496,6 +2496,13 @@
     // decision a bien ete ajoutee a la base (case cochee sur le formulaire),
     // ou signale l'echec sans faire disparaitre le resume deja genere
     // ci-dessus (voir routes/webActions.ts, "resume_pdf").
+    //
+    // indexation.lien est un lien INTERNE (route API authentifiee, voir
+    // construireLienInterneDocument()), jamais une URL externe - contrairement
+    // aux sources de jurisprudence (renderSourcesJurisprudence ci-dessus), il
+    // ne doit donc jamais passer par ouvrirLienExterne()/le navigateur
+    // systeme (qui n'aurait pas le cookie de session et recevrait un 401) :
+    // meme mecanisme fetch+blob+<iframe> que apercevoirPiece() (dossier.html).
     function renderJurisprudenceIndexation(indexation) {
       if (!indexation) {
         resultJurisprudenceIndexationEl.style.display = "none";
@@ -2503,10 +2510,42 @@
         return;
       }
       resultJurisprudenceIndexationEl.innerHTML = indexation.ok
-        ? `<p class="muted">✅ Décision ajoutée à la base de jurisprudence (${indexation.chunkCount} bloc${indexation.chunkCount > 1 ? "s" : ""} indexé${indexation.chunkCount > 1 ? "s" : ""}). <a href="${escapeHtmlAttr(indexation.lien)}" target="_blank" rel="noopener">Consulter le PDF</a></p>`
+        ? `<p class="muted">✅ Décision ajoutée à la base de jurisprudence (${indexation.chunkCount} bloc${indexation.chunkCount > 1 ? "s" : ""} indexé${indexation.chunkCount > 1 ? "s" : ""}). <a href="#" class="lien-pdf-interne" data-url="${escapeHtmlAttr(indexation.lien)}">Consulter le PDF</a></p>
+           <div id="apercu-pdf-jurisprudence" hidden></div>`
         : `<p class="error visible" style="margin:0;">${escapeHtmlAttr(indexation.erreur)}</p>`;
       resultJurisprudenceIndexationEl.style.display = "block";
     }
+
+    async function apercevoirPdfJurisprudence(url) {
+      const previewEl = document.getElementById("apercu-pdf-jurisprudence");
+      if (!previewEl) return;
+      if (!previewEl.hidden) {
+        previewEl.hidden = true;
+        previewEl.innerHTML = "";
+        return;
+      }
+      try {
+        const response = await fetch(url, { credentials: "include" });
+        if (!response.ok) throw new Error("Aperçu indisponible.");
+        const blob = await response.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        previewEl.innerHTML = `<iframe src="${objectUrl}" style="width:100%; height:500px; border:1px solid var(--border); border-radius:8px; margin-top:8px;"></iframe>`;
+        previewEl.hidden = false;
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+
+    // Delegation sur le conteneur stable (jamais recree, contrairement a son
+    // contenu regenere par innerHTML a chaque rendu) - couvre le lien "Consulter
+    // le PDF" quel que soit le nombre de fois ou renderJurisprudenceIndexation()
+    // le regenere.
+    resultJurisprudenceIndexationEl.addEventListener("click", (event) => {
+      const lien = event.target.closest("a.lien-pdf-interne");
+      if (!lien) return;
+      event.preventDefault();
+      apercevoirPdfJurisprudence(lien.dataset.url);
+    });
 
     async function submitForm(type, payload, submitButton) {
       hideError(errorEl);
