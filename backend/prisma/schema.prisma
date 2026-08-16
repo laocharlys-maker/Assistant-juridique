@@ -613,6 +613,19 @@ model ConnexionEmailExterne {
   imapUsername String?  @map("imap_username")
   imapPassword String?  @map("imap_password")
 
+  // --- SMTP (optionnel, IMAP uniquement) --- pour permettre de repondre a
+  // un email depuis une boite IMAP generique (Gmail repond via l'API Gmail
+  // elle-meme, pas besoin de SMTP separe). Facultatif : une connexion IMAP
+  // sans smtpHost renseigne reste utilisable en lecture, seul le bouton
+  // "Repondre" est simplement absent. Reutilise imapUsername/imapPassword
+  // pour l'authentification SMTP (meme identifiants pour les deux
+  // protocoles chez la grande majorite des fournisseurs) - pas de nouveau
+  // champ secret, donc rien a ajouter a ENCRYPTED_FIELDS_BY_MODEL
+  // (security/prismaEncryption.ts).
+  smtpHost   String?  @map("smtp_host")
+  smtpPort   Int?     @map("smtp_port")
+  smtpSecure Boolean  @default(false) @map("smtp_secure")
+
   // Curseur de polling : dernier identifiant de message deja recupere
   // (Gmail messageId le plus recent, ou UID IMAP le plus eleve) - evite de
   // re-lister les emails deja vus a chaque cycle node-cron.
@@ -961,6 +974,25 @@ model Facture {
   payeeAt           DateTime?     @map("payee_at")
   createdBy         String        @map("created_by")
   createdAt         DateTime      @default(now()) @map("created_at")
+
+  // --- Facture normalisee (SYGMEF), suivi comptable ---
+  // Toujours distincte de `numero`/`payeeAt` ci-dessus (numerotation et
+  // paiement INTERNES a Aurore) : la facture normalisee est emise a part par
+  // l'avocat sur son propre compte SYGMEF (voir avertissement affiche sur
+  // l'ecran Facturation), avec son propre numero fiscal et sa propre date de
+  // paiement effective - qui peuvent differer des valeurs internes. Un seul
+  // PDF par facture (pas une liste comme DocumentDossier) : les champs
+  // vivent directement ici plutot que dans une table separee. Le PDF
+  // lui-meme n'est JAMAIS stocke en clair - meme mecanisme chiffre au repos
+  // (AES-256-GCM) que les pieces de dossier, voir services/
+  // factureNormaliseePdf.ts (passerelle vers services/stockageDocuments.ts,
+  // Lot 15).
+  factureNormaliseeNumero       String?   @map("facture_normalisee_numero")
+  factureNormaliseeDatePaiement DateTime? @map("facture_normalisee_date_paiement")
+  factureNormaliseeNomFichier   String?   @map("facture_normalisee_nom_fichier")
+  factureNormaliseeNomOriginal  String?   @map("facture_normalisee_nom_original")
+  factureNormaliseeTailleOctets Int?      @map("facture_normalisee_taille_octets")
+  factureNormaliseeAjouteeAt    DateTime? @map("facture_normalisee_ajoutee_at")
 
   cabinet Cabinet  @relation(fields: [cabinetId], references: [id])
   dossier Dossier? @relation(fields: [dossierId], references: [id])

@@ -254,6 +254,9 @@ CREATE TABLE "connexions_email_externe" (
     "imap_secure" BOOLEAN NOT NULL DEFAULT true,
     "imap_username" TEXT,
     "imap_password" TEXT,
+    "smtp_host" TEXT,
+    "smtp_port" INTEGER,
+    "smtp_secure" BOOLEAN NOT NULL DEFAULT false,
     "dernier_identifiant_synchronise" TEXT,
     "actif" BOOLEAN NOT NULL DEFAULT true,
     "derniere_erreur" TEXT,
@@ -410,6 +413,12 @@ CREATE TABLE "factures" (
     "payee_at" TIMESTAMP(3),
     "created_by" TEXT NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "facture_normalisee_numero" TEXT,
+    "facture_normalisee_date_paiement" TIMESTAMP(3),
+    "facture_normalisee_nom_fichier" TEXT,
+    "facture_normalisee_nom_original" TEXT,
+    "facture_normalisee_taille_octets" INTEGER,
+    "facture_normalisee_ajoutee_at" TIMESTAMP(3),
 
     CONSTRAINT "factures_pkey" PRIMARY KEY ("id")
 );

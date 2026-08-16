@@ -439,6 +439,13 @@ async function main() {
     // jobs/traitementOcr.ts pour la justification du choix).
     const { scheduleOcrQueue } = await import("./jobs/traitementOcr");
     scheduleOcrQueue();
+
+    // Suppression automatique des delais dont la date limite est depassee
+    // de plus de 3 jours (ecran "Échéances") - une fois par jour, independant
+    // du mode de base de donnees. Le bouton "Supprimer" manuel (echeances.html)
+    // reste disponible des le depassement, sans attendre ces 3 jours.
+    const { scheduleSuppressionDelaisExpires } = await import("./jobs/suppressionDelaisExpires");
+    scheduleSuppressionDelaisExpires();
   } catch (error) {
     if (stopPortableDatabase) {
       console.error("Echec du demarrage apres l'ouverture de Postgres portable - arret de Postgres avant de quitter...");

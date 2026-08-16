@@ -102,7 +102,7 @@ async function downloadFile(url, fallbackFilename) {
 }
 
 /**
- * Ouvre un lien externe (source de jurisprudence, WhatsApp...) avec le
+ * Ouvre un lien externe (source de jurisprudence...) avec le
  * navigateur par defaut du systeme. Meme raison que downloadFile()
  * ci-dessus : `<a href target="_blank">` n'a strictement aucun effet dans
  * la webview desktop Tauri. Passe par la commande Rust ouvrir_lien_externe
@@ -130,7 +130,7 @@ async function ouvrirLienExterne(url) {
 // Delegation globale (une seule fois, sur document) plutot qu'un
 // addEventListener par lien genere dynamiquement : couvre tout lien
 // `class="lien-externe"` insere par n'importe quelle page via innerHTML
-// (sources de jurisprudence, WhatsApp...), y compris ceux ajoutes apres
+// (sources de jurisprudence...), y compris ceux ajoutes apres
 // coup (resultat de recherche, etc.), sans avoir a re-brancher un listener
 // a chaque rendu.
 document.addEventListener("click", (event) => {

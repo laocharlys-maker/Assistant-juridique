@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aurore — Factures payées</title>
+  <link rel="icon" type="image/png" href="/favicon-256.png" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="page">
+    <div class="page-hero">
+      <div class="eyebrow">Cabinet</div>
+      <h1>Factures payées</h1>
+      <p>Suivi comptable : toute facture marquée « payée » apparaît automatiquement ici. Tu peux y attacher le PDF de la facture normalisée (SYGMEF) correspondante, avec sa date de paiement et son numéro fiscal.</p>
+    </div>
+
+    <div id="error" class="error"></div>
+
+    <div class="card">
+      <h2>Factures payées</h2>
+      <div id="liste"><p class="muted">Chargement…</p></div>
+    </div>
+  </div>
+
+  <!-- Attacher/modifier la facture normalisee -->
+  <div class="modal-overlay" id="attacher-modal" hidden>
+    <div class="modal-box">
+      <h2>Facture normalisée (SYGMEF)</h2>
+      <div id="attacher-error" class="error"></div>
+      <p class="muted" id="attacher-contexte"></p>
+      <form id="attacher-form">
+        <label>N° de facture normalisée (facultatif)</label>
+        <input name="numero" placeholder="ex: SYGMEF-2026-000123" />
+        <label>Date de paiement</label>
+        <input name="datePaiement" type="date" required />
+        <label>PDF de la facture normalisée</label>
+        <input name="fichier" id="attacher-fichier" type="file" accept="application/pdf" required />
+        <div style="display:flex; gap:10px; margin-top:14px;">
+          <button type="submit" class="btn-sm">Enregistrer</button>
+          <button type="button" class="ghost" id="attacher-annuler-btn">Annuler</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/layout.js"></script>
+  <script>
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str ?? "";
+      return div.innerHTML;
+    }
+    function formatDate(iso) {
+      return formatDateLongue(iso);
+    }
+    function formatMontant(montant) {
+      return `${montant.toLocaleString("fr-FR")} F CFA`;
+    }
+
+    const errorEl = document.getElementById("error");
+    const listeEl = document.getElementById("liste");
+    let facturesCache = [];
+
+    function renderFacture(f) {
+      const montantTtc = f.appliquerTva ? Math.round(f.montant * 1.18) : f.montant;
+      const normaliseeHtml = f.factureNormaliseeNomFichier
+        ? `
+          <div style="margin-top:8px; padding:8px; border-radius:8px; background:var(--accent-tint);">
+            <p style="margin:0;"><strong>Facture normalisée attachée</strong>${f.factureNormaliseeNumero ? ` — n° ${escapeHtml(f.factureNormaliseeNumero)}` : ""}</p>
+            <p class="muted" style="margin:4px 0;">Payée le ${formatDate(f.factureNormaliseeDatePaiement)}</p>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <a class="secondary" href="#" data-voir-normalisee="${f.id}" data-numero="${escapeHtml(f.factureNormaliseeNomOriginal || "facture-normalisee.pdf")}" style="text-decoration:none; margin:0;">Voir le PDF</a>
+              <button type="button" class="secondary btn-sm" data-modifier-normalisee="${f.id}">Modifier</button>
+              <button type="button" class="danger btn-sm" data-retirer-normalisee="${f.id}">Retirer</button>
+            </div>
+          </div>`
+        : `
+          <div style="margin-top:8px;">
+            <button type="button" class="secondary btn-sm" data-attacher="${f.id}">+ Attacher la facture normalisée</button>
+          </div>`;
+
+      return `
+        <div class="action-item">
+          <span class="tag">${escapeHtml(f.numero)}${f.dossier ? ` · ${escapeHtml(f.dossier.numeroDossier)} — ${escapeHtml(f.dossier.nomAffaire)}` : ""}</span>
+          <span class="badge badge-payee">Payée</span>
+          <div>Client : ${escapeHtml(f.clientNom || f.dossier?.nomClient || "-")}</div>
+          <div>${escapeHtml(f.description)}</div>
+          <p><strong>${f.appliquerTva ? `${formatMontant(f.montant)} HT — ${formatMontant(montantTtc)} TTC (TVA 18%)` : formatMontant(f.montant)}</strong></p>
+          <p class="muted">Émise le ${formatDate(f.dateEmission)} par ${escapeHtml(f.creePar?.nom || "-")} · payée le ${formatDate(f.payeeAt)}</p>
+          ${normaliseeHtml}
+        </div>`;
+    }
+
+    async function chargerFactures() {
+      hideError(errorEl);
+      try {
+        facturesCache = await apiFetch("/api/factures/payees");
+        if (facturesCache.length === 0) {
+          listeEl.innerHTML = '<p class="muted">Aucune facture payée pour l\'instant.</p>';
+          return;
+        }
+        listeEl.innerHTML = facturesCache.map(renderFacture).join("");
+
+        listeEl.querySelectorAll("[data-attacher]").forEach((btn) => {
+          btn.addEventListener("click", () => ouvrirAttacherModal(btn.dataset.attacher));
+        });
+        listeEl.querySelectorAll("[data-modifier-normalisee]").forEach((btn) => {
+          btn.addEventListener("click", () => ouvrirAttacherModal(btn.dataset.modifierNormalisee));
+        });
+        listeEl.querySelectorAll("[data-retirer-normalisee]").forEach((btn) => {
+          btn.addEventListener("click", () => retirerNormalisee(btn.dataset.retirerNormalisee));
+        });
+        // downloadFile() (voir js/api.js) plutot qu'un href+target="_blank" -
+        // sans effet dans la webview desktop, meme raison que partout
+        // ailleurs dans l'app (voir commentaire detaille dans api.js).
+        listeEl.querySelectorAll("[data-voir-normalisee]").forEach((link) => {
+          link.addEventListener("click", async (event) => {
+            event.preventDefault();
+            try {
+              await downloadFile(`/api/factures/${link.dataset.voirNormalisee}/facture-normalisee`, link.dataset.numero);
+            } catch (err) {
+              showError(errorEl, err.message);
+            }
+          });
+        });
+      } catch (err) {
+        listeEl.innerHTML = `<p class="error visible">${escapeHtml(err.message)}</p>`;
+      }
+    }
+
+    // --- Attacher/modifier la facture normalisee ---
+
+    let attacherCourant = null;
+
+    function ouvrirAttacherModal(factureId) {
+      const facture = facturesCache.find((f) => f.id === factureId);
+      if (!facture) return;
+      attacherCourant = factureId;
+      hideError(document.getElementById("attacher-error"));
+      document.getElementById("attacher-contexte").textContent = `Facture ${facture.numero} — ${facture.clientNom || facture.dossier?.nomClient || "-"}`;
+      const form = document.getElementById("attacher-form");
+      form.reset();
+      form.elements.numero.value = facture.factureNormaliseeNumero || "";
+      form.elements.datePaiement.value = facture.factureNormaliseeDatePaiement
+        ? new Date(facture.factureNormaliseeDatePaiement).toISOString().slice(0, 10)
+        : new Date().toISOString().slice(0, 10);
+      document.getElementById("attacher-modal").hidden = false;
+    }
+
+    document.getElementById("attacher-annuler-btn").addEventListener("click", () => {
+      document.getElementById("attacher-modal").hidden = true;
+      attacherCourant = null;
+    });
+
+    document.getElementById("attacher-form").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const errorEl2 = document.getElementById("attacher-error");
+      hideError(errorEl2);
+      const fichier = document.getElementById("attacher-fichier").files[0];
+      if (!fichier) {
+        showError(errorEl2, "Choisis un fichier PDF.");
+        return;
+      }
+      const fd = new FormData(e.target);
+      const reader = new FileReader();
+      reader.onload = async () => {
+        try {
+          await apiFetch(`/api/factures/${attacherCourant}/facture-normalisee`, {
+            method: "POST",
+            body: {
+              numero: fd.get("numero") || undefined,
+              datePaiement: fd.get("datePaiement"),
+              fichierDataUrl: reader.result,
+            },
+          });
+          document.getElementById("attacher-modal").hidden = true;
+          attacherCourant = null;
+          showToast("Facture normalisée enregistrée.");
+          await chargerFactures();
+        } catch (err) {
+          showError(errorEl2, err.message);
+        }
+      };
+      reader.onerror = () => showError(errorEl2, "Impossible de lire ce fichier.");
+      reader.readAsDataURL(fichier);
+    });
+
+    async function retirerNormalisee(factureId) {
+      if (!confirm("Retirer la facture normalisée attachée à cette facture ?")) return;
+      try {
+        await apiFetch(`/api/factures/${factureId}/facture-normalisee`, { method: "DELETE" });
+        await chargerFactures();
+      } catch (err) {
+        showError(errorEl, err.message);
+      }
+    }
+
+    (async () => {
+      const me = await requireSession();
+      if (!me) return;
+      initLayout(me);
+      if (me.role !== "titulaire" && me.role !== "avocat") {
+        document.querySelector(".page").innerHTML =
+          '<p class="error visible">Cette page est réservée aux avocats et à l\'administrateur du cabinet.</p>';
+        return;
+      }
+      await chargerFactures();
+    })();
+  </script>
+</body>
+</html>

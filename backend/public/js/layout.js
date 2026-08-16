@@ -43,6 +43,7 @@ const NAV_ITEMS = [
     ],
   },
   { href: "/factures.html", label: "Facturation", roles: ["titulaire", "avocat"], group: "Cabinet", icon: "invoice", moduleKey: "facturation" },
+  { href: "/factures-payees.html", label: "Factures payées", roles: ["titulaire", "avocat"], group: "Cabinet", icon: "invoice", moduleKey: "facturation" },
   { href: "/veille-juridique.html", label: "Veille juridique", roles: ["titulaire", "avocat"], group: "Cabinet", icon: "radar", moduleKey: "veille_juridique" },
   { href: "/audit-logs.html", label: "Journal d'audit", roles: ["titulaire"], group: "Cabinet", icon: "audit" },
   { href: "/parametres.html", label: "Paramètres", roles: ["titulaire"], group: "Cabinet", icon: "settings" },

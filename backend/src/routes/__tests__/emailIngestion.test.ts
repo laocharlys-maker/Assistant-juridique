@@ -41,10 +41,14 @@ vi.mock("../../services/emailIngestion/gmailClient", () => ({
   buildGmailAuthUrl: vi.fn(),
   exchangeCodeForTokens: vi.fn(),
   telechargerPieceJointe: vi.fn(),
+  obtenirContenuComplet: vi.fn(),
+  envoyerReponse: vi.fn(),
 }));
 vi.mock("../../services/emailIngestion/imapClient", () => ({
   testerConnexion: vi.fn(),
   telechargerPieceJointe: vi.fn(),
+  obtenirContenuComplet: vi.fn(),
+  envoyerReponse: vi.fn(),
 }));
 const suggererDossiersMock = vi.hoisted(() => vi.fn());
 vi.mock("../../services/emailIngestion/suggestionDossier", () => ({ suggererDossiers: suggererDossiersMock }));
@@ -168,5 +172,129 @@ describe("POST /api/email-ingestion/emails/:id/importer-piece - régression cras
       body: { attachmentId: "p1", dossierId: "11111111-1111-1111-1111-111111111111" },
     });
     expect(res.status).toBe(500);
+  });
+});
+
+describe("GET /api/email-ingestion/emails/:id/contenu", () => {
+  it("renvoie le texte du fournisseur, sans jamais écrire en base (aucun appel Prisma d'écriture)", async () => {
+    const { obtenirContenuComplet } = await import("../../services/emailIngestion/gmailClient");
+    vi.mocked(obtenirContenuComplet).mockResolvedValue("Bonjour, voici le corps complet de l'email.");
+    prismaMock.emailImporte.findFirst.mockResolvedValue({
+      id: "e1",
+      identifiantExterne: "ext-1",
+      connexion: { userId: "user-1", provider: "gmail" },
+    });
+
+    const res = await api("/api/email-ingestion/emails/e1/contenu");
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ texte: "Bonjour, voici le corps complet de l'email." });
+    // Aucune des methodes d'ecriture Prisma mockees n'est appelee par cette route.
+    expect(prismaMock.emailImporte.update).not.toHaveBeenCalled();
+  });
+
+  it("route vers imapClient quand connexion.provider === 'imap'", async () => {
+    const { obtenirContenuComplet: obtenirContenuCompletImap } = await import("../../services/emailIngestion/imapClient");
+    const { obtenirContenuComplet: obtenirContenuCompletGmail } = await import("../../services/emailIngestion/gmailClient");
+    vi.mocked(obtenirContenuCompletImap).mockResolvedValue("Texte IMAP");
+    prismaMock.emailImporte.findFirst.mockResolvedValue({
+      id: "e1",
+      identifiantExterne: "42",
+      connexion: { userId: "user-1", provider: "imap" },
+    });
+
+    const res = await api("/api/email-ingestion/emails/e1/contenu");
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ texte: "Texte IMAP" });
+    expect(obtenirContenuCompletImap).toHaveBeenCalledWith(expect.objectContaining({ provider: "imap" }), "42");
+    expect(obtenirContenuCompletGmail).not.toHaveBeenCalled();
+  });
+
+  it("renvoie 404 si l'email n'appartient pas à l'utilisateur (ou n'existe pas)", async () => {
+    prismaMock.emailImporte.findFirst.mockResolvedValue(null);
+    const res = await api("/api/email-ingestion/emails/e1/contenu");
+    expect(res.status).toBe(404);
+  });
+
+  it("renvoie 502 (jamais une exception non rattrapée) si le fournisseur échoue", async () => {
+    const { obtenirContenuComplet } = await import("../../services/emailIngestion/gmailClient");
+    vi.mocked(obtenirContenuComplet).mockRejectedValue(new Error("Gmail : échec de récupération de l'email (HTTP 404)"));
+    prismaMock.emailImporte.findFirst.mockResolvedValue({
+      id: "e1",
+      identifiantExterne: "ext-1",
+      connexion: { userId: "user-1", provider: "gmail" },
+    });
+
+    const res = await api("/api/email-ingestion/emails/e1/contenu");
+    expect(res.status).toBe(502);
+  });
+});
+
+describe("POST /api/email-ingestion/emails/:id/repondre", () => {
+  it("envoie la réponse via le bon fournisseur avec les bons destinataire/sujet/corps", async () => {
+    const { envoyerReponse } = await import("../../services/emailIngestion/gmailClient");
+    vi.mocked(envoyerReponse).mockResolvedValue(undefined);
+    prismaMock.emailImporte.findFirst.mockResolvedValue({
+      id: "e1",
+      identifiantExterne: "ext-1",
+      expediteurEmail: "client@exemple.fr",
+      objet: "Question sur mon dossier",
+      connexion: { userId: "user-1", provider: "gmail" },
+    });
+
+    const res = await api("/api/email-ingestion/emails/e1/repondre", {
+      method: "POST",
+      body: { corps: "Bonjour, je reviens vers vous." },
+    });
+
+    expect(res.status).toBe(200);
+    expect(envoyerReponse).toHaveBeenCalledWith(
+      expect.objectContaining({ provider: "gmail" }),
+      {
+        identifiantExterne: "ext-1",
+        destinataire: "client@exemple.fr",
+        sujet: "Question sur mon dossier",
+        corps: "Bonjour, je reviens vers vous.",
+      }
+    );
+  });
+
+  it("renvoie 400 si le corps du message est vide", async () => {
+    prismaMock.emailImporte.findFirst.mockResolvedValue({
+      id: "e1",
+      identifiantExterne: "ext-1",
+      connexion: { userId: "user-1", provider: "gmail" },
+    });
+    const res = await api("/api/email-ingestion/emails/e1/repondre", { method: "POST", body: { corps: "" } });
+    expect(res.status).toBe(400);
+  });
+
+  it("renvoie 404 si l'email n'appartient pas à l'utilisateur (ou n'existe pas)", async () => {
+    prismaMock.emailImporte.findFirst.mockResolvedValue(null);
+    const res = await api("/api/email-ingestion/emails/e1/repondre", { method: "POST", body: { corps: "Bonjour" } });
+    expect(res.status).toBe(404);
+  });
+
+  it("renvoie 502 avec le message d'erreur du fournisseur (jamais une exception non rattrapée) - ex: reconnexion Gmail nécessaire", async () => {
+    const { envoyerReponse } = await import("../../services/emailIngestion/gmailClient");
+    vi.mocked(envoyerReponse).mockRejectedValue(
+      new Error("Gmail : autorisation insuffisante pour répondre — reconnecte ton compte Gmail (Paramètres > Boîte mail) pour accorder la permission d'envoi.")
+    );
+    prismaMock.emailImporte.findFirst.mockResolvedValue({
+      id: "e1",
+      identifiantExterne: "ext-1",
+      objet: "Sujet",
+      connexion: { userId: "user-1", provider: "gmail" },
+    });
+
+    const res = await api("/api/email-ingestion/emails/e1/repondre", {
+      method: "POST",
+      body: { corps: "Bonjour" },
+    });
+
+    expect(res.status).toBe(502);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toContain("reconnecte ton compte Gmail");
   });
 });

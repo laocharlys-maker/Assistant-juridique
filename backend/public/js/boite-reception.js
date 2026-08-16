@@ -82,7 +82,10 @@ function renderCarte(email) {
       ${suggestionHtml}
       ${piecesHtml}
       ${dateDetecteeHtml}
-      <div style="margin-top:10px;">${ignorerBtn}</div>
+      <div style="margin-top:10px; display:flex; gap:10px; align-items:center;">
+        <button type="button" class="secondary btn-sm" data-lire="${email.id}">Lire / Répondre</button>
+        ${ignorerBtn}
+      </div>
     </div>`;
 }
 
@@ -103,6 +106,9 @@ function render() {
   });
   liste.querySelectorAll("[data-ignorer]").forEach((btn) => {
     btn.addEventListener("click", () => ignorerEmail(btn.dataset.ignorer));
+  });
+  liste.querySelectorAll("[data-lire]").forEach((btn) => {
+    btn.addEventListener("click", () => ouvrirLireModal(btn.dataset.lire));
   });
 }
 
@@ -209,6 +215,60 @@ document.getElementById("evenement-form").addEventListener("submit", async (e) =
     });
     document.getElementById("evenement-modal").hidden = true;
     await chargerEmails();
+  } catch (err) {
+    showError(errorEl, err.message);
+  }
+});
+
+// --- Lecture du contenu complet + reponse ---
+// Le contenu n'est JAMAIS mis en cache ni stocke cote client au-dela de
+// l'affichage courant : ferme le volet, rouvre-le, il est re-telecharge
+// depuis le fournisseur (voir routes/emailIngestion.ts, GET .../contenu -
+// aucune ecriture Prisma cote serveur non plus). `lireCourant` sert
+// uniquement a ignorer une reponse HTTP tardive si l'utilisateur a deja
+// ferme le volet ou ouvert un autre email entre-temps.
+
+let lireCourant = null;
+
+function ouvrirLireModal(emailId) {
+  lireCourant = emailId;
+  hideError(document.getElementById("lire-error"));
+  document.getElementById("lire-contenu").textContent = "Chargement…";
+  document.getElementById("lire-reponse-form").reset();
+  document.getElementById("lire-modal").hidden = false;
+  chargerContenuEmail(emailId);
+}
+
+async function chargerContenuEmail(emailId) {
+  try {
+    const data = await apiFetch(`/api/email-ingestion/emails/${emailId}/contenu`);
+    if (lireCourant !== emailId) return;
+    document.getElementById("lire-contenu").textContent = data.texte || "(email vide ou illisible)";
+  } catch (err) {
+    if (lireCourant !== emailId) return;
+    document.getElementById("lire-contenu").textContent = "";
+    showError(document.getElementById("lire-error"), err.message);
+  }
+}
+
+document.getElementById("lire-fermer-btn").addEventListener("click", () => {
+  document.getElementById("lire-modal").hidden = true;
+  lireCourant = null;
+});
+
+document.getElementById("lire-reponse-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const errorEl = document.getElementById("lire-error");
+  hideError(errorEl);
+  const fd = new FormData(e.target);
+  try {
+    await apiFetch(`/api/email-ingestion/emails/${lireCourant}/repondre`, {
+      method: "POST",
+      body: { corps: fd.get("corps") },
+    });
+    document.getElementById("lire-modal").hidden = true;
+    lireCourant = null;
+    showToast("Réponse envoyée.");
   } catch (err) {
     showError(errorEl, err.message);
   }

@@ -47,6 +47,23 @@
     </div>
   </div>
 
+  <!-- Lecture du contenu complet + reponse (recupere a la demande, jamais stocke) -->
+  <div class="modal-overlay" id="lire-modal" hidden>
+    <div class="modal-box">
+      <h2>Contenu de l'email</h2>
+      <div id="lire-error" class="error"></div>
+      <div id="lire-contenu" class="muted" style="white-space:pre-wrap; max-height:320px; overflow-y:auto; padding:10px; border:1px solid var(--border); border-radius:8px; margin-bottom:14px;">Chargement…</div>
+      <form id="lire-reponse-form">
+        <label>Répondre</label>
+        <textarea name="corps" rows="6" placeholder="Ton message…" required></textarea>
+        <div style="display:flex; gap:10px; margin-top:14px;">
+          <button type="submit" class="btn-sm">Envoyer la réponse</button>
+          <button type="button" class="ghost" id="lire-fermer-btn">Fermer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Confirmation d'un evenement a partir d'une date detectee -->
   <div class="modal-overlay" id="evenement-modal" hidden>
     <div class="modal-box">

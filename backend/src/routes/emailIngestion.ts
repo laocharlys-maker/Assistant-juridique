@@ -4,8 +4,19 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
 import { isMissingConfigurationError } from "../lib/configurationError";
-import { buildGmailAuthUrl, exchangeCodeForTokens, telechargerPieceJointe as telechargerPieceJointeGmail } from "../services/emailIngestion/gmailClient";
-import { testerConnexion as testerConnexionImap, telechargerPieceJointe as telechargerPieceJointeImap } from "../services/emailIngestion/imapClient";
+import {
+  buildGmailAuthUrl,
+  exchangeCodeForTokens,
+  telechargerPieceJointe as telechargerPieceJointeGmail,
+  obtenirContenuComplet as obtenirContenuCompletGmail,
+  envoyerReponse as envoyerReponseGmail,
+} from "../services/emailIngestion/gmailClient";
+import {
+  testerConnexion as testerConnexionImap,
+  telechargerPieceJointe as telechargerPieceJointeImap,
+  obtenirContenuComplet as obtenirContenuCompletImap,
+  envoyerReponse as envoyerReponseImap,
+} from "../services/emailIngestion/imapClient";
 import { suggererDossiers } from "../services/emailIngestion/suggestionDossier";
 import { enregistrerFichier } from "../services/stockageDocuments";
 import { enqueuerSyncEvenement } from "../services/calendrierSync/syncQueue";
@@ -63,6 +74,7 @@ emailIngestionRouter.get("/api/email-ingestion/statut", requireAuth, async (req,
         adresseEmail: true,
         imapHost: true,
         imapUsername: true,
+        smtpHost: true,
         derniereErreur: true,
         createdAt: true,
       },
@@ -144,6 +156,13 @@ const imapSchema = z.object({
   imapSecure: z.boolean().default(true),
   imapUsername: z.string().min(1),
   imapPassword: z.string().min(1),
+  // Facultatif : sans ces champs, la boîte reste utilisable en lecture,
+  // seul le bouton "Répondre" (voir POST .../repondre plus bas) reste
+  // absent tant qu'ils ne sont pas renseignés - voir services/emailIngestion/
+  // imapClient.ts, identifiantsSmtpDe().
+  smtpHost: z.string().min(1).optional(),
+  smtpPort: z.coerce.number().int().positive().optional(),
+  smtpSecure: z.boolean().default(false),
 });
 
 emailIngestionRouter.post("/api/email-ingestion/imap", requireAuth, async (req, res) => {
@@ -164,7 +183,7 @@ emailIngestionRouter.post("/api/email-ingestion/imap", requireAuth, async (req, 
     where: { userId_provider: { userId: req.auth!.userId, provider: "imap" } },
     create: { userId: req.auth!.userId, provider: "imap", ...parsed.data, actif: true },
     update: { ...parsed.data, actif: true, derniereErreur: null },
-    select: { id: true, provider: true, actif: true, imapHost: true, imapUsername: true, createdAt: true },
+    select: { id: true, provider: true, actif: true, imapHost: true, imapUsername: true, smtpHost: true, createdAt: true },
   });
 
   return res.status(201).json(connexion);
@@ -392,5 +411,80 @@ emailIngestionRouter.post("/api/email-ingestion/emails/:id/confirmer-evenement",
   } catch (error) {
     console.error("[email-ingestion] échec de confirmation d'événement :", error);
     return res.status(500).json({ error: "Impossible de confirmer cet événement (voir logs serveur)" });
+  }
+});
+
+// --- Lecture du contenu complet + reponse (a la demande, jamais persiste) ---
+
+// Simple passe-plat vers le fournisseur (Gmail/IMAP) a chaque appel - AUCUNE
+// ecriture Prisma dans cette route, contrairement a toutes les autres
+// ci-dessus : le corps complet d'un email n'est jamais stocke, exactement
+// comme documente dans README-LOT16.md pour dateDetecteeContexte (un simple
+// extrait), mais ici applique au corps entier - decision explicite du
+// prompt de ce lot ("rien ne doit être écrit en base").
+emailIngestionRouter.get("/api/email-ingestion/emails/:id/contenu", requireAuth, async (req, res) => {
+  try {
+    const email = await chargerEmailAccessible(req.params.id, req.auth!.userId);
+    if (!email) {
+      return res.status(404).json({ error: "Email introuvable" });
+    }
+
+    const texte =
+      email.connexion.provider === "gmail"
+        ? await obtenirContenuCompletGmail(email.connexion, email.identifiantExterne)
+        : await obtenirContenuCompletImap(email.connexion, email.identifiantExterne);
+
+    return res.json({ texte });
+  } catch (error) {
+    console.error("[email-ingestion] échec de récupération du contenu complet :", error instanceof Error ? error.message : error);
+    return res.status(502).json({
+      error: `Impossible de récupérer le contenu de cet email : ${error instanceof Error ? error.message : "erreur inconnue"}.`,
+    });
+  }
+});
+
+const repondreSchema = z.object({
+  corps: z.string().min(1),
+});
+
+// Reponse EXPLICITE (texte redige par l'utilisateur, jamais genere/envoye
+// automatiquement) - depuis l'adresse du cabinet elle-meme (Gmail : API
+// Gmail avec le jeton OAuth de l'utilisateur ; IMAP : SMTP avec les
+// identifiants de la connexion), jamais depuis un expediteur AzoMedIA
+// partage (contrairement a mailer.ts/Brevo, utilise uniquement pour les
+// notifications de la plateforme elle-meme).
+emailIngestionRouter.post("/api/email-ingestion/emails/:id/repondre", requireAuth, async (req, res) => {
+  try {
+    const email = await chargerEmailAccessible(req.params.id, req.auth!.userId);
+    if (!email) {
+      return res.status(404).json({ error: "Email introuvable" });
+    }
+
+    const parsed = repondreSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Formulaire invalide", details: parsed.error.issues });
+    }
+
+    const params = {
+      identifiantExterne: email.identifiantExterne,
+      destinataire: email.expediteurEmail,
+      sujet: email.objet || "(sans objet)",
+      corps: parsed.data.corps,
+    };
+
+    if (email.connexion.provider === "gmail") {
+      await envoyerReponseGmail(email.connexion, params);
+    } else {
+      await envoyerReponseImap(email.connexion, params);
+    }
+
+    console.log(`[email-ingestion] réponse envoyée : ${req.auth!.userId} -> email ${email.id} (destinataire ${email.expediteurEmail})`);
+
+    return res.json({ ok: true });
+  } catch (error) {
+    console.error("[email-ingestion] échec d'envoi de réponse :", error instanceof Error ? error.message : error);
+    return res.status(502).json({
+      error: error instanceof Error ? error.message : "Impossible d'envoyer la réponse (voir logs serveur)",
+    });
   }
 });

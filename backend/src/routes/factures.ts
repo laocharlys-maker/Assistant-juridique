@@ -8,6 +8,7 @@ import { resolveEntete } from "./documentExport";
 import { sendEmail } from "../services/mailer";
 import { resolveCabinetEmailIdentite } from "../services/cabinetContact";
 import { calculerMontant, formatDuree } from "../services/feuillesTemps";
+import { stockerFactureNormalisee, lireFactureNormalisee, supprimerFactureNormalisee } from "../services/factureNormaliseePdf";
 
 export const facturesRouter = Router();
 
@@ -201,6 +202,24 @@ facturesRouter.get("/api/factures", requireAuth, requireAvocat, async (req, res)
   return res.json(facturesTriees);
 });
 
+// Suivi comptable : toute facture au statut interne "payee" apparait ICI
+// automatiquement (simple filtre sur une donnee existante, jamais une
+// duplication/copie) - c'est exactement ce qui permet a l'ecran
+// "Factures payées" de rester a jour sans aucune action manuelle
+// supplementaire au moment ou une facture est marquee payee (PATCH
+// /api/factures/:id ci-dessous, inchange).
+facturesRouter.get("/api/factures/payees", requireAuth, requireAvocat, async (req, res) => {
+  const factures = await prisma.facture.findMany({
+    where: { cabinetId: req.auth!.cabinetId, statut: "payee" },
+    include: {
+      dossier: { select: { numeroDossier: true, nomAffaire: true, nomClient: true } },
+      creePar: { select: { nom: true } },
+    },
+    orderBy: { payeeAt: "desc" },
+  });
+  return res.json(factures);
+});
+
 // Pop-up "Factures en attente de paiement" (tableau de bord) : factures
 // envoyees et non payees (hors proforma) que CET utilisateur n'a pas
 // explicitement ecartees ("Ne plus me rappeler" - voir POST .../ignorer-rappel
@@ -364,4 +383,148 @@ facturesRouter.post("/api/factures/:id/envoyer", requireAuth, requireAvocat, asy
   });
 
   return res.json(updated);
+});
+
+// --- Facture normalisee (SYGMEF) : attachee UNIQUEMENT a une facture deja
+// payee (statut interne) - c'est le sens meme de l'ecran "Factures payées",
+// pas une piece jointe generique de dossier. Meme transport Data URL que
+// documentsDossier.ts (Lot 15), jamais multer - voir README-LOT15.md.
+
+const DATA_URL_PATTERN = /^data:([a-zA-Z0-9.+-]+\/[a-zA-Z0-9.+-]+);base64,(.+)$/;
+const TAILLE_MAX_FACTURE_NORMALISEE_OCTETS = 15 * 1024 * 1024;
+
+const factureNormaliseeSchema = z.object({
+  numero: z.string().trim().min(1).optional(),
+  datePaiement: z.string().min(1),
+  fichierDataUrl: z.string().min(1),
+});
+
+facturesRouter.post("/api/factures/:id/facture-normalisee", requireAuth, requireAvocat, async (req, res) => {
+  const facture = await loadFacture(req.params.id, req.auth!.cabinetId);
+  if (!facture) {
+    return res.status(404).json({ error: "Facture introuvable" });
+  }
+  // Contrainte du prompt : le suivi comptable ne concerne que les factures
+  // deja marquees payees en interne - attacher un PDF SYGMEF a une facture
+  // encore en brouillon/envoyee n'aurait pas de sens (la page "Factures
+  // payées" ne l'afficherait de toute facon jamais).
+  if (facture.statut !== "payee") {
+    return res.status(400).json({
+      error: "Cette facture n'est pas encore marquée payée — marque-la payée avant d'y attacher la facture normalisée.",
+    });
+  }
+
+  const parsed = factureNormaliseeSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Formulaire invalide", details: parsed.error.issues });
+  }
+
+  const datePaiement = new Date(parsed.data.datePaiement);
+  if (Number.isNaN(datePaiement.getTime())) {
+    return res.status(400).json({ error: "Date de paiement invalide" });
+  }
+
+  const match = parsed.data.fichierDataUrl.match(DATA_URL_PATTERN);
+  if (!match) {
+    return res.status(400).json({ error: "Fichier invalide (format inattendu)." });
+  }
+  const [, typeMime, base64Data] = match;
+  if (typeMime !== "application/pdf") {
+    return res.status(415).json({ error: `Type de fichier non autorisé (${typeMime}) — seul le PDF est accepté.` });
+  }
+
+  const contenu = Buffer.from(base64Data, "base64");
+  if (contenu.length === 0) {
+    return res.status(400).json({ error: "Fichier vide." });
+  }
+  if (contenu.length > TAILLE_MAX_FACTURE_NORMALISEE_OCTETS) {
+    return res.status(413).json({
+      error: `Fichier trop volumineux (${(contenu.length / (1024 * 1024)).toFixed(1)} Mo) — la taille maximale autorisée est de 15 Mo.`,
+    });
+  }
+
+  // Remplace un eventuel PDF deja attache (correction d'une erreur) - jamais
+  // d'accumulation silencieuse de fichiers orphelins sur disque.
+  if (facture.factureNormaliseeNomFichier) {
+    await supprimerFactureNormalisee(facture.id, facture.factureNormaliseeNomFichier).catch((error) => {
+      console.error(
+        `[factures] échec de suppression de l'ancien PDF normalisé (facture ${facture.id}, ignoré) :`,
+        error instanceof Error ? error.message : error
+      );
+    });
+  }
+
+  const { nomFichier, tailleOctets } = await stockerFactureNormalisee(facture.id, contenu);
+
+  const updated = await prisma.facture.update({
+    where: { id: facture.id },
+    data: {
+      factureNormaliseeNumero: parsed.data.numero || null,
+      factureNormaliseeDatePaiement: datePaiement,
+      factureNormaliseeNomFichier: nomFichier,
+      factureNormaliseeNomOriginal: `facture-normalisee-${facture.numero}.pdf`,
+      factureNormaliseeTailleOctets: tailleOctets,
+      factureNormaliseeAjouteeAt: new Date(),
+    },
+  });
+
+  console.log(`[factures] facture normalisée attachée : ${req.auth!.userId} -> facture ${facture.id}`);
+
+  return res.status(201).json(updated);
+});
+
+facturesRouter.get("/api/factures/:id/facture-normalisee", requireAuth, requireAvocat, async (req, res) => {
+  const facture = await loadFacture(req.params.id, req.auth!.cabinetId);
+  if (!facture || !facture.factureNormaliseeNomFichier) {
+    return res.status(404).json({ error: "Aucune facture normalisée attachée." });
+  }
+
+  let contenu: Buffer;
+  try {
+    contenu = await lireFactureNormalisee(facture.id, facture.factureNormaliseeNomFichier);
+  } catch (error) {
+    console.error(
+      `[factures] échec de lecture du PDF normalisé (facture ${facture.id}) :`,
+      error instanceof Error ? error.message : error
+    );
+    return res.status(500).json({ error: "Impossible de lire ce fichier (voir logs serveur)." });
+  }
+
+  const inline = req.query.inline === "1";
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader(
+    "Content-Disposition",
+    `${inline ? "inline" : "attachment"}; filename="${encodeURIComponent(facture.factureNormaliseeNomOriginal || "facture-normalisee.pdf")}"`
+  );
+  return res.send(contenu);
+});
+
+facturesRouter.delete("/api/factures/:id/facture-normalisee", requireAuth, requireAvocat, async (req, res) => {
+  const facture = await loadFacture(req.params.id, req.auth!.cabinetId);
+  if (!facture) {
+    return res.status(404).json({ error: "Facture introuvable" });
+  }
+
+  if (facture.factureNormaliseeNomFichier) {
+    await supprimerFactureNormalisee(facture.id, facture.factureNormaliseeNomFichier).catch((error) => {
+      console.error(
+        `[factures] échec de suppression du PDF normalisé (facture ${facture.id}, ignoré) :`,
+        error instanceof Error ? error.message : error
+      );
+    });
+  }
+
+  await prisma.facture.update({
+    where: { id: facture.id },
+    data: {
+      factureNormaliseeNumero: null,
+      factureNormaliseeDatePaiement: null,
+      factureNormaliseeNomFichier: null,
+      factureNormaliseeNomOriginal: null,
+      factureNormaliseeTailleOctets: null,
+      factureNormaliseeAjouteeAt: null,
+    },
+  });
+
+  return res.json({ ok: true });
 });

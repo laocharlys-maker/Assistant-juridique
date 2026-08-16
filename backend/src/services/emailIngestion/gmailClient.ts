@@ -15,15 +15,21 @@ import { EmailRecu, PieceJointeDetectee } from "./types";
  * compliquerait inutilement la reconnexion/revocation independante de
  * chacun (voir README-LOT16.md).
  *
- * Scope volontairement en LECTURE SEULE (gmail.readonly) : ce module ne
- * modifie/supprime jamais un email, ne pose jamais de libelle - principe du
+ * Scope : lecture (gmail.readonly) + envoi (gmail.send) UNIQUEMENT - jamais
+ * gmail.modify (qui autoriserait aussi supprimer/etiqueter) - principe du
  * moindre privilege, coherent avec "aucune automatisation silencieuse".
+ * gmail.send a ete ajoute au Lot "lecture complete + reponse" (2026-08-16) :
+ * une connexion existante creee AVANT cet ajout ne possede qu'un jeton
+ * autorise pour gmail.readonly - repondre echoue alors avec un 403 tant que
+ * l'utilisateur n'a pas reconnecte son compte Gmail (voir
+ * routes/emailIngestion.ts, le bouton "Connecter Gmail" redemande le
+ * consentement a chaque connexion, prompt=consent ci-dessous).
  */
 
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me";
-const GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
+const GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send";
 
 interface OAuthConfig {
   clientId: string;
@@ -137,11 +143,16 @@ export async function assurerAccessTokenValide(connexion: ConnexionEmailExterne)
   return accessToken;
 }
 
-async function gmailFetch(connexion: ConnexionEmailExterne, path: string): Promise<Response> {
+async function gmailFetch(connexion: ConnexionEmailExterne, path: string, init: RequestInit = {}): Promise<Response> {
   const accessToken = await assurerAccessTokenValide(connexion);
   return fetch(`${GMAIL_API}${path}`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
+    ...init,
+    headers: { ...init.headers, Authorization: `Bearer ${accessToken}` },
   });
+}
+
+function encodeBase64Url(data: string): string {
+  return Buffer.from(data, "utf8").toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
 function decodeBase64Url(data: string): Buffer {
@@ -283,4 +294,95 @@ export async function telechargerPieceJointe(
   }
   const data = (await res.json()) as { data: string };
   return decodeBase64Url(data.data);
+}
+
+/**
+ * Recupere le corps complet (texte) d'UN email, a la demande explicite de
+ * l'utilisateur (bouton "Lire") - JAMAIS ecrit en base (voir
+ * routes/emailIngestion.ts, route GET .../contenu : simple passe-plat,
+ * aucune ecriture Prisma). Le HTML est toujours converti en texte brut
+ * (htmlVersTexte, deja utilise ailleurs dans ce fichier) plutot que renvoye
+ * tel quel : evite tout risque d'injection si jamais ce texte etait un jour
+ * insere dans le DOM cote frontend sans passer par textContent.
+ */
+export async function obtenirContenuComplet(
+  connexion: ConnexionEmailExterne,
+  identifiantExterne: string
+): Promise<string> {
+  const res = await gmailFetch(connexion, `/messages/${identifiantExterne}?format=full`);
+  if (!res.ok) {
+    throw new Error(`Gmail : échec de récupération de l'email (HTTP ${res.status})`);
+  }
+  const detail = (await res.json()) as GmailMessageDetail;
+  const extraction: ExtractionCorps = { pieces: [] };
+  if (detail.payload) explorerParties(detail.payload, extraction);
+  return extraction.textePlain || (extraction.texteHtml ? htmlVersTexte(extraction.texteHtml) : "");
+}
+
+/** Encodage RFC 2047 ("encoded-word") d'un en-tete pouvant contenir des
+ * caracteres non-ASCII (accents...) - un en-tete brut UTF-8 non encode
+ * serait techniquement invalide et mal interprete par certains clients. */
+function encodeEnTete(valeur: string): string {
+  // eslint-disable-next-line no-control-regex
+  if (/^[\x00-\x7F]*$/.test(valeur)) return valeur;
+  return `=?UTF-8?B?${Buffer.from(valeur, "utf8").toString("base64")}?=`;
+}
+
+/**
+ * Envoie une reponse a un email, dans le MEME fil de discussion (threadId +
+ * In-Reply-To/References corrects) - a la confirmation explicite de
+ * l'utilisateur uniquement (voir routes/emailIngestion.ts, POST .../repondre).
+ * Necessite le scope gmail.send (voir commentaire d'en-tete de ce fichier) :
+ * une connexion Gmail plus ancienne sans ce scope echoue ici avec un 403
+ * explicite, message clair renvoye a l'appelant plutot qu'une erreur brute.
+ */
+export async function envoyerReponse(
+  connexion: ConnexionEmailExterne,
+  params: { identifiantExterne: string; destinataire: string; sujet: string; corps: string }
+): Promise<void> {
+  const metaRes = await gmailFetch(
+    connexion,
+    `/messages/${params.identifiantExterne}?format=metadata&metadataHeaders=Message-ID&metadataHeaders=References&metadataHeaders=Subject`
+  );
+  if (!metaRes.ok) {
+    throw new Error(`Gmail : email d'origine introuvable pour la réponse (HTTP ${metaRes.status})`);
+  }
+  const meta = (await metaRes.json()) as {
+    threadId: string;
+    payload?: { headers?: Array<{ name: string; value: string }> };
+  };
+  const headers = meta.payload?.headers || [];
+  const messageIdOrigine = extraireEnTete(headers, "Message-ID") || "";
+  const referencesOrigine = extraireEnTete(headers, "References") || "";
+  const sujetOrigine = extraireEnTete(headers, "Subject") || "";
+  const sujetReponse = /^re\s*:/i.test(sujetOrigine || params.sujet) ? (sujetOrigine || params.sujet) : `Re: ${sujetOrigine || params.sujet}`;
+  const references = [referencesOrigine, messageIdOrigine].filter(Boolean).join(" ");
+
+  const lignesEntete = [
+    connexion.adresseEmail ? `From: ${encodeEnTete(connexion.adresseEmail)}` : null,
+    `To: ${encodeEnTete(params.destinataire)}`,
+    `Subject: ${encodeEnTete(sujetReponse)}`,
+    messageIdOrigine ? `In-Reply-To: ${messageIdOrigine}` : null,
+    references ? `References: ${references}` : null,
+    `Content-Type: text/plain; charset="UTF-8"`,
+    `MIME-Version: 1.0`,
+  ].filter((ligne): ligne is string => ligne !== null);
+
+  const messageBrut = `${lignesEntete.join("\r\n")}\r\n\r\n${params.corps}`;
+
+  const res = await gmailFetch(connexion, `/messages/send`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ raw: encodeBase64Url(messageBrut), threadId: meta.threadId }),
+  });
+  if (!res.ok) {
+    const corpsErreur = await res.text().catch(() => "");
+    console.error(`[gmail] échec d'envoi de réponse (HTTP ${res.status}) : ${corpsErreur}`);
+    if (res.status === 403) {
+      throw new Error(
+        "Gmail : autorisation insuffisante pour répondre — reconnecte ton compte Gmail (Paramètres > Boîte mail) pour accorder la permission d'envoi."
+      );
+    }
+    throw new Error(`Gmail : échec de l'envoi de la réponse (HTTP ${res.status})`);
+  }
 }

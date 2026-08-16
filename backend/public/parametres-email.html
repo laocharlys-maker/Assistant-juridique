@@ -42,6 +42,12 @@
           <input name="imapUsername" required placeholder="ex: toi@exemple.com" />
           <label>Mot de passe (ou mot de passe d'application selon le fournisseur)</label>
           <input name="imapPassword" type="password" required />
+          <p class="muted" style="margin-top:14px;">Facultatif — pour pouvoir répondre aux emails depuis Aurore (mêmes identifiants que ci-dessus, la plupart des fournisseurs les partagent) :</p>
+          <label>Serveur SMTP (envoi)</label>
+          <input name="smtpHost" placeholder="ex: smtp.exemple.com" />
+          <label>Port SMTP</label>
+          <input name="smtpPort" type="number" value="587" />
+          <label><input name="smtpSecure" type="checkbox" style="width:auto; display:inline-block;" /> Connexion sécurisée directe (TLS implicite — décoché pour la plupart des fournisseurs, qui utilisent STARTTLS)</label>
           <button type="submit" class="btn-sm">Connecter</button>
         </form>
       </div>

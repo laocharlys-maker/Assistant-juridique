@@ -1,4 +1,5 @@
 import { ImapFlow, MessageStructureObject } from "imapflow";
+import nodemailer from "nodemailer";
 import type { ConnexionEmailExterne } from "@prisma/client";
 import { EmailRecu, PieceJointeDetectee } from "./types";
 
@@ -201,4 +202,120 @@ export async function telechargerPieceJointe(
 export async function testerConnexion(identifiants: IdentifiantsImap): Promise<void> {
   const client = await ouvrirClient(identifiants);
   await client.logout().catch(() => undefined);
+}
+
+/**
+ * Recupere le corps complet (texte) d'UN email par son UID, a la demande
+ * explicite de l'utilisateur (bouton "Lire") - JAMAIS ecrit en base (voir
+ * routes/emailIngestion.ts, route GET .../contenu : simple passe-plat).
+ * Meme logique d'extraction que listerEmailsRecents ci-dessus, mais pour un
+ * seul message identifie par son UID plutot qu'une plage.
+ */
+export async function obtenirContenuComplet(connexion: ConnexionEmailExterne, identifiantExterne: string): Promise<string> {
+  const identifiants = identifiantsDe(connexion);
+  const client = await ouvrirClient(identifiants);
+  try {
+    const lock = await client.getMailboxLock("INBOX");
+    try {
+      const uid = Number(identifiantExterne);
+      const message = await client.fetchOne(uid, { bodyStructure: true }, { uid: true });
+      if (!message) return "";
+      const repere: RepereCorps = { pieces: [] };
+      explorerStructure(message.bodyStructure, repere);
+      if (!repere.partTexte) return "";
+      const { content } = await client.download(uid, repere.partTexte, { uid: true });
+      const brut = (await lireFluxEnBuffer(content)).toString("utf8");
+      return repere.partTexteEstHtml ? htmlVersTexte(brut) : brut;
+    } finally {
+      lock.release();
+    }
+  } finally {
+    await client.logout().catch(() => undefined);
+  }
+}
+
+interface IdentifiantsSmtp {
+  smtpHost: string;
+  smtpPort: number;
+  smtpSecure: boolean;
+  imapUsername: string;
+  imapPassword: string;
+}
+
+function identifiantsSmtpDe(connexion: ConnexionEmailExterne): IdentifiantsSmtp {
+  if (!connexion.smtpHost || !connexion.smtpPort || !connexion.imapUsername || !connexion.imapPassword) {
+    throw new Error(
+      "Aucun serveur SMTP configuré pour cette boîte — ajoute-le dans Paramètres > Boîte mail pour pouvoir répondre."
+    );
+  }
+  return {
+    smtpHost: connexion.smtpHost,
+    smtpPort: connexion.smtpPort,
+    smtpSecure: connexion.smtpSecure,
+    imapUsername: connexion.imapUsername,
+    imapPassword: connexion.imapPassword,
+  };
+}
+
+/**
+ * Envoie une reponse a un email via SMTP (nodemailer), avec les en-tetes de
+ * fil de discussion corrects (In-Reply-To/References) - a la confirmation
+ * explicite de l'utilisateur uniquement (voir routes/emailIngestion.ts,
+ * POST .../repondre). Reutilise les MEMES identifiants que la connexion
+ * IMAP (imapUsername/imapPassword) : c'est le cas pour la grande majorite
+ * des fournisseurs (Yahoo, Outlook.com, la plupart des boites de cabinet).
+ */
+export async function envoyerReponse(
+  connexion: ConnexionEmailExterne,
+  params: { identifiantExterne: string; destinataire: string; sujet: string; corps: string }
+): Promise<void> {
+  const identifiantsImap = identifiantsDe(connexion);
+  const identifiantsSmtp = identifiantsSmtpDe(connexion);
+
+  let messageIdOrigine: string | undefined;
+  let sujetOrigine: string | undefined;
+  const client = await ouvrirClient(identifiantsImap);
+  try {
+    const lock = await client.getMailboxLock("INBOX");
+    try {
+      const message = await client.fetchOne(Number(params.identifiantExterne), { envelope: true }, { uid: true });
+      if (message) {
+        messageIdOrigine = message.envelope?.messageId;
+        sujetOrigine = message.envelope?.subject;
+      }
+    } finally {
+      lock.release();
+    }
+  } finally {
+    await client.logout().catch(() => undefined);
+  }
+
+  const sujetBase = sujetOrigine || params.sujet;
+  const sujetReponse = /^re\s*:/i.test(sujetBase) ? sujetBase : `Re: ${sujetBase}`;
+
+  const transport = nodemailer.createTransport({
+    host: identifiantsSmtp.smtpHost,
+    port: identifiantsSmtp.smtpPort,
+    secure: identifiantsSmtp.smtpSecure,
+    auth: { user: identifiantsSmtp.imapUsername, pass: identifiantsSmtp.imapPassword },
+  });
+
+  try {
+    await transport.sendMail({
+      from: identifiantsSmtp.imapUsername,
+      to: params.destinataire,
+      subject: sujetReponse,
+      text: params.corps,
+      inReplyTo: messageIdOrigine,
+      references: messageIdOrigine,
+    });
+  } catch (error) {
+    console.error(
+      `[imap] échec d'envoi de réponse SMTP (${identifiantsSmtp.smtpHost}:${identifiantsSmtp.smtpPort}) :`,
+      error instanceof Error ? error.message : error
+    );
+    throw new Error(
+      `Échec de l'envoi via ${identifiantsSmtp.smtpHost} : ${error instanceof Error ? error.message : "erreur inconnue"}.`
+    );
+  }
 }

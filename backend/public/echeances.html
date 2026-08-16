@@ -59,16 +59,39 @@
                 : jours === 0
                   ? "Aujourd'hui"
                   : `${jours} j restants`;
+            // Le delai est supprime automatiquement 3 jours apres son
+            // depassement (voir jobs/suppressionDelaisExpires.ts) - ce
+            // bouton permet une suppression manuelle immediate, des le
+            // depassement, sans attendre ces 3 jours.
+            const supprimerBtn =
+              jours < 0
+                ? `<button type="button" class="danger btn-sm" data-supprimer="${c.id}" style="margin-top:6px;">Supprimer</button>`
+                : "";
             return `
           <div class="action-item">
             <span class="tag">${escapeHtml(c.delaiType.nom)}${c.dossier ? " · " + escapeHtml(c.dossier.numeroDossier) + " — " + escapeHtml(c.dossier.nomAffaire) : ""}</span>
             <span class="badge ${badgeClass}">${badgeLabel}</span>
             <div>Départ : ${formatDateLongue(c.dateDepart)} → <strong>Date limite : ${formatDateLongue(c.dateLimite)}</strong></div>
             <p class="muted">${escapeHtml(c.delaiType.texteReference)} — calculé par ${escapeHtml(c.createdBy.nom)} le ${new Date(c.createdAt).toLocaleString("fr-FR")}</p>
-            ${c.dossier ? `<a class="secondary" href="/dossier.html?id=${c.dossier.id}" style="display:inline-block; text-decoration:none; padding:6px 12px; border-radius:6px; margin-top:6px;">Voir le dossier</a>` : ""}
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              ${c.dossier ? `<a class="secondary" href="/dossier.html?id=${c.dossier.id}" style="display:inline-block; text-decoration:none; padding:6px 12px; border-radius:6px; margin-top:6px;">Voir le dossier</a>` : ""}
+              ${supprimerBtn}
+            </div>
           </div>`;
           })
           .join("");
+
+        listEl.querySelectorAll("[data-supprimer]").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            if (!confirm("Supprimer ce délai dépassé ? Cette action est irréversible.")) return;
+            try {
+              await apiFetch(`/api/delais/${btn.dataset.supprimer}`, { method: "DELETE" });
+              await loadEcheances();
+            } catch (err) {
+              showError(document.getElementById("error"), err.message);
+            }
+          });
+        });
       } catch (err) {
         listEl.innerHTML = `<p class="error visible">${escapeHtml(err.message)}</p>`;
       }

@@ -48,6 +48,7 @@ function renderImapStatus(connexion) {
   }
   el.innerHTML = `
     <p>Connecté en tant que ${escapeHtml(connexion.imapUsername || "")} (${escapeHtml(connexion.imapHost || "")}) depuis le ${new Date(connexion.createdAt).toLocaleDateString("fr-FR")}.</p>
+    <p class="muted">${connexion.smtpHost ? "Réponse depuis Aurore activée (SMTP configuré)." : "Réponse depuis Aurore non activée — aucun serveur SMTP renseigné."}</p>
     ${connexion.derniereErreur ? `<p class="error visible">${escapeHtml(connexion.derniereErreur)}</p>` : ""}
     <button type="button" class="danger btn-sm" data-deconnecter="${connexion.id}">Déconnecter</button>`;
   form.style.display = "none";
@@ -95,6 +96,9 @@ document.getElementById("imap-form").addEventListener("submit", async (e) => {
         imapSecure: fd.get("imapSecure") === "on",
         imapUsername: fd.get("imapUsername"),
         imapPassword: fd.get("imapPassword"),
+        smtpHost: fd.get("smtpHost") || undefined,
+        smtpPort: fd.get("smtpPort") ? Number(fd.get("smtpPort")) : undefined,
+        smtpSecure: fd.get("smtpSecure") === "on",
       },
     });
     e.target.reset();
