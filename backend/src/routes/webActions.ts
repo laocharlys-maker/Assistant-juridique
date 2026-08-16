@@ -2236,8 +2236,8 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
       // Catch-all commun a TOUS les types d'action (voir la fin de ce
       // handler) - le fournisseur reellement en cause differe selon
       // l'action (Anthropic pour jurisprudence/recherche_juridique/
-      // resume_pdf, Groq pour le reste, Gemini pour les embeddings - voir
-      // ACTIONS_FORCANT_ANTHROPIC et services/llm/index.ts). Message et log
+      // resume_pdf/veille juridique, Gemini pour le reste ET les embeddings
+      // - voir ACTIONS_FORCANT_ANTHROPIC et services/llm/index.ts). Message et log
       // volontairement generiques : nommer un fournisseur precis ici serait
       // faux la moitie du temps et induirait l'utilisateur en erreur sur
       // lequel recharger (constate en usage reel - voir isProviderQuotaError).

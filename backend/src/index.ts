@@ -58,22 +58,26 @@ async function main() {
       process.env.SESSION_SECRET = loadOrCreateSessionSecret();
     }
 
-    // LLM_PROVIDER=groq (decision AzoMedIA, deja utilise sur le SaaS
-    // existant) : sans ce forçage, rien ne le positionnait jamais dans
-    // l'environnement du binaire empaquete (aucun .env livre - voir plus
-    // bas), donc le defaut Zod ("gemini", config/env.ts) s'appliquait
-    // silencieusement a la place - cause racine reelle du crash "Mise en
-    // demeure" (et de tout autre type d'acte) : getLlmProvider() tentait
-    // Gemini, sans cle, dans un chemin non protege par un try/catch local
-    // (voir routes/webActions.ts). Pas un secret (juste un choix de
+    // LLM_PROVIDER=gemini (decision AzoMedIA du 2026-08-14, remplace Groq -
+    // GEMINI_API_KEY est desormais bundlee et fonctionnelle, voir
+    // config/bundledExternalServiceKeys.ts) : sans ce forçage, rien ne le
+    // positionnait jamais dans l'environnement du binaire empaquete (aucun
+    // .env livre - voir plus bas), donc le defaut Zod ("gemini",
+    // config/env.ts) s'appliquait de toute facon silencieusement - cette
+    // ligne le rend explicite plutot que de dependre du defaut implicite du
+    // schema. Recherche/jurisprudence/resume PDF/veille juridique restent
+    // sur Anthropic quel que soit ce reglage (voir routes/webActions.ts,
+    // ACTIONS_FORCANT_ANTHROPIC, et services/llm/index.ts,
+    // getAnthropicProviderForced). Pas un secret (juste un choix de
     // fournisseur) : positionne directement, sans passer par le mecanisme
     // GitHub Secrets des identifiants ci-dessous.
     if (!process.env.LLM_PROVIDER) {
-      process.env.LLM_PROVIDER = "groq";
+      process.env.LLM_PROVIDER = "gemini";
     }
 
-    // Identifiants de services externes partages AzoMedIA (LLM Groq/Gemini,
-    // recherche web Tavily, envoi d'email SMTP/Brevo - decision Option A,
+    // Identifiants de services externes partages AzoMedIA (LLM
+    // Gemini/Anthropic/Groq, recherche web Tavily, envoi d'email SMTP/Brevo
+    // - decision Option A,
     // voir README-LOT8.md et config/bundledExternalServiceKeys.ts) : meme
     // principe que SESSION_SECRET juste au-dessus - ne comble QUE ce qu'un
     // .env n'a pas deja fourni, jamais un ecrasement. En pratique ce fichier
@@ -129,17 +133,22 @@ async function main() {
     // execute envSchema.parse(process.env) au chargement du module - UNE
     // SEULE FOIS pour toute la duree du process (cache des modules Node).
     // Place plus tot (comme dans une version precedente de ce fichier), cet
-    // import declenchait ce parsing PREMATUREMENT, AVANT que LLM_PROVIDER=
-    // groq et les cles bundlees ne soient poses sur process.env - l'objet
-    // `env` fige alors LLM_PROVIDER sur son defaut Zod ("gemini") et les
-    // cles API sur `undefined` pour tout le reste de l'execution (tous les
-    // fichiers import{ env } from "../config/env" partagent la MEME
-    // instance mise en cache), quoi qu'on assigne a process.env ensuite.
-    // Regression reelle constatee : "La generation de documents par IA
-    // n'est pas configuree..." sur TOUS les types d'actes, alors que
-    // GROQ_API_KEY etait bien injectee au build. Voir aussi
-    // services/llm/index.ts (getLlmProvider) et routes/webActions.ts
-    // (getLlmProviderSafe), qui lisent tous cette meme instance de `env`.
+    // import declenchait ce parsing PREMATUREMENT, AVANT que LLM_PROVIDER
+    // et les cles bundlees ne soient poses sur process.env - l'objet `env`
+    // fige alors les cles API sur `undefined` pour tout le reste de
+    // l'execution (tous les fichiers import{ env } from "../config/env"
+    // partagent la MEME instance mise en cache), quoi qu'on assigne a
+    // process.env ensuite. ATTENTION : depuis que LLM_PROVIDER vaut
+    // "gemini" (identique au defaut Zod de config/env.ts), ce bug d'ordre
+    // ne se manifeste plus par une valeur LLM_PROVIDER inattendue - il reste
+    // neanmoins tout aussi reel pour GEMINI_API_KEY/GROQ_API_KEY/etc.
+    // (figees sur `undefined`, causant "cle API manquante" malgre une cle
+    // bundlee valide). Regression reelle deja constatee par le passe : "La
+    // generation de documents par IA n'est pas configuree..." sur TOUS les
+    // types d'actes, alors que la cle du fournisseur actif etait bien
+    // injectee au build. Voir aussi services/llm/index.ts (getLlmProvider)
+    // et routes/webActions.ts (getLlmProviderSafe), qui lisent tous cette
+    // meme instance de `env`.
     {
       const { resetServerSessionEpoch } = await import("./services/auth");
       resetServerSessionEpoch();

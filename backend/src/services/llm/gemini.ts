@@ -14,7 +14,7 @@ export class GeminiProvider implements LlmProvider {
 
   async extractAction(rawInput: string): Promise<ActionOutput> {
     const model = this.client.getGenerativeModel({
-      model: "gemini-2.0-flash-001",
+      model: "gemini-3.6-flash",
       systemInstruction: LEGAL_ASSISTANT_SYSTEM_PROMPT,
       generationConfig: {
         responseMimeType: "application/json",
@@ -46,11 +46,14 @@ export class GeminiProvider implements LlmProvider {
 
   async redact(systemPrompt: string, userPrompt: string, options?: { maxTokens?: number }): Promise<string> {
     const model = this.client.getGenerativeModel({
-      model: "gemini-2.0-flash-001",
+      model: "gemini-3.6-flash",
       systemInstruction: systemPrompt,
-      // Explicite plutot que de compter sur le defaut du modele : certaines
-      // redactions (recherche de jurisprudence approfondie) visent
-      // desormais jusqu'a 3000 mots avec tableaux comparatifs.
+      // Explicite plutot que de compter sur le defaut du modele. Gemini
+      // gere desormais tous les types de document SAUF recherche
+      // juridique/jurisprudence/resume PDF/veille juridique (sur Anthropic,
+      // voir services/llm/index.ts, getAnthropicProviderForced) - ce
+      // defaut de 8192 n'a donc plus a absorber les fiches de jurisprudence
+      // longues (jusqu'a 3000 mots), qui ne passent plus par ce chemin.
       generationConfig: { maxOutputTokens: options?.maxTokens ?? 8192 },
     });
 
