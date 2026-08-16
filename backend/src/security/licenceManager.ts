@@ -6,6 +6,7 @@ import { userDataDir, secretsDir } from "../database/portablePaths";
 import { appRoot } from "../lib/seaPaths";
 import { LICENCE_PUBLIC_KEY_PEM } from "../config/licencePublicKey";
 import { getMachineFingerprint } from "./machineFingerprint";
+import { appliquerConfigurationDistante } from "../services/llm/registreModeles";
 
 /**
  * Module Licence (Lot 3) : verification cryptographique + gestion de
@@ -403,6 +404,16 @@ function getAppVersion(): string {
 const phoneHomeResponseSchema = z.object({
   revoquee: z.boolean().optional(),
   licence: licenceFileSchema.optional(),
+  // Lot 22 : modele LLM actif par fournisseur (ex: { "gemini": "gemini-2.5-flash" }),
+  // envoye par un serveur aurore-licence-service equipe du Lot 22 - absent
+  // pour un serveur plus ancien. z.record(z.string()) reste coherent avec le
+  // schema non strict deja en place (voir isMissingConfigurationError et le
+  // rapport d'inspection Lot 4 : les champs additionnels/inconnus ne cassent
+  // jamais .safeParse(), ils sont simplement ignores si non declares ici -
+  // ce champ est desormais declare, donc lu, mais n'importe quelle cle de
+  // fournisseur non geree par registreModeles.ts sera elle-meme ignoree par
+  // appliquerConfigurationDistante).
+  modelesLlmActifs: z.record(z.string()).optional(),
 });
 
 export interface PhoneHomeResult {
@@ -487,6 +498,15 @@ export async function runPhoneHomeCheck(options: { force?: boolean } = {}): Prom
   const parsed = phoneHomeResponseSchema.safeParse(body);
   if (!parsed.success) {
     return { ok: false, action: "reponse-invalide", message: "Réponse du service de licence dans un format inattendu." };
+  }
+
+  // Lot 22 : applique la configuration distante des modeles LLM des qu'une
+  // reponse phone-home valide en contient une - independamment du
+  // renouvellement/revocation de licence ci-dessous (voir registreModeles.ts,
+  // appliquerConfigurationDistante : ignore silencieusement si absent ou
+  // deja a jour, ne modifie jamais le modele de repli).
+  if (parsed.data.modelesLlmActifs) {
+    appliquerConfigurationDistante(parsed.data.modelesLlmActifs);
   }
 
   if (parsed.data.licence) {

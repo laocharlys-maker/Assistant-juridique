@@ -4,6 +4,7 @@ import { LEGAL_ASSISTANT_SYSTEM_PROMPT, buildUserPrompt } from "../../prompts/le
 import { LlmProvider, LlmOutputError } from "./types";
 import { withTransientRetry } from "../../lib/retry";
 import { MissingConfigurationError } from "../../lib/configurationError";
+import { appelerAvecRepli } from "./registreModeles";
 
 export class GeminiProvider implements LlmProvider {
   private client: GoogleGenerativeAI;
@@ -13,18 +14,20 @@ export class GeminiProvider implements LlmProvider {
   }
 
   async extractAction(rawInput: string): Promise<ActionOutput> {
-    const model = this.client.getGenerativeModel({
-      model: "gemini-3.6-flash",
-      systemInstruction: LEGAL_ASSISTANT_SYSTEM_PROMPT,
-      generationConfig: {
-        responseMimeType: "application/json",
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        responseSchema: actionOutputJsonSchema as any,
-      },
-    });
+    const text = await appelerAvecRepli("gemini", async (nomModele) => {
+      const model = this.client.getGenerativeModel({
+        model: nomModele,
+        systemInstruction: LEGAL_ASSISTANT_SYSTEM_PROMPT,
+        generationConfig: {
+          responseMimeType: "application/json",
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          responseSchema: actionOutputJsonSchema as any,
+        },
+      });
 
-    const result = await withTransientRetry(() => model.generateContent(buildUserPrompt(rawInput)));
-    const text = result.response.text();
+      const result = await withTransientRetry(() => model.generateContent(buildUserPrompt(rawInput)));
+      return result.response.text();
+    });
 
     let parsed: unknown;
     try {
@@ -45,20 +48,22 @@ export class GeminiProvider implements LlmProvider {
   }
 
   async redact(systemPrompt: string, userPrompt: string, options?: { maxTokens?: number }): Promise<string> {
-    const model = this.client.getGenerativeModel({
-      model: "gemini-3.6-flash",
-      systemInstruction: systemPrompt,
-      // Explicite plutot que de compter sur le defaut du modele. Gemini
-      // gere desormais tous les types de document SAUF recherche
-      // juridique/jurisprudence/resume PDF/veille juridique (sur Anthropic,
-      // voir services/llm/index.ts, getAnthropicProviderForced) - ce
-      // defaut de 8192 n'a donc plus a absorber les fiches de jurisprudence
-      // longues (jusqu'a 3000 mots), qui ne passent plus par ce chemin.
-      generationConfig: { maxOutputTokens: options?.maxTokens ?? 8192 },
-    });
+    return appelerAvecRepli("gemini", async (nomModele) => {
+      const model = this.client.getGenerativeModel({
+        model: nomModele,
+        systemInstruction: systemPrompt,
+        // Explicite plutot que de compter sur le defaut du modele. Gemini
+        // gere desormais tous les types de document SAUF recherche
+        // juridique/jurisprudence/resume PDF/veille juridique (sur Anthropic,
+        // voir services/llm/index.ts, getAnthropicProviderForced) - ce
+        // defaut de 8192 n'a donc plus a absorber les fiches de jurisprudence
+        // longues (jusqu'a 3000 mots), qui ne passent plus par ce chemin.
+        generationConfig: { maxOutputTokens: options?.maxTokens ?? 8192 },
+      });
 
-    const result = await withTransientRetry(() => model.generateContent(userPrompt));
-    return result.response.text();
+      const result = await withTransientRetry(() => model.generateContent(userPrompt));
+      return result.response.text();
+    });
   }
 }
 

@@ -80,3 +80,87 @@ describe("AnthropicProvider.redact - log stop_reason/usage (régression JURIS-17
     logSpy.mockRestore();
   });
 });
+
+/**
+ * Lot 22 : repli automatique sur le modele de secours quand le modele
+ * principal ("claude-sonnet-5", voir registreModeles.ts) est refuse par
+ * Anthropic pour une raison caracteristique d'un modele retire/renomme -
+ * jamais sur une cle invalide/quota epuise (voir registreModeles.test.ts
+ * pour la couverture exhaustive de cette distinction ; ici on verifie
+ * seulement le branchement reel dans AnthropicProvider).
+ */
+describe("AnthropicProvider - repli automatique de modele (Lot22)", () => {
+  function erreurModeleIndisponible() {
+    return Object.assign(new Error('404 {"type":"error","error":{"type":"not_found_error","message":"model: claude-sonnet-5 not_found"}}'), {
+      status: 404,
+    });
+  }
+
+  function toolUseValide() {
+    return {
+      content: [
+        {
+          type: "tool_use",
+          input: {
+            type_action: "notes",
+            categorie_texte: "Note",
+            numero_dossier: null,
+            nom_affaire: null,
+            nom_client: null,
+            date_audience: null,
+            nom_juridiction: null,
+            nom_chambre: null,
+            decision: null,
+            prochaine_audience: null,
+            pieces_prevoir: null,
+            synthese: null,
+            argumentaire: null,
+          },
+        },
+      ],
+    };
+  }
+
+  it("extractAction : reessaie avec le modele de repli si le principal est indisponible, sans erreur pour l'appelant", async () => {
+    createMock.mockRejectedValueOnce(erreurModeleIndisponible());
+    createMock.mockResolvedValueOnce(toolUseValide());
+    const provider = createAnthropicProvider();
+
+    const resultat = await provider.extractAction("texte source");
+
+    expect(resultat.type_action).toBe("notes");
+    expect(createMock).toHaveBeenCalledTimes(2);
+    expect(createMock.mock.calls[0]![0]).toMatchObject({ model: "claude-sonnet-5" });
+    expect(createMock.mock.calls[1]![0]).toMatchObject({ model: "claude-haiku-4-5-20251001" });
+  });
+
+  it("redact : reessaie avec le modele de repli si le principal est indisponible", async () => {
+    createMock.mockRejectedValueOnce(erreurModeleIndisponible());
+    createMock.mockResolvedValueOnce(reponseAnthropic({ texte: "Texte redige par le modele de repli." }));
+    const provider = createAnthropicProvider();
+
+    const resultat = await provider.redact("system", "user");
+
+    expect(resultat).toBe("Texte redige par le modele de repli.");
+    expect(createMock.mock.calls[0]![0]).toMatchObject({ model: "claude-sonnet-5" });
+    expect(createMock.mock.calls[1]![0]).toMatchObject({ model: "claude-haiku-4-5-20251001" });
+  });
+
+  it("ne declenche AUCUN repli sur une cle API invalide (401) - l'erreur remonte telle quelle", async () => {
+    const erreurCleInvalide = Object.assign(new Error("401 authentication_error: invalid x-api-key"), { status: 401 });
+    createMock.mockRejectedValueOnce(erreurCleInvalide);
+    const provider = createAnthropicProvider();
+
+    await expect(provider.redact("system", "user")).rejects.toThrow(erreurCleInvalide);
+    expect(createMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("ne declenche AUCUN repli sur un quota epuise (429) - l'erreur remonte telle quelle", async () => {
+    const erreurQuota = Object.assign(new Error("429 rate_limit_exceeded"), { status: 429 });
+    createMock.mockRejectedValueOnce(erreurQuota);
+    const provider = createAnthropicProvider();
+
+    await expect(provider.redact("system", "user")).rejects.toThrow(erreurQuota);
+    expect(createMock).toHaveBeenCalledTimes(1);
+  });
+});
