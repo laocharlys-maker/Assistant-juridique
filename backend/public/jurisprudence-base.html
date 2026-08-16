@@ -108,7 +108,7 @@
             return `
           <div class="action-item">
             <span class="tag">${escapeHtml(premier.source)}${premier.juridiction ? " · " + escapeHtml(premier.juridiction) : ""}</span>
-            <div><strong>${escapeHtml(premier.reference)}</strong>${premier.dateDecision ? " — " + escapeHtml(premier.dateDecision) : ""}${multiChunks ? ` <span class="tag" style="margin-left:6px;">${chunks.length} chunks</span>` : ""}</div>
+            <div><strong>${escapeHtml(premier.reference)}</strong>${premier.dateDecision ? " — " + escapeHtml(premier.dateDecision) : ""}${multiChunks ? ` <span class="tag" style="margin-left:6px;">Décision longue, indexée en ${chunks.length} parties</span>` : ""}</div>
             <pre>${escapeHtml(apercuContenu(chunks))}</pre>
             ${
               premier.lien
@@ -119,7 +119,7 @@
                      <button type="submit" class="btn-sm">Enregistrer</button>
                    </form>`
             }
-            <button type="button" class="secondary" data-delete="${idPrincipal}">Supprimer${multiChunks ? ` (${chunks.length} chunks)` : ""}</button>
+            <button type="button" class="secondary" data-delete="${idPrincipal}">Supprimer${multiChunks ? ` (décision entière, ${chunks.length} parties)` : ""}</button>
           </div>`;
           })
           .join("");

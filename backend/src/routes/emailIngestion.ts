@@ -45,22 +45,34 @@ async function chargerDossierAccessible(dossierId: string, cabinetId: string) {
 
 // --- Statut des connexions (jamais les tokens/mots de passe) ---
 
+// Sans try/catch, une erreur ici (Prisma, dechiffrement au repos - voir
+// security/prismaEncryption.ts) resterait une promesse rejetee non
+// rattrapee : le filet de securite de index.ts (process.on("unhandledRejection",
+// ...)) arrete alors TOUT le backend, pas seulement cette requete - constate
+// en usage reel sur d'autres routes de ce type (voir jurisprudenceBase.ts,
+// meme raisonnement). D'ou ce try/catch explicite sur chaque route
+// ci-dessous, meme celles qui semblaient jusqu'ici "sans risque".
 emailIngestionRouter.get("/api/email-ingestion/statut", requireAuth, async (req, res) => {
-  const connexions = await prisma.connexionEmailExterne.findMany({
-    where: { userId: req.auth!.userId },
-    select: {
-      id: true,
-      provider: true,
-      actif: true,
-      adresseEmail: true,
-      imapHost: true,
-      imapUsername: true,
-      derniereErreur: true,
-      createdAt: true,
-    },
-    orderBy: { createdAt: "asc" },
-  });
-  return res.json(connexions);
+  try {
+    const connexions = await prisma.connexionEmailExterne.findMany({
+      where: { userId: req.auth!.userId },
+      select: {
+        id: true,
+        provider: true,
+        actif: true,
+        adresseEmail: true,
+        imapHost: true,
+        imapUsername: true,
+        derniereErreur: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: "asc" },
+    });
+    return res.json(connexions);
+  } catch (error) {
+    console.error("[email-ingestion] échec de lecture du statut des connexions :", error);
+    return res.status(500).json({ error: "Impossible de charger le statut des boîtes mail connectées (voir logs serveur)" });
+  }
 });
 
 // --- Connexion Gmail (OAuth2) ---
@@ -178,28 +190,33 @@ function piecesJointesDe(valeur: unknown): PieceJointeDetectee[] {
 }
 
 emailIngestionRouter.get("/api/email-ingestion/emails", requireAuth, async (req, res) => {
-  const emails = await prisma.emailImporte.findMany({
-    where: { connexion: { userId: req.auth!.userId } },
-    orderBy: { dateReception: "desc" },
-    take: 50,
-  });
+  try {
+    const emails = await prisma.emailImporte.findMany({
+      where: { connexion: { userId: req.auth!.userId } },
+      orderBy: { dateReception: "desc" },
+      take: 50,
+    });
 
-  const resultats = await Promise.all(
-    emails.map(async (email) => ({
-      id: email.id,
-      expediteurEmail: email.expediteurEmail,
-      expediteurNom: email.expediteurNom,
-      objet: email.objet,
-      dateReception: email.dateReception,
-      piecesJointes: piecesJointesDe(email.piecesJointes),
-      dateDetectee: email.dateDetectee,
-      dateDetecteeContexte: email.dateDetecteeContexte,
-      statut: email.statut,
-      dossiersSuggeres: await suggererDossiers(prisma, req.auth!.cabinetId, email.expediteurEmail),
-    }))
-  );
+    const resultats = await Promise.all(
+      emails.map(async (email) => ({
+        id: email.id,
+        expediteurEmail: email.expediteurEmail,
+        expediteurNom: email.expediteurNom,
+        objet: email.objet,
+        dateReception: email.dateReception,
+        piecesJointes: piecesJointesDe(email.piecesJointes),
+        dateDetectee: email.dateDetectee,
+        dateDetecteeContexte: email.dateDetecteeContexte,
+        statut: email.statut,
+        dossiersSuggeres: await suggererDossiers(prisma, req.auth!.cabinetId, email.expediteurEmail),
+      }))
+    );
 
-  return res.json(resultats);
+    return res.json(resultats);
+  } catch (error) {
+    console.error("[email-ingestion] échec de chargement de la boîte de réception :", error);
+    return res.status(500).json({ error: "Impossible de charger la boîte de réception (voir logs serveur)" });
+  }
 });
 
 async function chargerEmailAccessible(id: string, userId: string) {
@@ -212,12 +229,17 @@ async function chargerEmailAccessible(id: string, userId: string) {
 // Ignore explicitement l'email (aucune piece importee, aucun evenement
 // cree) - marque simplement "traite" pour ne plus le re-representer.
 emailIngestionRouter.post("/api/email-ingestion/emails/:id/ignorer", requireAuth, async (req, res) => {
-  const email = await chargerEmailAccessible(req.params.id, req.auth!.userId);
-  if (!email) {
-    return res.status(404).json({ error: "Email introuvable" });
+  try {
+    const email = await chargerEmailAccessible(req.params.id, req.auth!.userId);
+    if (!email) {
+      return res.status(404).json({ error: "Email introuvable" });
+    }
+    await prisma.emailImporte.update({ where: { id: email.id }, data: { statut: "traite" } });
+    return res.json({ ok: true });
+  } catch (error) {
+    console.error("[email-ingestion] échec de mise à jour du statut (ignorer) :", error);
+    return res.status(500).json({ error: "Impossible d'ignorer cet email (voir logs serveur)" });
   }
-  await prisma.emailImporte.update({ where: { id: email.id }, data: { statut: "traite" } });
-  return res.json({ ok: true });
 });
 
 const importerPieceSchema = z.object({
@@ -229,63 +251,68 @@ const importerPieceSchema = z.object({
 // l'utilisateur - reutilise directement stockageDocuments.ts (Lot 15), meme
 // chiffrement au repos que pour un upload manuel.
 emailIngestionRouter.post("/api/email-ingestion/emails/:id/importer-piece", requireAuth, async (req, res) => {
-  const email = await chargerEmailAccessible(req.params.id, req.auth!.userId);
-  if (!email) {
-    return res.status(404).json({ error: "Email introuvable" });
-  }
-
-  const parsed = importerPieceSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: "Formulaire invalide", details: parsed.error.issues });
-  }
-
-  const dossier = await chargerDossierAccessible(parsed.data.dossierId, req.auth!.cabinetId);
-  if (!dossier) {
-    return res.status(404).json({ error: "Dossier introuvable" });
-  }
-
-  const piece = piecesJointesDe(email.piecesJointes).find((p) => p.id === parsed.data.attachmentId);
-  if (!piece) {
-    return res.status(404).json({ error: "Pièce jointe introuvable sur cet email." });
-  }
-
-  let contenu: Buffer;
   try {
-    contenu =
-      email.connexion.provider === "gmail"
-        ? await telechargerPieceJointeGmail(email.connexion, email.identifiantExterne, piece.id)
-        : await telechargerPieceJointeImap(email.connexion, email.identifiantExterne, piece.id);
-  } catch (error) {
-    console.error(
-      `[email-ingestion] échec de récupération de pièce jointe (email ${email.id}) :`,
-      error instanceof Error ? error.message : error
+    const email = await chargerEmailAccessible(req.params.id, req.auth!.userId);
+    if (!email) {
+      return res.status(404).json({ error: "Email introuvable" });
+    }
+
+    const parsed = importerPieceSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Formulaire invalide", details: parsed.error.issues });
+    }
+
+    const dossier = await chargerDossierAccessible(parsed.data.dossierId, req.auth!.cabinetId);
+    if (!dossier) {
+      return res.status(404).json({ error: "Dossier introuvable" });
+    }
+
+    const piece = piecesJointesDe(email.piecesJointes).find((p) => p.id === parsed.data.attachmentId);
+    if (!piece) {
+      return res.status(404).json({ error: "Pièce jointe introuvable sur cet email." });
+    }
+
+    let contenu: Buffer;
+    try {
+      contenu =
+        email.connexion.provider === "gmail"
+          ? await telechargerPieceJointeGmail(email.connexion, email.identifiantExterne, piece.id)
+          : await telechargerPieceJointeImap(email.connexion, email.identifiantExterne, piece.id);
+    } catch (error) {
+      console.error(
+        `[email-ingestion] échec de récupération de pièce jointe (email ${email.id}) :`,
+        error instanceof Error ? error.message : error
+      );
+      return res.status(502).json({ error: "Impossible de récupérer cette pièce jointe depuis la boîte mail." });
+    }
+
+    const { nomFichier, tailleOctets } = await enregistrerFichier(dossier.id, contenu);
+
+    const document = await prisma.documentDossier.create({
+      data: {
+        cabinetId: req.auth!.cabinetId,
+        dossierId: dossier.id,
+        nomOriginal: piece.nomFichier,
+        typeMime: piece.typeMime,
+        tailleOctets,
+        nomFichier,
+        source: "email",
+        emailOrigineId: email.id,
+        uploadeParId: req.auth!.userId,
+      },
+    });
+
+    await prisma.emailImporte.update({ where: { id: email.id }, data: { statut: "traite" } });
+
+    console.log(
+      `[email-ingestion] import de pièce jointe : ${req.auth!.userId} -> document ${document.id} depuis l'email ${email.id} sur le dossier ${dossier.id}`
     );
-    return res.status(502).json({ error: "Impossible de récupérer cette pièce jointe depuis la boîte mail." });
+
+    return res.status(201).json(document);
+  } catch (error) {
+    console.error("[email-ingestion] échec d'import de pièce jointe :", error);
+    return res.status(500).json({ error: "Impossible d'importer cette pièce jointe (voir logs serveur)" });
   }
-
-  const { nomFichier, tailleOctets } = await enregistrerFichier(dossier.id, contenu);
-
-  const document = await prisma.documentDossier.create({
-    data: {
-      cabinetId: req.auth!.cabinetId,
-      dossierId: dossier.id,
-      nomOriginal: piece.nomFichier,
-      typeMime: piece.typeMime,
-      tailleOctets,
-      nomFichier,
-      source: "email",
-      emailOrigineId: email.id,
-      uploadeParId: req.auth!.userId,
-    },
-  });
-
-  await prisma.emailImporte.update({ where: { id: email.id }, data: { statut: "traite" } });
-
-  console.log(
-    `[email-ingestion] import de pièce jointe : ${req.auth!.userId} -> document ${document.id} depuis l'email ${email.id} sur le dossier ${dossier.id}`
-  );
-
-  return res.status(201).json(document);
 });
 
 const TYPES_EVENEMENT_EMAIL = ["rdv", "appel", "tache", "autre"] as const;
@@ -306,59 +333,64 @@ const confirmerEvenementSchema = z.object({
 // par ce formulaire) d'un evenement a partir d'un email - reutilise
 // directement le modele Evenement du Lot 12a, source="email".
 emailIngestionRouter.post("/api/email-ingestion/emails/:id/confirmer-evenement", requireAuth, async (req, res) => {
-  const email = await chargerEmailAccessible(req.params.id, req.auth!.userId);
-  if (!email) {
-    return res.status(404).json({ error: "Email introuvable" });
-  }
-
-  const parsed = confirmerEvenementSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return res.status(400).json({ error: "Formulaire invalide", details: parsed.error.issues });
-  }
-
-  const dateDebut = new Date(parsed.data.dateDebut);
-  if (Number.isNaN(dateDebut.getTime())) {
-    return res.status(400).json({ error: "Date de début invalide" });
-  }
-  let dateFin: Date | undefined;
-  if (parsed.data.dateFin) {
-    dateFin = new Date(parsed.data.dateFin);
-    if (Number.isNaN(dateFin.getTime())) {
-      return res.status(400).json({ error: "Date de fin invalide" });
+  try {
+    const email = await chargerEmailAccessible(req.params.id, req.auth!.userId);
+    if (!email) {
+      return res.status(404).json({ error: "Email introuvable" });
     }
-  }
 
-  let dossier = null;
-  if (parsed.data.dossierId) {
-    dossier = await chargerDossierAccessible(parsed.data.dossierId, req.auth!.cabinetId);
-    if (!dossier) {
-      return res.status(404).json({ error: "Dossier introuvable" });
+    const parsed = confirmerEvenementSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Formulaire invalide", details: parsed.error.issues });
     }
+
+    const dateDebut = new Date(parsed.data.dateDebut);
+    if (Number.isNaN(dateDebut.getTime())) {
+      return res.status(400).json({ error: "Date de début invalide" });
+    }
+    let dateFin: Date | undefined;
+    if (parsed.data.dateFin) {
+      dateFin = new Date(parsed.data.dateFin);
+      if (Number.isNaN(dateFin.getTime())) {
+        return res.status(400).json({ error: "Date de fin invalide" });
+      }
+    }
+
+    let dossier = null;
+    if (parsed.data.dossierId) {
+      dossier = await chargerDossierAccessible(parsed.data.dossierId, req.auth!.cabinetId);
+      if (!dossier) {
+        return res.status(404).json({ error: "Dossier introuvable" });
+      }
+    }
+
+    const evenement = await prisma.evenement.create({
+      data: {
+        cabinetId: req.auth!.cabinetId,
+        dossierId: dossier?.id,
+        type: parsed.data.type,
+        source: "email",
+        titre: parsed.data.titre,
+        description: parsed.data.description,
+        dateDebut,
+        dateFin,
+        touteLaJournee: parsed.data.touteLaJournee,
+        lieu: parsed.data.lieu,
+        createdById: req.auth!.userId,
+      },
+    });
+
+    // Lot 12b : hook additif non bloquant - synchronise vers les agendas
+    // externes concernes, meme comportement qu'un evenement cree manuellement.
+    await enqueuerSyncEvenement(evenement.id);
+
+    await prisma.emailImporte.update({ where: { id: email.id }, data: { statut: "traite" } });
+
+    console.log(`[email-ingestion] confirmation d'événement : ${req.auth!.userId} -> événement ${evenement.id} depuis l'email ${email.id}`);
+
+    return res.status(201).json(evenement);
+  } catch (error) {
+    console.error("[email-ingestion] échec de confirmation d'événement :", error);
+    return res.status(500).json({ error: "Impossible de confirmer cet événement (voir logs serveur)" });
   }
-
-  const evenement = await prisma.evenement.create({
-    data: {
-      cabinetId: req.auth!.cabinetId,
-      dossierId: dossier?.id,
-      type: parsed.data.type,
-      source: "email",
-      titre: parsed.data.titre,
-      description: parsed.data.description,
-      dateDebut,
-      dateFin,
-      touteLaJournee: parsed.data.touteLaJournee,
-      lieu: parsed.data.lieu,
-      createdById: req.auth!.userId,
-    },
-  });
-
-  // Lot 12b : hook additif non bloquant - synchronise vers les agendas
-  // externes concernes, meme comportement qu'un evenement cree manuellement.
-  await enqueuerSyncEvenement(evenement.id);
-
-  await prisma.emailImporte.update({ where: { id: email.id }, data: { statut: "traite" } });
-
-  console.log(`[email-ingestion] confirmation d'événement : ${req.auth!.userId} -> événement ${evenement.id} depuis l'email ${email.id}`);
-
-  return res.status(201).json(evenement);
 });
