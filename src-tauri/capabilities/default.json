@@ -8,6 +8,6 @@
     "shell:allow-execute",
     "updater:default",
     "dialog:default",
-    "opener:allow-open-url"
+    "opener:default"
   ]
 }

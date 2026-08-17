@@ -68,6 +68,17 @@ async function ouvrirClient(identifiants: IdentifiantsImap): Promise<ImapFlow> {
     secure: identifiants.imapSecure,
     auth: { user: identifiants.imapUsername, pass: identifiants.imapPassword },
     logger: false,
+    // Valeurs par defaut d'imapflow beaucoup trop longues pour un usage
+    // interactif (connectionTimeout: 90s, socketTimeout: 5 min) : une
+    // connexion qui ne repond pas (ex: boite Yahoo instable) fait alors
+    // paraitre l'appli bloquee plusieurs minutes (constate en usage reel sur
+    // le bouton "Vérifier maintenant" et le polling planifie) avant meme le
+    // premier reessai de listerEmailsRecents. Echoue desormais rapidement -
+    // le reessai (jusqu'a 3 tentatives, voir listerEmailsRecents) reste le
+    // mecanisme de resilience, pas une attente passive tres longue.
+    connectionTimeout: 15000,
+    greetingTimeout: 10000,
+    socketTimeout: 30000,
   });
   attacherEcouteurErreur(client);
   await client.connect();
