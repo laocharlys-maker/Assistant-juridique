@@ -75,7 +75,7 @@ async function traiterConnexion(connexion: ConnexionEmailExterne, cabinetId: str
       },
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = messageAvecRaisonServeur(error);
     // Jamais le contenu d'un email, jamais un token/mot de passe - seuls le
     // provider, l'id de connexion (opaque) et le message d'erreur.
     console.error(
@@ -88,6 +88,25 @@ async function traiterConnexion(connexion: ConnexionEmailExterne, cabinetId: str
   }
 }
 
+/**
+ * imapflow annote certaines erreurs de connexion (code "NoConnection") avec
+ * `error.reason` : la raison EXPLICITE donnee par le serveur IMAP dans sa
+ * reponse BYE avant de fermer la connexion (ex: "Too many simultaneous
+ * connections", "Account temporarily locked"...) - voir imap-flow.js,
+ * createNoConnectionError(). Notre code ignorait jusqu'ici ce champ et
+ * n'affichait que le message generique "Connection not available", masquant
+ * la vraie cause (constate en usage reel : boite Yahoo systematiquement en
+ * echec, message generique sans aucune piste exploitable pour l'utilisateur).
+ */
+function messageAvecRaisonServeur(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  const raison =
+    error && typeof error === "object" && "reason" in error && typeof (error as { reason?: unknown }).reason === "string"
+      ? (error as { reason: string }).reason
+      : undefined;
+  return raison ? `${message} — ${raison}` : message;
+}
+
 /** Un cycle complet - exporte separement pour un declenchement manuel
  * (tests, futur bouton "Vérifier maintenant"). */
 export async function runPollingCycle(): Promise<void> {
@@ -98,6 +117,21 @@ export async function runPollingCycle(): Promise<void> {
   for (const connexion of connexions) {
     await traiterConnexion(connexion, connexion.user.cabinetId);
   }
+}
+
+/**
+ * Declenchement manuel d'UNE seule connexion (bouton "Vérifier maintenant",
+ * voir routes/emailIngestion.ts) - utile pour diagnostiquer un probleme de
+ * synchronisation sans attendre jusqu'a 5 minutes le prochain cycle
+ * automatique. Meme fonction traiterConnexion que le cycle planifie : en cas
+ * d'echec, derniereErreur est mis a jour normalement, jamais d'exception qui
+ * remonterait a l'appelant.
+ */
+export async function verifierConnexionMaintenant(
+  connexion: ConnexionEmailExterne,
+  cabinetId: string
+): Promise<void> {
+  await traiterConnexion(connexion, cabinetId);
 }
 
 export function scheduleEmailPolling(): void {

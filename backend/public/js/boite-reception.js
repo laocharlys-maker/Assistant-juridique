@@ -233,20 +233,83 @@ let lireCourant = null;
 function ouvrirLireModal(emailId) {
   lireCourant = emailId;
   hideError(document.getElementById("lire-error"));
-  document.getElementById("lire-contenu").textContent = "Chargement…";
+  afficherContenuTexte("Chargement…");
+  document.getElementById("lire-images-btn").style.display = "none";
   document.getElementById("lire-reponse-form").reset();
   document.getElementById("lire-modal").hidden = false;
   chargerContenuEmail(emailId);
+}
+
+function afficherContenuTexte(texte) {
+  const contenuEl = document.getElementById("lire-contenu");
+  contenuEl.replaceChildren();
+  contenuEl.style.whiteSpace = "pre-wrap";
+  contenuEl.textContent = texte;
+}
+
+/**
+ * Affiche le HTML deja nettoye cote serveur (voir sanitizeEmailHtml.ts)
+ * dans une iframe "sandbox=allow-same-origin" SANS "allow-scripts" : le
+ * document de l'iframe ne peut executer aucun JavaScript (protection meme
+ * si un script avait echappe au nettoyage serveur), mais "allow-same-origin"
+ * permet a CE script (parent) d'acceder a son contentDocument pour
+ * intercepter les clics sur les liens (ouverture via ouvrirLienExterne,
+ * jamais une navigation de l'iframe elle-meme) et restaurer les images
+ * bloquees a la demande.
+ */
+function afficherContenuHtml(html) {
+  const contenuEl = document.getElementById("lire-contenu");
+  contenuEl.replaceChildren();
+  contenuEl.style.whiteSpace = "normal";
+
+  const iframe = document.createElement("iframe");
+  iframe.setAttribute("sandbox", "allow-same-origin");
+  iframe.setAttribute("referrerpolicy", "no-referrer");
+  iframe.style.width = "100%";
+  iframe.style.height = "100%";
+  iframe.style.border = "0";
+  iframe.style.background = "#fff";
+  contenuEl.appendChild(iframe);
+
+  iframe.addEventListener("load", () => {
+    const doc = iframe.contentDocument;
+    if (!doc || !doc.body) return;
+
+    doc.body.addEventListener("click", (e) => {
+      const lien = e.target.closest("a[href]");
+      if (!lien) return;
+      e.preventDefault();
+      ouvrirLienExterne(lien.getAttribute("href"));
+    });
+
+    const imagesBloquees = doc.querySelectorAll("img[data-blocked-src]");
+    const imagesBtn = document.getElementById("lire-images-btn");
+    if (imagesBloquees.length > 0) {
+      imagesBtn.style.display = "inline-block";
+      imagesBtn.onclick = () => {
+        imagesBloquees.forEach((img) => img.setAttribute("src", img.getAttribute("data-blocked-src")));
+        imagesBtn.style.display = "none";
+      };
+    } else {
+      imagesBtn.style.display = "none";
+    }
+  });
+
+  iframe.srcdoc = html;
 }
 
 async function chargerContenuEmail(emailId) {
   try {
     const data = await apiFetch(`/api/email-ingestion/emails/${emailId}/contenu`);
     if (lireCourant !== emailId) return;
-    document.getElementById("lire-contenu").textContent = data.texte || "(email vide ou illisible)";
+    if (data.html) {
+      afficherContenuHtml(data.html);
+    } else {
+      afficherContenuTexte(data.texte || "(email vide ou illisible)");
+    }
   } catch (err) {
     if (lireCourant !== emailId) return;
-    document.getElementById("lire-contenu").textContent = "";
+    afficherContenuTexte("");
     showError(document.getElementById("lire-error"), err.message);
   }
 }

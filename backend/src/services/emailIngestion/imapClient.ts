@@ -2,6 +2,7 @@ import { ImapFlow, MessageStructureObject } from "imapflow";
 import nodemailer from "nodemailer";
 import type { ConnexionEmailExterne } from "@prisma/client";
 import { EmailRecu, PieceJointeDetectee } from "./types";
+import { nettoyerHtmlEmail } from "./sanitizeEmailHtml";
 
 /**
  * Lot 16 - client IMAP generique (imapflow), pour tout fournisseur non-Gmail
@@ -42,6 +43,24 @@ function identifiantsDe(connexion: ConnexionEmailExterne): IdentifiantsImap {
   };
 }
 
+function attacherEcouteurErreur(client: ImapFlow): void {
+  // ImapFlow est un EventEmitter Node : toute erreur de connexion survenant
+  // APRES la connexion initiale (socket reinitialise par le serveur/reseau,
+  // ex: ECONNRESET) est emise via `emit("error", ...)`. Un EventEmitter Node
+  // qui emet "error" sans aucun ecouteur fait planter tout le PROCESS (pas
+  // seulement rejeter une promesse) - meme si l'appel est dans un try/catch,
+  // car l'erreur surgit d'un callback socket asynchrone, hors de la pile
+  // d'attente. Constate en usage reel : crash complet et repete du backend
+  // ("[fatal] exception non rattrapee ... Error: read ECONNRESET"), le plus
+  // souvent apres une coupure reseau (ex: sortie de veille du PC). Cet
+  // ecouteur ne fait qu'absorber/journaliser l'erreur ; les operations en
+  // cours echouent normalement via leur propre promesse (rejetee ailleurs),
+  // ce qui reste gere par les try/catch existants de chaque fonction.
+  client.on("error", (error: unknown) => {
+    console.warn("[imap] erreur de connexion (absorbee) :", error instanceof Error ? error.message : error);
+  });
+}
+
 async function ouvrirClient(identifiants: IdentifiantsImap): Promise<ImapFlow> {
   const client = new ImapFlow({
     host: identifiants.imapHost,
@@ -50,6 +69,7 @@ async function ouvrirClient(identifiants: IdentifiantsImap): Promise<ImapFlow> {
     auth: { user: identifiants.imapUsername, pass: identifiants.imapPassword },
     logger: false,
   });
+  attacherEcouteurErreur(client);
   await client.connect();
   return client;
 }
@@ -175,9 +195,14 @@ export async function listerEmailsRecents(
     } catch (error) {
       derniereErreur = error;
       const code = (error as { code?: string })?.code;
+      // Raison EXPLICITE donnee par le serveur IMAP (reponse BYE) quand
+      // disponible - ex: "Too many simultaneous connections" - voir
+      // messageAvecRaisonServeur dans polling.ts pour le meme raisonnement,
+      // journalisee ici aussi pour diagnostiquer directement depuis les logs.
+      const raison = (error as { reason?: string })?.reason;
       if (code !== "NoConnection" || tentative === TENTATIVES_MAX) throw error;
       console.warn(
-        `[imap] connexion indisponible (tentative ${tentative}/${TENTATIVES_MAX}) - nouvel essai dans ${tentative * 2}s...`
+        `[imap] connexion indisponible (tentative ${tentative}/${TENTATIVES_MAX})${raison ? ` - raison serveur : ${raison}` : ""} - nouvel essai dans ${tentative * 2}s...`
       );
       await new Promise((resolve) => setTimeout(resolve, tentative * 2000));
     }
@@ -268,13 +293,21 @@ export async function testerConnexion(identifiants: IdentifiantsImap): Promise<v
 }
 
 /**
- * Recupere le corps complet (texte) d'UN email par son UID, a la demande
- * explicite de l'utilisateur (bouton "Lire") - JAMAIS ecrit en base (voir
+ * Recupere le corps complet d'UN email par son UID, a la demande explicite
+ * de l'utilisateur (bouton "Lire") - JAMAIS ecrit en base (voir
  * routes/emailIngestion.ts, route GET .../contenu : simple passe-plat).
  * Meme logique d'extraction que listerEmailsRecents ci-dessus, mais pour un
  * seul message identifie par son UID plutot qu'une plage.
+ *
+ * `html` est le HTML nettoye (voir sanitizeEmailHtml.ts) pret pour un
+ * affichage fidele (bouton "Lire" en iframe sandboxee cote frontend), non
+ * null uniquement si la partie corps est HTML. `texte` est toujours
+ * disponible (repli texte brut).
  */
-export async function obtenirContenuComplet(connexion: ConnexionEmailExterne, identifiantExterne: string): Promise<string> {
+export async function obtenirContenuComplet(
+  connexion: ConnexionEmailExterne,
+  identifiantExterne: string
+): Promise<{ html: string | null; texte: string }> {
   const identifiants = identifiantsDe(connexion);
   const client = await ouvrirClient(identifiants);
   try {
@@ -282,17 +315,17 @@ export async function obtenirContenuComplet(connexion: ConnexionEmailExterne, id
     try {
       const uid = Number(identifiantExterne);
       const message = await client.fetchOne(uid, { bodyStructure: true }, { uid: true });
-      if (!message) return "";
+      if (!message) return { html: null, texte: "" };
       const repere: RepereCorps = { pieces: [] };
       explorerStructure(message.bodyStructure, repere);
-      if (!repere.partTexte) return "";
+      if (!repere.partTexte) return { html: null, texte: "" };
       const { content } = await client.download(uid, repere.partTexte, { uid: true });
       const brut = (await lireFluxEnBuffer(content)).toString("utf8");
+      if (!repere.partTexteEstHtml) return { html: null, texte: brut };
       // htmlVersTexteLisible (jamais htmlVersTexte, qui aplatit tout sur une
-      // seule ligne pour un extrait compact) : ici c'est l'email complet qui
-      // va etre affiche a l'avocat, la mise en page (paragraphes) doit
-      // rester lisible.
-      return repere.partTexteEstHtml ? htmlVersTexteLisible(brut) : brut;
+      // seule ligne pour un extrait compact) pour le repli texte : la mise
+      // en page (paragraphes) doit y rester lisible.
+      return { html: nettoyerHtmlEmail(brut), texte: htmlVersTexteLisible(brut) };
     } finally {
       lock.release();
     }

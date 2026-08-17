@@ -69,9 +69,9 @@ describe("obtenirContenuComplet", () => {
       })
     );
 
-    const texte = await obtenirContenuComplet(connexion(), "msg-1");
+    const resultat = await obtenirContenuComplet(connexion(), "msg-1");
 
-    expect(texte).toBe("Corps en texte brut.");
+    expect(resultat).toEqual({ html: null, texte: "Corps en texte brut." });
     expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/messages/msg-1?format=full"), expect.anything());
   });
 
@@ -87,10 +87,15 @@ describe("obtenirContenuComplet", () => {
       })
     );
 
-    const texte = await obtenirContenuComplet(connexion(), "msg-2");
+    const resultat = await obtenirContenuComplet(connexion(), "msg-2");
 
-    expect(texte).toContain("Seulement du HTML");
-    expect(texte).not.toContain("<p>");
+    // html : version nettoyee prete pour l'affichage fidele (iframe sandboxee
+    // cote frontend), conserve les balises de mise en page autorisees.
+    expect(resultat.html).toContain("Seulement du HTML");
+    expect(resultat.html).toContain("<p>");
+    // texte : repli brut (email vide/rendu HTML impossible), aucune balise.
+    expect(resultat.texte).toContain("Seulement du HTML");
+    expect(resultat.texte).not.toContain("<p>");
   });
 
   it("propage une erreur explicite si Gmail répond en échec", async () => {
@@ -110,9 +115,9 @@ describe("obtenirContenuComplet", () => {
       })
     );
 
-    const texte = await obtenirContenuComplet(connexion(), "msg-4");
+    const resultat = await obtenirContenuComplet(connexion(), "msg-4");
 
-    expect(texte).toBe(
+    expect(resultat.texte).toBe(
       "Premier paragraphe.\n\nDeuxième paragraphe.\n\nTroisième.\nSuite sur une nouvelle ligne."
     );
   });

@@ -2,6 +2,7 @@ import { ConnexionEmailExterne } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import { MissingConfigurationError } from "../../lib/configurationError";
 import { EmailRecu, PieceJointeDetectee } from "./types";
+import { nettoyerHtmlEmail } from "./sanitizeEmailHtml";
 
 /**
  * Lot 16 - client Gmail (API REST, OAuth2 individuel) : meme pattern que
@@ -330,18 +331,21 @@ export async function telechargerPieceJointe(
 }
 
 /**
- * Recupere le corps complet (texte) d'UN email, a la demande explicite de
+ * Recupere le corps complet d'UN email, a la demande explicite de
  * l'utilisateur (bouton "Lire") - JAMAIS ecrit en base (voir
  * routes/emailIngestion.ts, route GET .../contenu : simple passe-plat,
- * aucune ecriture Prisma). Le HTML est toujours converti en texte brut
- * (htmlVersTexte, deja utilise ailleurs dans ce fichier) plutot que renvoye
- * tel quel : evite tout risque d'injection si jamais ce texte etait un jour
- * insere dans le DOM cote frontend sans passer par textContent.
+ * aucune ecriture Prisma).
+ *
+ * `html` est le HTML nettoye (voir sanitizeEmailHtml.ts) pret pour un
+ * affichage fidele (bouton "Lire" en iframe sandboxee cote frontend), non
+ * null uniquement si l'email a une partie HTML. `texte` est toujours
+ * disponible (repli texte brut - email purement texte, ou echec du rendu
+ * HTML cote frontend).
  */
 export async function obtenirContenuComplet(
   connexion: ConnexionEmailExterne,
   identifiantExterne: string
-): Promise<string> {
+): Promise<{ html: string | null; texte: string }> {
   const res = await gmailFetch(connexion, `/messages/${identifiantExterne}?format=full`);
   if (!res.ok) {
     throw new Error(`Gmail : échec de récupération de l'email (HTTP ${res.status})`);
@@ -349,11 +353,16 @@ export async function obtenirContenuComplet(
   const detail = (await res.json()) as GmailMessageDetail;
   const extraction: ExtractionCorps = { pieces: [] };
   if (detail.payload) explorerParties(detail.payload, extraction);
-  // htmlVersTexteLisible (jamais htmlVersTexte, qui aplatit tout sur une
-  // seule ligne pour un extrait compact) : ici c'est l'email complet qui va
-  // etre affiche a l'avocat, la mise en page (paragraphes) doit rester
-  // lisible.
-  return extraction.textePlain || (extraction.texteHtml ? htmlVersTexteLisible(extraction.texteHtml) : "");
+  if (extraction.textePlain) {
+    return { html: null, texte: extraction.textePlain };
+  }
+  if (extraction.texteHtml) {
+    // htmlVersTexteLisible (jamais htmlVersTexte, qui aplatit tout sur une
+    // seule ligne pour un extrait compact) pour le repli texte : la mise en
+    // page (paragraphes) doit y rester lisible.
+    return { html: nettoyerHtmlEmail(extraction.texteHtml), texte: htmlVersTexteLisible(extraction.texteHtml) };
+  }
+  return { html: null, texte: "" };
 }
 
 /** Encodage RFC 2047 ("encoded-word") d'un en-tete pouvant contenir des

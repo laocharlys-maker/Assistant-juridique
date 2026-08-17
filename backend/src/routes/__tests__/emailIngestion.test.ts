@@ -22,7 +22,7 @@ import type { Server } from "node:http";
  */
 
 const prismaMock = vi.hoisted(() => ({
-  connexionEmailExterne: { findMany: vi.fn(), findFirst: vi.fn() },
+  connexionEmailExterne: { findMany: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn() },
   emailImporte: { findMany: vi.fn(), findFirst: vi.fn(), update: vi.fn() },
   documentDossier: { create: vi.fn() },
   evenement: { create: vi.fn() },
@@ -52,6 +52,8 @@ vi.mock("../../services/emailIngestion/imapClient", () => ({
 }));
 const suggererDossiersMock = vi.hoisted(() => vi.fn());
 vi.mock("../../services/emailIngestion/suggestionDossier", () => ({ suggererDossiers: suggererDossiersMock }));
+const verifierConnexionMaintenantMock = vi.hoisted(() => vi.fn());
+vi.mock("../../services/emailIngestion/polling", () => ({ verifierConnexionMaintenant: verifierConnexionMaintenantMock }));
 vi.mock("../../services/stockageDocuments", () => ({ enregistrerFichier: vi.fn() }));
 vi.mock("../../services/calendrierSync/syncQueue", () => ({ enqueuerSyncEvenement: vi.fn() }));
 
@@ -100,6 +102,36 @@ describe("GET /api/email-ingestion/statut - régression crash total de l'app", (
     prismaMock.connexionEmailExterne.findMany.mockResolvedValue([]);
     const res = await api("/api/email-ingestion/statut");
     expect(res.status).toBe(200);
+  });
+});
+
+describe("POST /api/email-ingestion/:id/verifier-maintenant", () => {
+  it("déclenche verifierConnexionMaintenant et renvoie la dernière erreur à jour", async () => {
+    prismaMock.connexionEmailExterne.findFirst.mockResolvedValue({ id: "conn-1", userId: "user-1", provider: "imap" });
+    verifierConnexionMaintenantMock.mockResolvedValue(undefined);
+    prismaMock.connexionEmailExterne.findUnique.mockResolvedValue({ derniereErreur: "Connection not available" });
+
+    const res = await api("/api/email-ingestion/conn-1/verifier-maintenant", { method: "POST" });
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true, derniereErreur: "Connection not available" });
+    expect(verifierConnexionMaintenantMock).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "conn-1" }),
+      "cabinet-1"
+    );
+  });
+
+  it("renvoie 404 si la connexion n'appartient pas à l'utilisateur (ou n'existe pas)", async () => {
+    prismaMock.connexionEmailExterne.findFirst.mockResolvedValue(null);
+    const res = await api("/api/email-ingestion/conn-1/verifier-maintenant", { method: "POST" });
+    expect(res.status).toBe(404);
+    expect(verifierConnexionMaintenantMock).not.toHaveBeenCalled();
+  });
+
+  it("renvoie 500 (jamais une exception non rattrapée) si le Prisma findFirst échoue", async () => {
+    prismaMock.connexionEmailExterne.findFirst.mockRejectedValue(ERREUR_DB);
+    const res = await api("/api/email-ingestion/conn-1/verifier-maintenant", { method: "POST" });
+    expect(res.status).toBe(500);
   });
 });
 
@@ -176,9 +208,12 @@ describe("POST /api/email-ingestion/emails/:id/importer-piece - régression cras
 });
 
 describe("GET /api/email-ingestion/emails/:id/contenu", () => {
-  it("renvoie le texte du fournisseur, sans jamais écrire en base (aucun appel Prisma d'écriture)", async () => {
+  it("renvoie le contenu du fournisseur, sans jamais écrire en base (aucun appel Prisma d'écriture)", async () => {
     const { obtenirContenuComplet } = await import("../../services/emailIngestion/gmailClient");
-    vi.mocked(obtenirContenuComplet).mockResolvedValue("Bonjour, voici le corps complet de l'email.");
+    vi.mocked(obtenirContenuComplet).mockResolvedValue({
+      html: null,
+      texte: "Bonjour, voici le corps complet de l'email.",
+    });
     prismaMock.emailImporte.findFirst.mockResolvedValue({
       id: "e1",
       identifiantExterne: "ext-1",
@@ -188,7 +223,7 @@ describe("GET /api/email-ingestion/emails/:id/contenu", () => {
     const res = await api("/api/email-ingestion/emails/e1/contenu");
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ texte: "Bonjour, voici le corps complet de l'email." });
+    expect(await res.json()).toEqual({ html: null, texte: "Bonjour, voici le corps complet de l'email." });
     // Aucune des methodes d'ecriture Prisma mockees n'est appelee par cette route.
     expect(prismaMock.emailImporte.update).not.toHaveBeenCalled();
   });
@@ -196,7 +231,7 @@ describe("GET /api/email-ingestion/emails/:id/contenu", () => {
   it("route vers imapClient quand connexion.provider === 'imap'", async () => {
     const { obtenirContenuComplet: obtenirContenuCompletImap } = await import("../../services/emailIngestion/imapClient");
     const { obtenirContenuComplet: obtenirContenuCompletGmail } = await import("../../services/emailIngestion/gmailClient");
-    vi.mocked(obtenirContenuCompletImap).mockResolvedValue("Texte IMAP");
+    vi.mocked(obtenirContenuCompletImap).mockResolvedValue({ html: null, texte: "Texte IMAP" });
     prismaMock.emailImporte.findFirst.mockResolvedValue({
       id: "e1",
       identifiantExterne: "42",
@@ -206,7 +241,7 @@ describe("GET /api/email-ingestion/emails/:id/contenu", () => {
     const res = await api("/api/email-ingestion/emails/e1/contenu");
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ texte: "Texte IMAP" });
+    expect(await res.json()).toEqual({ html: null, texte: "Texte IMAP" });
     expect(obtenirContenuCompletImap).toHaveBeenCalledWith(expect.objectContaining({ provider: "imap" }), "42");
     expect(obtenirContenuCompletGmail).not.toHaveBeenCalled();
   });

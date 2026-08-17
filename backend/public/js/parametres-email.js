@@ -35,7 +35,10 @@ function renderGmailStatus(connexion) {
   el.innerHTML = `
     <p>Connecté depuis le ${new Date(connexion.createdAt).toLocaleDateString("fr-FR")}.</p>
     ${connexion.derniereErreur ? `<p class="error visible">${escapeHtml(connexion.derniereErreur)}</p>` : ""}
-    <button type="button" class="danger btn-sm" data-deconnecter="${connexion.id}">Déconnecter</button>`;
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <button type="button" class="secondary btn-sm" data-verifier="${connexion.id}">Vérifier maintenant</button>
+      <button type="button" class="danger btn-sm" data-deconnecter="${connexion.id}">Déconnecter</button>
+    </div>`;
 }
 
 function renderImapStatus(connexion) {
@@ -50,8 +53,27 @@ function renderImapStatus(connexion) {
     <p>Connecté en tant que ${escapeHtml(connexion.imapUsername || "")} (${escapeHtml(connexion.imapHost || "")}) depuis le ${new Date(connexion.createdAt).toLocaleDateString("fr-FR")}.</p>
     <p class="muted">${connexion.smtpHost ? "Réponse depuis Aurore activée (SMTP configuré)." : "Réponse depuis Aurore non activée — aucun serveur SMTP renseigné."}</p>
     ${connexion.derniereErreur ? `<p class="error visible">${escapeHtml(connexion.derniereErreur)}</p>` : ""}
-    <button type="button" class="danger btn-sm" data-deconnecter="${connexion.id}">Déconnecter</button>`;
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <button type="button" class="secondary btn-sm" data-verifier="${connexion.id}">Vérifier maintenant</button>
+      <button type="button" class="danger btn-sm" data-deconnecter="${connexion.id}">Déconnecter</button>
+    </div>`;
   form.style.display = "none";
+}
+
+async function verifierMaintenant(id, bouton) {
+  const errorEl = document.getElementById("error");
+  hideError(errorEl);
+  const libelleOriginal = bouton.textContent;
+  bouton.disabled = true;
+  bouton.textContent = "Vérification…";
+  try {
+    await apiFetch(`/api/email-ingestion/${id}/verifier-maintenant`, { method: "POST" });
+    await chargerStatuts();
+  } catch (err) {
+    showError(errorEl, err.message);
+    bouton.disabled = false;
+    bouton.textContent = libelleOriginal;
+  }
 }
 
 async function deconnecter(id) {
@@ -76,6 +98,9 @@ async function chargerStatuts() {
 
     document.querySelectorAll("[data-deconnecter]").forEach((btn) => {
       btn.addEventListener("click", () => deconnecter(btn.dataset.deconnecter));
+    });
+    document.querySelectorAll("[data-verifier]").forEach((btn) => {
+      btn.addEventListener("click", () => verifierMaintenant(btn.dataset.verifier, btn));
     });
   } catch (err) {
     showError(errorEl, err.message);

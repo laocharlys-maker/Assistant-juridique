@@ -18,6 +18,7 @@ import {
   envoyerReponse as envoyerReponseImap,
 } from "../services/emailIngestion/imapClient";
 import { suggererDossiers } from "../services/emailIngestion/suggestionDossier";
+import { verifierConnexionMaintenant } from "../services/emailIngestion/polling";
 import { enregistrerFichier } from "../services/stockageDocuments";
 import { enqueuerSyncEvenement } from "../services/calendrierSync/syncQueue";
 import type { PieceJointeDetectee } from "../services/emailIngestion/types";
@@ -84,6 +85,32 @@ emailIngestionRouter.get("/api/email-ingestion/statut", requireAuth, async (req,
   } catch (error) {
     console.error("[email-ingestion] échec de lecture du statut des connexions :", error);
     return res.status(500).json({ error: "Impossible de charger le statut des boîtes mail connectées (voir logs serveur)" });
+  }
+});
+
+// Declenchement manuel d'une synchronisation (bouton "Vérifier maintenant",
+// voir parametres-email.js) - evite d'attendre jusqu'a 5 minutes le prochain
+// cycle planifie (services/emailIngestion/polling.ts) pour voir si une
+// connexion fonctionne, utile notamment pour diagnostiquer un probleme.
+emailIngestionRouter.post("/api/email-ingestion/:id/verifier-maintenant", requireAuth, async (req, res) => {
+  try {
+    const connexion = await prisma.connexionEmailExterne.findFirst({
+      where: { id: req.params.id, userId: req.auth!.userId },
+    });
+    if (!connexion) {
+      return res.status(404).json({ error: "Connexion introuvable" });
+    }
+
+    await verifierConnexionMaintenant(connexion, req.auth!.cabinetId);
+
+    const fraiche = await prisma.connexionEmailExterne.findUnique({
+      where: { id: connexion.id },
+      select: { derniereErreur: true },
+    });
+    return res.json({ ok: true, derniereErreur: fraiche?.derniereErreur ?? null });
+  } catch (error) {
+    console.error("[email-ingestion] échec de vérification manuelle :", error);
+    return res.status(500).json({ error: "Impossible de vérifier cette boîte mail maintenant (voir logs serveur)" });
   }
 });
 
@@ -429,12 +456,12 @@ emailIngestionRouter.get("/api/email-ingestion/emails/:id/contenu", requireAuth,
       return res.status(404).json({ error: "Email introuvable" });
     }
 
-    const texte =
+    const contenu =
       email.connexion.provider === "gmail"
         ? await obtenirContenuCompletGmail(email.connexion, email.identifiantExterne)
         : await obtenirContenuCompletImap(email.connexion, email.identifiantExterne);
 
-    return res.json({ texte });
+    return res.json(contenu);
   } catch (error) {
     console.error("[email-ingestion] échec de récupération du contenu complet :", error instanceof Error ? error.message : error);
     return res.status(502).json({
