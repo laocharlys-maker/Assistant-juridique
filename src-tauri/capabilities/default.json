@@ -9,7 +9,7 @@
     "updater:default",
     "dialog:default",
     {
-      "identifier": "shell:allow-open",
+      "identifier": "opener:allow-open-url",
       "allow": [
         { "url": "https://**" },
         { "url": "http://**" }

@@ -107,19 +107,23 @@ async function downloadFile(url, fallbackFilename) {
  * ci-dessus : `<a href target="_blank">` n'a strictement aucun effet dans
  * la webview desktop Tauri.
  *
- * Passe par la commande "open" du plugin OFFICIEL tauri-plugin-shell (deja
- * present dans ce projet pour le sidecar, voir src-tauri/Cargo.toml/main.rs)
- * plutot que par une commande Rust maison : une premiere version utilisait
- * une commande d'application personnalisee (ouvrir_lien_externe), qui s'est
- * heurtee en conditions reelles a "Command ouvrir_lien_externe not allowed
- * by ACL" - Tauri v2 soumet aussi les commandes d'app (pas seulement les
- * plugins) a son systeme de capabilities, contrairement a ce qui avait ete
- * suppose. La commande d'un plugin OFFICIEL a une syntaxe de permission
- * documentee et fiable (`shell:allow-open`, voir
+ * Passe par la commande "open_url" du plugin OFFICIEL tauri-plugin-opener
+ * (voir src-tauri/Cargo.toml/main.rs) plutot que par une commande Rust
+ * maison : une premiere version utilisait une commande d'application
+ * personnalisee (ouvrir_lien_externe), qui s'est heurtee en conditions
+ * reelles a "Command ouvrir_lien_externe not allowed by ACL" - Tauri v2
+ * soumet aussi les commandes d'app (pas seulement les plugins) a son
+ * systeme de capabilities, contrairement a ce qui avait ete suppose. Une
+ * deuxieme version passait par la commande "open" de tauri-plugin-shell,
+ * mais cette commande a ete depreciee et retiree de l'ACL de ce plugin dans
+ * les versions 2.x recentes (deplacee vers tauri-plugin-opener) - meme
+ * erreur "not allowed by ACL", cette fois pour "plugin:shell|open". La
+ * commande d'un plugin OFFICIEL a une syntaxe de permission documentee et
+ * fiable (`opener:allow-open-url`, voir
  * src-tauri/capabilities/default.json), plutot que de deviner l'identifiant
  * ACL d'une commande maison. Format d'invocation `plugin:<nom>|<commande>` :
  * convention Tauri v2 standard pour tout plugin, identique a ce qu'utilise
- * en interne le paquet npm @tauri-apps/plugin-shell (jamais installe ici,
+ * en interne le paquet npm @tauri-apps/plugin-opener (jamais installe ici,
  * ce projet n'a pas de bundler JS - voir withGlobalTauri ci-dessous).
  *
  * window.__TAURI__.core.invoke est expose globalement par
@@ -133,7 +137,7 @@ async function ouvrirLienExterne(url) {
   if (!url) return;
   try {
     if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === "function") {
-      await window.__TAURI__.core.invoke("plugin:shell|open", { path: url });
+      await window.__TAURI__.core.invoke("plugin:opener|open_url", { url });
     } else {
       window.open(url, "_blank", "noopener,noreferrer");
     }

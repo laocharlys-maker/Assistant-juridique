@@ -19,6 +19,13 @@ tauri = { version = "2", features = [] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tauri-plugin-shell = "2"
+# Ouverture de liens externes (sources de jurisprudence) dans le navigateur
+# systeme. Le plugin tauri-plugin-shell exposait autrefois une commande
+# "open" pour ca, mais elle a ete depreciee et retiree de son ACL dans les
+# versions 2.x recentes (deplacee vers ce plugin dedie) - d'ou l'echec
+# "Command plugin:shell|open not allowed by ACL" malgre une capability
+# correctement configuree : la commande n'existe simplement plus.
+tauri-plugin-opener = "2"
 # Auto-update (Lot 8) : plugin officiel Tauri, pilote entierement depuis
 # Rust (voir main.rs/updater.rs) plutot que via l'API JS du plugin - la
 # fenetre affiche une page web distante (http://127.0.0.1:3000), pas les
