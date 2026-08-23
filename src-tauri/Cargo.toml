@@ -43,14 +43,3 @@ tauri-plugin-dialog = "2"
 # Client HTTP synchrone minimal (pas de runtime async a gerer) pour le
 # health-check du sidecar avant d'afficher l'interface reelle.
 ureq = "2"
-# Filet de securite diagnostique pour l'ouverture de liens externes : malgre
-# plusieurs configurations de capability differentes (toutes conformes a la
-# documentation officielle de tauri-plugin-opener, verifiees mot pour mot),
-# la commande plugin:opener|open_url continue d'echouer avec "not allowed by
-# ACL" en usage reel - cause encore non identifiee avec certitude. Cette
-# commande maison (voir main.rs, ouvrir_lien_diagnostic) journalise
-# explicitement si elle est atteinte ou non (preuve concrete pour le
-# prochain diagnostic si necessaire) et sert de repli fonctionnel : le JS
-# (api.js, ouvrirLienExterne) tente d'abord le plugin officiel, puis cette
-# commande si le premier echoue.
-open = "5"

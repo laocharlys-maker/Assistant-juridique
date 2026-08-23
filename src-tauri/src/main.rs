@@ -20,29 +20,6 @@ use tauri_plugin_shell::ShellExt;
 
 mod updater;
 
-/// Filet de securite pour l'ouverture de liens externes (voir Cargo.toml
-/// pour le contexte complet) : commande maison, appelee UNIQUEMENT si le
-/// plugin officiel tauri-plugin-opener echoue cote JS (voir api.js,
-/// ouvrirLienExterne). Journalise explicitement si elle est atteinte ou non
-/// - preuve concrete pour le diagnostic si l'ACL bloque aussi cette
-/// commande maison (contrairement aux tentatives precedentes ou aucune
-/// visibilite Rust n'existait sur la cause exacte du rejet).
-#[tauri::command]
-fn ouvrir_lien_diagnostic(url: String) -> Result<(), String> {
-    log_line(&format!("[lien-diagnostic] commande atteinte, ouverture de : {url}"));
-    match open::that(&url) {
-        Ok(()) => {
-            log_line("[lien-diagnostic] open::that() a reussi.");
-            Ok(())
-        }
-        Err(err) => {
-            let message = format!("open::that() a echoue : {err}");
-            log_line(&format!("[lien-diagnostic] {message}"));
-            Err(message)
-        }
-    }
-}
-
 /// Ecrit une ligne dans %APPDATA%\Aurore\logs\aurore-shell.log (cree si
 /// besoin) - seul moyen de diagnostiquer un echec de demarrage une fois
 /// l'app installee : en version release, `windows_subsystem = "windows"`
@@ -299,7 +276,6 @@ fn main() {
                 }
             }
         })
-        .invoke_handler(tauri::generate_handler![ouvrir_lien_diagnostic])
         .run(tauri::generate_context!())
         .expect("erreur au lancement de l'application Tauri");
 }
