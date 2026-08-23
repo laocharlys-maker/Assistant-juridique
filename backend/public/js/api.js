@@ -135,22 +135,39 @@ async function downloadFile(url, fallbackFilename) {
  */
 async function ouvrirLienExterne(url) {
   if (!url) return;
+  if (!(window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === "function")) {
+    window.open(url, "_blank", "noopener,noreferrer");
+    return;
+  }
   try {
-    if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === "function") {
-      await window.__TAURI__.core.invoke("plugin:opener|open_url", { url });
-    } else {
-      window.open(url, "_blank", "noopener,noreferrer");
+    await window.__TAURI__.core.invoke("plugin:opener|open_url", { url });
+    return;
+  } catch (err1) {
+    // Filet de securite : le plugin officiel a echoue de facon persistante
+    // en usage reel malgre plusieurs configurations de capability
+    // verifiees mot pour mot conformes a la documentation officielle
+    // (voir src-tauri/capabilities/default.json) - cause encore incertaine.
+    // Tente la commande maison de diagnostic (voir src-tauri/src/main.rs,
+    // ouvrir_lien_diagnostic) avant d'abandonner : au minimum, ses logs
+    // Rust (%APPDATA%\Aurore\logs\aurore-shell.log) diront si ELLE aussi
+    // est bloquee par l'ACL avant meme d'etre atteinte, ou si elle
+    // fonctionne (auquel cas le lien s'ouvre quand meme malgre l'echec du
+    // plugin officiel).
+    try {
+      await window.__TAURI__.core.invoke("ouvrir_lien_diagnostic", { url });
+      return;
+    } catch (err2) {
+      // err peut etre soit une Error JS classique, soit directement la
+      // chaine renvoyee par le cote Rust (Result<(), String> -> la valeur
+      // Err() est le rejet tel quel, jamais enveloppee dans une Error) -
+      // toujours extraire un texte lisible, jamais afficher "[object
+      // Object]".
+      const detail = (err) =>
+        typeof err === "string" ? err : err && typeof err.message === "string" ? err.message : JSON.stringify(err);
+      console.error("[lien-externe] impossible d'ouvrir le lien - plugin officiel :", detail(err1));
+      console.error("[lien-externe] impossible d'ouvrir le lien - repli diagnostic :", detail(err2));
+      showToast(`Impossible d'ouvrir ce lien : ${detail(err1)}`);
     }
-  } catch (err) {
-    // err peut etre soit une Error JS classique (repli window.open, rare),
-    // soit directement la chaine renvoyee par le cote Rust (Result<(),
-    // String> -> la valeur Err() est le rejet tel quel, jamais enveloppee
-    // dans une Error) - toujours extraire un texte lisible, jamais
-    // afficher "[object Object]".
-    const detail =
-      typeof err === "string" ? err : err && typeof err.message === "string" ? err.message : JSON.stringify(err);
-    console.error("[lien-externe] impossible d'ouvrir le lien :", detail);
-    showToast(`Impossible d'ouvrir ce lien : ${detail}`);
   }
 }
 
