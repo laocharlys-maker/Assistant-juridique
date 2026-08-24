@@ -4,7 +4,12 @@ import { AuthTokenPayload } from "./auth";
 /**
  * Renvoie la liste des identifiants d'avocats dont les dossiers sont
  * visibles par cet utilisateur (scope "mine") :
- * - un titulaire (admin) ou un avocat ne voit que ses propres dossiers
+ * - un titulaire (admin) ou un avocat voit ses propres dossiers, ainsi que
+ *   ceux crees par les collaborateurs dont il est le responsable direct
+ *   (User.responsableId) - un evenement/dossier/document cree par son
+ *   collaborateur doit rester visible pour lui, symetrique de l'acces dont
+ *   beneficie deja ce collaborateur sur les dossiers de son responsable
+ *   ci-dessous.
  * - un collaborateur voit les dossiers de l'avocat dont il depend
  *   directement (responsable), plus ceux des avocats lui ayant accorde
  *   un acces supplementaire, plus les siens propres le cas echeant ;
@@ -13,7 +18,11 @@ import { AuthTokenPayload } from "./auth";
  */
 export async function getAccessibleAvocatIds(auth: AuthTokenPayload): Promise<string[]> {
   if (auth.role === "titulaire" || auth.role === "avocat") {
-    return [auth.userId];
+    const collaborateurs = await prisma.user.findMany({
+      where: { cabinetId: auth.cabinetId, responsableId: auth.userId },
+      select: { id: true },
+    });
+    return [auth.userId, ...collaborateurs.map((c) => c.id)];
   }
 
   const user = await prisma.user.findUnique({

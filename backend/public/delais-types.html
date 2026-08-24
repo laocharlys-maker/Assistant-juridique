@@ -25,11 +25,6 @@
       const me = await requireSession();
       if (!me) return;
       initLayout(me);
-      if (me.role !== "titulaire") {
-        document.querySelector(".page").innerHTML =
-          '<p class="error visible">Cette page est réservée à l\'administrateur du cabinet.</p>';
-        return;
-      }
       const root = document.getElementById("panel-root");
       root.innerHTML = delaisTypesPanelHtml();
       initDelaisTypesPanel(root);

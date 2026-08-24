@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
-import { requireAdmin, requireModule } from "../middleware/roles";
+import { requireModule } from "../middleware/roles";
 import { computeDeadline } from "../services/delais";
 import { syncEvenementDepuisDelaiCalcul, supprimerEvenementDepuisDelaiCalcul } from "../services/evenementSync";
 
@@ -15,7 +15,7 @@ export const delaisRouter = Router();
 delaisRouter.use(["/api/delais-types", "/api/delais"], requireAuth, requireModule("delais"));
 
 delaisRouter.get("/api/delais-types", requireAuth, async (req, res) => {
-  const includeInactifs = req.query.all === "1" && req.auth!.role === "titulaire";
+  const includeInactifs = req.query.all === "1";
   const types = await prisma.delaiType.findMany({
     where: {
       cabinetId: req.auth!.cabinetId,
@@ -34,7 +34,7 @@ const createDelaiTypeSchema = z.object({
   texteReference: z.string().min(1, "Le texte de loi de référence est obligatoire"),
 });
 
-delaisRouter.post("/api/delais-types", requireAuth, requireAdmin, async (req, res) => {
+delaisRouter.post("/api/delais-types", requireAuth, async (req, res) => {
   const parsed = createDelaiTypeSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "Formulaire invalide", details: parsed.error.issues });
@@ -59,7 +59,7 @@ const updateDelaiTypeSchema = createDelaiTypeSchema.partial().extend({
   actif: z.boolean().optional(),
 });
 
-delaisRouter.patch("/api/delais-types/:id", requireAuth, requireAdmin, async (req, res) => {
+delaisRouter.patch("/api/delais-types/:id", requireAuth, async (req, res) => {
   const parsed = updateDelaiTypeSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "Formulaire invalide", details: parsed.error.issues });
@@ -79,7 +79,7 @@ delaisRouter.patch("/api/delais-types/:id", requireAuth, requireAdmin, async (re
   return res.json(updated);
 });
 
-delaisRouter.delete("/api/delais-types/:id", requireAuth, requireAdmin, async (req, res) => {
+delaisRouter.delete("/api/delais-types/:id", requireAuth, async (req, res) => {
   await prisma.delaiType
     .deleteMany({ where: { id: req.params.id, cabinetId: req.auth!.cabinetId } })
     .catch(() => null);

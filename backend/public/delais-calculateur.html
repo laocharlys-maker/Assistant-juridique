@@ -19,11 +19,11 @@
 
     <div class="tabs" id="delais-tabs" style="margin-bottom:16px;">
       <button type="button" class="tab active" data-tab="echeances">Échéances</button>
-      <button type="button" class="tab" data-tab="types" id="tab-btn-types" style="display:none;">Types de délais configurés</button>
+      <button type="button" class="tab" data-tab="types" id="tab-btn-types">Types de délais configurés</button>
     </div>
 
     <div id="tab-panel-echeances">
-      <div id="empty-warning" class="error" style="display:none;">Aucun délai n'est encore défini dans le référentiel du cabinet. Demande à l'administrateur d'en ajouter via "Types de délais configurés".</div>
+      <div id="empty-warning" class="error" style="display:none;">Aucun délai n'est encore défini dans le référentiel du cabinet. Ajoutes-en un via l'onglet "Types de délais configurés" (accessible à tous).</div>
 
       <div class="card">
         <div style="display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:8px;">
@@ -61,8 +61,8 @@
       <!-- Referentiel des types de delais (nom, duree, texte de loi) - meme
            panneau que delais-types.html, monte ici via js/delaisTypesPanel.js
            pour eviter de dupliquer create-form/liste/toggle/delete a deux
-           endroits. Reserve aux titulaires (voir gating JS ci-dessous),
-           identique a la restriction historique de delais-types.html. -->
+           endroits. Accessible a tout le monde (titulaire, avocat,
+           collaborateur) - plus reserve aux titulaires. -->
       <div id="types-panel-root"></div>
     </div>
   </div>
@@ -198,9 +198,6 @@
       const me = await requireSession();
       if (!me) return;
       initLayout(me);
-      if (me.role === "titulaire") {
-        document.getElementById("tab-btn-types").style.display = "inline-flex";
-      }
       await Promise.all([loadTypes(), loadDossiers(), loadHistory()]);
 
       const preselect = new URLSearchParams(window.location.search).get("dossierId");
