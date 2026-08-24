@@ -1142,13 +1142,14 @@ h5.md-heading { font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0
 .cal-nav strong { margin-left: 6px; text-transform: capitalize; }
 .cal-filters { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 
-.cal-month-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.cal-month-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
 .cal-month-daylabel { text-align: center; font-size: 0.78rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; padding-bottom: 4px; }
 .cal-day-cell {
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 6px;
   min-height: 96px;
+  min-width: 0;
   background: var(--panel);
   display: flex;
   flex-direction: column;
@@ -1177,8 +1178,8 @@ h5.md-heading { font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0
 .cal-day-more { font-size: 0.72rem; color: var(--muted); cursor: pointer; }
 
 .cal-week-grid, .cal-day-single { display: grid; gap: 10px; }
-.cal-week-grid { grid-template-columns: repeat(7, 1fr); }
-.cal-week-col, .cal-day-single { border: 1px solid var(--border); border-radius: 10px; padding: 8px; background: var(--panel); min-height: 140px; }
+.cal-week-grid { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.cal-week-col, .cal-day-single { border: 1px solid var(--border); border-radius: 10px; padding: 8px; background: var(--panel); min-height: 140px; min-width: 0; }
 .cal-week-col-header { font-size: 0.82rem; font-weight: 700; margin-bottom: 6px; text-align: center; text-transform: capitalize; }
 
 .cal-liste-jour { margin-bottom: 18px; }
