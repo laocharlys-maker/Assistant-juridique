@@ -1486,6 +1486,8 @@
         <form id="na-chrono-demarrer-form">
           <label>Numéro de dossier</label>
           <input name="numero_dossier" list="dossiers-datalist" required placeholder="ex: 12/2026" />
+          <label>Nom du client <span class="muted">(uniquement si ce numéro n'existe pas encore — crée le dossier)</span></label>
+          <input name="nom_client" placeholder="ex: Jean Kokou" />
           <p class="error" id="na-chrono-error"></p>
           <button type="submit">Démarrer le chronomètre</button>
         </form>`;
@@ -1493,13 +1495,29 @@
         e.preventDefault();
         const errorEl = document.getElementById("na-chrono-error");
         errorEl.textContent = "";
-        const numero = new FormData(e.target).get("numero_dossier").trim();
-        const dossier = dossiersParNumero.get(numero);
-        if (!dossier) {
-          errorEl.textContent = "Numéro de dossier introuvable.";
-          return;
-        }
+        const fd = new FormData(e.target);
+        const numero = fd.get("numero_dossier").trim();
+        const nomClient = fd.get("nom_client").trim();
+        let dossier = dossiersParNumero.get(numero);
         try {
+          if (!dossier) {
+            // Numero inconnu : cree le dossier a la volee (meme resolution
+            // que les autres modes de "Nouvelle action" - Transcrire un
+            // document, Rediger librement) plutot que de bloquer avec
+            // "introuvable", pour permettre de demarrer le chrono des
+            // l'ouverture d'un nouveau dossier sans devoir d'abord passer
+            // par un autre ecran.
+            if (!nomClient) {
+              errorEl.textContent = "Ce numéro de dossier n'existe pas encore — indique le nom du client pour le créer.";
+              return;
+            }
+            const res = await apiFetch("/api/transcription/dossier", {
+              method: "POST",
+              body: { numero_dossier: numero, nom_client: nomClient },
+            });
+            dossier = { id: res.dossierId, numeroDossier: numero };
+            dossiersParNumero.set(numero, dossier);
+          }
           await apiFetch("/api/saisies-temps/demarrer", { method: "POST", body: { dossierId: dossier.id } });
           await chargerChronoWidget();
           if (window.rafraichirHeaderChrono) window.rafraichirHeaderChrono();
