@@ -51,6 +51,13 @@
       const avertissement = !enPause && secondes > SEUIL_AVERTISSEMENT_HEURES * 3600;
       widgetChrono = `
         <p class="muted">⏱ Un chronomètre est ${enPause ? "en pause" : "en cours"} sur ce dossier (${formatDureeAffichage(secondes)}) — pilote-le depuis le Header.${avertissement ? " Il tourne depuis plus de 4h, vérifie que tu ne l'as pas oublié en route." : ""}</p>`;
+    } else if (!chronoActif) {
+      // Aucun chronometre actif nulle part (un seul a la fois, voir
+      // /api/saisies-temps/actif) : propose de le demarrer directement sur
+      // CE dossier, sans devoir passer par Nouvelle action.
+      widgetChrono = `
+        <p style="margin-top:0;"><button type="button" class="ghost btn-sm" id="timer-activer-chrono-btn">▶ Activer le chrono</button></p>
+        <p class="error" id="timer-activer-chrono-error"></p>`;
     }
 
     // Le temps deja rattache a une facture (factureId non nul) disparait de
@@ -147,6 +154,24 @@
 
     const facturerBtn = document.getElementById("timer-facturer-btn");
     if (facturerBtn) facturerBtn.addEventListener("click", facturer);
+
+    const activerChronoBtn = document.getElementById("timer-activer-chrono-btn");
+    if (activerChronoBtn) activerChronoBtn.addEventListener("click", activerChrono);
+  }
+
+  // Meme route que le formulaire de Nouvelle action (voir nouvelle-action.html,
+  // na-chrono-demarrer-form) - ici le dossier est deja connu (dossierIdCourant),
+  // pas besoin de ressaisir de numero.
+  async function activerChrono() {
+    const errorEl = document.getElementById("timer-activer-chrono-error");
+    if (errorEl) errorEl.textContent = "";
+    try {
+      await apiFetch("/api/saisies-temps/demarrer", { method: "POST", body: { dossierId: dossierIdCourant } });
+      await chargerEtat();
+      if (window.rafraichirHeaderChrono) window.rafraichirHeaderChrono();
+    } catch (err) {
+      if (errorEl) errorEl.textContent = err.message;
+    }
   }
 
   async function soumettreManuel(e) {
