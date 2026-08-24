@@ -1,8 +1,11 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Permissions de la fenetre principale Aurore : fonctionnalites core par defaut + execution du sidecar backend Node SEA + verification/installation de mises a jour (Lot 8, geree entierement cote Rust, voir updater.rs) + ouverture de liens externes (sources de jurisprudence) dans le navigateur systeme.",
+  "description": "Permissions de la fenetre principale Aurore : fonctionnalites core par defaut + execution du sidecar backend Node SEA + verification/installation de mises a jour (Lot 8, geree entierement cote Rust, voir updater.rs) + ouverture de liens externes (sources de jurisprudence) dans le navigateur systeme. Champ 'remote' obligatoire : Tauri ne considere ce fichier applicable qu'au contenu LOCAL empaquete par defaut, or toute l'interface Aurore est servie par le sidecar backend via http://127.0.0.1:3000 (voir main.rs, app_url()) - une origine 'distante' du point de vue de Tauri malgre le 127.0.0.1. Sans cette entree, aucune permission ci-dessous ne s'applique aux commandes invoquees depuis le JS de cette page (seul invoke() de toute l'appli : ouvrirLienExterne, voir api.js - toutes les autres fonctionnalites Tauri du projet sont pilotees depuis le code Rust, jamais depuis le JS, ce qui explique pourquoi ce probleme etait invisible ailleurs).",
   "windows": ["main"],
+  "remote": {
+    "urls": ["http://127.0.0.1:3000/*"]
+  },
   "permissions": [
     "core:default",
     "shell:allow-execute",
