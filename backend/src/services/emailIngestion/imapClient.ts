@@ -107,13 +107,24 @@ function explorerStructure(node: MessageStructureObject | undefined, repere: Rep
       typeMime: node.type || "application/octet-stream",
       tailleOctets: node.size || 0,
     });
-  } else if (node.type === "text/plain" && node.part && !repere.partTexte) {
-    repere.partTexte = node.part;
-    repere.partTexteEstHtml = false;
-  } else if (node.type === "text/html" && node.part && !repere.partTexte) {
-    // Repli uniquement si aucune partie text/plain n'a encore ete trouvee.
+  } else if (node.type === "text/html" && node.part && !repere.partTexteEstHtml) {
+    // HTML priorise sur le texte brut quand les deux existent (meme
+    // comportement que Gmail/tout client mail) - un texte/plain "genere"
+    // par l'outil d'envoi est souvent illisible tel quel (URLs de tracking
+    // imbriquees entre parentheses juste apres le texte du lien) alors que
+    // le HTML, plus fidele, est generalement disponible dans le meme email
+    // (multipart/alternative) : constate en usage reel, un email propre
+    // dans le client mail d'origine ressortait brouillon ici. Ecrase une
+    // eventuelle partie text/plain deja reperee plus tot dans l'arbre MIME
+    // (l'ordre des parties n'est pas garanti).
     repere.partTexte = node.part;
     repere.partTexteEstHtml = true;
+  } else if (node.type === "text/plain" && node.part && !repere.partTexte) {
+    // Repli uniquement si aucune partie HTML n'a ete reperee (avant ou
+    // apres ce noeud dans l'arbre - voir le cas HTML ci-dessus qui prend le
+    // dessus meme sur un text/plain deja repere).
+    repere.partTexte = node.part;
+    repere.partTexteEstHtml = false;
   }
 
   if (node.childNodes) {

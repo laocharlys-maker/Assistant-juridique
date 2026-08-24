@@ -47,6 +47,22 @@ describe("verifierConnexionMaintenant / traiterConnexion", () => {
     });
   });
 
+  it("inclut le texte serveur (responseText, reponse NO/BAD a une commande) dans derniereErreur quand imapflow le fournit", async () => {
+    const { verifierConnexionMaintenant } = await import("../polling");
+    const erreur = Object.assign(new Error("Command failed"), {
+      responseStatus: "NO",
+      responseText: "[AUTHENTICATIONFAILED] Authentication failed.",
+    });
+    imapListerMock.mockRejectedValue(erreur);
+
+    await verifierConnexionMaintenant(connexionImap(), "cabinet-1");
+
+    expect(prismaMock.connexionEmailExterne.update).toHaveBeenCalledWith({
+      where: { id: "conn-1" },
+      data: { derniereErreur: "Command failed — [AUTHENTICATIONFAILED] Authentication failed." },
+    });
+  });
+
   it("garde le message tel quel quand aucune raison serveur n'est fournie", async () => {
     const { verifierConnexionMaintenant } = await import("../polling");
     imapListerMock.mockRejectedValue(new Error("Connection not available"));

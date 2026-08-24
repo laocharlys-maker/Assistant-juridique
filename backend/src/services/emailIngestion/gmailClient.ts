@@ -353,14 +353,23 @@ export async function obtenirContenuComplet(
   const detail = (await res.json()) as GmailMessageDetail;
   const extraction: ExtractionCorps = { pieces: [] };
   if (detail.payload) explorerParties(detail.payload, extraction);
-  if (extraction.textePlain) {
-    return { html: null, texte: extraction.textePlain };
-  }
+  // HTML priorise sur le texte brut quand les deux existent (meme
+  // comportement que Gmail/tout client mail) - un email multipart (le cas
+  // le plus courant pour les newsletters/notifications) fournit un
+  // texte/plain "genere" par l'outil d'envoi, souvent illisible tel quel
+  // (URLs de tracking imbriquees entre parentheses juste apres le texte du
+  // lien, ex: "Google ( https://... )") : constate en usage reel, un email
+  // parfaitement propre dans Gmail (rendu HTML) ressortait brouillon ici
+  // (rendu texte/plain brut) alors que le HTML, plus fidele, etait
+  // disponible mais jamais utilise.
   if (extraction.texteHtml) {
     // htmlVersTexteLisible (jamais htmlVersTexte, qui aplatit tout sur une
     // seule ligne pour un extrait compact) pour le repli texte : la mise en
     // page (paragraphes) doit y rester lisible.
     return { html: nettoyerHtmlEmail(extraction.texteHtml), texte: htmlVersTexteLisible(extraction.texteHtml) };
+  }
+  if (extraction.textePlain) {
+    return { html: null, texte: extraction.textePlain };
   }
   return { html: null, texte: "" };
 }

@@ -53,7 +53,13 @@ function reponseJson(body: unknown, status = 200) {
 }
 
 describe("obtenirContenuComplet", () => {
-  it("extrait le texte brut (text/plain prioritaire) et ne le stocke nulle part", async () => {
+  it("priorise le HTML sur le texte brut quand les deux existent (comme Gmail et tout client mail)", async () => {
+    // Un email multipart (le plus courant pour newsletters/notifications)
+    // fournit un texte/plain "genere" par l'outil d'envoi, souvent
+    // illisible tel quel (URLs de tracking imbriquees entre parentheses) -
+    // le HTML, plus fidele, doit toujours etre prefere quand il existe
+    // (constate en usage reel : un email propre dans Gmail ressortait
+    // brouillon ici, car le texte/plain brut etait affiche par defaut).
     const { obtenirContenuComplet } = await import("../gmailClient");
     fetchMock.mockResolvedValueOnce(
       reponseJson({
@@ -62,7 +68,10 @@ describe("obtenirContenuComplet", () => {
           mimeType: "multipart/alternative",
           body: {},
           parts: [
-            { mimeType: "text/plain", body: { data: Buffer.from("Corps en texte brut.", "utf8").toString("base64url") } },
+            {
+              mimeType: "text/plain",
+              body: { data: Buffer.from("Google ( https://tracker.example/click )", "utf8").toString("base64url") },
+            },
             { mimeType: "text/html", body: { data: Buffer.from("<p>Corps en HTML</p>", "utf8").toString("base64url") } },
           ],
         },
@@ -71,8 +80,27 @@ describe("obtenirContenuComplet", () => {
 
     const resultat = await obtenirContenuComplet(connexion(), "msg-1");
 
-    expect(resultat).toEqual({ html: null, texte: "Corps en texte brut." });
+    expect(resultat.html).toContain("Corps en HTML");
+    expect(resultat.texte).toContain("Corps en HTML");
+    expect(resultat.texte).not.toContain("tracker.example");
     expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining("/messages/msg-1?format=full"), expect.anything());
+  });
+
+  it("se replie sur le texte brut si aucune partie HTML n'existe", async () => {
+    const { obtenirContenuComplet } = await import("../gmailClient");
+    fetchMock.mockResolvedValueOnce(
+      reponseJson({
+        internalDate: "1700000000000",
+        payload: {
+          mimeType: "text/plain",
+          body: { data: Buffer.from("Corps en texte brut.", "utf8").toString("base64url") },
+        },
+      })
+    );
+
+    const resultat = await obtenirContenuComplet(connexion(), "msg-1b");
+
+    expect(resultat).toEqual({ html: null, texte: "Corps en texte brut." });
   });
 
   it("se replie sur le HTML converti en texte si aucun text/plain n'existe", async () => {

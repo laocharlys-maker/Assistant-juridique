@@ -89,21 +89,25 @@ async function traiterConnexion(connexion: ConnexionEmailExterne, cabinetId: str
 }
 
 /**
- * imapflow annote certaines erreurs de connexion (code "NoConnection") avec
- * `error.reason` : la raison EXPLICITE donnee par le serveur IMAP dans sa
- * reponse BYE avant de fermer la connexion (ex: "Too many simultaneous
- * connections", "Account temporarily locked"...) - voir imap-flow.js,
- * createNoConnectionError(). Notre code ignorait jusqu'ici ce champ et
- * n'affichait que le message generique "Connection not available", masquant
- * la vraie cause (constate en usage reel : boite Yahoo systematiquement en
- * echec, message generique sans aucune piste exploitable pour l'utilisateur).
+ * imapflow annote certaines erreurs avec un texte EXPLICITE donne par le
+ * serveur IMAP, que notre code ignorait jusqu'ici (seul error.message,
+ * generique, etait affiche) :
+ * - error.reason : reponse BYE avant fermeture de connexion (code
+ *   "NoConnection", ex: "Too many simultaneous connections") - voir
+ *   imap-flow.js, createNoConnectionError().
+ * - error.responseText : reponse taguee NO/BAD a une commande (message
+ *   generique "Command failed" sinon) - le texte associe peut etre, par
+ *   exemple, la vraie raison d'un refus d'authentification ou d'acces,
+ *   voir imap-flow.js, settleRequest().
+ * Masquait la vraie cause en usage reel (boite Yahoo systematiquement en
+ * echec, message generique sans aucune piste exploitable).
  */
 function messageAvecRaisonServeur(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
+  if (!error || typeof error !== "object") return message;
+  const err = error as { reason?: unknown; responseText?: unknown };
   const raison =
-    error && typeof error === "object" && "reason" in error && typeof (error as { reason?: unknown }).reason === "string"
-      ? (error as { reason: string }).reason
-      : undefined;
+    (typeof err.reason === "string" && err.reason) || (typeof err.responseText === "string" && err.responseText) || undefined;
   return raison ? `${message} — ${raison}` : message;
 }
 
