@@ -76,8 +76,25 @@ describe("traitementOcr", () => {
       expect(prismaMock.ocrResultat.upsert).not.toHaveBeenCalled();
     });
 
-    it("ne crée aucun OcrResultat pour un PDF à texte natif suffisant", async () => {
+    it("enregistre le texte natif d'un PDF non scanné comme OcrResultat 'termine', sans jamais appeler tesseract", async () => {
       detecterBesoinOcrMock.mockResolvedValue({ necessiteOcr: false, texteNatif: "beaucoup de texte", nombrePages: 2 });
+
+      await enqueuerTraitementOcr({ ...document, typeMime: "application/pdf" }, Buffer.from("x"));
+
+      expect(prismaMock.ocrResultat.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { documentId: "doc1" },
+          create: expect.objectContaining({ statut: "termine", scoreConfiance: 100 }),
+        })
+      );
+      const appel = prismaMock.ocrResultat.upsert.mock.calls[0]![0] as { create: { texteExtrait: string } };
+      expect(appel.create.texteExtrait).toMatch(/^enc:v1:/);
+      expect(appel.create.texteExtrait).not.toContain("beaucoup de texte");
+      expect(traiterDocumentOcrMock).not.toHaveBeenCalled();
+    });
+
+    it("ne crée aucun OcrResultat si aucun texte natif n'est extrait (PDF sans texte exploitable, hors OCR)", async () => {
+      detecterBesoinOcrMock.mockResolvedValue({ necessiteOcr: false, texteNatif: "", nombrePages: 1 });
 
       await enqueuerTraitementOcr({ ...document, typeMime: "application/pdf" }, Buffer.from("x"));
 

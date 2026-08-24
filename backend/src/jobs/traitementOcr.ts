@@ -93,7 +93,42 @@ export async function enqueuerTraitementOcr(document: DocumentDossier, contenu: 
     if (!estFormatOcrEligible(document.typeMime)) return;
 
     const detection = await detecterBesoinOcr(document.typeMime, contenu);
-    if (!detection.necessiteOcr) return;
+    if (!detection.necessiteOcr) {
+      // PDF a texte natif deja exploitable (voir detectionScanne.ts) : pas
+      // besoin de tesseract, mais ce texte doit neanmoins etre enregistre
+      // comme un OcrResultat "termine" - sinon ce document reste invisible
+      // dans "Documents transcrits" (routes/dossiers.ts, vue=transcriptions,
+      // filtre strictement sur ocrResultat.statut="termine") et absent de la
+      // recherche plein texte (routes/ocr.ts, recherche-ocr), alors que son
+      // texte est parfaitement disponible - constate en usage reel : un
+      // avocat transcrivant un PDF deja numerique (redige sur ordinateur)
+      // ne le retrouvait nulle part. texteNatif est toujours vide pour un
+      // format hors PDF (Word...), jamais concerne ici (voir
+      // detecterBesoinOcr).
+      if (detection.texteNatif) {
+        await prisma.ocrResultat.upsert({
+          where: { documentId: document.id },
+          create: {
+            documentId: document.id,
+            cabinetId: document.cabinetId,
+            dossierId: document.dossierId,
+            statut: "termine",
+            tentatives: 1,
+            texteExtrait: encryptField(detection.texteNatif),
+            scoreConfiance: 100,
+          },
+          update: {
+            statut: "termine",
+            tentatives: { increment: 1 },
+            texteExtrait: encryptField(detection.texteNatif),
+            scoreConfiance: 100,
+            messageErreur: null,
+          },
+        });
+        console.log(`[ocr] texte natif reutilise (PDF non scanne, aucun passage tesseract) : document=${document.id}`);
+      }
+      return;
+    }
 
     const ocrResultat = await prisma.ocrResultat.upsert({
       where: { documentId: document.id },

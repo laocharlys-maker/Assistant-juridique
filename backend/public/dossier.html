@@ -648,14 +648,25 @@
       return `<span class="badge badge-ocr-${document.ocrResultat.statut}">${label}</span>`;
     }
 
+    // Formats couverts par l'OCR (voir services/ocr/detectionScanne.ts,
+    // TYPES_MIME_IMAGE_OCR/TYPE_MIME_PDF, meme liste cote serveur).
+    const OCR_TYPES_ELIGIBLES = new Set(["application/pdf", "image/jpeg", "image/png"]);
+
     function boutonsOcr(document) {
-      if (!document.ocrResultat) return "";
       const boutons = [];
-      if (document.ocrResultat.statut === "termine") {
-        boutons.push(`<button type="button" class="ghost btn-sm" data-ocr-voir="${document.id}">Voir le texte reconnu</button>`);
-      }
-      if (document.ocrResultat.statut === "termine" || document.ocrResultat.statut === "echec") {
-        boutons.push(`<button type="button" class="ghost btn-sm" data-ocr-relancer="${document.id}">Relancer la reconnaissance</button>`);
+      if (document.ocrResultat) {
+        if (document.ocrResultat.statut === "termine") {
+          boutons.push(`<button type="button" class="ghost btn-sm" data-ocr-voir="${document.id}">Voir le texte reconnu</button>`);
+        }
+        if (document.ocrResultat.statut === "termine" || document.ocrResultat.statut === "echec") {
+          boutons.push(`<button type="button" class="ghost btn-sm" data-ocr-relancer="${document.id}">Relancer la reconnaissance</button>`);
+        }
+      } else if (OCR_TYPES_ELIGIBLES.has(document.typeMime)) {
+        // Aucun OcrResultat pour l'instant : soit un PDF a texte natif deja
+        // exploitable (aucun traitement necessaire des l'upload, voir
+        // jobs/traitementOcr.ts), soit une piece uploadee avant ce
+        // correctif - "Lancer" (jamais tente) plutot que "Relancer".
+        boutons.push(`<button type="button" class="ghost btn-sm" data-ocr-relancer="${document.id}">Lancer la reconnaissance</button>`);
       }
       return boutons.join("");
     }
