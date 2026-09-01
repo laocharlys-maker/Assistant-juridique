@@ -99,6 +99,8 @@ CREATE TABLE "users" (
     "nom" TEXT NOT NULL,
     "email" TEXT NOT NULL,
     "mot_de_passe_hash" TEXT NOT NULL,
+    "reset_code_hash" TEXT,
+    "reset_code_expires_at" TIMESTAMP(3),
     "role" "UserRole" NOT NULL DEFAULT 'collaborateur',
     "responsable_id" TEXT,
     "signature_url" TEXT,

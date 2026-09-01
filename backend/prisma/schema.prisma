@@ -232,6 +232,11 @@ model User {
   nom                    String
   email                  String    @unique
   motDePasseHash         String    @map("mot_de_passe_hash")
+  // Code de reinitialisation "mot de passe oublie" (self-service), envoye
+  // par email - seul le hash SHA-256 du code est stocke, jamais le code en
+  // clair (voir routes/auth.ts). Efface des utilisation ou expiration.
+  resetCodeHash          String?   @map("reset_code_hash")
+  resetCodeExpiresAt     DateTime? @map("reset_code_expires_at")
   role                   UserRole  @default(collaborateur)
   // Avocat dont depend directement ce collaborateur (null pour un titulaire).
   responsableId          String?   @map("responsable_id")

@@ -32,6 +32,33 @@
         <label for="password">Mot de passe</label>
         <input id="password" type="password" required autocomplete="current-password" />
         <button type="submit">Se connecter</button>
+        <p style="text-align:center; margin-bottom:0;">
+          <a href="#" id="mot-de-passe-oublie-link" class="muted" style="font-size:0.9em;">Mot de passe oublié ?</a>
+        </p>
+      </form>
+
+      <!-- Etape 1 : demande du code, envoye par email -->
+      <form id="forgot-request-form" style="display:none;">
+        <p class="muted" style="margin-top:0;">Indique ton email — si un compte existe, un code de réinitialisation valable 15 minutes t'est envoyé par email.</p>
+        <label for="forgot-email">Email</label>
+        <input id="forgot-email" type="email" required autocomplete="username" />
+        <button type="submit">Envoyer le code</button>
+        <p style="text-align:center; margin-bottom:0;">
+          <a href="#" id="retour-connexion-link-1" class="muted" style="font-size:0.9em;">← Retour à la connexion</a>
+        </p>
+      </form>
+
+      <!-- Etape 2 : code recu + nouveau mot de passe -->
+      <form id="forgot-reset-form" style="display:none;">
+        <div id="forgot-info" class="muted" style="margin-top:0;"></div>
+        <label for="forgot-code">Code reçu par email (6 chiffres)</label>
+        <input id="forgot-code" required maxlength="6" pattern="[0-9]{6}" autocomplete="one-time-code" />
+        <label for="forgot-new-password">Nouveau mot de passe (8 caractères minimum)</label>
+        <input id="forgot-new-password" type="password" required minlength="8" autocomplete="new-password" />
+        <button type="submit">Réinitialiser le mot de passe</button>
+        <p style="text-align:center; margin-bottom:0;">
+          <a href="#" id="retour-connexion-link-2" class="muted" style="font-size:0.9em;">← Retour à la connexion</a>
+        </p>
       </form>
 
       <!-- Affiche uniquement si aucun cabinet n'existe encore sur ce poste
@@ -56,6 +83,8 @@
   <script>
     const loginForm = document.getElementById("login-form");
     const premierLancementForm = document.getElementById("premier-lancement-form");
+    const forgotRequestForm = document.getElementById("forgot-request-form");
+    const forgotResetForm = document.getElementById("forgot-reset-form");
     const errorEl = document.getElementById("error");
 
     function apresConnexion(user) {
@@ -124,6 +153,71 @@
         // affiche par defaut, comportement identique a avant cet ajout.
       }
     })();
+
+    // "Mot de passe oublié" : deux etapes (demande du code par email, puis
+    // code + nouveau mot de passe), sans jamais quitter cette page.
+    function afficherLogin() {
+      hideError(errorEl);
+      loginForm.style.display = "block";
+      forgotRequestForm.style.display = "none";
+      forgotResetForm.style.display = "none";
+    }
+
+    document.getElementById("mot-de-passe-oublie-link").addEventListener("click", (e) => {
+      e.preventDefault();
+      hideError(errorEl);
+      loginForm.style.display = "none";
+      forgotRequestForm.style.display = "block";
+    });
+    document.getElementById("retour-connexion-link-1").addEventListener("click", (e) => {
+      e.preventDefault();
+      afficherLogin();
+    });
+    document.getElementById("retour-connexion-link-2").addEventListener("click", (e) => {
+      e.preventDefault();
+      afficherLogin();
+    });
+
+    forgotRequestForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      hideError(errorEl);
+      const email = document.getElementById("forgot-email").value;
+      try {
+        const { message } = await apiFetch("/api/auth/mot-de-passe-oublie", {
+          method: "POST",
+          body: { email },
+        });
+        document.getElementById("forgot-info").textContent = message;
+        document.getElementById("forgot-code").value = "";
+        document.getElementById("forgot-new-password").value = "";
+        forgotResetForm.dataset.email = email;
+        forgotRequestForm.style.display = "none";
+        forgotResetForm.style.display = "block";
+      } catch (err) {
+        showError(errorEl, err.message);
+      }
+    });
+
+    forgotResetForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      hideError(errorEl);
+      try {
+        await apiFetch("/api/auth/reinitialiser-mot-de-passe", {
+          method: "POST",
+          body: {
+            email: forgotResetForm.dataset.email,
+            code: document.getElementById("forgot-code").value,
+            nouveauMotDePasse: document.getElementById("forgot-new-password").value,
+          },
+        });
+        afficherLogin();
+        document.getElementById("email").value = forgotResetForm.dataset.email || "";
+        document.getElementById("forgot-info").textContent = "";
+        showToast("Mot de passe réinitialisé — connecte-toi avec le nouveau.");
+      } catch (err) {
+        showError(errorEl, err.message);
+      }
+    });
   </script>
 </body>
 </html>

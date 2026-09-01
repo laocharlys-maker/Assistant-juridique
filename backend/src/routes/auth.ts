@@ -1,10 +1,13 @@
 import { Router } from "express";
+import crypto from "node:crypto";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { verifyPassword, hashPassword, signAuthToken } from "../services/auth";
 import { requireAuth } from "../middleware/requireAuth";
 import { loginLimiter } from "../middleware/rateLimit";
 import { env } from "../config/env";
+import { sendEmail } from "../services/mailer";
+import { resolveCabinetEmailIdentite } from "../services/cabinetContact";
 
 export const authRouter = Router();
 
@@ -146,6 +149,102 @@ authRouter.post("/api/auth/login", loginLimiter, async (req, res) => {
 
 authRouter.post("/api/auth/logout", (_req, res) => {
   res.clearCookie("aurore_session");
+  return res.json({ ok: true });
+});
+
+// "Mot de passe oublie" (self-service, sans authentification prealable -
+// c'est justement le cas d'un titulaire seul admin de son cabinet, sans
+// personne d'autre pour lui reinitialiser son mot de passe). Un code a 6
+// chiffres est envoye par email, valable 15 minutes, a usage unique.
+const RESET_CODE_TTL_MS = 15 * 60 * 1000;
+
+function hashResetCode(code: string): string {
+  return crypto.createHash("sha256").update(code).digest("hex");
+}
+
+const motDePasseOublieSchema = z.object({ email: z.string().email() });
+
+authRouter.post("/api/auth/mot-de-passe-oublie", loginLimiter, async (req, res) => {
+  const parsed = motDePasseOublieSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Adresse email invalide" });
+  }
+
+  // Reponse volontairement identique que le compte existe ou non (evite de
+  // laisser deviner, via ce message, si une adresse est enregistree).
+  const reponseGenerique = {
+    ok: true,
+    message: "Si un compte existe avec cette adresse, un code de réinitialisation vient d'être envoyé par email.",
+  };
+
+  const user = await prisma.user.findUnique({ where: { email: parsed.data.email } });
+  if (!user || !user.actif) {
+    return res.json(reponseGenerique);
+  }
+
+  const code = crypto.randomInt(0, 1_000_000).toString().padStart(6, "0");
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { resetCodeHash: hashResetCode(code), resetCodeExpiresAt: new Date(Date.now() + RESET_CODE_TTL_MS) },
+  });
+
+  const { cabinetNom, replyToEmail } = await resolveCabinetEmailIdentite(user.cabinetId);
+  const mailResult = await sendEmail({
+    destinataireEmail: user.email,
+    cabinetNom,
+    replyToEmail,
+    subject: `${cabinetNom} - Réinitialisation de votre mot de passe`,
+    text: `Voici votre code de réinitialisation : ${code}\n\nCe code est valable 15 minutes. Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.`,
+  });
+  if (!mailResult.ok) {
+    console.error(`[auth] échec de l'envoi du code de réinitialisation à ${user.email} :`, mailResult.error);
+  }
+
+  return res.json(reponseGenerique);
+});
+
+const reinitialiserMotDePasseSchema = z.object({
+  email: z.string().email(),
+  code: z.string().length(6),
+  nouveauMotDePasse: z.string().min(8, "Le mot de passe doit faire au moins 8 caractères"),
+});
+
+authRouter.post("/api/auth/reinitialiser-mot-de-passe", loginLimiter, async (req, res) => {
+  const parsed = reinitialiserMotDePasseSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Requête invalide" });
+  }
+  const { email, code, nouveauMotDePasse } = parsed.data;
+
+  // Meme message d'erreur dans tous les cas (compte introuvable, code
+  // expire, code errone) - jamais de detail qui permettrait de deviner
+  // lequel, meme raisonnement que la reponse generique ci-dessus.
+  const erreurGenerique = { error: "Code invalide ou expiré." };
+
+  const user = await prisma.user.findUnique({ where: { email } });
+  if (!user || !user.resetCodeHash || !user.resetCodeExpiresAt) {
+    return res.status(400).json(erreurGenerique);
+  }
+  if (user.resetCodeExpiresAt.getTime() < Date.now()) {
+    return res.status(400).json(erreurGenerique);
+  }
+
+  const attendu = Buffer.from(user.resetCodeHash);
+  const recu = Buffer.from(hashResetCode(code));
+  if (attendu.length !== recu.length || !crypto.timingSafeEqual(attendu, recu)) {
+    return res.status(400).json(erreurGenerique);
+  }
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      motDePasseHash: await hashPassword(nouveauMotDePasse),
+      resetCodeHash: null,
+      resetCodeExpiresAt: null,
+    },
+  });
+
+  console.log(`[auth] mot de passe réinitialisé via code pour ${user.email}.`);
   return res.json({ ok: true });
 });
 
