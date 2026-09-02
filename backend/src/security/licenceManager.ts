@@ -38,6 +38,11 @@ const licencePayloadSchema = z.object({
     .regex(/^[0-9a-f]{64}$/, "empreinteMachine doit etre un hash SHA-256 hexadecimal (64 caracteres)"),
   modulesActifs: z.array(z.string()),
   modeVerification: z.enum(["auto", "manuel"]),
+  // Facultatif (retrocompatible) : absent sur toute licence emise avant ce
+  // champ (aurore-licence-service) - un tel fichier reste verifiable, ce
+  // champ vaut alors undefined et est traite comme "illimite" (voir
+  // syncCabinetLicenceFields ci-dessous).
+  limiteComptes: z.number().int().positive().nullable().optional(),
 });
 export type LicencePayload = z.infer<typeof licencePayloadSchema>;
 
@@ -85,6 +90,13 @@ export function canonicalizePayload(payload: LicencePayload): Buffer {
     empreinteMachine: payload.empreinteMachine,
     modulesActifs: payload.modulesActifs,
     modeVerification: payload.modeVerification,
+    // Ajoute en dernier, champ optionnel : quand absent (licence emise avant
+    // son introduction), `payload.limiteComptes` vaut `undefined` et
+    // JSON.stringify omet la cle - octets canoniques strictement identiques
+    // a avant, donc signature d'une licence deja emise toujours verifiable
+    // sans reemission. DOIT rester identique a canonicalizePayload() dans
+    // aurore-licence-service/src/crypto/ed25519.ts.
+    limiteComptes: payload.limiteComptes,
   };
   return Buffer.from(JSON.stringify(ordered), "utf8");
 }
@@ -562,6 +574,16 @@ async function syncCabinetLicenceFields(status: LicenceStatus): Promise<void> {
         licenceModeVerification: status.payload.modeVerification,
         licenceDateExpiration: new Date(status.payload.dateExpiration),
         empreinteMachineAutorisee: status.payload.empreinteMachine,
+        // Contrairement aux autres champs synchronises ci-dessus (purs
+        // miroirs de visibilite), celui-ci EST directement exploite en
+        // enforcement (voir routes/users.ts, verifierLimiteComptes) - la
+        // licence devient donc la source reelle de cette limite en mode
+        // portable/reseau, alors qu'elle etait jusqu'ici reglable
+        // uniquement via l'ecran super_admin (mode externe, voir
+        // routes/admin.ts). `?? null` : une licence sans ce champ (emise
+        // avant son introduction) remet explicitement "illimite", jamais
+        // une valeur laissee au hasard.
+        limiteComptes: status.payload.limiteComptes ?? null,
       },
     });
     if (result.count === 0) {

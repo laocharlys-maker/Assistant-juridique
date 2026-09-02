@@ -29,6 +29,7 @@ interface TestLicencePayload {
   empreinteMachine: string;
   modulesActifs: string[];
   modeVerification: "auto" | "manuel";
+  limiteComptes?: number | null;
 }
 
 const TEST_PRIVATE_KEY_PATH = path.join(__dirname, "..", "..", "..", "test-keys", "licence-test-private.pem");
@@ -41,6 +42,10 @@ function canonicalizeTestPayload(payload: TestLicencePayload): Buffer {
     empreinteMachine: payload.empreinteMachine,
     modulesActifs: payload.modulesActifs,
     modeVerification: payload.modeVerification,
+    // Omis (undefined) sur tout appelant qui ne le renseigne pas - reproduit
+    // volontairement une licence emise AVANT ce champ (voir describe
+    // "limiteComptes" plus bas).
+    limiteComptes: payload.limiteComptes,
   };
   return Buffer.from(JSON.stringify(ordered), "utf8");
 }
@@ -54,6 +59,7 @@ function signTestLicence(payload: TestLicencePayload): { payload: TestLicencePay
 let fakeAppData: string;
 let activateLicence: typeof import("../licenceManager").activateLicence;
 let runPhoneHomeCheck: typeof import("../licenceManager").runPhoneHomeCheck;
+let getCurrentLicenceStatus: typeof import("../licenceManager").getCurrentLicenceStatus;
 let getMachineFingerprint: typeof import("../machineFingerprint").getMachineFingerprint;
 let registreModeles: typeof import("../../services/llm/registreModeles");
 
@@ -65,7 +71,7 @@ beforeAll(async () => {
   process.env.APPDATA = fakeAppData;
   process.env.LICENCE_PHONE_HOME_URL = "https://licence.test/phone-home";
 
-  ({ activateLicence, runPhoneHomeCheck } = await import("../licenceManager"));
+  ({ activateLicence, runPhoneHomeCheck, getCurrentLicenceStatus } = await import("../licenceManager"));
   ({ getMachineFingerprint } = await import("../machineFingerprint"));
   registreModeles = await import("../../services/llm/registreModeles");
 });
@@ -162,5 +168,45 @@ describe("runPhoneHomeCheck - modelesLlmActifs (Lot22)", () => {
     expect(resultat.action).toBe("ignore");
     expect(fetchMock).not.toHaveBeenCalled();
     expect(registreModeles.getModelePrincipal("groq")).toBe("llama-3.3-70b-versatile");
+  });
+});
+
+describe("limiteComptes (Lot 20bis) - retrocompatibilite de la signature", () => {
+  it("active sans erreur une licence signee AVANT l'introduction de ce champ (absent du payload)", async () => {
+    const empreinteMachine = await getMachineFingerprint();
+    const licence = signTestLicence({
+      cabinetId: CABINET_ID,
+      nomCabinet: "Cabinet Test Lot22",
+      dateExpiration: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+      empreinteMachine,
+      modulesActifs: ["all"],
+      modeVerification: "manuel",
+      // limiteComptes volontairement absent - reproduit une licence emise
+      // avant ce champ.
+    });
+
+    const status = await activateLicence(JSON.stringify(licence));
+
+    expect(status.etat).toBe("valide");
+    expect(status.payload?.limiteComptes).toBeUndefined();
+  });
+
+  it("active et restitue une licence signee AVEC limiteComptes", async () => {
+    const empreinteMachine = await getMachineFingerprint();
+    const licence = signTestLicence({
+      cabinetId: CABINET_ID,
+      nomCabinet: "Cabinet Test Lot22",
+      dateExpiration: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+      empreinteMachine,
+      modulesActifs: ["all"],
+      modeVerification: "manuel",
+      limiteComptes: 3,
+    });
+
+    await activateLicence(JSON.stringify(licence));
+    const status = await getCurrentLicenceStatus();
+
+    expect(status.etat).toBe("valide");
+    expect(status.payload?.limiteComptes).toBe(3);
   });
 });
