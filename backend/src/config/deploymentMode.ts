@@ -123,6 +123,32 @@ function isPrivateIPv4(address: string): boolean {
  * interface privee n'est trouvee (machine sans reseau local, ou uniquement
  * des interfaces publiques/inhabituelles).
  */
+const TAILSCALE_INTERFACE_PATTERN = /tailscale/i;
+
+/**
+ * Adresse IPv4 attribuee par Tailscale (VPN maille, accès distant hors du
+ * réseau local du cabinet) sur cette machine, si Tailscale est installé et
+ * connecté - null sinon. Contrairement à getLocalNetworkAddress()
+ * ci-dessus, qui EXCLUT deliberement cette interface (voir
+ * INTERFACE_NAME_DEPRIORITISE_PATTERNS, pour ne jamais afficher l'IP d'un
+ * VPN actif comme etant celle du reseau du cabinet), cette fonction la
+ * recherche explicitement - utilisée par security/localTlsCertificate.ts
+ * pour que le certificat local couvre AUSSI l'accès via Tailscale, en plus
+ * de l'IP LAN habituelle, jamais à sa place. Les adresses Tailscale (plage
+ * 100.64.0.0/10, CGNAT) ne sont volontairement pas reconnues par
+ * isPrivateIPv4() ci-dessus (RFC 1918 uniquement) - cette fonction ne
+ * s'appuie donc que sur le nom de l'interface, pas sur une plage d'adresse.
+ */
+export function getTailscaleAddress(): string | null {
+  const interfaces = os.networkInterfaces();
+  for (const [interfaceName, addresses] of Object.entries(interfaces)) {
+    if (!addresses || !TAILSCALE_INTERFACE_PATTERN.test(interfaceName)) continue;
+    const ipv4 = addresses.find((addr) => addr.family === "IPv4" && !addr.internal);
+    if (ipv4) return ipv4.address;
+  }
+  return null;
+}
+
 export function getLocalNetworkAddress(): LocalNetworkAddress | null {
   const interfaces = os.networkInterfaces();
   const candidatsPrivilegies: LocalNetworkAddress[] = [];
