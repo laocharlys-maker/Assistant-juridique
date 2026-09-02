@@ -26,6 +26,13 @@ use tauri_plugin_updater::UpdaterExt;
 /// demarrage normal : une erreur reseau ici (pas d'internet, endpoint de
 /// mise a jour injoignable) est journalisee et silencieusement ignoree,
 /// l'application continue de fonctionner normalement hors-ligne.
+///
+/// EN VEILLEUSE depuis le 2026-09-02 (demande AzoMedIA) : l'appel depuis
+/// main.rs est commente, cette fonction n'est donc plus jamais executee -
+/// #[allow(dead_code)] evite juste le warning de compilation correspondant,
+/// rien d'autre n'a change ici. Voir le commentaire pres de l'appel commente
+/// dans main.rs pour la procedure de reactivation.
+#[allow(dead_code)]
 pub fn check_for_updates(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
         let updater = match app.updater() {

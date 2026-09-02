@@ -195,7 +195,6 @@ fn main() {
                 .get_webview_window("main")
                 .expect("fenetre principale 'main' introuvable");
 
-            let handle_for_updater = handle.clone();
             let handle_for_timeout_dialog = handle.clone();
             std::thread::spawn(move || {
                 let health_url = health_url();
@@ -209,11 +208,17 @@ fn main() {
                             );
                             let script = format!("window.location.replace({:?});", app_url());
                             let _ = window.eval(&script);
-                            // Verification de mise a jour (Lot 8) : lancee une
-                            // fois l'application reellement utilisable, jamais
-                            // avant - ne bloque jamais le demarrage normal (voir
-                            // updater.rs, entierement non-bloquant/best-effort).
-                            updater::check_for_updates(handle_for_updater);
+                            // Verification de mise a jour (Lot 8) : EN VEILLEUSE
+                            // depuis le 2026-09-02, a la demande explicite
+                            // d'AzoMedIA (pas encore de version amelioree a
+                            // proposer aux cabinets pendant le pilote) - simple
+                            // appel commente, rien de supprime. Pour reactiver :
+                            // decommenter cet appel et la ligne
+                            // `let handle_for_updater = handle.clone();` juste
+                            // au-dessus du bloc `std::thread::spawn` (voir
+                            // updater.rs, entierement non-bloquant/best-effort,
+                            // inchange).
+                            // updater::check_for_updates(handle_for_updater);
                             return;
                         }
                         Ok(response) => {
