@@ -7,22 +7,16 @@ import { requireSuperAdmin } from "../middleware/roles";
 import { hashPassword } from "../services/auth";
 import { buildFacturePdf } from "../services/facturePdf";
 import { sendEmail } from "../services/mailer";
+// Deplace vers config/modulesDisponibles.ts (security/licenceManager.ts en a
+// aussi besoin, et ne doit jamais importer un fichier de routes/) - reimporte
+// et reexporte ici tel quel pour ne rien casser des imports existants
+// (ex: routes/users.ts, `import { MODULES_DISPONIBLES } from "./admin"`).
+import { MODULES_DISPONIBLES } from "../config/modulesDisponibles";
 
 export const adminRouter = Router();
+export { MODULES_DISPONIBLES };
 
 adminRouter.use("/api/admin", requireAuth, requireSuperAdmin);
-
-// Cles de modules geres par la plateforme - toute autre valeur est rejetee
-// a la creation/modification pour eviter des cles orphelines qu'aucun
-// module ne verifie jamais.
-export const MODULES_DISPONIBLES = [
-  "facturation",
-  "veille_juridique",
-  "jurisprudence",
-  "delais",
-  "nouvelle_action",
-  "documents_generes",
-] as const;
 
 // Prefixe reserve aux factures d'ABONNEMENT emises par la plateforme a un
 // cabinet client (distinct des series PROF-/FACT- que le cabinet utilise

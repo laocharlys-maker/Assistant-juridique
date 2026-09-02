@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
+import { estModuleDesactive } from "../middleware/roles";
 import { env } from "../config/env";
 import { enregistrerFichier, lireFichier, supprimerFichier } from "../services/stockageDocuments";
 import { enqueuerTraitementOcr } from "../jobs/traitementOcr";
@@ -66,6 +67,14 @@ documentsDossierRouter.get("/api/dossiers/:dossierId/documents", requireAuth, as
 const uploadSchema = z.object({
   nom: z.string().min(1),
   fichierDataUrl: z.string().min(1),
+  // Facultatif : uniquement envoye par l'ecran dedie "Transcrire un
+  // document" de Nouvelle Action (public/nouvelle-action.html) - jamais par
+  // l'onglet Pieces habituel du dossier (dossier.html), qui reste totalement
+  // inchange par ce controle. Cette route est partagee par les deux : seul
+  // ce flag permet de restreindre specifiquement l'ecran "Transcrire", sans
+  // jamais bloquer un depot de piece ordinaire (l'OCR qu'il declenche en
+  // arriere-plan, jobs/traitementOcr.ts, n'est pas non plus concerne).
+  viaTranscription: z.boolean().optional(),
 });
 
 documentsDossierRouter.post("/api/dossiers/:dossierId/documents", requireAuth, async (req, res) => {
@@ -77,6 +86,12 @@ documentsDossierRouter.post("/api/dossiers/:dossierId/documents", requireAuth, a
   const parsed = uploadSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "Formulaire invalide", details: parsed.error.issues });
+  }
+
+  if (parsed.data.viaTranscription && (await estModuleDesactive(req.auth!.cabinetId, req.auth!.userId, "action_transcription"))) {
+    return res.status(403).json({
+      error: "Cette action n'est pas activée pour votre cabinet. Contactez l'administrateur de la plateforme.",
+    });
   }
 
   const match = parsed.data.fichierDataUrl.match(DATA_URL_PATTERN);

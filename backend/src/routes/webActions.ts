@@ -3,7 +3,7 @@ import crypto from "node:crypto";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
-import { requireModule } from "../middleware/roles";
+import { requireModule, estModuleDesactive } from "../middleware/roles";
 import { getLlmProvider, getAnthropicProviderForced, LlmProvider } from "../services/llm";
 import { isMissingConfigurationError } from "../lib/configurationError";
 import { isNetworkFetchError, isProviderQuotaError } from "../lib/networkError";
@@ -364,6 +364,35 @@ const ACTIONS_FORCANT_ANTHROPIC = new Set<WebActionForm["type_action"]>([
   "resume_pdf",
 ]);
 
+// Controle fin (AzoMedIA, dashboard de licence) a l'interieur de "Nouvelle
+// Action" - verifie EN PLUS de requireModule("nouvelle_action") pose sur la
+// route ci-dessous, jamais a sa place : une licence par defaut (["all"], voir
+// aurore-licence-service) ne desactive rien de plus ici. Regroupe les onze
+// actes de redaction sous une seule cle ("action_rediger", voir
+// public/nouvelle-action.html, TYPE_CATALOG categorie "rediger") plutot
+// qu'une cle par acte - c'est la granularite demandee par AzoMedIA. Les
+// recherches/resume de jurisprudence et la recherche juridique restent
+// distinctes (demande explicite), contrairement au regroupement "rechercher"
+// du frontend. "action_transcription" (OCR, Lot 17) n'a pas d'entree ici :
+// ce n'est pas une action de ce formulaire, voir routes/documentsDossier.ts.
+export const ACTION_MODULE_MAP: Partial<Record<WebActionForm["type_action"], string>> = {
+  notes: "action_rediger",
+  redac: "action_rediger",
+  assignation: "action_rediger",
+  conclusions: "action_rediger",
+  note_plaidoirie: "action_rediger",
+  mise_en_demeure: "action_rediger",
+  plainte: "action_rediger",
+  contrat: "action_rediger",
+  notification_date: "action_rediger",
+  requete: "action_rediger",
+  projet_ordonnance: "action_rediger",
+  recherche_juridique: "action_recherche_juridique",
+  jurisprudence: "action_recherche_jurisprudence",
+  resume_pdf: "action_resume_jurisprudence",
+  traduction: "action_traduction",
+};
+
 // Constate en usage reel (dossier JURIS-1786731229315) : le defaut de
 // redact() (8192 tokens, voir services/llm/anthropic.ts) coupait la fiche de
 // jurisprudence en plein milieu d'une phrase avant d'atteindre les 2500-3000
@@ -446,6 +475,14 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
   }
   const form = parsed.data;
   const { auth } = req;
+
+  const cleActionFine = ACTION_MODULE_MAP[form.type_action];
+  if (cleActionFine && (await estModuleDesactive(auth!.cabinetId, auth!.userId, cleActionFine))) {
+    return res.status(403).json({
+      error: "Cette action n'est pas activée pour votre cabinet. Contactez l'administrateur de la plateforme.",
+    });
+  }
+
   const llm = getLlmProviderSafe(res, form.type_action);
   if (!llm) return;
 

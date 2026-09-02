@@ -1298,6 +1298,8 @@
       const me = await requireSession();
       if (!me) return;
       initLayout(me);
+      naFiltrerModulesDesactives(me);
+      naRenderCategoryGrid();
       try {
         naHuissiersDisponibles = await apiFetch("/api/huissiers");
       } catch {
@@ -1632,6 +1634,47 @@
       rechercher: { label: "Rechercher", icon: "🔍", sub: "Jurisprudence, textes de loi, doctrine" },
       traduire: { label: "Traduire", icon: "🌐", sub: "Français ↔ Anglais" },
     };
+
+    // Controle fin (dashboard de licence AzoMedIA) - DOIT rester synchronise
+    // avec ACTION_MODULE_MAP cote serveur (routes/webActions.ts) : ce fichier
+    // ne peut pas l'importer (page HTML brute, pas de bundler JS, voir
+    // js/api.js). Purement une aide d'affichage (masque les actes non
+    // autorises) - la vraie securite reste cote serveur, qui refait la meme
+    // verification independamment a chaque soumission.
+    const ACTION_MODULE_MAP = {
+      notes: "action_rediger", redac: "action_rediger", assignation: "action_rediger",
+      conclusions: "action_rediger", note_plaidoirie: "action_rediger", mise_en_demeure: "action_rediger",
+      plainte: "action_rediger", contrat: "action_rediger", notification_date: "action_rediger",
+      requete: "action_rediger", projet_ordonnance: "action_rediger",
+      recherche_juridique: "action_recherche_juridique",
+      jurisprudence: "action_recherche_jurisprudence",
+      resume_pdf: "action_resume_jurisprudence",
+      traduction: "action_traduction",
+    };
+    // Types d'actes reellement affiches (accueil + grille de categorie) -
+    // recalcule une seule fois au demarrage (naFiltrerModulesDesactives, voir
+    // l'IIFE d'init plus bas) a partir de me.modulesDesactives.
+    let naTypesDisponibles = new Set(Object.keys(TYPE_CATALOG));
+
+    function naFiltrerModulesDesactives(me) {
+      const desactives = new Set(me.modulesDesactives || []);
+      naTypesDisponibles = new Set(
+        Object.keys(TYPE_CATALOG).filter((type) => !desactives.has(ACTION_MODULE_MAP[type]))
+      );
+
+      const transcrireCard = document.getElementById("na-mode-transcrire");
+      if (transcrireCard && desactives.has("action_transcription")) {
+        transcrireCard.hidden = true;
+      }
+
+      // Aucun acte "Generer avec l'IA" restant autorise (cas extreme, mais a
+      // gerer proprement) : inutile de laisser un mode d'accueil qui ne
+      // menerait qu'a un ecran vide.
+      const iaCard = document.getElementById("na-mode-ia");
+      if (iaCard && naTypesDisponibles.size === 0) {
+        iaCard.hidden = true;
+      }
+    }
 
     // ---------- Pre-remplissage generalise depuis un autre acte ----------
     // Chaque formulaire d'acte propose un bloc "Pre-remplir depuis un autre
@@ -2225,7 +2268,7 @@
 
         await apiFetch(`/api/dossiers/${dossierId}/documents`, {
           method: "POST",
-          body: { nom: fichier.name, fichierDataUrl },
+          body: { nom: fichier.name, fichierDataUrl, viaTranscription: true },
         });
 
         // Renvoie directement sur l'onglet Pieces du dossier : le badge de
@@ -2274,7 +2317,9 @@
     }
 
     function naOpenCategory(key) {
-      const typesInCategory = Object.entries(TYPE_CATALOG).filter(([, v]) => v.category === key);
+      const typesInCategory = Object.entries(TYPE_CATALOG).filter(
+        ([type, v]) => v.category === key && naTypesDisponibles.has(type)
+      );
       // Une seule action possible dans cette categorie (ex: Traduire) : on
       // saute directement au formulaire, pas besoin d'un ecran intermediaire
       // avec une seule carte a cliquer.
@@ -2299,9 +2344,18 @@
       naShowScreen("category");
     }
 
-    document.getElementById("na-category-grid").append(
-      ...Object.keys(CATEGORIES).map((key) => naRenderCategoryCard(key))
-    );
+    // Appelee APRES naFiltrerModulesDesactives(me) (voir l'IIFE d'init plus
+    // bas) : une categorie sans aucun acte autorise restant (ex: "Rechercher"
+    // si ses trois actes sont tous desactives) n'affiche aucune carte,
+    // plutot que de mener a un ecran de categorie vide.
+    function naRenderCategoryGrid() {
+      const grid = document.getElementById("na-category-grid");
+      grid.innerHTML = "";
+      const categoriesDisponibles = Object.keys(CATEGORIES).filter((key) =>
+        Object.entries(TYPE_CATALOG).some(([type, v]) => v.category === key && naTypesDisponibles.has(type))
+      );
+      grid.append(...categoriesDisponibles.map((key) => naRenderCategoryCard(key)));
+    }
 
     document.getElementById("na-breadcrumb-to-hub").addEventListener("click", (e) => {
       e.preventDefault();

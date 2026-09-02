@@ -73,3 +73,22 @@ export function requireModule(cle: string) {
     }
   };
 }
+
+// Meme verification que requireModule ci-dessus, mais utilisable en dehors
+// d'un middleware de route fixe (booleen, pas de reponse HTTP directe) -
+// necessaire pour une restriction plus fine que "toute la route" (ex:
+// routes/webActions.ts, ACTION_MODULE_MAP, qui ne connait le type d'action
+// concerne qu'APRES avoir lu le corps de la requete ; routes/documentsDossier.ts
+// pour "action_transcription", conditionnee a un champ du formulaire).
+// Duplique volontairement les deux memes requetes plutot que de faire
+// dependre requireModule() de cette fonction : requireModule() est deja
+// couvert par un test e2e qui verifie ses DEUX messages distincts
+// (tests/e2e/modules-collaborateur.test.ts) - le laisser inchange evite tout
+// risque de regression sur un chemin deja teste.
+export async function estModuleDesactive(cabinetId: string, userId: string, cle: string): Promise<boolean> {
+  const cabinet = await prisma.cabinet.findUnique({ where: { id: cabinetId }, select: { modulesDesactives: true } });
+  if (cabinet?.modulesDesactives.includes(cle)) return true;
+
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { modulesDesactives: true } });
+  return Boolean(user?.modulesDesactives.includes(cle));
+}

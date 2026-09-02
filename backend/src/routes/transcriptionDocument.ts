@@ -25,6 +25,7 @@ transcriptionDocumentRouter.post(
   "/api/transcription/dossier",
   requireAuth,
   requireModule("nouvelle_action"),
+  requireModule("action_transcription"),
   async (req, res) => {
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) {

@@ -60,6 +60,7 @@ let fakeAppData: string;
 let activateLicence: typeof import("../licenceManager").activateLicence;
 let runPhoneHomeCheck: typeof import("../licenceManager").runPhoneHomeCheck;
 let getCurrentLicenceStatus: typeof import("../licenceManager").getCurrentLicenceStatus;
+let calculerModulesDesactives: typeof import("../licenceManager").calculerModulesDesactives;
 let getMachineFingerprint: typeof import("../machineFingerprint").getMachineFingerprint;
 let registreModeles: typeof import("../../services/llm/registreModeles");
 
@@ -71,7 +72,9 @@ beforeAll(async () => {
   process.env.APPDATA = fakeAppData;
   process.env.LICENCE_PHONE_HOME_URL = "https://licence.test/phone-home";
 
-  ({ activateLicence, runPhoneHomeCheck, getCurrentLicenceStatus } = await import("../licenceManager"));
+  ({ activateLicence, runPhoneHomeCheck, getCurrentLicenceStatus, calculerModulesDesactives } = await import(
+    "../licenceManager"
+  ));
   ({ getMachineFingerprint } = await import("../machineFingerprint"));
   registreModeles = await import("../../services/llm/registreModeles");
 });
@@ -208,5 +211,32 @@ describe("limiteComptes (Lot 20bis) - retrocompatibilite de la signature", () =>
 
     expect(status.etat).toBe("valide");
     expect(status.payload?.limiteComptes).toBe(3);
+  });
+});
+
+describe("calculerModulesDesactives (Lot 20ter) - controle fin par action, dashboard de licence", () => {
+  it("ne desactive rien pour la convention historique [\"all\"]", () => {
+    expect(calculerModulesDesactives(["all"])).toEqual([]);
+  });
+
+  it("desactive tous les modules connus quand la liste blanche est vide", () => {
+    const desactives = calculerModulesDesactives([]);
+    expect(desactives).toContain("action_rediger");
+    expect(desactives).toContain("action_recherche_juridique");
+    expect(desactives).toContain("action_transcription");
+    expect(desactives).toContain("nouvelle_action");
+  });
+
+  it("ne desactive que les modules absents de la liste blanche", () => {
+    const desactives = calculerModulesDesactives(["nouvelle_action", "action_rediger", "action_traduction"]);
+    expect(desactives).not.toContain("action_rediger");
+    expect(desactives).not.toContain("action_traduction");
+    expect(desactives).toContain("action_recherche_juridique");
+    expect(desactives).toContain("action_transcription");
+    expect(desactives).toContain("facturation");
+  });
+
+  it("ignore silencieusement une cle inconnue dans la liste blanche (jamais une erreur)", () => {
+    expect(() => calculerModulesDesactives(["cle_future_inconnue"])).not.toThrow();
   });
 });

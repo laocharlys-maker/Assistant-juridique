@@ -7,6 +7,7 @@ import { appRoot } from "../lib/seaPaths";
 import { LICENCE_PUBLIC_KEY_PEM } from "../config/licencePublicKey";
 import { getMachineFingerprint } from "./machineFingerprint";
 import { appliquerConfigurationDistante } from "../services/llm/registreModeles";
+import { MODULES_DISPONIBLES } from "../config/modulesDisponibles";
 
 /**
  * Module Licence (Lot 3) : verification cryptographique + gestion de
@@ -546,9 +547,28 @@ export async function runPhoneHomeCheck(options: { force?: boolean } = {}): Prom
 }
 
 // ============================================================================
-// Synchronisation Cabinet (visibilite admin uniquement - jamais la source de
-// verite d'acces, qui reste toujours le fichier local + evaluateLicenceState)
+// Synchronisation Cabinet - licenceId/mode/date/empreinte restent un pur
+// miroir de visibilite admin (jamais la source de verite d'acces, qui reste
+// le fichier local + evaluateLicenceState). limiteComptes ET modulesDesactives
+// ci-dessous font EXCEPTION : ce sont les seuls champs reellement exploites
+// en enforcement (routes/users.ts verifierLimiteComptes ; middleware/roles.ts
+// requireModule/estModuleDesactive) - la licence en devient donc la source
+// reelle en mode portable/reseau (aucun super_admin n'y existe pour les
+// regler autrement, voir routes/auth.ts).
 // ============================================================================
+
+// Calcule les modules a desactiver a partir de la liste blanche du payload
+// de licence (modulesActifs) : convention inversee par rapport a
+// Cabinet.modulesDesactives (liste noire) - "all" (defaut historique de
+// toute licence, voir aurore-licence-service/generateLicence.ts) => aucune
+// restriction. Sinon, tout module connu absent de la liste blanche est
+// desactive. Une cle inconnue de MODULES_DISPONIBLES dans modulesActifs
+// (ex: cle ajoutee cote app avant d'etre ajoutee ici) est silencieusement
+// sans effet, jamais une erreur.
+export function calculerModulesDesactives(modulesActifs: string[]): string[] {
+  if (modulesActifs.includes("all")) return [];
+  return MODULES_DISPONIBLES.filter((cle) => !modulesActifs.includes(cle));
+}
 
 async function syncCabinetLicenceFields(status: LicenceStatus): Promise<void> {
   if (!status.payload || !status.licenceId) return;
@@ -584,6 +604,7 @@ async function syncCabinetLicenceFields(status: LicenceStatus): Promise<void> {
         // avant son introduction) remet explicitement "illimite", jamais
         // une valeur laissee au hasard.
         limiteComptes: status.payload.limiteComptes ?? null,
+        modulesDesactives: calculerModulesDesactives(status.payload.modulesActifs),
       },
     });
     if (result.count === 0) {

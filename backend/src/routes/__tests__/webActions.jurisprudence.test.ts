@@ -29,6 +29,7 @@ vi.mock("../../middleware/requireAuth", () => ({
 }));
 vi.mock("../../middleware/roles", () => ({
   requireModule: () => (_req: unknown, _res: unknown, next: () => void) => next(),
+  estModuleDesactive: async () => false,
 }));
 vi.mock("../../middleware/rateLimit", () => ({
   aiActionsLimiter: (_req: unknown, _res: unknown, next: () => void) => next(),
