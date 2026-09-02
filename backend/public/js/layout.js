@@ -214,6 +214,13 @@ function initLayout(me) {
   // de throttle localStorage que initFacturesRappel ci-dessus), reserve aux
   // roles ayant un agenda (titulaire/avocat/collaborateur).
   initPopupEvenementsDuJour(me);
+
+  // Pop-up "Nouvelle veille juridique disponible" - EN PLUS de l'email deja
+  // envoye (services/veilleJuridique.ts), jamais a sa place : signale dans
+  // l'appli le digest deja genere, pour le cas ou l'email passe inapercu.
+  // Reserve aux avocats/titulaire (memes destinataires que l'email) - voir
+  // routes/veilleJuridiqueNotification.ts.
+  initPopupVeilleJuridique(me);
 }
 
 function escapeHtmlHeaderChrono(str) {
@@ -536,4 +543,63 @@ function afficherPopupEvenementsDuJour(evenements) {
   document.body.appendChild(overlay);
 
   overlay.querySelector("#evenements-jour-ok-btn").addEventListener("click", () => overlay.remove());
+}
+
+// Pop-up "Nouvelle veille juridique disponible" - EN PLUS de l'email deja
+// envoye chaque lundi (services/veilleJuridique.ts), jamais a sa place :
+// signale dans l'appli le digest deja genere et enregistre, pour le cas ou
+// l'email passe inapercu (spam, boite encombree...). Contrairement aux
+// pop-up factures/evenements ci-dessus, le "deja vu" est suivi cote serveur
+// (User.veilleDerniereVue, voir routes/veilleJuridiqueNotification.ts) et
+// non par un throttle localStorage : un seul digest existe a la fois (pas
+// une liste qui grossit chaque jour comme les factures), donc "vu une fois,
+// jusqu'au prochain digest" est le bon niveau de persistance - un
+// changement de poste ne doit pas la refaire apparaitre inutilement.
+async function initPopupVeilleJuridique(me) {
+  if (me.role !== "titulaire" && me.role !== "avocat") return;
+
+  let digest;
+  try {
+    const data = await apiFetch("/api/veille-juridique/derniere");
+    digest = data.digest;
+  } catch {
+    // Module veille juridique desactive pour ce cabinet, ou erreur reseau
+    // ponctuelle - jamais bloquant, on reessaiera au prochain chargement.
+    return;
+  }
+  if (!digest || digest.vue) return;
+
+  // Marque comme "vu" des maintenant (meme principe que initFacturesRappel
+  // ci-dessus) : un changement de page dans la foulee ne doit pas la
+  // rouvrir, quel que soit le bouton finalement clique dans la pop-up.
+  apiFetch("/api/veille-juridique/vue", { method: "POST" }).catch(() => {});
+  afficherPopupVeilleJuridique(digest);
+}
+
+function afficherPopupVeilleJuridique(digest) {
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay";
+  overlay.id = "veille-juridique-overlay";
+
+  const dateGeneration = new Date(digest.createdAt).toLocaleDateString("fr-FR", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+
+  overlay.innerHTML = `
+    <div class="modal-box">
+      <h2>Nouvelle veille juridique disponible</h2>
+      <p class="muted" style="margin-top:-8px;">${escapeHtmlHeaderChrono(digest.titre)} — générée le ${dateGeneration}</p>
+      <div style="display:flex; gap:10px; margin-top:18px;">
+        <button type="button" class="ghost" id="veille-juridique-plus-tard-btn">Plus tard</button>
+        <button type="button" id="veille-juridique-lire-btn">Lire la veille</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  overlay.querySelector("#veille-juridique-plus-tard-btn").addEventListener("click", () => overlay.remove());
+  overlay.querySelector("#veille-juridique-lire-btn").addEventListener("click", () => {
+    window.location.href = `/dossier.html?id=${digest.dossierId}`;
+  });
 }

@@ -9,6 +9,7 @@ import {
   VEILLE_JURIDIQUE_SYSTEM_PROMPT,
   buildVeilleJuridiqueUserPrompt,
 } from "../prompts/webRedaction";
+import { dernierCreneauVeilleJuridique } from "../utils/creneauHebdomadaire";
 
 export { splitSujets, periodeLabel };
 
@@ -114,13 +115,31 @@ export async function runVeilleForCabinet(cabinetId: string, llm: LlmProvider, m
   }
 }
 
-export async function runVeillePourTousLesCabinets(llm: LlmProvider): Promise<void> {
-  const cabinets = await prisma.cabinet.findMany({ where: { veilleActive: true } });
+/**
+ * Rattrapage au demarrage : appelee a la fois par le cron hebdomadaire ET
+ * une fois au demarrage de l'app (voir index.ts, meme principe deja en
+ * place pour runPhoneHomeCheck) - idempotente par cabinet grace a
+ * veilleDerniereExecution, donc jamais d'envoi en double si l'app
+ * redemarre plusieurs fois la meme semaine, tout en rattrapant un creneau
+ * manque (app fermee au moment prevu, lundi 7h heure du Benin).
+ */
+export async function runVeillePourTousLesCabinets(llm: LlmProvider, maintenant = new Date()): Promise<void> {
+  const creneau = dernierCreneauVeilleJuridique(maintenant);
+  const cabinets = await prisma.cabinet.findMany({
+    where: { veilleActive: true },
+    select: { id: true, veilleDerniereExecution: true },
+  });
   for (const cabinet of cabinets) {
+    if (cabinet.veilleDerniereExecution && cabinet.veilleDerniereExecution >= creneau) continue;
     try {
-      await runVeilleForCabinet(cabinet.id, llm);
+      await runVeilleForCabinet(cabinet.id, llm, maintenant);
     } catch (error) {
       console.error(`Erreur veille juridique pour le cabinet ${cabinet.id} :`, error);
+    }
+    try {
+      await prisma.cabinet.update({ where: { id: cabinet.id }, data: { veilleDerniereExecution: creneau } });
+    } catch (error) {
+      console.error(`[veille-juridique] impossible d'enregistrer la derniere execution pour le cabinet ${cabinet.id} :`, error);
     }
   }
 }

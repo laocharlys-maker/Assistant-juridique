@@ -3,6 +3,7 @@ import { sendEmail } from "./mailer";
 import { buildRoleSemaineRecapEmailHtml } from "./roleSemaineRecapEmail";
 import { formatDateLongue } from "../utils/dateFormat";
 import { resolveCabinetEmailIdentite } from "./cabinetContact";
+import { dernierCreneauRoleSemaine } from "../utils/creneauHebdomadaire";
 
 // Lundi de la semaine contenant la date donnee (UTC). Duplique volontairement
 // de roleAudiences.ts pour ne pas faire dependre un service planifie d'un
@@ -66,13 +67,30 @@ export async function runRoleSemaineRecapPourCabinet(cabinetId: string): Promise
   }
 }
 
-export async function runRoleSemaineRecapPourTousLesCabinets(): Promise<void> {
-  const cabinets = await prisma.cabinet.findMany();
+/**
+ * Rattrapage au demarrage : appelee a la fois par le cron hebdomadaire ET
+ * une fois au demarrage de l'app (voir index.ts, meme principe deja en
+ * place pour runPhoneHomeCheck) - idempotente par cabinet grace a
+ * roleSemaineDerniereExecution, donc jamais d'envoi en double si l'app
+ * redemarre plusieurs fois la meme semaine, tout en rattrapant un creneau
+ * manque (app fermee au moment prevu, vendredi 8h heure du Benin).
+ */
+export async function runRoleSemaineRecapPourTousLesCabinets(maintenant = new Date()): Promise<void> {
+  const creneau = dernierCreneauRoleSemaine(maintenant);
+  const cabinets = await prisma.cabinet.findMany({
+    select: { id: true, roleSemaineDerniereExecution: true },
+  });
   for (const cabinet of cabinets) {
+    if (cabinet.roleSemaineDerniereExecution && cabinet.roleSemaineDerniereExecution >= creneau) continue;
     try {
       await runRoleSemaineRecapPourCabinet(cabinet.id);
     } catch (error) {
       console.error(`Erreur recapitulatif du role de la semaine pour le cabinet ${cabinet.id} :`, error);
+    }
+    try {
+      await prisma.cabinet.update({ where: { id: cabinet.id }, data: { roleSemaineDerniereExecution: creneau } });
+    } catch (error) {
+      console.error(`[role-semaine] impossible d'enregistrer la derniere execution pour le cabinet ${cabinet.id} :`, error);
     }
   }
 }

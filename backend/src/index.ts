@@ -363,6 +363,23 @@ async function main() {
 
     // Veille juridique hebdomadaire : chaque lundi a 7h (heure du Benin),
     // pour tous les cabinets ayant active la veille dans leurs parametres.
+    //
+    // Rattrapage au demarrage (meme principe que runPhoneHomeCheck()
+    // ci-dessus) : Aurore est une app desktop, pas un serveur toujours
+    // allumee - si elle est fermee exactement lundi 7h, le cron ci-dessous
+    // ne se declenche jamais et l'envoi de la semaine etait jusqu'ici
+    // perdu sans aucun rattrapage possible. runVeillePourTousLesCabinets()
+    // est desormais idempotente par cabinet (veilleDerniereExecution) :
+    // cet appel immediat rattrape un creneau manque sans jamais dupliquer
+    // un envoi deja fait (y compris si l'app redemarre plusieurs fois la
+    // meme semaine).
+    try {
+      runVeillePourTousLesCabinets(getAnthropicProviderForced()).catch((error) => {
+        console.error("Erreur lors du rattrapage de la veille juridique au demarrage :", error);
+      });
+    } catch (error) {
+      console.error("Rattrapage de la veille juridique ignore au demarrage (fournisseur IA non configure) :", error);
+    }
     cron.schedule(
       "0 7 * * 1",
       () => {
@@ -391,6 +408,13 @@ async function main() {
     // Benin), envoi par mail des audiences deja saisies pour la semaine qui
     // commence 10 jours plus tard (le greffe communique le role dans ce
     // delai) - le cabinet a ainsi la semaine intermediaire pour se preparer.
+    //
+    // Rattrapage au demarrage : meme raisonnement que la veille juridique
+    // ci-dessus - runRoleSemaineRecapPourTousLesCabinets() est desormais
+    // idempotente par cabinet (roleSemaineDerniereExecution).
+    runRoleSemaineRecapPourTousLesCabinets().catch((error) => {
+      console.error("Erreur lors du rattrapage du recapitulatif du role de la semaine au demarrage :", error);
+    });
     cron.schedule(
       "0 8 * * 5",
       () => {

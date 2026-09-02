@@ -159,6 +159,15 @@ model Cabinet {
   veilleSujets                        String?   @map("veille_sujets")
   // La veille hebdomadaire n'est envoyee que si activee explicitement.
   veilleActive                        Boolean   @default(false) @map("veille_active")
+  // Rattrapage au demarrage (voir utils/creneauHebdomadaire.ts,
+  // services/veilleJuridique.ts et roleSemaineRecap.ts) : horodatage du
+  // dernier creneau hebdomadaire (lundi 7h / vendredi 8h, heure du Benin)
+  // pour lequel l'envoi a deja ete tente pour ce cabinet - evite un envoi en
+  // double si l'app redemarre plusieurs fois la meme semaine, tout en
+  // rattrapant un creneau manque (app fermee au moment prevu) au prochain
+  // demarrage. Null = jamais encore execute.
+  veilleDerniereExecution              DateTime? @map("veille_derniere_execution")
+  roleSemaineDerniereExecution         DateTime? @map("role_semaine_derniere_execution")
   // Delai (en mois) apres la cloture d'un dossier avant archivage
   // automatique. N'entraine jamais de suppression, juste un rangement hors
   // de la liste par defaut.
@@ -259,6 +268,11 @@ model User {
   // Un avocat/titulaire peut se desinscrire de la veille juridique
   // hebdomadaire par email (sans effet pour un collaborateur).
   recoitVeille           Boolean   @default(true) @map("recoit_veille")
+  // Horodatage du dernier digest de veille juridique (Action.createdAt) que
+  // CET utilisateur a vu via la pop-up in-app (routes/veilleJuridiqueNotification.ts,
+  // public/js/layout.js) - EN PLUS de l'email, jamais a sa place. Null =
+  // jamais vu. Sans effet sur recoitVeille (l'envoi email reste inchange).
+  veilleDerniereVue      DateTime? @map("veille_derniere_vue")
   // Compte desactive par l'admin : bloque la connexion et invalide toute
   // session en cours, sans supprimer l'historique (dossiers/actions crees
   // par cette personne restent intacts).
