@@ -83,6 +83,17 @@
   ; silencieux sans consequence si ce nom ne correspond a rien, comme prevu.
   nsExec::ExecToLog 'taskkill /F /IM Aurore.exe /T'
   Pop $0
+  ; BUG CORRIGE (constate le 2026-09-03, "Erreur lors de l'ouverture du
+  ; fichier en ecriture" sur postgres\bin\icudt67.dll pendant une
+  ; reinstallation) : postgres.exe (le cluster Postgres portable, demarre
+  ; par le backend - voir database/postgresPortable.ts) tourne comme
+  ; process DETACHE du cycle de vie de aurore-backend.exe (necessaire pour
+  ; que ses processus auxiliaires survivent normalement, voir ce meme
+  ; fichier) - le tuer via aurore-backend.exe ci-dessus ne l'arrete donc
+  ; PAS, et il continue de verrouiller ses propres binaires/DLL pendant la
+  ; copie des nouveaux fichiers.
+  nsExec::ExecToLog 'taskkill /F /IM postgres.exe /T'
+  Pop $0
   ; Laisse Windows liberer les handles de fichiers juste apres la
   ; terminaison des process - sans cette pause, la copie peut demarrer
   ; avant que le verrou ne soit reellement leve.
@@ -114,6 +125,11 @@
   nsExec::ExecToLog 'taskkill /F /IM aurore-desktop.exe /T'
   Pop $0
   nsExec::ExecToLog 'taskkill /F /IM Aurore.exe /T'
+  Pop $0
+  ; postgres.exe : voir le commentaire "BUG CORRIGE" (2026-09-03) de
+  ; NSIS_HOOK_PREINSTALL ci-dessus - meme correction, meme raison (process
+  ; detache, jamais arrete par le taskkill sur aurore-backend.exe seul).
+  nsExec::ExecToLog 'taskkill /F /IM postgres.exe /T'
   Pop $0
   Sleep 1000
 
