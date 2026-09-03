@@ -145,6 +145,19 @@ header.topbar nav a:hover { color: var(--accent); }
    celui-ci). */
 .dossier-header-row { display: flex; align-items: flex-start; gap: 32px; flex-wrap: wrap; }
 .dossier-header-info { flex: 1 1 320px; min-width: 280px; }
+/* Boutons/liens d'action de la fiche dossier (Cloturer/Facturer/Calculer un
+   delai) : un simple "margin-left" ne donne un espacement qu'horizontalement,
+   entre elements sur une meme ligne - des que ca passe a la ligne suivante
+   (ecran etroit, ou plusieurs actions visibles a la fois), rien ne les
+   separe verticalement et ils se retrouvent colles au bloc au-dessus.
+   flex-wrap + gap espace dans les deux sens, quel que soit le nombre de
+   lignes. */
+.dossier-header-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
+/* La regle globale "button { margin-top: 18px }" (pensee pour un bouton de
+   fin de formulaire) decalerait #toggle-cloture-btn vers le bas par rapport
+   aux liens .secondary voisins (qui n'ont pas cette marge) - neutralisee
+   ici pour un alignement propre entre le bouton et les liens de ce groupe. */
+.dossier-header-actions button { margin-top: 0; }
 .dossier-header-timer {
   flex: 1 1 280px;
   min-width: 260px;

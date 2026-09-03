@@ -266,7 +266,8 @@
                 ${
                   currentDossierEstRecherche
                     ? ""
-                    : `${
+                    : `<div class="dossier-header-actions">
+                      ${
                         me.role !== "collaborateur"
                           ? `<button type="button" class="secondary" id="toggle-cloture-btn" data-statut="${dossier.statut}">
                               ${dossier.statut === "cloture" ? "Rouvrir le dossier" : "Clôturer le dossier"}
@@ -275,10 +276,11 @@
                       }
                       ${
                         me.role === "titulaire" || me.role === "avocat"
-                          ? `<a class="secondary" href="/factures.html?dossierId=${dossier.id}" style="display:inline-block; text-decoration:none; padding:6px 12px; border-radius:6px; margin-left:8px;">Facturer ce dossier</a>`
+                          ? `<a class="secondary" href="/factures.html?dossierId=${dossier.id}" style="display:inline-block; text-decoration:none; padding:6px 12px; border-radius:6px;">Facturer ce dossier</a>`
                           : ""
                       }
-                      <a class="secondary" href="/delais-calculateur.html?dossierId=${dossier.id}" style="display:inline-block; text-decoration:none; padding:6px 12px; border-radius:6px; margin-left:8px;">Calculer un délai</a>`
+                      <a class="secondary" href="/delais-calculateur.html?dossierId=${dossier.id}" style="display:inline-block; text-decoration:none; padding:6px 12px; border-radius:6px;">Calculer un délai</a>
+                    </div>`
                 }
               </div>
               ${currentDossierEstRecherche ? "" : '<div class="dossier-header-timer" id="timer-section"></div>'}
