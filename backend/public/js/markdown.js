@@ -19,10 +19,13 @@
       // source peut lui-meme contenir des * (peu probable mais sans risque
       // ainsi). escapeHtml() tourne toujours avant renderInline(), donc le
       // texte/url capture ici est deja HTML-safe (echappe), y compris pour
-      // une insertion directe dans l'attribut href.
+      // une insertion directe dans l'attribut href. class="lien-externe"
+      // (jamais target="_blank", sans effet dans la webview Tauri - voir
+      // js/api.js) : intercepte par la delegation globale de clic dans
+      // api.js, qui ouvre le lien via le plugin opener de Tauri.
       .replace(
         /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
-        '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>'
+        '<a href="$2" class="lien-externe">$1</a>'
       )
       .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
       .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, "$1<em>$2</em>");
