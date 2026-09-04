@@ -14,16 +14,39 @@ const createUserSchema = z.object({
   email: z.string().email(),
 });
 
-// Plafond de comptes impose par la plateforme (selon la formule souscrite) -
-// verifie avant toute creation de compte, quel que soit le role. Renvoie
-// null si pas de plafond ou si la limite n'est pas atteinte.
-async function verifierLimiteComptes(cabinetId: string): Promise<string | null> {
-  const cabinet = await prisma.cabinet.findUnique({ where: { id: cabinetId }, select: { limiteComptes: true } });
-  if (!cabinet?.limiteComptes) return null;
-  const count = await prisma.user.count({ where: { cabinetId } });
-  if (count >= cabinet.limiteComptes) {
-    return `Limite de ${cabinet.limiteComptes} compte(s) atteinte pour votre cabinet. Contactez l'administrateur de la plateforme pour l'augmenter.`;
+// Plafonds de comptes imposes par la plateforme (selon la formule
+// souscrite) - verifies avant toute creation de compte. `limiteComptes`
+// (tous roles confondus) et le plafond specifique au role cree
+// (`limiteAvocats`/`limiteCollaborateurs`) s'appliquent tous les deux, le
+// plus restrictif des deux bloquant la creation - jamais appele pour
+// titulaire/super_admin (un seul titulaire par cabinet, super_admin n'est
+// pas un compte de cabinet). Renvoie null si aucun plafond n'est atteint.
+async function verifierLimiteComptes(
+  cabinetId: string,
+  roleACreer: "avocat" | "collaborateur"
+): Promise<string | null> {
+  const cabinet = await prisma.cabinet.findUnique({
+    where: { id: cabinetId },
+    select: { limiteComptes: true, limiteAvocats: true, limiteCollaborateurs: true },
+  });
+  if (!cabinet) return null;
+
+  if (cabinet.limiteComptes) {
+    const total = await prisma.user.count({ where: { cabinetId } });
+    if (total >= cabinet.limiteComptes) {
+      return `Limite de ${cabinet.limiteComptes} compte(s) atteinte pour votre cabinet. Contactez l'administrateur de la plateforme pour l'augmenter.`;
+    }
   }
+
+  const limiteRole = roleACreer === "avocat" ? cabinet.limiteAvocats : cabinet.limiteCollaborateurs;
+  if (limiteRole) {
+    const countRole = await prisma.user.count({ where: { cabinetId, role: roleACreer } });
+    if (countRole >= limiteRole) {
+      const libelleRole = roleACreer === "avocat" ? "avocat(s)" : "collaborateur(s)";
+      return `Limite de ${limiteRole} compte(s) ${libelleRole} atteinte pour votre cabinet. Contactez l'administrateur de la plateforme pour l'augmenter.`;
+    }
+  }
+
   return null;
 }
 
@@ -71,7 +94,7 @@ usersRouter.post("/api/users", requireAuth, requireAvocat, async (req, res) => {
   }
   const { nom, email } = parsed.data;
 
-  const erreurLimite = await verifierLimiteComptes(req.auth!.cabinetId);
+  const erreurLimite = await verifierLimiteComptes(req.auth!.cabinetId, "collaborateur");
   if (erreurLimite) {
     return res.status(429).json({ error: erreurLimite });
   }
@@ -112,7 +135,7 @@ usersRouter.post("/api/users/avocats", requireAuth, requireAdmin, async (req, re
   }
   const { nom, email } = parsed.data;
 
-  const erreurLimite = await verifierLimiteComptes(req.auth!.cabinetId);
+  const erreurLimite = await verifierLimiteComptes(req.auth!.cabinetId, "avocat");
   if (erreurLimite) {
     return res.status(429).json({ error: erreurLimite });
   }

@@ -185,6 +185,12 @@ model Cabinet {
   // cabinet peut creer, impose par la plateforme selon la formule
   // souscrite. Null = pas de plafond.
   limiteComptes                       Int?      @map("limite_comptes")
+  // Plafonds separes par role, en PLUS de limiteComptes ci-dessus (le plus
+  // restrictif des deux s'applique a chaque role concerne) - jamais pour
+  // titulaire (un seul par cabinet, jamais limite) ni super_admin (compte
+  // plateforme, hors donnees d'un cabinet). Null = pas de plafond par role.
+  limiteAvocats                       Int?      @map("limite_avocats")
+  limiteCollaborateurs                Int?      @map("limite_collaborateurs")
   // Fin de la periode d'acces accordee par la plateforme (essai gratuit,
   // periode payee...). Null = acces permanent. Une fois cette date passee,
   // la connexion est bloquee comme une suspension, jusqu'a ce que la

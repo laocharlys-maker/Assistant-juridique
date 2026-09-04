@@ -57,6 +57,12 @@ const licencePayloadSchema = z.object({
     )
     .nullable()
     .optional(),
+  // Plafonds separes par role, en PLUS de limiteComptes ci-dessus (le plus
+  // restrictif des deux s'applique) - jamais pour titulaire/super_admin.
+  // Meme retrocompatibilite que limiteComptes. Voir syncCabinetLicenceFields
+  // ci-dessous et routes/users.ts (verifierLimiteComptes, enforcement reel).
+  limiteAvocats: z.number().int().positive().nullable().optional(),
+  limiteCollaborateurs: z.number().int().positive().nullable().optional(),
 });
 export type LicencePayload = z.infer<typeof licencePayloadSchema>;
 
@@ -115,6 +121,11 @@ export function canonicalizePayload(payload: LicencePayload): Buffer {
     // ENCORE apres lui (ordre fige une fois publie) - DOIT rester identique
     // a canonicalizePayload() dans aurore-licence-service/src/crypto/ed25519.ts.
     quotasDocumentsParUtilisateur: payload.quotasDocumentsParUtilisateur,
+    // Meme logique de retrocompatibilite que les champs precedents, ajoutes
+    // ENCORE apres eux (ordre fige une fois publie) - DOIT rester identique
+    // a canonicalizePayload() dans aurore-licence-service/src/crypto/ed25519.ts.
+    limiteAvocats: payload.limiteAvocats,
+    limiteCollaborateurs: payload.limiteCollaborateurs,
   };
   return Buffer.from(JSON.stringify(ordered), "utf8");
 }
@@ -621,6 +632,11 @@ async function syncCabinetLicenceFields(status: LicenceStatus): Promise<void> {
         // avant son introduction) remet explicitement "illimite", jamais
         // une valeur laissee au hasard.
         limiteComptes: status.payload.limiteComptes ?? null,
+        // Memes plafonds separes par role, meme convention `?? null` que
+        // limiteComptes ci-dessus - exploites par routes/users.ts
+        // (verifierLimiteComptes), jamais par ce miroir lui-meme.
+        limiteAvocats: status.payload.limiteAvocats ?? null,
+        limiteCollaborateurs: status.payload.limiteCollaborateurs ?? null,
         modulesDesactives: calculerModulesDesactives(status.payload.modulesActifs),
       },
     });

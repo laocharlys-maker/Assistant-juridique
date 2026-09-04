@@ -72,6 +72,8 @@ CREATE TABLE "cabinets" (
     "limite_documents_collaborateur_par_mois" INTEGER,
     "limite_documents_cabinet_par_mois" INTEGER,
     "limite_comptes" INTEGER,
+    "limite_avocats" INTEGER,
+    "limite_collaborateurs" INTEGER,
     "essai_expire_le" TIMESTAMP(3),
     "licence_id" TEXT,
     "licence_mode_verification" TEXT,
