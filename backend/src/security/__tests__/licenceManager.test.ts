@@ -30,6 +30,7 @@ interface TestLicencePayload {
   modulesActifs: string[];
   modeVerification: "auto" | "manuel";
   limiteComptes?: number | null;
+  quotasDocumentsParUtilisateur?: { email: string; limiteDocumentsParMois: number }[] | null;
 }
 
 const TEST_PRIVATE_KEY_PATH = path.join(__dirname, "..", "..", "..", "test-keys", "licence-test-private.pem");
@@ -46,6 +47,9 @@ function canonicalizeTestPayload(payload: TestLicencePayload): Buffer {
     // volontairement une licence emise AVANT ce champ (voir describe
     // "limiteComptes" plus bas).
     limiteComptes: payload.limiteComptes,
+    // Meme principe, ajoute ENCORE apres limiteComptes (voir describe
+    // "quotasDocumentsParUtilisateur" plus bas).
+    quotasDocumentsParUtilisateur: payload.quotasDocumentsParUtilisateur,
   };
   return Buffer.from(JSON.stringify(ordered), "utf8");
 }
@@ -211,6 +215,50 @@ describe("limiteComptes (Lot 20bis) - retrocompatibilite de la signature", () =>
 
     expect(status.etat).toBe("valide");
     expect(status.payload?.limiteComptes).toBe(3);
+  });
+});
+
+describe("quotasDocumentsParUtilisateur - retrocompatibilite de la signature", () => {
+  it("active sans erreur une licence signee AVANT l'introduction de ce champ (absent du payload)", async () => {
+    const empreinteMachine = await getMachineFingerprint();
+    const licence = signTestLicence({
+      cabinetId: CABINET_ID,
+      nomCabinet: "Cabinet Test Lot22",
+      dateExpiration: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+      empreinteMachine,
+      modulesActifs: ["all"],
+      modeVerification: "manuel",
+      // quotasDocumentsParUtilisateur volontairement absent - reproduit une
+      // licence emise avant ce champ.
+    });
+
+    const status = await activateLicence(JSON.stringify(licence));
+
+    expect(status.etat).toBe("valide");
+    expect(status.payload?.quotasDocumentsParUtilisateur).toBeUndefined();
+  });
+
+  it("active et restitue une licence signee AVEC quotasDocumentsParUtilisateur", async () => {
+    const empreinteMachine = await getMachineFingerprint();
+    const quotas = [
+      { email: "avocat.a@cabinet-test.fr", limiteDocumentsParMois: 200 },
+      { email: "avocat.b@cabinet-test.fr", limiteDocumentsParMois: 300 },
+    ];
+    const licence = signTestLicence({
+      cabinetId: CABINET_ID,
+      nomCabinet: "Cabinet Test Lot22",
+      dateExpiration: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+      empreinteMachine,
+      modulesActifs: ["all"],
+      modeVerification: "manuel",
+      quotasDocumentsParUtilisateur: quotas,
+    });
+
+    await activateLicence(JSON.stringify(licence));
+    const status = await getCurrentLicenceStatus();
+
+    expect(status.etat).toBe("valide");
+    expect(status.payload?.quotasDocumentsParUtilisateur).toEqual(quotas);
   });
 });
 

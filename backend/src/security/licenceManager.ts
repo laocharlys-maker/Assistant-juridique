@@ -44,6 +44,19 @@ const licencePayloadSchema = z.object({
   // champ vaut alors undefined et est traite comme "illimite" (voir
   // syncCabinetLicenceFields ci-dessous).
   limiteComptes: z.number().int().positive().nullable().optional(),
+  // Quota mensuel de documents generables, par avocat/utilisateur precis du
+  // cabinet (identifie par email, jamais un id - inconnu du service de
+  // licence au moment de la generation). Meme retrocompatibilite que
+  // limiteComptes ci-dessus. Voir syncCabinetLicenceFields ci-dessous.
+  quotasDocumentsParUtilisateur: z
+    .array(
+      z.object({
+        email: z.string().email(),
+        limiteDocumentsParMois: z.number().int().positive(),
+      })
+    )
+    .nullable()
+    .optional(),
 });
 export type LicencePayload = z.infer<typeof licencePayloadSchema>;
 
@@ -98,6 +111,10 @@ export function canonicalizePayload(payload: LicencePayload): Buffer {
     // sans reemission. DOIT rester identique a canonicalizePayload() dans
     // aurore-licence-service/src/crypto/ed25519.ts.
     limiteComptes: payload.limiteComptes,
+    // Meme logique de retrocompatibilite que limiteComptes ci-dessus, ajoute
+    // ENCORE apres lui (ordre fige une fois publie) - DOIT rester identique
+    // a canonicalizePayload() dans aurore-licence-service/src/crypto/ed25519.ts.
+    quotasDocumentsParUtilisateur: payload.quotasDocumentsParUtilisateur,
   };
   return Buffer.from(JSON.stringify(ordered), "utf8");
 }
@@ -611,6 +628,31 @@ async function syncCabinetLicenceFields(status: LicenceStatus): Promise<void> {
       console.log(
         `[licence] cabinet ${status.payload.cabinetId} introuvable en base pour l'instant (miroir non synchronise, reessaiera a la prochaine requete) - normal avant la creation du compte titulaire.`
       );
+    }
+
+    // Quota de documents par avocat : SEULEMENT si ce champ est present dans
+    // le payload signe (`!== undefined`) - une licence emise avant son
+    // introduction laisse ce champ absent, et ne doit JAMAIS ecraser un
+    // quota regle manuellement via l'ecran super_admin (mode externe, voir
+    // routes/admin.ts PATCH /api/admin/users/:id/quota, qui reste la seule
+    // voie pour ce mode-la). Des qu'il est present (y compris `null`, une
+    // soumission volontairement vide depuis le dashboard licence), la
+    // licence devient la source de verite pour CE cabinet, meme logique que
+    // modulesDesactives ci-dessus : reinitialise TOUS les comptes du
+    // cabinet a "illimite", puis reapplique les overrides listes - un
+    // avocat retire de la liste lors d'un renouvellement retrouve donc un
+    // quota illimite.
+    if (status.payload.quotasDocumentsParUtilisateur !== undefined) {
+      await prisma.user.updateMany({
+        where: { cabinetId: status.payload.cabinetId },
+        data: { limiteDocumentsParMois: null },
+      });
+      for (const { email, limiteDocumentsParMois } of status.payload.quotasDocumentsParUtilisateur ?? []) {
+        await prisma.user.updateMany({
+          where: { cabinetId: status.payload.cabinetId, email },
+          data: { limiteDocumentsParMois },
+        });
+      }
     }
   } catch (error) {
     // Erreur DB reelle (connexion perdue...) cette fois, pas une simple
