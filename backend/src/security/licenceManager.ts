@@ -463,6 +463,17 @@ export interface PhoneHomeResult {
   message: string;
 }
 
+// Endpoint public (pas un secret - deja protege par CORS + rate-limiting
+// cote Worker, voir aurore-licence-service/wrangler.toml) - code en dur ici
+// plutot que via bundledExternalServiceKeys.ts (reserve aux vraies cles
+// secretes injectees par le CI) : jusqu'ici LICENCE_PHONE_HOME_URL n'etait
+// JAMAIS injectee dans aucun build distribue, ce qui rendait le
+// phone-home (auto ET "Verifier maintenant") totalement muet dans toute
+// installation reelle depuis le Lot 4 - jamais remarque faute d'un message
+// d'erreur visible ailleurs qu'ici. LICENCE_PHONE_HOME_URL reste lisible en
+// variable d'environnement pour pointer vers un autre serveur (dev/tests).
+const LICENCE_PHONE_HOME_URL_DEFAUT = "https://aurore-licence-service.azomedia20.workers.dev/phone-home";
+
 /**
  * Verification en ligne aupres du service de licence (Lot 4, endpoint
  * configurable). Ne bloque JAMAIS l'application : toute erreur reseau/HTTP
@@ -486,11 +497,7 @@ export async function runPhoneHomeCheck(options: { force?: boolean } = {}): Prom
     return { ok: true, action: "ignore", message: "Mode manuel actif : verification en ligne non automatique." };
   }
 
-  const endpoint = process.env.LICENCE_PHONE_HOME_URL;
-  if (!endpoint) {
-    console.warn("[licence] LICENCE_PHONE_HOME_URL non configure - phone-home ignore.");
-    return { ok: false, action: "echec-reseau", message: "Service de vérification en ligne non configuré." };
-  }
+  const endpoint = process.env.LICENCE_PHONE_HOME_URL || LICENCE_PHONE_HOME_URL_DEFAUT;
 
   const fingerprint = await getMachineFingerprint();
   const payload = { cabinetId: status.payload.cabinetId, empreinteMachine: fingerprint, versionApp: getAppVersion() };
