@@ -15,6 +15,15 @@
 
   function renderInline(escapedText) {
     return escapedText
+      // Liens Markdown ([texte](url)) - avant gras/italique car un titre de
+      // source peut lui-meme contenir des * (peu probable mais sans risque
+      // ainsi). escapeHtml() tourne toujours avant renderInline(), donc le
+      // texte/url capture ici est deja HTML-safe (echappe), y compris pour
+      // une insertion directe dans l'attribut href.
+      .replace(
+        /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
+        '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>'
+      )
       .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
       .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, "$1<em>$2</em>");
   }

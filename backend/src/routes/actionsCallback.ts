@@ -50,17 +50,17 @@ actionsCallbackRouter.post("/api/actions/:id/envoyer", requireAuth, async (req, 
   if (!loaded) {
     return res.status(409).json({ error: "Le document n'est pas encore prêt" });
   }
-  // Les recherches (jurisprudence / recherche juridique) n'ont pas
-  // d'etape de validation manuelle : des qu'elles sont pretes, elles
-  // peuvent etre envoyees directement.
+  // Les recherches et la veille juridique (dossier.estRecherche) sont des
+  // documents non officiels, sans etape de validation manuelle : des que
+  // leur contenu est genere (deja verifie ci-dessus via loadExportInput),
+  // ils peuvent etre envoyes directement quel que soit leur statut - jamais
+  // bloques par un statut "brouillon" (ex: veille juridique, jamais transite
+  // par une validation explicite).
   const validationRequise = !action.dossier.estRecherche;
   if (validationRequise && action.statut !== "valide") {
     return res
       .status(409)
       .json({ error: "L'action doit être validée avant de pouvoir être envoyée" });
-  }
-  if (!validationRequise && action.statut !== "valide" && action.statut !== "en_attente_validation") {
-    return res.status(409).json({ error: "Le document n'est pas encore prêt" });
   }
 
   const signatureResolution = await resolveSignature(
