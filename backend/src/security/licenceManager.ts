@@ -613,68 +613,81 @@ async function syncCabinetLicenceFields(status: LicenceStatus): Promise<void> {
     // l'appelant ne s'en sert pas - meme logique que index.ts (Lot 2) pour
     // ne charger Prisma qu'une fois DATABASE_URL disponible.
     const { prisma } = await import("../lib/prisma");
-    // updateMany (jamais update) : le cabinet peut legitimement ne pas
-    // encore exister en base (tout premier demarrage, licence activee AVANT
-    // la creation du compte titulaire - c'est meme le parcours normal, voir
-    // welcome-setup.html) - ce n'est pas une erreur mais un etat attendu et
-    // frequent (reevalue a CHAQUE requete protegee, voir requireLicence),
-    // donc pas quelque chose a signaler bruyamment ni a traiter par
-    // exception a chaque fois. update() levait "Record to update not
-    // found" dans ce cas tout a fait normal ; updateMany() se contente de
-    // ne rien faire (count: 0), sans jamais lever.
-    const result = await prisma.cabinet.updateMany({
-      where: { id: status.payload.cabinetId },
-      data: {
-        licenceId: status.licenceId,
-        licenceModeVerification: status.payload.modeVerification,
-        licenceDateExpiration: new Date(status.payload.dateExpiration),
-        empreinteMachineAutorisee: status.payload.empreinteMachine,
-        // Contrairement aux autres champs synchronises ci-dessus (purs
-        // miroirs de visibilite), celui-ci EST directement exploite en
-        // enforcement (voir routes/users.ts, verifierLimiteComptes) - la
-        // licence devient donc la source reelle de cette limite en mode
-        // portable/reseau, alors qu'elle etait jusqu'ici reglable
-        // uniquement via l'ecran super_admin (mode externe, voir
-        // routes/admin.ts). `?? null` : une licence sans ce champ (emise
-        // avant son introduction) remet explicitement "illimite", jamais
-        // une valeur laissee au hasard.
-        limiteComptes: status.payload.limiteComptes ?? null,
-        // Memes plafonds separes par role, meme convention `?? null` que
-        // limiteComptes ci-dessus - exploites par routes/users.ts
-        // (verifierLimiteComptes), jamais par ce miroir lui-meme.
-        limiteAvocats: status.payload.limiteAvocats ?? null,
-        limiteCollaborateurs: status.payload.limiteCollaborateurs ?? null,
-        modulesDesactives: calculerModulesDesactives(status.payload.modulesActifs),
-      },
-    });
-    if (result.count === 0) {
+    // BUG CORRIGE (2026-09-05) : ce miroir cherchait jusqu'ici le cabinet
+    // local par `id: status.payload.cabinetId` - or cet id est assigne cote
+    // aurore-licence-service (systeme totalement distinct), alors que le
+    // cabinet cree localement au "premier lancement" (routes/auth.ts,
+    // `prisma.cabinet.create({ data: { nom: cabinetNom } })`, sans id
+    // fourni) recoit un UUID genere par Prisma, SANS AUCUN rapport avec
+    // celui de la licence. Les deux ne coincident donc JAMAIS - ce miroir
+    // ne synchronisait RIEN depuis son introduction (limiteComptes,
+    // modulesDesactives, limiteAvocats, limiteCollaborateurs, quotas par
+    // avocat), silencieusement (count: 0, jamais signale bruyamment par
+    // design). Correctif : en mode portable/reseau (le seul ou une licence
+    // locale existe - voir deploymentMode.ts, "le mode externe ignore ce
+    // module entierement"), la base locale ne contient jamais qu'UN SEUL
+    // cabinet reel (garde par aucunCabinetReel(), routes/auth.ts) - on cible
+    // donc simplement cet unique cabinet, quel que soit son id, plutot que
+    // de exiger une egalite d'id qui n'a jamais de raison d'etre vraie.
+    const cabinetLocal = await prisma.cabinet.findFirst({ select: { id: true } });
+    if (!cabinetLocal) {
+      // Cabinet legitimement pas encore cree (tout premier demarrage,
+      // licence activee AVANT la creation du compte titulaire - c'est meme
+      // le parcours normal, voir welcome-setup.html) - reevalue a CHAQUE
+      // requete protegee (voir requireLicence), donc pas signale bruyamment.
       console.log(
-        `[licence] cabinet ${status.payload.cabinetId} introuvable en base pour l'instant (miroir non synchronise, reessaiera a la prochaine requete) - normal avant la creation du compte titulaire.`
+        "[licence] aucun cabinet en base pour l'instant (miroir non synchronise, reessaiera a la prochaine requete) - normal avant la creation du compte titulaire."
       );
-    }
-
-    // Quota de documents par avocat : SEULEMENT si ce champ est present dans
-    // le payload signe (`!== undefined`) - une licence emise avant son
-    // introduction laisse ce champ absent, et ne doit JAMAIS ecraser un
-    // quota regle manuellement via l'ecran super_admin (mode externe, voir
-    // routes/admin.ts PATCH /api/admin/users/:id/quota, qui reste la seule
-    // voie pour ce mode-la). Des qu'il est present (y compris `null`, une
-    // soumission volontairement vide depuis le dashboard licence), la
-    // licence devient la source de verite pour CE cabinet, meme logique que
-    // modulesDesactives ci-dessus : reinitialise TOUS les comptes du
-    // cabinet a "illimite", puis reapplique les overrides listes - un
-    // avocat retire de la liste lors d'un renouvellement retrouve donc un
-    // quota illimite.
-    if (status.payload.quotasDocumentsParUtilisateur !== undefined) {
-      await prisma.user.updateMany({
-        where: { cabinetId: status.payload.cabinetId },
-        data: { limiteDocumentsParMois: null },
+    } else {
+      await prisma.cabinet.update({
+        where: { id: cabinetLocal.id },
+        data: {
+          licenceId: status.licenceId,
+          licenceModeVerification: status.payload.modeVerification,
+          licenceDateExpiration: new Date(status.payload.dateExpiration),
+          empreinteMachineAutorisee: status.payload.empreinteMachine,
+          // Contrairement aux autres champs synchronises ci-dessus (purs
+          // miroirs de visibilite), celui-ci EST directement exploite en
+          // enforcement (voir routes/users.ts, verifierLimiteComptes) - la
+          // licence devient donc la source reelle de cette limite en mode
+          // portable/reseau, alors qu'elle etait jusqu'ici reglable
+          // uniquement via l'ecran super_admin (mode externe, voir
+          // routes/admin.ts). `?? null` : une licence sans ce champ (emise
+          // avant son introduction) remet explicitement "illimite", jamais
+          // une valeur laissee au hasard.
+          limiteComptes: status.payload.limiteComptes ?? null,
+          // Memes plafonds separes par role, meme convention `?? null` que
+          // limiteComptes ci-dessus - exploites par routes/users.ts
+          // (verifierLimiteComptes), jamais par ce miroir lui-meme.
+          limiteAvocats: status.payload.limiteAvocats ?? null,
+          limiteCollaborateurs: status.payload.limiteCollaborateurs ?? null,
+          modulesDesactives: calculerModulesDesactives(status.payload.modulesActifs),
+        },
       });
-      for (const { email, limiteDocumentsParMois } of status.payload.quotasDocumentsParUtilisateur ?? []) {
+
+      // Quota de documents par avocat : SEULEMENT si ce champ est present
+      // dans le payload signe (`!== undefined`) - une licence emise avant
+      // son introduction laisse ce champ absent, et ne doit JAMAIS ecraser
+      // un quota regle manuellement via l'ecran super_admin (mode externe,
+      // voir routes/admin.ts PATCH /api/admin/users/:id/quota, qui reste la
+      // seule voie pour ce mode-la). Des qu'il est present (y compris
+      // `null`, une soumission volontairement vide depuis le dashboard
+      // licence), la licence devient la source de verite pour CE cabinet,
+      // meme logique que modulesDesactives ci-dessus : reinitialise TOUS
+      // les comptes du cabinet a "illimite", puis reapplique les overrides
+      // listes - un avocat retire de la liste lors d'un renouvellement
+      // retrouve donc un quota illimite.
+      if (status.payload.quotasDocumentsParUtilisateur !== undefined) {
         await prisma.user.updateMany({
-          where: { cabinetId: status.payload.cabinetId, email },
-          data: { limiteDocumentsParMois },
+          where: { cabinetId: cabinetLocal.id },
+          data: { limiteDocumentsParMois: null },
         });
+        for (const { email, limiteDocumentsParMois } of status.payload.quotasDocumentsParUtilisateur ?? []) {
+          await prisma.user.updateMany({
+            where: { cabinetId: cabinetLocal.id, email },
+            data: { limiteDocumentsParMois },
+          });
+        }
       }
     }
   } catch (error) {
