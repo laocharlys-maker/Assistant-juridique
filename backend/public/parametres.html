@@ -123,6 +123,7 @@
         <div class="icon-badge"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></div>
         <h3>À propos</h3>
         <p class="desc" id="about-version">Aurore — chargement…</p>
+        <p class="desc" id="about-licence"></p>
         <p class="desc">Édité par AzoMedIA. Besoin d'aide ? <a href="mailto:azomedia20@gmail.com">azomedia20@gmail.com</a></p>
       </div>
     </div>
@@ -136,6 +137,32 @@
         document.getElementById("about-version").textContent = `Aurore — version ${info.version}`;
       } catch {
         document.getElementById("about-version").textContent = "Aurore";
+      }
+      // /api/licence/status est toujours accessible (voir
+      // middleware/requireLicence.ts), quel que soit l'etat de la licence -
+      // jamais besoin d'etre connecte pour la consulter.
+      try {
+        const licenceEl = document.getElementById("about-licence");
+        const status = await apiFetch("/api/licence/status");
+        if (status.etat === "valide" && status.payload?.dateExpiration) {
+          const joursRestants = Math.ceil(
+            (new Date(status.payload.dateExpiration).getTime() - Date.now()) / (24 * 60 * 60 * 1000)
+          );
+          const expirationFr = new Date(status.payload.dateExpiration).toLocaleDateString("fr-FR", {
+            day: "numeric",
+            month: "long",
+            year: "numeric",
+          });
+          licenceEl.textContent = `Licence valide jusqu'au ${expirationFr} (${joursRestants} jour${joursRestants > 1 ? "s" : ""} restant${joursRestants > 1 ? "s" : ""}).`;
+        } else {
+          // "grace"/"bloquee"/"absente" : messageUtilisateur couvre deja
+          // clairement ces cas (voir security/licenceManager.ts,
+          // evaluateLicenceState) - jamais reformule ici.
+          licenceEl.textContent = status.messageUtilisateur || "";
+        }
+      } catch {
+        // Best-effort : ne doit jamais empecher l'affichage du reste de la
+        // page Parametres.
       }
     })();
   </script>
