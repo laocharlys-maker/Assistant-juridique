@@ -1087,6 +1087,10 @@ h5.md-heading { font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0
   font-size: 0.88rem;
   font-weight: 600;
 }
+/* Alerte urgente avant expiration (licence encore valide, mais imminente -
+   voir js/layout.js, LICENCE_ALERTE_URGENTE_JOURS) : rouge, reserve a ce
+   vrai signal d'urgence - le bandeau "grace" ci-dessus reste ambre. */
+.licence-banner.urgent { background: var(--danger-tint); color: var(--danger); border-bottom: 1px solid var(--danger); }
 .licence-banner a, .licence-banner button.link-btn {
   color: inherit;
   text-decoration: underline;

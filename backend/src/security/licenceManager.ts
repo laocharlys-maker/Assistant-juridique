@@ -300,14 +300,25 @@ function writeLocalState(state: LicenceLocalState): void {
   fs.writeFileSync(licenceLocalStatePath(), JSON.stringify(state, null, 2));
 }
 
-/** La revocation n'est consultee qu'UNE FOIS par cycle de vie du process
- * (mise en cache au premier appel) : une revocation recue en cours de
- * session via phone-home ne doit jamais couper l'acces brutalement,
- * seulement au prochain redemarrage - voir contrainte du prompt. */
+/** BUG CORRIGE (2026-09-05) : mise en cache initialement "pour toute la
+ * duree de vie du process" (une seule lecture disque, jamais rejouee) -
+ * une revocation recue en cours de session via phone-home ne doit jamais
+ * couper l'acces brutalement, c'etait l'intention. Mais sur un poste (ou
+ * un serveur en mode "Serveur reseau") qui ne redemarre jamais, cette
+ * revocation ne s'appliquait alors JAMAIS, indefiniment - aucun mecanisme
+ * ne relisait plus ce fichier une fois le cache resolu. Corrige : cache
+ * borne dans le temps (TTL), relu automatiquement au-dela - garde l'esprit
+ * "jamais une coupure instantanee en pleine tache" (le TTL n'est pas
+ * instantane) tout en garantissant qu'une revocation deja ecrite sur
+ * disque finit par s'appliquer, meme sans redemarrage. */
+const REVOCATION_CACHE_TTL_MS = 60 * 60 * 1000; // 1 heure
 let cachedRevoquee: boolean | null = null;
+let cachedRevoqueeAt = 0;
 function isRevoqueeThisSession(): boolean {
-  if (cachedRevoquee === null) {
+  const maintenant = Date.now();
+  if (cachedRevoquee === null || maintenant - cachedRevoqueeAt > REVOCATION_CACHE_TTL_MS) {
     cachedRevoquee = Boolean(readLocalState().revoquee);
+    cachedRevoqueeAt = maintenant;
   }
   return cachedRevoquee;
 }
@@ -420,6 +431,7 @@ export async function activateLicence(rawContent: string): Promise<LicenceStatus
   // toujours pouvoir lever une revocation anterieure.
   writeLocalState({ ...readLocalState(), revoquee: false });
   cachedRevoquee = false;
+  cachedRevoqueeAt = Date.now();
 
   console.log("[licence] activation reussie (licence valide: true).");
   const status = await getCurrentLicenceStatus();
@@ -570,12 +582,17 @@ export async function runPhoneHomeCheck(options: { force?: boolean } = {}): Prom
   }
 
   if (parsed.data.revoquee) {
-    // Jamais de coupure brutale en cours de session (voir
-    // isRevoqueeThisSession) : simple marqueur applique au prochain
-    // demarrage.
+    // Jamais de coupure brutale immediate (voir isRevoqueeThisSession) :
+    // simple marqueur, applique au prochain redemarrage OU, au plus tard,
+    // dans l'heure qui suit (REVOCATION_CACHE_TTL_MS) meme sans redemarrer -
+    // necessaire pour un poste/serveur qui reste allume en permanence.
     writeLocalState({ ...readLocalState(), revoquee: true, revoqueeAt: new Date().toISOString() });
-    console.warn("[licence] revocation recue - sera appliquee au prochain demarrage de l'application.");
-    return { ok: true, action: "revoquee", message: "Révocation reçue - sera appliquée au prochain démarrage de l'application." };
+    console.warn("[licence] revocation recue - sera appliquee au prochain demarrage, ou dans l'heure au plus tard.");
+    return {
+      ok: true,
+      action: "revoquee",
+      message: "Révocation reçue - sera appliquée au prochain démarrage, ou dans l'heure au plus tard.",
+    };
   }
 
   return { ok: true, action: "aucun-changement", message: "Licence toujours valide, aucun changement." };

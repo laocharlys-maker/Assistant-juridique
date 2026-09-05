@@ -317,14 +317,61 @@ async function initHeaderChrono(me) {
   await rafraichir();
 }
 
+// Seuils du bandeau d'alerte avant expiration (licence encore "valide") -
+// gradue la couleur selon l'urgence plutot qu'un rouge uniforme des le
+// premier avertissement : ambre = simple rappel, rouge = vraiment urgent.
+const LICENCE_ALERTE_PRECOCE_JOURS = 7;
+const LICENCE_ALERTE_URGENTE_JOURS = 2;
+
+function afficherLicenceBanner(main, topbar, message, urgent, lienActivation) {
+  const banner = document.createElement("div");
+  banner.className = urgent ? "licence-banner urgent" : "licence-banner";
+  const messageEl = document.createElement("span");
+  messageEl.textContent = message;
+  banner.appendChild(messageEl);
+  if (lienActivation) {
+    const lien = document.createElement("a");
+    lien.href = "/licence.html";
+    lien.textContent = "Activer une nouvelle licence";
+    banner.appendChild(lien);
+  }
+  main.insertBefore(banner, topbar.nextSibling);
+}
+
 async function checkLicenceBanner(main, topbar) {
   try {
     const status = await apiFetch("/api/licence/status");
-    if (status.etat !== "grace") return;
-    const banner = document.createElement("div");
-    banner.className = "licence-banner";
-    banner.innerHTML = `<span>${status.messageUtilisateur}</span><a href="/licence.html">Activer une nouvelle licence</a>`;
-    main.insertBefore(banner, topbar.nextSibling);
+
+    if (status.etat === "grace") {
+      afficherLicenceBanner(main, topbar, status.messageUtilisateur, false, true);
+      return;
+    }
+
+    // Alerte AVANT expiration (licence encore valide) - le bandeau "grace"
+    // ci-dessus ne couvre que l'APRES-expiration ; sans ceci, personne
+    // n'est prevenu a l'avance qu'une licence approche de sa fin.
+    if (status.etat === "valide" && status.payload?.dateExpiration) {
+      const joursRestants = Math.ceil(
+        (new Date(status.payload.dateExpiration).getTime() - Date.now()) / (24 * 60 * 60 * 1000)
+      );
+      if (joursRestants <= LICENCE_ALERTE_URGENTE_JOURS) {
+        afficherLicenceBanner(
+          main,
+          topbar,
+          `Votre licence expire dans ${joursRestants} jour${joursRestants > 1 ? "s" : ""}. Contactez le support AzoMedIA pour la renouveler.`,
+          true,
+          false
+        );
+      } else if (joursRestants <= LICENCE_ALERTE_PRECOCE_JOURS) {
+        afficherLicenceBanner(
+          main,
+          topbar,
+          `Votre licence expire dans ${joursRestants} jour${joursRestants > 1 ? "s" : ""}. Pensez à contacter AzoMedIA pour la renouveler.`,
+          false,
+          false
+        );
+      }
+    }
   } catch {
     // Echec silencieux : ne doit jamais empecher l'affichage normal de la
     // page (ex: API temporairement indisponible).
