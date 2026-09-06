@@ -52,7 +52,12 @@ fn log_line(message: &str) {
 /// suffixe de target triple, ajoute automatiquement par Tauri).
 const SIDECAR_NAME: &str = "aurore-backend";
 const BACKEND_PORT: u16 = 3000;
-const HEALTH_CHECK_MAX_ATTEMPTS: u32 = 60;
+// 90 x 500ms = 45s (releve depuis 30s le 2026-09-06) - marge de securite
+// pour un tout premier demarrage lent (init Postgres a froid, antivirus
+// scannant les binaires fraichement installes) sans jamais ralentir un
+// demarrage normal (le health-check reussit des que le backend repond,
+// quelle que soit cette limite - voir le commentaire sur la boucle plus bas).
+const HEALTH_CHECK_MAX_ATTEMPTS: u32 = 90;
 const HEALTH_CHECK_INTERVAL_MS: u64 = 500;
 /// Delai laisse au sidecar pour fermer proprement ses connexions Prisma PUIS
 /// (Lot 2, DATABASE_MODE=portable) arreter le cluster Postgres portable
