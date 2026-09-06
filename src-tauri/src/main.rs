@@ -69,14 +69,54 @@ const HEALTH_CHECK_INTERVAL_MS: u64 = 500;
 /// grosse.
 const SHUTDOWN_GRACE_MS: u64 = 10000;
 
+/// BUG CORRIGE (2026-09-06) : en mode "Serveur reseau" (voir setup-mode.html),
+/// le backend bascule sur HTTPS-only, port BACKEND_PORT, bind 0.0.0.0 (voir
+/// index.ts) - cette fenetre, elle, doit rester en HTTP simple (jamais faire
+/// accepter un certificat auto-signe a la webview : afficherait un
+/// avertissement de securite a chaque lancement). index.ts demarre alors EN
+/// PLUS un second serveur HTTP simple, prive a 127.0.0.1, sur ce port -
+/// DOIT rester identique a `env.PORT + 1` cote backend.
+const LOCAL_SHELL_PORT: u16 = BACKEND_PORT + 1;
+
 struct SidecarState(Mutex<Option<CommandChild>>);
 
+/// Lit %APPDATA%\Aurore\config.json (ecrit par config/deploymentMode.ts,
+/// cote backend) pour savoir si le mode "Serveur reseau" est actif sur ce
+/// poste - jamais bloquant : absence/erreur de lecture => false (repli sur
+/// le port standalone, meme logique de repli securise que cote backend,
+/// voir effectiveDeploymentMode()).
+fn is_reseau_mode() -> bool {
+    let Ok(appdata) = std::env::var("APPDATA") else {
+        return false;
+    };
+    let config_path = std::path::Path::new(&appdata)
+        .join("Aurore")
+        .join("config.json");
+    let Ok(content) = std::fs::read_to_string(&config_path) else {
+        return false;
+    };
+    let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) else {
+        return false;
+    };
+    json.get("deploymentMode").and_then(|v| v.as_str()) == Some("reseau")
+}
+
+/// Port a utiliser par CETTE fenetre - toujours en HTTP simple : le port
+/// local dedie (LOCAL_SHELL_PORT) en mode reseau, le port standard sinon.
+fn shell_port() -> u16 {
+    if is_reseau_mode() {
+        LOCAL_SHELL_PORT
+    } else {
+        BACKEND_PORT
+    }
+}
+
 fn health_url() -> String {
-    format!("http://127.0.0.1:{BACKEND_PORT}/health")
+    format!("http://127.0.0.1:{}/health", shell_port())
 }
 
 fn app_url() -> String {
-    format!("http://127.0.0.1:{BACKEND_PORT}/")
+    format!("http://127.0.0.1:{}/", shell_port())
 }
 
 fn main() {

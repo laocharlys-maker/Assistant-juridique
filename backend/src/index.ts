@@ -246,6 +246,18 @@ async function main() {
     // entierement inchange : env.HOST comme avant ce lot.
     let server: import("node:http").Server | import("node:https").Server;
     let stopMdns: (() => void) | null = null;
+    // BUG CORRIGE (2026-09-06) : en mode reseau, la coquille Tauri DU POSTE
+    // SERVEUR lui-meme pointe toujours en HTTP simple sur 127.0.0.1 (voir
+    // src-tauri/src/main.rs, health_url()/app_url()) - une fois le serveur
+    // principal bascule en HTTPS-only, cette fenetre ne pouvait plus jamais
+    // se connecter (echec silencieux, ecran de demarrage bloque). Corrige
+    // en ajoutant un DEUXIEME serveur, HTTP simple, sur 127.0.0.1 UNIQUEMENT
+    // (jamais expose au reseau, port different du serveur HTTPS principal -
+    // les deux ne peuvent pas partager le meme port), reserve exclusivement
+    // a l'usage local de la coquille Tauri. Alternative ecartee : faire
+    // accepter le certificat auto-signe a la webview elle-meme - afficherait
+    // un avertissement de securite a chaque lancement, pire que le bug.
+    let localShellServer: import("node:http").Server | null = null;
 
     if (databaseMode === "portable") {
       const { effectiveDeploymentMode } = await import("./config/deploymentMode");
@@ -255,11 +267,13 @@ async function main() {
         console.log(
           "[demarrage] mode serveur reseau (Lot 6) : bind 0.0.0.0, HTTPS avec certificat local auto-signe."
         );
-        const [{ default: https }, { ensureLocalTlsCertificate }, { advertiseAuroreLocal }] = await Promise.all([
-          import("node:https"),
-          import("./security/localTlsCertificate"),
-          import("./network/mdnsAdvertise"),
-        ]);
+        const [{ default: http }, { default: https }, { ensureLocalTlsCertificate }, { advertiseAuroreLocal }] =
+          await Promise.all([
+            import("node:http"),
+            import("node:https"),
+            import("./security/localTlsCertificate"),
+            import("./network/mdnsAdvertise"),
+          ]);
         const tlsCertificate = await ensureLocalTlsCertificate();
         server = https.createServer({ key: tlsCertificate.key, cert: tlsCertificate.cert }, app);
         server.listen(env.PORT, "0.0.0.0", () => {
@@ -267,6 +281,16 @@ async function main() {
         });
         const mdns = advertiseAuroreLocal(env.PORT);
         stopMdns = mdns?.stop ?? null;
+
+        // Port fixe (PORT + 1) : DOIT rester identique a LOCAL_SHELL_PORT
+        // dans src-tauri/src/main.rs (health_url()/app_url() en mode reseau).
+        const localShellPort = env.PORT + 1;
+        localShellServer = http.createServer(app);
+        localShellServer.listen(localShellPort, "127.0.0.1", () => {
+          console.log(
+            `[demarrage] fenetre native (coquille Tauri) servie en local sur 127.0.0.1:${localShellPort} (HTTP, jamais expose au reseau).`
+          );
+        });
       } else {
         server = app.listen(env.PORT, "127.0.0.1", () => {
           console.log(`Aurore backend demarre sur 127.0.0.1:${env.PORT} (${env.NODE_ENV}) - poste unique.`);
@@ -301,6 +325,13 @@ async function main() {
         } catch (error) {
           console.error("Erreur lors de l'arret de la publication mDNS :", error);
         }
+      }
+      if (localShellServer) {
+        localShellServer.close((closeErr) => {
+          if (closeErr) {
+            console.error("Erreur lors de la fermeture du serveur local (coquille Tauri) :", closeErr);
+          }
+        });
       }
       server.close(async (closeErr) => {
         if (closeErr) {

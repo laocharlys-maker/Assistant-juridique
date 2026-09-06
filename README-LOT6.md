@@ -121,17 +121,20 @@ un poste de travail normal qui sert aussi de serveur au cabinet peut très
 bien rester en mode Tauri (icône, fenêtre) ; un mini-PC dédié sans écran
 branché en permanence est mieux servi par le mode service pur.
 
-**Limite connue** : si la coquille Tauri est utilisée SUR le poste serveur
-en mode réseau (au lieu du service pur), sa fenêtre pointe aujourd'hui vers
-`http://127.0.0.1:{PORT}` en HTTP simple (comportement hérité du Lot 1,
-`src-tauri/src/main.rs`) - une fois le backend basculé en HTTPS-only, cette
-fenêtre ne pourra plus se connecter. Non corrigé dans ce lot (nécessiterait
-une modification Rust non compilable dans cet environnement de
-développement, voir "Ce qui a été réellement testé"). **Solution de
-contournement immédiate** : sur le poste serveur, utiliser un navigateur
-classique pointé sur `https://127.0.0.1:3000` plutôt que la fenêtre Tauri,
-ou privilégier le mode service pur (recommandé de toute façon pour un vrai
-rôle de serveur).
+**Ancienne limite, corrigée le 2026-09-06** : si la coquille Tauri est
+utilisée SUR le poste serveur en mode réseau, sa fenêtre pointait vers
+`http://127.0.0.1:{PORT}` en HTTP simple - une fois le backend basculé en
+HTTPS-only sur ce même port, cette fenêtre ne pouvait plus se connecter du
+tout (écran de démarrage bloqué indéfiniment). Corrigé sans jamais faire
+accepter le certificat auto-signé à la webview (ce qui afficherait un
+avertissement de sécurité à chaque lancement - pire que le bug) : en mode
+réseau, `index.ts` démarre désormais un **second serveur HTTP simple,
+privé sur `127.0.0.1:{PORT+1}`** (jamais exposé au réseau, port différent
+du serveur HTTPS principal), réservé exclusivement à cette fenêtre - voir
+`src-tauri/src/main.rs` (`is_reseau_mode()`, `shell_port()`, lit
+`%APPDATA%\Aurore\config.json`) et `index.ts` (`localShellServer`). Les
+postes clients continuent de se connecter en HTTPS comme avant, aucun
+changement pour eux.
 
 ## Résilience réseau (IP qui change, mDNS)
 
@@ -267,9 +270,11 @@ Aurore backend demarre en mode reseau sur 0.0.0.0:3444 (HTTPS, test).
   elle-même (au lieu de `127.0.0.1`) - une preuve solide que le bind
   `0.0.0.0` fonctionne sur l'interface réseau physique, mais pas un test
   avec deux machines distinctes sur le même Wi-Fi.
-- **Fenêtre Tauri en mode réseau** sur le poste serveur : limite documentée
-  plus haut (nécessite une modification `main.rs` non compilable ici, même
-  contrainte que les Lots 1/2 pour la partie Rust).
+- **Fenêtre Tauri en mode réseau sur le poste serveur** : corrigée le
+  2026-09-06 (voir plus haut, second serveur HTTP local dédié) - compilée
+  avec succès via `cargo check` dans cet environnement (contrairement aux
+  Lots 1/2, `cargo` y est disponible), validée en conditions réelles par le
+  build CI complet.
 - **Wireshark / capture de trafic** : non disponible dans cet environnement
   - la preuve du chiffrement TLS a été apportée indirectement (négociation
   TLS réussie via `node:tls`/`openssl`, connexion HTTP simple refusée sur
