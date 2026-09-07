@@ -153,6 +153,14 @@
       renderDossierOptions(dossiersDuClientNom(clientInput.value));
     });
 
+    // Sens inverse : choisir un dossier lie preremplit le nom du client
+    // (jamais invente, uniquement recopie depuis le dossier) - utile quand
+    // on part du dossier plutot que du client pour creer la facture.
+    dossierSelect.addEventListener("change", () => {
+      const dossier = allDossiers.find((d) => d.id === dossierSelect.value);
+      if (dossier) clientInput.value = dossier.nomClient;
+    });
+
     function updateTvaPreview() {
       const montant = Number(document.getElementById("montant-input").value) || 0;
       const previewEl = document.getElementById("tva-preview");

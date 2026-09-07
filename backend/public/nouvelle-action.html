@@ -1300,6 +1300,10 @@
       initLayout(me);
       naFiltrerModulesDesactives(me);
       naRenderCategoryGrid();
+      // BUG CORRIGE (2026-09-07) : cette fonction (autocompletion numero de
+      // dossier -> nom_affaire/nom_client) etait definie mais jamais
+      // appelee - le mecanisme entier restait inactif sur cette page.
+      loadDossiersForAutofill();
       try {
         naHuissiersDisponibles = await apiFetch("/api/huissiers");
       } catch {

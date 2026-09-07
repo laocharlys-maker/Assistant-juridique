@@ -124,6 +124,7 @@
         <h3>À propos</h3>
         <p class="desc" id="about-version">Aurore — chargement…</p>
         <p class="desc" id="about-licence"></p>
+        <p class="desc" id="about-network" hidden></p>
         <p class="desc"><a href="/licence.html">Gérer ma licence</a></p>
         <p class="desc">Édité par AzoMedIA. Besoin d'aide ? <a href="mailto:azomedia20@gmail.com">azomedia20@gmail.com</a></p>
       </div>
@@ -164,6 +165,22 @@
       } catch {
         // Best-effort : ne doit jamais empecher l'affichage du reste de la
         // page Parametres.
+      }
+      // Adresse a communiquer aux autres postes du cabinet - uniquement en
+      // mode "Serveur reseau" (aucun autre poste ne se connecte en mode
+      // poste unique). /api/network-info est toujours accessible (voir
+      // middleware/requireLicence.ts), meme format que setup-mode.js.
+      try {
+        const info = await apiFetch("/api/network-info");
+        if (info.deploymentMode === "reseau") {
+          const networkEl = document.getElementById("about-network");
+          const adresses = [`https://${info.hostname}:${info.port}`];
+          if (info.localIp) adresses.push(`https://${info.localIp}:${info.port}`);
+          networkEl.textContent = `Adresse pour les autres postes du cabinet : ${adresses.join(" ou ")}`;
+          networkEl.hidden = false;
+        }
+      } catch {
+        // Best-effort, meme raison que ci-dessus.
       }
     })();
   </script>
