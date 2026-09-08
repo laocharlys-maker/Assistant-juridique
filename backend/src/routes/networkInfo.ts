@@ -2,7 +2,13 @@ import { Router, Request, Response, NextFunction } from "express";
 import { z } from "zod";
 import { requireAuth } from "../middleware/requireAuth";
 import { requireAdmin } from "../middleware/roles";
-import { readDeploymentConfig, writeDeploymentMode, getLocalNetworkAddress, isSetupComplete } from "../config/deploymentMode";
+import {
+  readDeploymentConfig,
+  writeDeploymentMode,
+  getLocalNetworkAddress,
+  getTailscaleAddress,
+  isSetupComplete,
+} from "../config/deploymentMode";
 import { AURORE_LOCAL_HOSTNAME } from "../network/mdnsAdvertise";
 
 export const networkInfoRouter = Router();
@@ -27,6 +33,15 @@ networkInfoRouter.get("/api/network-info", (_req, res) => {
     hostname: AURORE_LOCAL_HOSTNAME,
     port,
     https: config.deploymentMode === "reseau",
+    // Adresse Tailscale (VPN maille, acces distant hors du reseau local) de
+    // CETTE machine si Tailscale y est installe et connecte - null sinon.
+    // Calculee dynamiquement a chaque appel (jamais figee) : une valeur
+    // differente par cabinet/machine, jamais partagee. Voir
+    // security/localTlsCertificate.ts, qui couvre deja cette adresse dans
+    // le certificat local - seulement exploitable si le mode reseau est
+    // actif (le port n'est jamais accessible depuis l'interface Tailscale
+    // en mode poste unique, qui ne lie que 127.0.0.1).
+    tailscaleIp: getTailscaleAddress(),
   });
 });
 

@@ -125,6 +125,7 @@
         <p class="desc" id="about-version">Aurore — chargement…</p>
         <p class="desc" id="about-licence"></p>
         <p class="desc" id="about-network" hidden></p>
+        <p class="desc" id="about-tailscale" hidden></p>
         <p class="desc"><a href="/licence.html">Gérer ma licence</a></p>
         <p class="desc">Édité par AzoMedIA. Besoin d'aide ? <a href="mailto:azomedia20@gmail.com">azomedia20@gmail.com</a></p>
       </div>
@@ -178,6 +179,16 @@
           if (info.localIp) adresses.push(`https://${info.localIp}:${info.port}`);
           networkEl.textContent = `Adresse pour les autres postes du cabinet : ${adresses.join(" ou ")}`;
           networkEl.hidden = false;
+
+          // Acces distant (hors du reseau du cabinet) via Tailscale, si
+          // installe et connecte sur ce poste - meme port/HTTPS que
+          // l'adresse locale ci-dessus (voir security/localTlsCertificate.ts,
+          // qui couvre deja cette adresse dans le certificat).
+          if (info.tailscaleIp) {
+            const tailscaleEl = document.getElementById("about-tailscale");
+            tailscaleEl.textContent = `Accès distant (Tailscale) : https://${info.tailscaleIp}:${info.port}`;
+            tailscaleEl.hidden = false;
+          }
         }
       } catch {
         // Best-effort, meme raison que ci-dessus.
