@@ -331,6 +331,7 @@ model User {
   // utilisateur (edition en cours), et versions qu'il/elle a enregistrees.
   actionsVerrouillees Action[]        @relation("ActionVerrouillePar")
   versionsRedigees    ActionVersion[] @relation("ActionVersionAuteur")
+  versionsFichierChargees ActionVersionFichier[] @relation("ActionVersionFichierAuteur")
 
   // Lot 12a : evenements crees par CET utilisateur, et ceux auxquels
   // il/elle est assigne(e) (table de liaison EvenementAssigne).
@@ -1125,6 +1126,14 @@ model Action {
   auditLogs             AuditLog[]
   commentaires          CommentaireRevision[]
   versions              ActionVersion[]
+  // Versions FICHIER (aller-retour Word, distinct des versions texte
+  // ci-dessus - voir modele ActionVersionFichier) : un collaborateur/avocat
+  // telecharge le document, le corrige DANS Word (commentaires, suivi des
+  // modifications - fonctionnalites propres a Word, sans equivalent dans
+  // l'editeur texte d'Aurore), puis recharge le fichier corrige, qui devient
+  // la version suivante. Aucun rapport avec versionActuelle/ActionVersion
+  // ci-dessus (compteur separe, voir numero sur ActionVersionFichier).
+  versionsFichier       ActionVersionFichier[]
   // Lot 14 : saisies de temps rattachees precisement a cette action (en
   // plus du dossier) - optionnel, une saisie peut ne concerner que le
   // dossier dans son ensemble (dossierId seul, actionId null).
@@ -1156,6 +1165,40 @@ model ActionVersion {
 
   @@index([actionId])
   @@map("action_versions")
+}
+
+// Versions FICHIER (aller-retour Word) - distinct d'ActionVersion
+// ci-dessus (qui verse du texte edite dans l'editeur Aurore) : ici, chaque
+// ligne est un vrai fichier .docx uploade, stocke chiffre sur disque comme
+// n'importe quelle piece de dossier (voir services/stockageDocuments.ts,
+// meme mecanisme que DocumentDossier). numero est un compteur INDEPENDANT
+// de versionActuelle (Action) - jamais mele aux versions texte. La toute
+// premiere version (numero=1) est generee automatiquement, a partir du
+// contenu actuel de l'action (voir routes/actionVersionsFichier.ts), au
+// moment du tout premier upload d'une correction - jamais creee "a vide".
+// Jamais supprimee (meme remplacee) : toutes les versions restent
+// disponibles au telechargement, y compris apres validation.
+model ActionVersionFichier {
+  id                String   @id @default(uuid())
+  actionId          String   @map("action_id")
+  numero            Int
+  nomOriginal       String   @map("nom_original")
+  typeMime          String   @map("type_mime")
+  tailleOctets      Int      @map("taille_octets")
+  // Nom du fichier chiffre sur disque (voir stockageDocuments.ts) - stocke
+  // dans le meme dossier que les pieces du dossier (Dossier.id, pas
+  // Action.id : un dossier peut avoir plusieurs actions, mais un seul
+  // espace de stockage de fichiers).
+  nomFichier        String   @map("nom_fichier")
+  auteurId          String   @map("auteur_id")
+  estVersionValidee Boolean  @default(false) @map("est_version_validee")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  action Action @relation(fields: [actionId], references: [id])
+  auteur User   @relation("ActionVersionFichierAuteur", fields: [auteurId], references: [id])
+
+  @@index([actionId])
+  @@map("action_versions_fichier")
 }
 
 // Lot 10 : remarque de revision laissee par un avocat/titulaire sur un

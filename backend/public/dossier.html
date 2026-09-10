@@ -456,6 +456,71 @@
           });
         });
 
+        // Versions FICHIER (aller-retour Word) - voir renderVersionsFichierPanel.
+        actionsEl.querySelectorAll("[data-telecharger-version-fichier]").forEach((btn) => {
+          btn.addEventListener("click", async (e) => {
+            e.stopPropagation();
+            try {
+              await downloadFile(
+                `/api/actions/${btn.dataset.actionId}/versions-fichier/${btn.dataset.telechargerVersionFichier}/telecharger`,
+                btn.dataset.nom
+              );
+            } catch (err) {
+              alert(err.message);
+            }
+          });
+        });
+        actionsEl.querySelectorAll("[data-valider-version-fichier]").forEach((btn) => {
+          btn.addEventListener("click", async (e) => {
+            e.stopPropagation();
+            try {
+              await apiFetch(
+                `/api/actions/${btn.dataset.validerVersionFichier}/versions-fichier/${btn.dataset.versionId}/valider`,
+                { method: "POST" }
+              );
+              window.location.reload();
+            } catch (err) {
+              alert(err.message);
+            }
+          });
+        });
+        actionsEl.querySelectorAll("[data-charger-version-fichier]").forEach((btn) => {
+          btn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            actionsEl.querySelector(`[data-version-fichier-input="${btn.dataset.chargerVersionFichier}"]`).click();
+          });
+        });
+        actionsEl.querySelectorAll("[data-version-fichier-input]").forEach((input) => {
+          input.addEventListener("click", (e) => e.stopPropagation());
+          input.addEventListener("change", () => {
+            const fichier = input.files[0];
+            if (fichier) uploaderVersionFichier(input.dataset.versionFichierInput, fichier);
+            input.value = "";
+          });
+        });
+
+        async function uploaderVersionFichier(actionId, fichier) {
+          const errorEl = actionsEl.querySelector(`[data-version-fichier-error="${actionId}"]`);
+          if (errorEl) errorEl.textContent = "";
+          const reader = new FileReader();
+          reader.onload = async () => {
+            try {
+              await apiFetch(`/api/actions/${actionId}/versions-fichier`, {
+                method: "POST",
+                body: { nom: fichier.name, fichierDataUrl: reader.result },
+              });
+              window.location.reload();
+            } catch (err) {
+              if (errorEl) errorEl.textContent = err.message;
+              else alert(err.message);
+            }
+          };
+          reader.onerror = () => {
+            if (errorEl) errorEl.textContent = "Impossible de lire ce fichier.";
+          };
+          reader.readAsDataURL(fichier);
+        }
+
         actionsEl.querySelectorAll("[data-edit-textarea]").forEach((textarea) => {
           textarea.addEventListener("click", (e) => e.stopPropagation());
           textarea.addEventListener("input", () => {
@@ -1309,6 +1374,7 @@
             </div>
             ${controls}
             ${renderHistoriqueVersionsPanel(a)}
+            ${renderVersionsFichierPanel(a)}
             ${renderRemarquesPanel(a)}
           </div>
         </div>`;
@@ -1348,6 +1414,55 @@
         <div style="margin-top:14px; padding-top:14px; border-top:1px solid var(--hairline);">
           <strong>Historique des versions (${versions.length})</strong>
           <div style="margin-top:8px;">${lignes}</div>
+        </div>`;
+    }
+
+    // Versions FICHIER (aller-retour Word) - distinct du panneau texte
+    // ci-dessus (voir routes/actionVersionsFichier.ts) : chaque ligne est un
+    // vrai .docx uploade (corrections/commentaires/suivi des modifications
+    // faits dans Word), jamais du texte edite dans Aurore. Masque pour les
+    // recherches/jurisprudence, meme raison que renderRemarquesPanel (pas
+    // d'etape de validation par un avocat pour ces dossiers-la).
+    function renderVersionsFichierPanel(a) {
+      if (currentDossierEstRecherche) return "";
+
+      const versions = a.versionsFichier || [];
+      const estCollaborateur = me && me.role === "collaborateur";
+      const derniereValidee = versions.some((v) => v.estVersionValidee);
+      const bloqueCollaborateur = derniereValidee && estCollaborateur;
+
+      const lignes = versions
+        .map((v) => {
+          const badge = v.estVersionValidee ? ' <span class="badge badge-action-valide">Version définitive</span>' : "";
+          const boutonValider =
+            !v.estVersionValidee && !estCollaborateur
+              ? `<button type="button" class="ghost btn-sm" data-valider-version-fichier="${a.id}" data-version-id="${v.id}">Valider cette version</button>`
+              : "";
+          return `
+            <div class="remarque-item ${v.estVersionValidee ? "resolue" : ""}">
+              <div class="remarque-meta">Version ${v.numero} — ${escapeHtml(v.auteur.nom)} — ${new Date(v.createdAt).toLocaleString("fr-FR")}${badge}</div>
+              <div class="remarque-actions" style="display:flex; gap:8px; flex-wrap:wrap;">
+                <button type="button" class="ghost btn-sm" data-telecharger-version-fichier="${v.id}" data-action-id="${a.id}" data-nom="${escapeHtml(v.nomOriginal)}">Télécharger</button>
+                ${boutonValider}
+              </div>
+            </div>`;
+        })
+        .join("");
+
+      const uploadZone = bloqueCollaborateur
+        ? `<p class="muted" style="margin-top:8px;">La dernière version est validée — seul un avocat du cabinet peut en charger une nouvelle.</p>`
+        : `
+          <div style="margin-top:8px;">
+            <input type="file" accept=".doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" data-version-fichier-input="${a.id}" hidden />
+            <button type="button" class="ghost btn-sm" data-charger-version-fichier="${a.id}">Charger une nouvelle version (Word)</button>
+            <p class="error" data-version-fichier-error="${a.id}" style="margin-top:6px;"></p>
+          </div>`;
+
+      return `
+        <div style="margin-top:14px; padding-top:14px; border-top:1px solid var(--hairline);">
+          <strong>Versions du document (Word)${versions.length ? ` (${versions.length})` : ""}</strong>
+          ${versions.length ? `<div style="margin-top:8px;">${lignes}</div>` : '<p class="muted" style="margin-top:6px;">Aucune version chargée pour l\'instant — dépose une correction Word ci-dessous pour démarrer l\'historique (la version actuelle sera conservée automatiquement comme Version 1).</p>'}
+          ${uploadZone}
         </div>`;
     }
 

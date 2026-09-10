@@ -263,6 +263,15 @@ dossiersRouter.get("/api/dossiers/:id", requireAuth, async (req, res) => {
             orderBy: { numero: "desc" },
             include: { auteur: { select: { nom: true } } },
           },
+          // Versions FICHIER (aller-retour Word) - meme raison que versions
+          // ci-dessus (eviter un aller-retour reseau depuis le panneau
+          // dedie), voir routes/actionVersionsFichier.ts. Jamais le contenu
+          // du fichier lui-meme ici (juste les metadonnees) - telecharge a
+          // la demande via /api/actions/:id/versions-fichier/:versionId/telecharger.
+          versionsFichier: {
+            orderBy: { numero: "desc" },
+            include: { auteur: { select: { nom: true } } },
+          },
         },
       },
     },

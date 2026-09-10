@@ -484,6 +484,22 @@ CREATE TABLE "action_versions" (
 );
 
 -- CreateTable
+CREATE TABLE "action_versions_fichier" (
+    "id" TEXT NOT NULL,
+    "action_id" TEXT NOT NULL,
+    "numero" INTEGER NOT NULL,
+    "nom_original" TEXT NOT NULL,
+    "type_mime" TEXT NOT NULL,
+    "taille_octets" INTEGER NOT NULL,
+    "nom_fichier" TEXT NOT NULL,
+    "auteur_id" TEXT NOT NULL,
+    "est_version_validee" BOOLEAN NOT NULL DEFAULT false,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "action_versions_fichier_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "commentaires_revision" (
     "id" TEXT NOT NULL,
     "action_id" TEXT NOT NULL,
@@ -651,6 +667,9 @@ CREATE INDEX "actions_created_by_idx" ON "actions"("created_by");
 CREATE INDEX "action_versions_action_id_idx" ON "action_versions"("action_id");
 
 -- CreateIndex
+CREATE INDEX "action_versions_fichier_action_id_idx" ON "action_versions_fichier"("action_id");
+
+-- CreateIndex
 CREATE INDEX "commentaires_revision_action_id_idx" ON "commentaires_revision"("action_id");
 
 -- CreateIndex
@@ -805,6 +824,12 @@ ALTER TABLE "action_versions" ADD CONSTRAINT "action_versions_action_id_fkey" FO
 
 -- AddForeignKey
 ALTER TABLE "action_versions" ADD CONSTRAINT "action_versions_auteur_id_fkey" FOREIGN KEY ("auteur_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "action_versions_fichier" ADD CONSTRAINT "action_versions_fichier_action_id_fkey" FOREIGN KEY ("action_id") REFERENCES "actions"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "action_versions_fichier" ADD CONSTRAINT "action_versions_fichier_auteur_id_fkey" FOREIGN KEY ("auteur_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "commentaires_revision" ADD CONSTRAINT "commentaires_revision_action_id_fkey" FOREIGN KEY ("action_id") REFERENCES "actions"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
