@@ -196,9 +196,11 @@ export function parseLicenceFileContent(raw: string): LicenceFile {
 // parametres explicites plutot que lus directement, pour rester testable)
 // ============================================================================
 
-/** Duree de la periode de grace apres expiration, en jours (10-15 jours
- * demandes par le prompt - 14 par defaut, configurable). */
-export const LICENCE_GRACE_JOURS_DEFAUT = 14;
+/** Duree de la periode de grace apres expiration, en jours - reduite de 14
+ * a 3 jours le 2026-09-10 (decision AzoMedIA : 14 jours jugee trop
+ * genereuse), configurable via LICENCE_GRACE_JOURS sans reconstruire
+ * l'appli si besoin d'ajuster. */
+export const LICENCE_GRACE_JOURS_DEFAUT = 3;
 
 function formatDateFr(date: Date): string {
   return date.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
