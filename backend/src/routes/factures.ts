@@ -176,6 +176,81 @@ facturesRouter.post("/api/factures/depuis-temps", requireAuth, requireAvocat, as
   return res.status(201).json({ ...facture, saisiesIncluses: saisies.length });
 });
 
+// Ajoute a une facture BROUILLON existante (liee a un dossier) les saisies
+// de temps non encore facturees de ce meme dossier, apparues APRES sa
+// creation (ex: la facture a ete emise trop tot, ou du temps a ete
+// enregistre depuis). Refuse sur une facture deja envoyee/payee - une fois
+// partie au client, son contenu ne doit plus bouger tout seul.
+facturesRouter.post("/api/factures/:id/ajouter-temps", requireAuth, requireAvocat, async (req, res) => {
+  const facture = await loadFacture(req.params.id, req.auth!.cabinetId);
+  if (!facture) {
+    return res.status(404).json({ error: "Facture introuvable" });
+  }
+  if (facture.statut !== "brouillon") {
+    return res.status(409).json({ error: "Seule une facture au statut brouillon peut être complétée." });
+  }
+  if (!facture.dossierId) {
+    return res.status(400).json({ error: "Cette facture n'est liée à aucun dossier." });
+  }
+
+  const saisies = await prisma.saisieTemps.findMany({
+    where: {
+      dossierId: facture.dossierId,
+      dureeMinutes: { not: null },
+      factureId: null,
+    },
+    include: { user: { select: { nom: true } } },
+    orderBy: { date: "asc" },
+  });
+
+  if (saisies.length === 0) {
+    return res.status(400).json({
+      error: "Aucune saisie de temps non encore facturée pour ce dossier.",
+    });
+  }
+
+  const parUtilisateur = new Map<string, { nom: string; dureeMinutes: number; montant: number }>();
+  let montantAAjouter = 0;
+  for (const s of saisies) {
+    const montant = calculerMontant(s.dureeMinutes!, s.tauxHoraireApplique);
+    montantAAjouter += montant;
+    const cle = s.userId;
+    if (!parUtilisateur.has(cle)) {
+      parUtilisateur.set(cle, { nom: s.user.nom, dureeMinutes: 0, montant: 0 });
+    }
+    const ligne = parUtilisateur.get(cle)!;
+    ligne.dureeMinutes += s.dureeMinutes!;
+    ligne.montant += montant;
+  }
+
+  const lignesAjoutees = [...parUtilisateur.values()]
+    .sort((a, b) => a.nom.localeCompare(b.nom, "fr"))
+    .map((l) => `- ${l.nom} : ${formatDuree(l.dureeMinutes)} (${l.montant.toLocaleString("fr-FR")} F CFA)`);
+
+  const factureMaj = await prisma.$transaction(async (tx) => {
+    const maj = await tx.facture.update({
+      where: { id: facture.id },
+      data: {
+        description: `${facture.description}\n${lignesAjoutees.join("\n")}`,
+        montant: facture.montant + montantAAjouter,
+      },
+      include: {
+        dossier: { select: { numeroDossier: true, nomAffaire: true, nomClient: true, client: true } },
+        creePar: { select: { nom: true } },
+      },
+    });
+
+    await tx.saisieTemps.updateMany({
+      where: { id: { in: saisies.map((s) => s.id) } },
+      data: { factureId: facture.id },
+    });
+
+    return maj;
+  });
+
+  return res.json({ ...factureMaj, saisiesAjoutees: saisies.length });
+});
+
 facturesRouter.get("/api/factures", requireAuth, requireAvocat, async (req, res) => {
   const dossierId = typeof req.query.dossierId === "string" ? req.query.dossierId : undefined;
 

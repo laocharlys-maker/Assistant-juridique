@@ -224,6 +224,16 @@
       }
     }
 
+    async function ajouterTemps(id) {
+      try {
+        await apiFetch(`/api/factures/${id}/ajouter-temps`, { method: "POST", body: {} });
+        showToast("Temps ajouté à la facture.");
+        loadFactures();
+      } catch (err) {
+        showError(errorEl, err.message);
+      }
+    }
+
     async function loadFactures() {
       try {
         const factures = await apiFetch("/api/factures");
@@ -248,6 +258,7 @@
               <a class="secondary" href="#" data-pdf="${f.id}" data-numero="${escapeHtml(f.numero)}" style="text-decoration:none; margin:0;">Télécharger le PDF</a>
               <button type="button" class="secondary" style="margin:0;" data-envoyer="${f.id}">Envoyer par email</button>
               ${f.statut !== "payee" ? `<button type="button" class="secondary" style="margin:0;" data-payee="${f.id}">Marquer payée</button>` : ""}
+              ${f.statut === "brouillon" && f.dossierId ? `<button type="button" class="secondary" style="margin:0;" data-ajouter-temps="${f.id}">Ajouter le temps</button>` : ""}
             </div>
           </div>`;
           })
@@ -258,6 +269,9 @@
         });
         listEl.querySelectorAll("[data-payee]").forEach((btn) => {
           btn.addEventListener("click", () => marquerPayee(btn.dataset.payee));
+        });
+        listEl.querySelectorAll("[data-ajouter-temps]").forEach((btn) => {
+          btn.addEventListener("click", () => ajouterTemps(btn.dataset.ajouterTemps));
         });
         // downloadFile() (voir js/api.js) plutot qu'un href+target="_blank" -
         // sans effet dans la webview desktop (voir le commentaire detaille
