@@ -84,12 +84,45 @@ const depuisTempsSchema = z.object({
   estProforma: z.boolean().optional().default(false),
 });
 
+// Regroupe des saisies de temps par utilisateur pour calculer le montant
+// total et produire les lignes de description ("- Untel : 1h30 (...)"),
+// partage par toutes les routes qui facturent du temps passe (creation
+// initiale ET ajout ulterieur sur une facture existante).
+function calculerLignesTemps(
+  saisies: { userId: string; dureeMinutes: number | null; tauxHoraireApplique: number | null; user: { nom: string } }[]
+) {
+  const parUtilisateur = new Map<string, { nom: string; dureeMinutes: number; montant: number }>();
+  let montantTotal = 0;
+  for (const s of saisies) {
+    const montant = calculerMontant(s.dureeMinutes!, s.tauxHoraireApplique);
+    montantTotal += montant;
+    const cle = s.userId;
+    if (!parUtilisateur.has(cle)) {
+      parUtilisateur.set(cle, { nom: s.user.nom, dureeMinutes: 0, montant: 0 });
+    }
+    const ligne = parUtilisateur.get(cle)!;
+    ligne.dureeMinutes += s.dureeMinutes!;
+    ligne.montant += montant;
+  }
+
+  const lignesDescription = [...parUtilisateur.values()]
+    .sort((a, b) => a.nom.localeCompare(b.nom, "fr"))
+    .map((l) => `- ${l.nom} : ${formatDuree(l.dureeMinutes)} (${l.montant.toLocaleString("fr-FR")} F CFA)`);
+
+  return { montantTotal, lignesDescription };
+}
+
 // Lot 14 - "Facturer ce dossier" depuis le temps passe : pre-remplit une
 // facture a partir des SaisieTemps non encore facturees du dossier (tout
 // temps enregistre est facturable), montant calcule saisie par saisie
 // (chacune garde son propre taux horaire snapshotte - voir calculerMontant,
 // services/feuillesTemps.ts).
-// Insertion ciblee : aucune autre route de ce fichier n'est modifiee.
+//
+// Si une facture BROUILLON existe deja pour ce dossier (meme type
+// facture/proforma), le temps est ajoute a CELLE-CI plutot que d'en creer
+// une nouvelle - evite qu'un second "Facturer ce dossier" (ex: apres une
+// seconde session de travail) ne produise deux factures brouillon
+// distinctes pour le meme dossier/client.
 facturesRouter.post("/api/factures/depuis-temps", requireAuth, requireAvocat, async (req, res) => {
   const parsed = depuisTempsSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -123,25 +156,41 @@ facturesRouter.post("/api/factures/depuis-temps", requireAuth, requireAvocat, as
     });
   }
 
-  const parUtilisateur = new Map<string, { nom: string; dureeMinutes: number; montant: number }>();
-  let montantTotal = 0;
-  for (const s of saisies) {
-    const montant = calculerMontant(s.dureeMinutes!, s.tauxHoraireApplique);
-    montantTotal += montant;
-    const cle = s.userId;
-    if (!parUtilisateur.has(cle)) {
-      parUtilisateur.set(cle, { nom: s.user.nom, dureeMinutes: 0, montant: 0 });
-    }
-    const ligne = parUtilisateur.get(cle)!;
-    ligne.dureeMinutes += s.dureeMinutes!;
-    ligne.montant += montant;
+  const factureBrouillonExistante = await prisma.facture.findFirst({
+    where: {
+      cabinetId: req.auth!.cabinetId,
+      dossierId: dossier.id,
+      estProforma: parsed.data.estProforma,
+      statut: "brouillon",
+    },
+  });
+
+  const { montantTotal, lignesDescription } = calculerLignesTemps(saisies);
+
+  if (factureBrouillonExistante) {
+    const factureMaj = await prisma.$transaction(async (tx) => {
+      const maj = await tx.facture.update({
+        where: { id: factureBrouillonExistante.id },
+        data: {
+          description: `${factureBrouillonExistante.description}\n${lignesDescription.join("\n")}`,
+          montant: factureBrouillonExistante.montant + montantTotal,
+        },
+        include: {
+          dossier: { select: { numeroDossier: true, nomAffaire: true, nomClient: true } },
+          creePar: { select: { nom: true } },
+        },
+      });
+      await tx.saisieTemps.updateMany({
+        where: { id: { in: saisies.map((s) => s.id) } },
+        data: { factureId: factureBrouillonExistante.id },
+      });
+      return maj;
+    });
+
+    return res.json({ ...factureMaj, saisiesIncluses: saisies.length, factureExistante: true });
   }
 
-  const lignesDescription = [...parUtilisateur.values()]
-    .sort((a, b) => a.nom.localeCompare(b.nom, "fr"))
-    .map((l) => `- ${l.nom} : ${formatDuree(l.dureeMinutes)} (${l.montant.toLocaleString("fr-FR")} F CFA)`);
   const description = `Temps passé sur le dossier ${dossier.numeroDossier} — ${dossier.nomAffaire} :\n${lignesDescription.join("\n")}`;
-
   const numero = await genererNumero(req.auth!.cabinetId, parsed.data.estProforma);
 
   const facture = await prisma.$transaction(async (tx) => {
@@ -209,23 +258,7 @@ facturesRouter.post("/api/factures/:id/ajouter-temps", requireAuth, requireAvoca
     });
   }
 
-  const parUtilisateur = new Map<string, { nom: string; dureeMinutes: number; montant: number }>();
-  let montantAAjouter = 0;
-  for (const s of saisies) {
-    const montant = calculerMontant(s.dureeMinutes!, s.tauxHoraireApplique);
-    montantAAjouter += montant;
-    const cle = s.userId;
-    if (!parUtilisateur.has(cle)) {
-      parUtilisateur.set(cle, { nom: s.user.nom, dureeMinutes: 0, montant: 0 });
-    }
-    const ligne = parUtilisateur.get(cle)!;
-    ligne.dureeMinutes += s.dureeMinutes!;
-    ligne.montant += montant;
-  }
-
-  const lignesAjoutees = [...parUtilisateur.values()]
-    .sort((a, b) => a.nom.localeCompare(b.nom, "fr"))
-    .map((l) => `- ${l.nom} : ${formatDuree(l.dureeMinutes)} (${l.montant.toLocaleString("fr-FR")} F CFA)`);
+  const { montantTotal: montantAAjouter, lignesDescription: lignesAjoutees } = calculerLignesTemps(saisies);
 
   const factureMaj = await prisma.$transaction(async (tx) => {
     const maj = await tx.facture.update({
@@ -249,6 +282,72 @@ facturesRouter.post("/api/factures/:id/ajouter-temps", requireAuth, requireAvoca
   });
 
   return res.json({ ...factureMaj, saisiesAjoutees: saisies.length });
+});
+
+// Fusionne DEUX factures BROUILLON deja creees du meme dossier en une
+// seule : cas d'un "Facturer ce dossier" declenche deux fois avant la
+// correction ci-dessus (voir depuis-temps), qui produisait une facture
+// distincte par session au lieu de completer la brouillon existante.
+// ":id" est la facture qui SURVIT (montant/description augmentes,
+// saisiesTemps de l'autre re-rattachees) ; "autreFactureId" est supprimee.
+// Refuse si l'une des deux n'est pas brouillon, ou si elles ne portent pas
+// sur le meme dossier (fusionner des factures de clients differents n'aurait
+// aucun sens comptable).
+const fusionnerSchema = z.object({ autreFactureId: z.string().uuid() });
+
+facturesRouter.post("/api/factures/:id/fusionner-avec", requireAuth, requireAvocat, async (req, res) => {
+  const parsed = fusionnerSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Formulaire invalide", details: parsed.error.issues });
+  }
+  if (parsed.data.autreFactureId === req.params.id) {
+    return res.status(400).json({ error: "Impossible de fusionner une facture avec elle-même." });
+  }
+
+  const [facture, autreFacture] = await Promise.all([
+    loadFacture(req.params.id, req.auth!.cabinetId),
+    loadFacture(parsed.data.autreFactureId, req.auth!.cabinetId),
+  ]);
+  if (!facture || !autreFacture) {
+    return res.status(404).json({ error: "Facture introuvable" });
+  }
+  if (facture.statut !== "brouillon" || autreFacture.statut !== "brouillon") {
+    return res.status(409).json({ error: "Seules deux factures au statut brouillon peuvent être fusionnées." });
+  }
+  if (!facture.dossierId || facture.dossierId !== autreFacture.dossierId) {
+    return res.status(400).json({ error: "Les deux factures doivent concerner le même dossier." });
+  }
+
+  if (autreFacture.factureNormaliseeNomFichier) {
+    await supprimerFactureNormalisee(autreFacture.id, autreFacture.factureNormaliseeNomFichier).catch((error) => {
+      console.error(
+        `[factures] échec de suppression du fichier normalisé de ${autreFacture.id} avant fusion :`,
+        error instanceof Error ? error.message : error
+      );
+    });
+  }
+
+  const factureFusionnee = await prisma.$transaction(async (tx) => {
+    const maj = await tx.facture.update({
+      where: { id: facture.id },
+      data: {
+        description: `${facture.description}\n${autreFacture.description}`,
+        montant: facture.montant + autreFacture.montant,
+      },
+      include: {
+        dossier: { select: { numeroDossier: true, nomAffaire: true, nomClient: true, client: true } },
+        creePar: { select: { nom: true } },
+      },
+    });
+    await tx.saisieTemps.updateMany({
+      where: { factureId: autreFacture.id },
+      data: { factureId: facture.id },
+    });
+    await tx.facture.delete({ where: { id: autreFacture.id } });
+    return maj;
+  });
+
+  return res.json(factureFusionnee);
 });
 
 facturesRouter.get("/api/factures", requireAuth, requireAvocat, async (req, res) => {

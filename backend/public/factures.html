@@ -234,6 +234,22 @@
       }
     }
 
+    async function fusionnerFactures(id) {
+      const select = document.querySelector(`[data-fusionner-select="${id}"]`);
+      const autreFactureId = select ? select.value : "";
+      if (!autreFactureId) return;
+      if (!confirm("Fusionner ces deux factures brouillon en une seule ? L'autre facture sera supprimée après transfert de son contenu.")) {
+        return;
+      }
+      try {
+        await apiFetch(`/api/factures/${id}/fusionner-avec`, { method: "POST", body: { autreFactureId } });
+        showToast("Factures fusionnées.");
+        loadFactures();
+      } catch (err) {
+        showError(errorEl, err.message);
+      }
+    }
+
     async function loadFactures() {
       try {
         const factures = await apiFetch("/api/factures");
@@ -245,6 +261,10 @@
         listEl.innerHTML = factures
           .map((f) => {
             const montantTtc = f.appliquerTva ? Math.round(f.montant * 1.18) : f.montant;
+            const autresBrouillonsMemeDossier =
+              f.statut === "brouillon" && f.dossierId
+                ? factures.filter((autre) => autre.id !== f.id && autre.statut === "brouillon" && autre.dossierId === f.dossierId)
+                : [];
             return `
           <div class="action-item">
             <span class="tag">${escapeHtml(f.numero)}${f.dossier ? ` · ${escapeHtml(f.dossier.numeroDossier)} — ${escapeHtml(f.dossier.nomAffaire)}` : ""}</span>
@@ -254,11 +274,20 @@
             <div>${escapeHtml(f.description)}</div>
             <p><strong>${f.appliquerTva ? `${formatMontant(f.montant)} HT — ${formatMontant(montantTtc)} TTC (TVA 18%)` : formatMontant(f.montant)}</strong>${f.dateEcheance ? ` — échéance ${formatDate(f.dateEcheance)}` : ""}</p>
             <p class="muted">Émise le ${formatDate(f.dateEmission)} par ${escapeHtml(f.creePar?.nom || "-")}${f.envoyeAt ? ` · envoyée le ${formatDate(f.envoyeAt)}${f.destinataireEmail ? " à " + escapeHtml(f.destinataireEmail) : ""}` : ""}${f.payeeAt ? ` · payée le ${formatDate(f.payeeAt)}` : ""}</p>
-            <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
+            <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; align-items:center;">
               <a class="secondary" href="#" data-pdf="${f.id}" data-numero="${escapeHtml(f.numero)}" style="text-decoration:none; margin:0;">Télécharger le PDF</a>
               <button type="button" class="secondary" style="margin:0;" data-envoyer="${f.id}">Envoyer par email</button>
               ${f.statut !== "payee" ? `<button type="button" class="secondary" style="margin:0;" data-payee="${f.id}">Marquer payée</button>` : ""}
               ${f.statut === "brouillon" && f.dossierId ? `<button type="button" class="secondary" style="margin:0;" data-ajouter-temps="${f.id}">Ajouter le temps</button>` : ""}
+              ${
+                autresBrouillonsMemeDossier.length > 0
+                  ? `<select data-fusionner-select="${f.id}" style="width:auto; margin:0;">
+                       <option value="">— Fusionner avec —</option>
+                       ${autresBrouillonsMemeDossier.map((a) => `<option value="${a.id}">${escapeHtml(a.numero)} (${formatMontant(a.montant)})</option>`).join("")}
+                     </select>
+                     <button type="button" class="secondary" style="margin:0;" data-fusionner="${f.id}">Fusionner</button>`
+                  : ""
+              }
             </div>
           </div>`;
           })
@@ -272,6 +301,9 @@
         });
         listEl.querySelectorAll("[data-ajouter-temps]").forEach((btn) => {
           btn.addEventListener("click", () => ajouterTemps(btn.dataset.ajouterTemps));
+        });
+        listEl.querySelectorAll("[data-fusionner]").forEach((btn) => {
+          btn.addEventListener("click", () => fusionnerFactures(btn.dataset.fusionner));
         });
         // downloadFile() (voir js/api.js) plutot qu'un href+target="_blank" -
         // sans effet dans la webview desktop (voir le commentaire detaille
