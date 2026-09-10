@@ -133,7 +133,19 @@
 
       const params = new URLSearchParams(window.location.search);
       const preselect = params.get("dossierId");
-      if (preselect) {
+      // "facturee=1" : redirection APRES un "Facturer ce temps" (feuille de
+      // temps / chronometre, voir js/timer.js et js/feuilles-temps.js) - la
+      // facture existe DEJA (POST /api/factures/depuis-temps, montant deja
+      // calcule cote serveur), donc rouvrir le formulaire vide ici inviterait
+      // a en recreer une seconde (doublon) en retapant le meme montant. On
+      // affiche juste un message de confirmation, la facture est deja
+      // visible dans la liste ci-dessous (rechargee juste au-dessus).
+      // Sans ce marqueur (ex: lien "Facturer ce dossier" depuis la fiche
+      // dossier, voir dossier.html), aucune facture n'existe encore - le
+      // formulaire s'ouvre normalement, prerempli mais a completer.
+      if (preselect && params.get("facturee") === "1") {
+        showToast("Facture générée à partir du temps enregistré sur ce dossier.");
+      } else if (preselect) {
         const dossier = allDossiers.find((d) => d.id === preselect);
         if (dossier) {
           const client = clients.find(

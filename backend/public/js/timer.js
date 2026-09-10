@@ -205,7 +205,9 @@
     }
     try {
       await apiFetch("/api/factures/depuis-temps", { method: "POST", body: { dossierId: dossierIdCourant } });
-      window.location.href = `/factures.html?dossierId=${dossierIdCourant}`;
+      // facturee=1 : la facture existe deja (montant deja calcule cote
+      // serveur) - voir factures.html, evite de rouvrir un formulaire vide.
+      window.location.href = `/factures.html?dossierId=${dossierIdCourant}&facturee=1`;
     } catch (err) {
       alert(err.message);
     }
