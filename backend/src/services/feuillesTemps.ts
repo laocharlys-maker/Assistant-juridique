@@ -122,8 +122,15 @@ export interface FeuilleTempsExportInput {
   lignes: LigneAgregee[];
 }
 
+// Espace normal (pas toLocaleString("fr-FR"), dont le separateur de
+// milliers - un espace insecable ETROIT U+202F - n'a pas de glyphe dans la
+// police embarquee du PDF et s'affichait comme un caractere errone,
+// ex: "3/500/000" au lieu de "3 500 000". Voir services/facturePdf.ts.
 function formatMontant(montant: number): string {
-  return `${montant.toLocaleString("fr-FR")} F CFA`;
+  const separe = Math.round(montant)
+    .toString()
+    .replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  return `${separe} F CFA`;
 }
 
 /** Export PDF d'une feuille de temps deja agregee (par collaborateur OU par

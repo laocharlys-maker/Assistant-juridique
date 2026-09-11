@@ -19,8 +19,16 @@ export interface FactureInput {
 
 const formatDate = formatDateLongue;
 
+// N'utilise PAS toLocaleString("fr-FR") : son separateur de milliers est un
+// espace insecable ETROIT (U+202F), absent de la police embarquee dans le
+// PDF - le rendu affichait un caractere de remplacement ressemblant a "/"
+// (ex: "3/500/000" au lieu de "3 500 000"). Un espace normal (U+0020) est
+// garanti present dans n'importe quelle police.
 function formatMontant(montant: number): string {
-  return `${montant.toLocaleString("fr-FR")} F CFA`;
+  const separe = Math.round(montant)
+    .toString()
+    .replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  return `${separe} F CFA`;
 }
 
 export async function buildFacturePdf(input: FactureInput): Promise<Buffer> {

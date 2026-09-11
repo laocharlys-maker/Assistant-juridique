@@ -60,6 +60,22 @@
       <div id="factures-list"><p class="muted">Chargement…</p></div>
     </div>
   </div>
+
+  <div class="modal-overlay" id="fusion-modal" hidden>
+    <div class="modal-box">
+      <h2>Fusionner ces factures</h2>
+      <p class="muted">Le détail horaire ne sera plus affiché sur la facture fusionnée — indique un ou plusieurs libellés résumant le motif (les deux factures peuvent avoir des motifs différents).</p>
+      <div id="fusion-modal-error" class="error"></div>
+      <form id="fusion-form">
+        <div id="fusion-libelles-list"></div>
+        <button type="button" class="ghost btn-sm" id="fusion-add-libelle">+ Ajouter un libellé</button>
+        <div style="display:flex; gap:10px; margin-top:18px;">
+          <button type="submit">Fusionner</button>
+          <button type="button" class="secondary" id="fusion-modal-cancel">Annuler</button>
+        </div>
+      </form>
+    </div>
+  </div>
   <script src="/js/api.js"></script>
   <script src="/js/layout.js"></script>
   <script>
@@ -234,21 +250,59 @@
       }
     }
 
-    async function fusionnerFactures(id) {
+    const fusionModal = document.getElementById("fusion-modal");
+    const fusionForm = document.getElementById("fusion-form");
+    const fusionErrorEl = document.getElementById("fusion-modal-error");
+    const fusionLibellesList = document.getElementById("fusion-libelles-list");
+    let fusionFactureId = null;
+    let fusionAutreFactureId = null;
+
+    function ajouterChampLibelle(placeholder) {
+      const row = document.createElement("div");
+      row.style.marginBottom = "10px";
+      row.innerHTML = `<input type="text" class="fusion-libelle-input" placeholder="${escapeHtml(placeholder || "ex: Honoraires - consultation")}" />`;
+      fusionLibellesList.appendChild(row);
+    }
+
+    function fusionnerFactures(id) {
       const select = document.querySelector(`[data-fusionner-select="${id}"]`);
       const autreFactureId = select ? select.value : "";
       if (!autreFactureId) return;
-      if (!confirm("Fusionner ces deux factures brouillon en une seule ? L'autre facture sera supprimée après transfert de son contenu.")) {
+      fusionFactureId = id;
+      fusionAutreFactureId = autreFactureId;
+      fusionErrorEl.textContent = "";
+      fusionLibellesList.innerHTML = "";
+      ajouterChampLibelle("ex: Honoraires - facture 1");
+      ajouterChampLibelle("ex: Honoraires - facture 2");
+      fusionModal.hidden = false;
+    }
+
+    document.getElementById("fusion-add-libelle").addEventListener("click", () => ajouterChampLibelle());
+    document.getElementById("fusion-modal-cancel").addEventListener("click", () => {
+      fusionModal.hidden = true;
+    });
+
+    fusionForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const libelles = [...fusionLibellesList.querySelectorAll(".fusion-libelle-input")]
+        .map((input) => input.value.trim())
+        .filter((v) => v.length > 0);
+      if (libelles.length === 0) {
+        fusionErrorEl.textContent = "Indique au moins un libellé.";
         return;
       }
       try {
-        await apiFetch(`/api/factures/${id}/fusionner-avec`, { method: "POST", body: { autreFactureId } });
+        await apiFetch(`/api/factures/${fusionFactureId}/fusionner-avec`, {
+          method: "POST",
+          body: { autreFactureId: fusionAutreFactureId, libelles },
+        });
+        fusionModal.hidden = true;
         showToast("Factures fusionnées.");
         loadFactures();
       } catch (err) {
-        showError(errorEl, err.message);
+        fusionErrorEl.textContent = err.message;
       }
-    }
+    });
 
     async function loadFactures() {
       try {

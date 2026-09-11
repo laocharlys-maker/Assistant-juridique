@@ -84,6 +84,17 @@ const depuisTempsSchema = z.object({
   estProforma: z.boolean().optional().default(false),
 });
 
+// Espace normal (pas toLocaleString("fr-FR")) : son separateur de milliers
+// est un espace insecable ETROIT (U+202F), absent de la police embarquee
+// dans le PDF de facture - le texte de description finit imprime tel quel
+// dans le PDF (voir services/facturePdf.ts), d'ou un caractere de
+// remplacement ressemblant a "/" (ex: "3/500/000" au lieu de "3 500 000").
+function formatMontantSimple(montant: number): string {
+  return Math.round(montant)
+    .toString()
+    .replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+}
+
 // Regroupe des saisies de temps par utilisateur pour calculer le montant
 // total et produire les lignes de description ("- Untel : 1h30 (...)"),
 // partage par toutes les routes qui facturent du temps passe (creation
@@ -107,7 +118,7 @@ function calculerLignesTemps(
 
   const lignesDescription = [...parUtilisateur.values()]
     .sort((a, b) => a.nom.localeCompare(b.nom, "fr"))
-    .map((l) => `- ${l.nom} : ${formatDuree(l.dureeMinutes)} (${l.montant.toLocaleString("fr-FR")} F CFA)`);
+    .map((l) => `- ${l.nom} : ${formatDuree(l.dureeMinutes)} (${formatMontantSimple(l.montant)} F CFA)`);
 
   return { montantTotal, lignesDescription };
 }
@@ -293,7 +304,16 @@ facturesRouter.post("/api/factures/:id/ajouter-temps", requireAuth, requireAvoca
 // Refuse si l'une des deux n'est pas brouillon, ou si elles ne portent pas
 // sur le meme dossier (fusionner des factures de clients differents n'aurait
 // aucun sens comptable).
-const fusionnerSchema = z.object({ autreFactureId: z.string().uuid() });
+//
+// "libelles" : la description finale N'EST PLUS la concatenation brute du
+// detail temps-par-collaborateur des deux factures (juge illisible sur le
+// PDF - demande explicite) - l'avocat saisit lui-meme, dans une fenetre
+// dediee cote frontend, un ou plusieurs libelles resumant le motif de
+// chaque facture fusionnee (peuvent differer meme pour le meme client).
+const fusionnerSchema = z.object({
+  autreFactureId: z.string().uuid(),
+  libelles: z.array(z.string().min(1)).min(1),
+});
 
 facturesRouter.post("/api/factures/:id/fusionner-avec", requireAuth, requireAvocat, async (req, res) => {
   const parsed = fusionnerSchema.safeParse(req.body);
@@ -327,11 +347,13 @@ facturesRouter.post("/api/factures/:id/fusionner-avec", requireAuth, requireAvoc
     });
   }
 
+  const description = parsed.data.libelles.map((l) => `- ${l}`).join("\n");
+
   const factureFusionnee = await prisma.$transaction(async (tx) => {
     const maj = await tx.facture.update({
       where: { id: facture.id },
       data: {
-        description: `${facture.description}\n${autreFacture.description}`,
+        description,
         montant: facture.montant + autreFacture.montant,
       },
       include: {
