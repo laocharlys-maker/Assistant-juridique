@@ -110,7 +110,7 @@ function renderFeuille(lignes) {
       <div class="action-item" style="margin-left:20px; background:var(--panel-alt);">
         <span class="tag">${escapeHtml(dossier.dossierLabel)}</span>
         <div>${formatDureeCourte(dossier.dureeMinutes)} — ${dossier.montant.toLocaleString("fr-FR")} F CFA</div>
-        ${peutFacturer ? `<button type="button" class="secondary btn-sm" data-facturer="${dossier.dossierId}" style="margin-top:6px;">Facturer ce temps</button>` : ""}
+        ${peutFacturer ? `<button type="button" class="secondary btn-sm" data-facturer="${dossier.dossierId}" data-montant="${dossier.montant}" style="margin-top:6px;">Facturer ce temps</button>` : ""}
       </div>`;
   }
 
@@ -132,7 +132,7 @@ function renderFeuille(lignes) {
         <div class="action-item">
           <span class="tag">${escapeHtml(l.label)}</span>
           <div><strong>${formatDureeCourte(l.dureeMinutes)}</strong> — ${l.montant.toLocaleString("fr-FR")} F CFA</div>
-          ${peutFacturer ? `<button type="button" class="secondary btn-sm" data-facturer="${l.cle}" style="margin-top:6px;">Facturer ce temps</button>` : ""}
+          ${peutFacturer ? `<button type="button" class="secondary btn-sm" data-facturer="${l.cle}" data-montant="${l.montant}" style="margin-top:6px;">Facturer ce temps</button>` : ""}
         </div>`;
     })
     .join("");
@@ -144,30 +144,83 @@ function renderFeuille(lignes) {
     </div>`;
 
   bodyEl.querySelectorAll("[data-facturer]").forEach((btn) => {
-    btn.addEventListener("click", () => facturerDossier(btn.dataset.facturer));
+    btn.addEventListener("click", () => ouvrirModalFacturer(btn.dataset.facturer, Number(btn.dataset.montant)));
   });
 }
 
-// Reprend exactement le meme flux que le bouton "Facturer" du chronometre
-// (voir js/timer.js, facturer()) : agrege tout le temps facturable et pas
-// encore facture sur ce dossier en une facture, puis renvoie vers
-// Facturation avec le client/dossier deja preselectionnes (voir
-// factures.html, lecture de ?dossierId= au chargement).
-async function facturerDossier(dossierId) {
-  if (
-    !confirm(
-      "Générer une facture à partir de tout le temps facturable et non encore facturé enregistré sur ce dossier ?"
-    )
-  ) {
+// Meme fenetre que le bouton "Facturer" du chronometre (voir js/timer.js,
+// ouvrirModalFacturer()) : demande un libelle (remplace le detail horaire
+// brut, jamais affiche sur la facture) et laisse modifier le montant
+// suggere (deja connu ici, calcule cote serveur lors du chargement de la
+// feuille) avant de facturer. Agrege tout le temps facturable et pas
+// encore facture sur ce dossier, puis renvoie vers Facturation avec le
+// client/dossier deja preselectionnes (voir factures.html, lecture de
+// ?dossierId= au chargement).
+function ouvrirModalFacturer(dossierId, montantSuggere) {
+  let modal = document.getElementById("feuilles-facturer-modal");
+  if (!modal) {
+    modal = document.createElement("div");
+    modal.className = "modal-overlay";
+    modal.id = "feuilles-facturer-modal";
+    modal.hidden = true;
+    modal.innerHTML = `
+      <div class="modal-box">
+        <h2>Facturer ce temps</h2>
+        <p class="muted">Le détail horaire ne sera pas affiché sur la facture — indique le libellé à afficher et vérifie/ajuste le montant si besoin.</p>
+        <p class="error" id="feuilles-facturer-error"></p>
+        <input type="hidden" id="feuilles-facturer-dossier-id" />
+        <label for="feuilles-facturer-libelle">Libellé</label>
+        <input id="feuilles-facturer-libelle" placeholder="ex: Honoraires - suivi du dossier" />
+        <label for="feuilles-facturer-montant">Montant (F CFA)</label>
+        <input id="feuilles-facturer-montant" type="number" min="1" step="1" />
+        <div style="display:flex; gap:10px; margin-top:18px;">
+          <button type="button" id="feuilles-facturer-confirmer-btn">Facturer</button>
+          <button type="button" class="ghost" id="feuilles-facturer-annuler-btn">Annuler</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+    document.getElementById("feuilles-facturer-annuler-btn").addEventListener("click", () => {
+      modal.hidden = true;
+    });
+    document.getElementById("feuilles-facturer-confirmer-btn").addEventListener("click", confirmerFacturer);
+  }
+  document.getElementById("feuilles-facturer-dossier-id").value = dossierId;
+  document.getElementById("feuilles-facturer-libelle").value = "";
+  document.getElementById("feuilles-facturer-montant").value = montantSuggere;
+  document.getElementById("feuilles-facturer-error").textContent = "";
+  modal.hidden = false;
+}
+
+async function confirmerFacturer() {
+  const errorEl = document.getElementById("feuilles-facturer-error");
+  const confirmerBtn = document.getElementById("feuilles-facturer-confirmer-btn");
+  const dossierId = document.getElementById("feuilles-facturer-dossier-id").value;
+  const libelle = document.getElementById("feuilles-facturer-libelle").value.trim();
+  const montant = Number(document.getElementById("feuilles-facturer-montant").value);
+  if (!libelle) {
+    errorEl.textContent = "Indique un libellé.";
     return;
   }
+  if (!montant || montant <= 0) {
+    errorEl.textContent = "Le montant doit être un nombre positif.";
+    return;
+  }
+  // Desactive pendant l'envoi - evite qu'un double-clic ne declenche deux
+  // requetes concurrentes (voir genererNumero cote serveur).
+  confirmerBtn.disabled = true;
   try {
-    await apiFetch("/api/factures/depuis-temps", { method: "POST", body: { dossierId } });
+    await apiFetch("/api/factures/depuis-temps", {
+      method: "POST",
+      body: { dossierId, description: libelle, montant },
+    });
+    document.getElementById("feuilles-facturer-modal").hidden = true;
     // facturee=1 : la facture existe deja (montant deja calcule cote
     // serveur) - voir factures.html, evite de rouvrir un formulaire vide.
     window.location.href = `/factures.html?dossierId=${dossierId}&facturee=1`;
   } catch (err) {
-    showError(document.getElementById("error"), err.message);
+    errorEl.textContent = err.message;
+  } finally {
+    confirmerBtn.disabled = false;
   }
 }
 
