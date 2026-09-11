@@ -20,13 +20,26 @@ facturesRouter.use("/api/factures", requireAuth, requireModule("facturation"));
 
 // Prefixe distinct pour les proforma - series de numerotation independantes,
 // pour qu'une proforma ne "consomme" jamais un numero de facture definitive.
+//
+// Se base sur le plus grand SUFFIXE NUMERIQUE deja utilise, jamais sur un
+// simple COMPTE de lignes existantes - bug reel constate en conditions
+// d'utilisation (erreur Prisma "Unique constraint failed on (cabinet_id,
+// numero)") : un compte se decale des qu'une facture est supprimee (voir
+// POST .../fusionner-avec, qui supprime la facture absorbee) et peut alors
+// recalculer un numero deja pris par une facture plus recente.
 async function genererNumero(cabinetId: string, estProforma: boolean): Promise<string> {
   const prefixe = estProforma ? "PROF" : "FACT";
   const annee = new Date().getFullYear();
-  const count = await prisma.facture.count({
-    where: { cabinetId, numero: { startsWith: `${prefixe}-${annee}-` } },
+  const prefixeComplet = `${prefixe}-${annee}-`;
+  const factures = await prisma.facture.findMany({
+    where: { cabinetId, numero: { startsWith: prefixeComplet } },
+    select: { numero: true },
   });
-  return `${prefixe}-${annee}-${String(count + 1).padStart(4, "0")}`;
+  const maxSuffixe = factures.reduce((max, f) => {
+    const suffixe = Number(f.numero.slice(prefixeComplet.length));
+    return Number.isFinite(suffixe) && suffixe > max ? suffixe : max;
+  }, 0);
+  return `${prefixeComplet}${String(maxSuffixe + 1).padStart(4, "0")}`;
 }
 
 const createFactureSchema = z.object({

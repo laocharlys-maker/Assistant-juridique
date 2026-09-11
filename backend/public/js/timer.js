@@ -241,6 +241,7 @@
 
   async function confirmerFacturer() {
     const errorEl = document.getElementById("timer-facturer-error");
+    const confirmerBtn = document.getElementById("timer-facturer-confirmer-btn");
     const libelle = document.getElementById("timer-facturer-libelle").value.trim();
     const montant = Number(document.getElementById("timer-facturer-montant").value);
     if (!libelle) {
@@ -251,6 +252,11 @@
       errorEl.textContent = "Le montant doit être un nombre positif.";
       return;
     }
+    // Desactive pendant l'envoi - evite qu'un double-clic ne declenche deux
+    // requetes concurrentes (deux factures generees en meme temps pour le
+    // meme dossier avec le meme numero calcule, voir genererNumero cote
+    // serveur).
+    confirmerBtn.disabled = true;
     try {
       await apiFetch("/api/factures/depuis-temps", {
         method: "POST",
@@ -262,6 +268,8 @@
       window.location.href = `/factures.html?dossierId=${dossierIdCourant}&facturee=1`;
     } catch (err) {
       errorEl.textContent = err.message;
+    } finally {
+      confirmerBtn.disabled = false;
     }
   }
 

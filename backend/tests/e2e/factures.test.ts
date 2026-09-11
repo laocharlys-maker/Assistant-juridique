@@ -99,4 +99,39 @@ describe.skipIf(!pgAvailable)("e2e : GET /api/factures - tri factures payées/no
     // (le plus recent en premier) reste inchange : la plus recente en tete.
     expect(indexEnvoyee).toBeLessThan(indexBrouillon);
   });
+
+  it("genere un numero de facture qui ne collisionne jamais, meme apres suppression d'une facture (ex: fusion)", async () => {
+    // Bug reel constate en conditions d'utilisation : PrismaClientKnownRequestError
+    // "Unique constraint failed on (cabinet_id, numero)". Cause : genererNumero
+    // se basait sur un simple COMPTE de factures existantes - la suppression
+    // d'une facture (POST .../fusionner-avec supprime la facture absorbee)
+    // decale ce compte et peut recalculer un numero deja pris par une
+    // facture plus recente. Desormais base sur le plus grand SUFFIXE
+    // numerique deja utilise, jamais sur un compte de lignes.
+    const creer = async (clientNom: string) => {
+      const res = await api(titulaireCookie, "/api/factures", {
+        method: "POST",
+        body: JSON.stringify({ clientNom, description: "x", montant: 1000 }),
+      });
+      expect(res.status).toBe(201);
+      return res.json();
+    };
+
+    const f1 = await creer("Client Numero 1");
+    const f2 = await creer("Client Numero 2");
+    const f3 = await creer("Client Numero 3");
+
+    // Simule exactement ce que fait "Fusionner" : suppression de la facture
+    // "au milieu" (f2), les autres (f1, f3) restent en base.
+    await prisma.facture.delete({ where: { id: f2.id } });
+
+    const f4 = await creer("Client Numero 4");
+
+    // Le nouveau numero doit rester STRICTEMENT superieur au plus grand
+    // numero existant (f3) - jamais une reutilisation qui collisionnerait.
+    const suffixe = (numero: string) => Number(numero.split("-").pop());
+    expect(suffixe(f4.numero)).toBeGreaterThan(suffixe(f3.numero));
+    expect(f4.numero).not.toBe(f1.numero);
+    expect(f4.numero).not.toBe(f3.numero);
+  });
 });
