@@ -1,3 +1,15 @@
+// DOIT rester le tout premier import : patche Express (Express 4 ne
+// transmet jamais automatiquement une erreur levee/rejetee dans un handler
+// async a next()) pour que chaque route de ce fichier beneficie de la
+// transmission automatique vers le middleware d'erreur global tout en bas
+// de ce fichier. Sans ca, une erreur dans une seule requete (bug, appel
+// reseau sortant qui echoue hors connexion...) devient un rejet de promesse
+// NON RATTRAPE au niveau du PROCESS ENTIER - qui arrete tout le backend
+// (voir index.ts, process.on("uncaughtException"/"unhandledRejection")) au
+// lieu de simplement faire echouer cette requete precise. Bug reel constate
+// en conditions d'utilisation : un clic sur "Facturer le temps" a fait
+// planter toute l'application.
+import "express-async-errors";
 import path from "node:path";
 import express from "express";
 import cookieParser from "cookie-parser";
@@ -37,6 +49,7 @@ import { networkInfoRouter } from "./routes/networkInfo";
 import { appInfoRouter } from "./routes/appInfo";
 import { globalApiLimiter } from "./middleware/rateLimit";
 import { requireLicence } from "./middleware/requireLicence";
+import { errorHandler } from "./middleware/errorHandler";
 
 export const app = express();
 
@@ -118,3 +131,8 @@ app.use(
     },
   })
 );
+
+// Voir middleware/errorHandler.ts pour le detail - DOIT rester le tout
+// dernier app.use() (un middleware d'erreur Express n'intercepte que ce qui
+// est enregistre AVANT lui).
+app.use(errorHandler);
