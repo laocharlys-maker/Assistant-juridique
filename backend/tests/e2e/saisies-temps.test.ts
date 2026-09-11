@@ -377,6 +377,40 @@ describe.skipIf(!pgAvailable)("e2e : timer & feuilles de temps (Lot 14)", () => 
     expect(feuille.lignes.find((l) => l.cle === dossierId)).toBeUndefined();
   });
 
+  it("« Facturer ce dossier » avec un libellé + montant fournis (fenêtre timer.js) remplace le détail horaire brut", async () => {
+    const dossierLibelle = await prisma.dossier.create({
+      data: {
+        cabinetId,
+        numeroDossier: "TEMPS-E2E-003",
+        nomAffaire: "Affaire Libellé E2E",
+        nomClient: "Client Libellé",
+        createdBy: titulaireId,
+      },
+    });
+    await api(titulaireCookie, "/api/saisies-temps", {
+      method: "POST",
+      body: JSON.stringify({ dossierId: dossierLibelle.id, date: new Date().toISOString(), dureeMinutes: 60 }),
+    });
+
+    const res = await api(titulaireCookie, "/api/factures/depuis-temps", {
+      method: "POST",
+      body: JSON.stringify({
+        dossierId: dossierLibelle.id,
+        description: "Honoraires - consultation",
+        montant: 99000,
+      }),
+    });
+    expect(res.status).toBe(201);
+    const facture = await res.json();
+    // Le montant fourni PREVAUT sur le montant calcule depuis le temps
+    // passe (l'avocat a pu l'ajuster dans la fenetre) - et la description
+    // ne contient plus aucun detail horaire brut ("Untel : Xmin (Y F CFA)"),
+    // seulement le libelle fourni.
+    expect(facture.montant).toBe(99000);
+    expect(facture.description).toBe("Honoraires - consultation");
+    expect(facture.description).not.toContain("min (");
+  });
+
   it("le temps déjà facturé disparaît aussi de la sous-ligne « par dossier » de la vue « par collaborateur »", async () => {
     const res = await api(titulaireCookie, "/api/saisies-temps/feuille?groupBy=collaborateur");
     const body = await res.json();

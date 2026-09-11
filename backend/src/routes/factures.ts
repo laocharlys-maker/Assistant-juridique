@@ -82,6 +82,14 @@ facturesRouter.post("/api/factures", requireAuth, requireAvocat, async (req, res
 const depuisTempsSchema = z.object({
   dossierId: z.string().uuid(),
   estProforma: z.boolean().optional().default(false),
+  // Libelle + montant saisis par l'avocat dans la fenetre "Facturer le
+  // temps passé" (timer.js) - remplacent le detail horaire brut auto-genere
+  // ci-dessous (calculerLignesTemps), juge illisible sur la facture finale -
+  // meme demande que pour la fusion de factures (POST .../fusionner-avec).
+  // Facultatifs : un appel qui ne les fournirait pas retombe sur l'ancien
+  // comportement automatique (retrocompatibilite).
+  description: z.string().min(1).optional(),
+  montant: z.number().int().positive().optional(),
 });
 
 // Espace normal (pas toLocaleString("fr-FR")) : son separateur de milliers
@@ -177,14 +185,22 @@ facturesRouter.post("/api/factures/depuis-temps", requireAuth, requireAvocat, as
   });
 
   const { montantTotal, lignesDescription } = calculerLignesTemps(saisies);
+  // Libelle fourni par l'avocat (fenetre "Facturer le temps passe",
+  // timer.js) : remplace le detail horaire brut auto-genere ci-dessus, qui
+  // ne sert plus alors qu'a calculer montantTotal (valeur suggeree, jamais
+  // affichee brute sur la facture quand un libelle est fourni). Le montant
+  // fourni par l'avocat prevaut sur montantTotal (il a pu l'ajuster dans la
+  // fenetre) - a defaut, retombe sur l'ancien comportement automatique.
+  const montantFinal = parsed.data.montant ?? montantTotal;
+  const descriptionAjoutee = parsed.data.description ? `- ${parsed.data.description}` : lignesDescription.join("\n");
 
   if (factureBrouillonExistante) {
     const factureMaj = await prisma.$transaction(async (tx) => {
       const maj = await tx.facture.update({
         where: { id: factureBrouillonExistante.id },
         data: {
-          description: `${factureBrouillonExistante.description}\n${lignesDescription.join("\n")}`,
-          montant: factureBrouillonExistante.montant + montantTotal,
+          description: `${factureBrouillonExistante.description}\n${descriptionAjoutee}`,
+          montant: factureBrouillonExistante.montant + montantFinal,
         },
         include: {
           dossier: { select: { numeroDossier: true, nomAffaire: true, nomClient: true } },
@@ -201,7 +217,9 @@ facturesRouter.post("/api/factures/depuis-temps", requireAuth, requireAvocat, as
     return res.json({ ...factureMaj, saisiesIncluses: saisies.length, factureExistante: true });
   }
 
-  const description = `Temps passé sur le dossier ${dossier.numeroDossier} — ${dossier.nomAffaire} :\n${lignesDescription.join("\n")}`;
+  const description = parsed.data.description
+    ? parsed.data.description
+    : `Temps passé sur le dossier ${dossier.numeroDossier} — ${dossier.nomAffaire} :\n${lignesDescription.join("\n")}`;
   const numero = await genererNumero(req.auth!.cabinetId, parsed.data.estProforma);
 
   const facture = await prisma.$transaction(async (tx) => {
@@ -212,7 +230,7 @@ facturesRouter.post("/api/factures/depuis-temps", requireAuth, requireAvocat, as
         clientNom: dossier.nomClient,
         numero,
         description,
-        montant: montantTotal,
+        montant: montantFinal,
         estProforma: parsed.data.estProforma,
         createdBy: req.auth!.userId,
       },

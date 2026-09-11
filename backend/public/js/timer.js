@@ -10,6 +10,11 @@
   let dossierIdCourant = null;
   let meCourant = null;
   let saisiesDossier = [];
+  // Montant suggere (calcule cote serveur, saisie par saisie) pour le
+  // temps non encore facture de ce dossier - memorise ici (pose a jour par
+  // render()) pour pre-remplir la fenetre "Facturer le temps passe" (voir
+  // ouvrirModalFacturer) sans devoir le recalculer cote client.
+  let totalAFacturerCourant = 0;
 
   const SEUIL_AVERTISSEMENT_HEURES = 4;
 
@@ -76,6 +81,7 @@
     const minutesSansTaux = saisiesFacturables
       .filter((s) => s.montant === null || s.montant === undefined)
       .reduce((acc, s) => acc + s.dureeMinutes, 0);
+    totalAFacturerCourant = totalAFacturer;
 
     // Rendu directement dans #timer-section (voir dossier.html,
     // .dossier-header-timer) - plus de <div class="card"> propre a ce
@@ -153,7 +159,7 @@
     }
 
     const facturerBtn = document.getElementById("timer-facturer-btn");
-    if (facturerBtn) facturerBtn.addEventListener("click", facturer);
+    if (facturerBtn) facturerBtn.addEventListener("click", ouvrirModalFacturer);
 
     const activerChronoBtn = document.getElementById("timer-activer-chrono-btn");
     if (activerChronoBtn) activerChronoBtn.addEventListener("click", activerChrono);
@@ -195,21 +201,67 @@
     }
   }
 
-  async function facturer() {
-    if (
-      !confirm(
-        "Générer une facture à partir de tout le temps facturable et non encore facturé enregistré sur ce dossier ?"
-      )
-    ) {
+  // Demande desormais un libelle (remplace le detail horaire brut - jamais
+  // affiche sur la facture, meme demande que pour la fusion de factures,
+  // voir factures.html/fusionner-avec) et laisse modifier le montant
+  // suggere (calcule cote serveur, pre-rempli ici) avant de facturer -
+  // plus de confirm() direct.
+  function ouvrirModalFacturer() {
+    let modal = document.getElementById("timer-facturer-modal");
+    if (!modal) {
+      modal = document.createElement("div");
+      modal.className = "modal-overlay";
+      modal.id = "timer-facturer-modal";
+      modal.hidden = true;
+      modal.innerHTML = `
+        <div class="modal-box">
+          <h2>Facturer le temps passé</h2>
+          <p class="muted">Le détail horaire ne sera pas affiché sur la facture — indique le libellé à afficher et vérifie/ajuste le montant si besoin.</p>
+          <p class="error" id="timer-facturer-error"></p>
+          <label for="timer-facturer-libelle">Libellé</label>
+          <input id="timer-facturer-libelle" placeholder="ex: Honoraires - suivi du dossier" />
+          <label for="timer-facturer-montant">Montant (F CFA)</label>
+          <input id="timer-facturer-montant" type="number" min="1" step="1" />
+          <div style="display:flex; gap:10px; margin-top:18px;">
+            <button type="button" id="timer-facturer-confirmer-btn">Facturer</button>
+            <button type="button" class="ghost" id="timer-facturer-annuler-btn">Annuler</button>
+          </div>
+        </div>`;
+      document.body.appendChild(modal);
+      document.getElementById("timer-facturer-annuler-btn").addEventListener("click", () => {
+        modal.hidden = true;
+      });
+      document.getElementById("timer-facturer-confirmer-btn").addEventListener("click", confirmerFacturer);
+    }
+    document.getElementById("timer-facturer-libelle").value = "";
+    document.getElementById("timer-facturer-montant").value = totalAFacturerCourant;
+    document.getElementById("timer-facturer-error").textContent = "";
+    modal.hidden = false;
+  }
+
+  async function confirmerFacturer() {
+    const errorEl = document.getElementById("timer-facturer-error");
+    const libelle = document.getElementById("timer-facturer-libelle").value.trim();
+    const montant = Number(document.getElementById("timer-facturer-montant").value);
+    if (!libelle) {
+      errorEl.textContent = "Indique un libellé.";
+      return;
+    }
+    if (!montant || montant <= 0) {
+      errorEl.textContent = "Le montant doit être un nombre positif.";
       return;
     }
     try {
-      await apiFetch("/api/factures/depuis-temps", { method: "POST", body: { dossierId: dossierIdCourant } });
+      await apiFetch("/api/factures/depuis-temps", {
+        method: "POST",
+        body: { dossierId: dossierIdCourant, description: libelle, montant },
+      });
+      document.getElementById("timer-facturer-modal").hidden = true;
       // facturee=1 : la facture existe deja (montant deja calcule cote
       // serveur) - voir factures.html, evite de rouvrir un formulaire vide.
       window.location.href = `/factures.html?dossierId=${dossierIdCourant}&facturee=1`;
     } catch (err) {
-      alert(err.message);
+      errorEl.textContent = err.message;
     }
   }
 
