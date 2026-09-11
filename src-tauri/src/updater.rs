@@ -27,12 +27,11 @@ use tauri_plugin_updater::UpdaterExt;
 /// mise a jour injoignable) est journalisee et silencieusement ignoree,
 /// l'application continue de fonctionner normalement hors-ligne.
 ///
-/// EN VEILLEUSE depuis le 2026-09-02 (demande AzoMedIA) : l'appel depuis
-/// main.rs est commente, cette fonction n'est donc plus jamais executee -
-/// #[allow(dead_code)] evite juste le warning de compilation correspondant,
-/// rien d'autre n'a change ici. Voir le commentaire pres de l'appel commente
-/// dans main.rs pour la procedure de reactivation.
-#[allow(dead_code)]
+/// REACTIVEE le 2026-09-11 (avait ete mise en veilleuse le 2026-09-02) -
+/// voir le commentaire pres de l'appel dans main.rs. Ne fonctionne
+/// concretement que si la version (tauri.conf.json/Cargo.toml/package.json)
+/// est de nouveau incrementee a chaque build - sinon `updater.check()`
+/// ne trouve jamais de version plus recente que la sienne.
 pub fn check_for_updates(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
         let updater = match app.updater() {
