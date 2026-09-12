@@ -773,6 +773,19 @@ header.app-topbar {
 .badge-ocr-termine { background: var(--success-tint); color: var(--success); }
 .badge-ocr-echec { background: var(--danger-tint); color: var(--danger); }
 
+/* Lot 20 : statut d'un courrier entrant/sortant (registre courriers.html /
+   courrier-fiche.html) - namespace dedie plutot que de reutiliser les
+   classes badge-brouillon/badge-envoyee ci-dessus (memes libelles possibles,
+   mais un couplage visuel accidentel avec le module factures serait fragile). */
+.badge-courrier-recu { background: var(--accent-tint); color: var(--accent-hover); }
+.badge-courrier-a_affecter { background: var(--warning-tint); color: var(--warning); }
+.badge-courrier-affecte { background: var(--warning-tint); color: var(--warning); }
+.badge-courrier-en_traitement { background: var(--warning-tint); color: var(--warning); }
+.badge-courrier-traite { background: var(--success-tint); color: var(--success); }
+.badge-courrier-classe { background: var(--hairline); color: var(--muted); }
+.badge-courrier-brouillon { background: var(--hairline); color: var(--muted); }
+.badge-courrier-envoye { background: var(--accent-tint); color: var(--accent-hover); }
+
 /* Lot 15 : onglet "Pieces" (glisser-deposer). */
 .pieces-dropzone {
   border: 2px dashed var(--border);

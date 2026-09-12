@@ -32,6 +32,7 @@ const NAV_ITEMS = [
   { href: "/delais-calculateur.html", label: "Délais", roles: ["titulaire", "avocat", "collaborateur"], group: "Travail", icon: "clock", moduleKey: "delais" },
   { href: "/feuilles-temps.html", label: "Feuilles de temps", roles: ["titulaire", "avocat", "collaborateur"], group: "Travail", icon: "clock", moduleKey: "facturation" },
   { href: "/boite-reception.html", label: "Boîte de réception", roles: ["titulaire", "avocat", "collaborateur"], group: "Travail", icon: "mail" },
+  { href: "/courriers.html", label: "Courriers", roles: ["titulaire", "avocat", "collaborateur"], group: "Travail", icon: "mail", moduleKey: "courriers" },
   {
     label: "Équipe",
     roles: ["titulaire", "avocat"],

@@ -117,6 +117,55 @@ enum SourceEvenement {
   email
 }
 
+// Lot 20 : liste FERMEE (pas de saisie libre), pour garder les filtres et
+// statistiques du registre courrier fiables - voir README-LOT20.md pour la
+// correspondance nature <-> cas d'usage. Partagee par CourrierEntrant et
+// CourrierSortant (mêmes valeurs, jamais deux enums a synchroniser).
+enum NatureCourrier {
+  correspondance
+  convocation
+  assignation
+  signification
+  mise_en_demeure
+  courrier_client
+  courrier_juridiction
+  courrier_confrere
+  courrier_administratif
+  autre
+}
+
+// Mode de reception (CourrierEntrant) ou d'envoi (CourrierSortant) - meme
+// vocabulaire des deux cotes, une seule liste a maintenir.
+enum ModeCourrier {
+  main_propre
+  courrier_postal
+  huissier
+  email
+  fax
+  autre
+}
+
+// Cycle de statut d'un courrier ENTRANT (Lot 20, objectif 6) - transitions
+// horodatees individuellement (voir CourrierEntrant.affecteAt/classeAt et le
+// Journal d'audit, AuditLog.courrierEntrantId) plutot qu'un historique
+// parallele dedie.
+enum StatutCourrierEntrant {
+  recu
+  a_affecter
+  affecte
+  en_traitement
+  traite
+  classe
+}
+
+// Cycle plus simple pour un courrier SORTANT : pas d'affectation (deja
+// redige par quelqu'un), juste brouillon -> envoye -> classe.
+enum StatutCourrierSortant {
+  brouillon
+  envoye
+  classe
+}
+
 model Cabinet {
   id                                  String    @id @default(uuid())
   nom                                 String
@@ -220,6 +269,11 @@ model Cabinet {
   evenements    Evenement[]
   saisiesTemps  SaisieTemps[]
   documents     DocumentDossier[]
+  // Lot 20 : registre courrier (compteurs de numerotation + les deux
+  // registres eux-memes).
+  sequencesCourrier SequenceCourrier[]
+  courriersEntrants CourrierEntrant[]
+  courriersSortants CourrierSortant[]
 
   @@map("cabinets")
 }
@@ -357,6 +411,12 @@ model User {
   // plus recevoir le rappel de paiement (pop-up du tableau de bord).
   facturesRappelsIgnores FactureRappelIgnore[]
 
+  // Lot 20 : courriers ENTRANTS receptionnes/affectes a CET utilisateur, et
+  // courriers SORTANTS rediges par lui/elle.
+  courriersEntrantsReceptionnes CourrierEntrant[] @relation("CourrierEntrantReceptionnePar")
+  courriersEntrantsAffectes     CourrierEntrant[] @relation("CourrierEntrantAffecteA")
+  courriersSortantsRediges      CourrierSortant[] @relation("CourrierSortantRedigePar")
+
   @@index([cabinetId])
   @@map("users")
 }
@@ -415,6 +475,10 @@ model Client {
 
   cabinet  Cabinet   @relation(fields: [cabinetId], references: [id])
   dossiers Dossier[]
+  // Lot 20 : courriers rattaches directement a ce client (avec ou sans
+  // dossier associe).
+  courriersEntrants CourrierEntrant[]
+  courriersSortants CourrierSortant[]
 
   @@index([cabinetId])
   @@map("clients")
@@ -455,14 +519,21 @@ model DelaiCalcul {
   rappelCalendar Boolean  @default(false) @map("rappel_calendar")
   createdById    String   @map("created_by_id")
   createdAt      DateTime @default(now()) @map("created_at")
+  // Lot 20 : delai cree depuis la fiche d'un courrier entrant (bouton
+  // "Créer un délai") - reference croisee uniquement, AUCUNE duplication du
+  // calcul ci-dessus (meme computeDeadline, meme table). Null = delai cree
+  // normalement, hors de tout courrier.
+  courrierEntrantId String? @map("courrier_entrant_id")
 
-  delaiType DelaiType @relation(fields: [delaiTypeId], references: [id])
-  dossier   Dossier?  @relation(fields: [dossierId], references: [id])
-  createdBy User      @relation(fields: [createdById], references: [id])
+  delaiType       DelaiType        @relation(fields: [delaiTypeId], references: [id])
+  dossier         Dossier?         @relation(fields: [dossierId], references: [id])
+  createdBy       User             @relation(fields: [createdById], references: [id])
+  courrierEntrant CourrierEntrant? @relation(fields: [courrierEntrantId], references: [id])
   // Lot 12a : voir RoleAudience.evenement ci-dessus, meme raisonnement.
   evenement Evenement?
 
   @@index([dossierId])
+  @@index([courrierEntrantId])
   @@map("delai_calculs")
 }
 
@@ -500,6 +571,10 @@ model Dossier {
   evenements    Evenement[]
   saisiesTemps  SaisieTemps[]
   documents     DocumentDossier[]
+  // Lot 20 : courriers rattaches a ce dossier (lien optionnel, attachable
+  // apres coup - voir CourrierEntrant/CourrierSortant.dossierId).
+  courriersEntrants CourrierEntrant[]
+  courriersSortants CourrierSortant[]
 
   @@unique([cabinetId, numeroDossier])
   @@index([clientId])
@@ -527,8 +602,10 @@ model DocumentDossier {
   // genere a l'upload, jamais previsible/le nom d'origine (evite collisions
   // et fuite d'information via le nom de fichier - contrainte du prompt).
   nomFichier   String  @map("nom_fichier")
-  // "upload" (saisie manuelle, Lot 15) ou "email" (import assiste depuis
-  // une boite mail connectee, Lot 16 - emailOrigineId alors renseigne).
+  // "upload" (saisie manuelle, Lot 15), "email" (import assiste depuis une
+  // boite mail connectee, Lot 16 - emailOrigineId alors renseigne) ou
+  // "courrier" (piece numerisee d'un courrier entrant/sortant, Lot 20 -
+  // courrierEntrantId/courrierSortantId alors renseigne).
   source         String  @default("upload")
   // Lot 16 : lien reel vers l'email source, ajoute maintenant que
   // EmailImporte existe (prevu nullable des le Lot 15, sans dependance
@@ -536,14 +613,22 @@ model DocumentDossier {
   // (pas Cascade) : la suppression d'un EmailImporte (ex: purge future) ne
   // doit jamais entrainer la suppression d'une piece deja importee.
   emailOrigineId String? @map("email_origine_id")
+  // Lot 20 : lien reel vers le courrier source (au plus un des deux
+  // renseigne) - meme raisonnement SetNull que ci-dessus, une piece deja
+  // rattachee au dossier ne doit jamais disparaitre si le courrier est
+  // supprime (ce que ce lot ne fait d'ailleurs jamais, voir README-LOT20.md).
+  courrierEntrantId String? @map("courrier_entrant_id")
+  courrierSortantId String? @map("courrier_sortant_id")
   uploadeParId   String  @map("uploade_par_id")
   createdAt      DateTime @default(now()) @map("created_at")
 
-  cabinet      Cabinet       @relation(fields: [cabinetId], references: [id])
-  dossier      Dossier       @relation(fields: [dossierId], references: [id])
-  uploadePar   User          @relation(fields: [uploadeParId], references: [id])
-  emailOrigine EmailImporte? @relation(fields: [emailOrigineId], references: [id], onDelete: SetNull)
-  ocrResultat  OcrResultat?
+  cabinet         Cabinet          @relation(fields: [cabinetId], references: [id])
+  dossier         Dossier          @relation(fields: [dossierId], references: [id])
+  uploadePar      User             @relation(fields: [uploadeParId], references: [id])
+  emailOrigine    EmailImporte?    @relation(fields: [emailOrigineId], references: [id], onDelete: SetNull)
+  courrierEntrant CourrierEntrant? @relation(fields: [courrierEntrantId], references: [id], onDelete: SetNull)
+  courrierSortant CourrierSortant? @relation(fields: [courrierSortantId], references: [id], onDelete: SetNull)
+  ocrResultat     OcrResultat?
 
   @@index([dossierId])
   @@index([cabinetId])
@@ -1119,10 +1204,16 @@ model Action {
   // inchange) ou "redaction_libre" (aucun appel LLM, aucun champsDocument -
   // voir services/gabaritsRedactionLibre.ts). Jamais modifie apres creation.
   modeCreation     String    @default("genere_ia") @map("mode_creation")
+  // Lot 20 : action creee depuis la fiche d'un courrier entrant (boutons
+  // "Créer une action" / "Répondre au courrier") - reference croisee, garde
+  // le chainage visible dans les deux sens (voir CourrierEntrant.actions).
+  // Null = action creee normalement, hors de tout courrier.
+  courrierEntrantId String? @map("courrier_entrant_id")
 
   dossier               Dossier               @relation(fields: [dossierId], references: [id])
   creePar               User                  @relation("ActionCreatedBy", fields: [createdBy], references: [id])
   verrouilleParUtilisateur User?               @relation("ActionVerrouillePar", fields: [verrouillePar], references: [id])
+  courrierEntrant       CourrierEntrant?      @relation(fields: [courrierEntrantId], references: [id])
   auditLogs             AuditLog[]
   commentaires          CommentaireRevision[]
   versions              ActionVersion[]
@@ -1141,6 +1232,7 @@ model Action {
 
   @@index([dossierId])
   @@index([createdBy])
+  @@index([courrierEntrantId])
   @@map("actions")
 }
 
@@ -1227,18 +1319,172 @@ model CommentaireRevision {
   @@map("commentaires_revision")
 }
 
+// Lot 20 : etendu pour couvrir les evenements courrier (transitions de
+// statut, affectation, delai cree, reponse generee, classement) EN PLUS des
+// etapes d'Action deja journalisees ici depuis le debut - jamais un journal
+// parallele specifique au courrier (contrainte du prompt). actionId devient
+// facultatif (migration additive, DROP NOT NULL - aucune ligne existante
+// affectee) : chaque ligne renseigne EXACTEMENT UN des trois liens
+// (actionId OU courrierEntrantId OU courrierSortantId), jamais plusieurs a
+// la fois ni aucun (voir services/courriers/journalisation.ts).
 model AuditLog {
-  id        String          @id @default(uuid())
-  actionId  String          @map("action_id")
-  etape     String
-  statut    StatutExecution
-  detail    String?
-  timestamp DateTime        @default(now())
+  id                String          @id @default(uuid())
+  actionId          String?         @map("action_id")
+  courrierEntrantId String?         @map("courrier_entrant_id")
+  courrierSortantId String?         @map("courrier_sortant_id")
+  etape             String
+  statut            StatutExecution
+  detail            String?
+  timestamp         DateTime        @default(now())
 
-  action Action @relation(fields: [actionId], references: [id])
+  action          Action?          @relation(fields: [actionId], references: [id])
+  courrierEntrant CourrierEntrant? @relation(fields: [courrierEntrantId], references: [id])
+  courrierSortant CourrierSortant? @relation(fields: [courrierSortantId], references: [id])
 
   @@index([actionId])
+  @@index([courrierEntrantId])
+  @@index([courrierSortantId])
   @@map("audit_logs")
+}
+
+// Lot 20 - compteur de numerotation sequentielle, un enregistrement par
+// (cabinet, annee civile, sens). L'incrementation passe TOUJOURS par un seul
+// UPDATE ... RETURNING atomique (voir services/courriers/numerotation.ts) :
+// deux creations simultanees ne peuvent jamais lire/ecrire la meme ligne en
+// meme temps (verrou de ligne Postgres implicite), donc jamais le meme
+// numero - pas besoin d'une transaction SERIALIZABLE ni d'un advisory lock
+// applicatif distinct.
+model SequenceCourrier {
+  id            String @id @default(uuid())
+  cabinetId     String @map("cabinet_id")
+  annee         Int
+  // "entrant" | "sortant"
+  sens          String
+  dernierNumero Int    @default(0) @map("dernier_numero")
+
+  cabinet Cabinet @relation(fields: [cabinetId], references: [id])
+
+  @@unique([cabinetId, annee, sens])
+  @@map("sequences_courrier")
+}
+
+// Lot 20 - piece jointe d'un courrier qui n'a PAS (encore) de dossier
+// associe : DocumentDossier.dossierId est obligatoire (voir plus haut), donc
+// impossible d'y stocker le scan tant qu'aucun dossier n'est choisi - ce
+// serait sinon contraire au principe "un seul champ obligatoire a la
+// creation" (objet du courrier, jamais le dossier). Reutilise QUAND MEME
+// integralement enregistrerFichier/lireFichier/supprimerFichier de
+// stockageDocuments.ts (memes fonctions, meme chiffrement AES-256-GCM),
+// simplement avec l'id du COURRIER comme cle de sous-dossier plutot que
+// l'id d'un vrai Dossier - ces fonctions ne verifient jamais que leur
+// parametre correspond a un Dossier reel, voir README-LOT20.md.
+// Des qu'un dossier est attache au courrier (a la creation ou plus tard),
+// ce fichier est migre vers un vrai DocumentDossier (source="courrier") et
+// cette ligne est supprimee - voir courrierService.rattacherDossier(). Pas
+// d'OCR sur cette table intermediaire (uniquement une fois devenue un vrai
+// DocumentDossier, memes raisons).
+model CourrierPieceJointe {
+  id                String   @id @default(uuid())
+  cabinetId         String   @map("cabinet_id")
+  courrierEntrantId String?  @map("courrier_entrant_id")
+  courrierSortantId String?  @map("courrier_sortant_id")
+  nomOriginal       String   @map("nom_original")
+  typeMime          String   @map("type_mime")
+  tailleOctets      Int      @map("taille_octets")
+  nomFichier        String   @map("nom_fichier")
+  uploadeParId      String   @map("uploade_par_id")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  courrierEntrant CourrierEntrant? @relation(fields: [courrierEntrantId], references: [id], onDelete: Cascade)
+  courrierSortant CourrierSortant? @relation(fields: [courrierSortantId], references: [id], onDelete: Cascade)
+
+  @@map("courrier_pieces_jointes")
+}
+
+// Lot 20 - registre des courriers ENTRANTS (voir README-LOT20.md pour la
+// correspondance nature <-> cas d'usage et le detail de la numerotation).
+// Seul "objet" est obligatoire a la creation - tout le reste est optionnel
+// ou pre-rempli, complable a tout moment sans perte de donnees.
+model CourrierEntrant {
+  id               String                @id @default(uuid())
+  cabinetId        String                @map("cabinet_id")
+  numero           String
+  objet            String
+  nature           NatureCourrier?
+  expediteur       String?
+  dateCourrier     DateTime?             @map("date_courrier")
+  dateReception    DateTime              @default(now()) @map("date_reception")
+  modeReception    ModeCourrier?         @map("mode_reception")
+  receptionneParId String                @map("receptionne_par_id")
+  clientId         String?               @map("client_id")
+  dossierId        String?               @map("dossier_id")
+  observations     String?
+  statut           StatutCourrierEntrant @default(recu)
+  affecteAId       String?               @map("affecte_a_id")
+  affecteAt        DateTime?             @map("affecte_at")
+  classeAt         DateTime?             @map("classe_at")
+  createdAt        DateTime              @default(now()) @map("created_at")
+  updatedAt        DateTime              @updatedAt @map("updated_at")
+
+  cabinet        Cabinet               @relation(fields: [cabinetId], references: [id])
+  receptionnePar User                  @relation("CourrierEntrantReceptionnePar", fields: [receptionneParId], references: [id])
+  affecteA       User?                 @relation("CourrierEntrantAffecteA", fields: [affecteAId], references: [id])
+  client         Client?               @relation(fields: [clientId], references: [id])
+  dossier        Dossier?              @relation(fields: [dossierId], references: [id])
+  documents      DocumentDossier[]
+  piecesJointes  CourrierPieceJointe[]
+  delaiCalculs   DelaiCalcul[]
+  actions        Action[]
+  auditLogs      AuditLog[]
+  // Courriers SORTANTS envoyes en reponse a CELUI-CI (chainage bidirectionnel
+  // visible depuis les deux fiches - voir CourrierSortant.reponseA).
+  reponses       CourrierSortant[]     @relation("ReponseA")
+
+  @@unique([cabinetId, numero])
+  @@index([cabinetId, statut])
+  @@index([dossierId])
+  @@index([clientId])
+  @@map("courriers_entrants")
+}
+
+// Lot 20 - registre des courriers SORTANTS.
+model CourrierSortant {
+  id             String                @id @default(uuid())
+  cabinetId      String                @map("cabinet_id")
+  numero         String
+  objet          String
+  nature         NatureCourrier?
+  destinataire   String?
+  dateCourrier   DateTime?             @map("date_courrier")
+  dateEnvoi      DateTime?             @map("date_envoi")
+  modeEnvoi      ModeCourrier?         @map("mode_envoi")
+  clientId       String?               @map("client_id")
+  dossierId      String?               @map("dossier_id")
+  observations   String?
+  statut         StatutCourrierSortant @default(brouillon)
+  // Courrier ENTRANT auquel celui-ci repond (bouton "Répondre au courrier")
+  // - null pour un courrier sortant ordinaire, sans lien avec un entrant.
+  reponseAId     String?               @map("reponse_a_id")
+  redigeParId    String                @map("redige_par_id")
+  classeAt       DateTime?             @map("classe_at")
+  createdAt      DateTime              @default(now()) @map("created_at")
+  updatedAt      DateTime              @updatedAt @map("updated_at")
+
+  cabinet       Cabinet               @relation(fields: [cabinetId], references: [id])
+  redigePar     User                  @relation("CourrierSortantRedigePar", fields: [redigeParId], references: [id])
+  client        Client?               @relation(fields: [clientId], references: [id])
+  dossier       Dossier?              @relation(fields: [dossierId], references: [id])
+  reponseA      CourrierEntrant?      @relation("ReponseA", fields: [reponseAId], references: [id])
+  documents     DocumentDossier[]
+  piecesJointes CourrierPieceJointe[]
+  auditLogs     AuditLog[]
+
+  @@unique([cabinetId, numero])
+  @@index([cabinetId, statut])
+  @@index([dossierId])
+  @@index([clientId])
+  @@index([reponseAId])
+  @@map("courriers_sortants")
 }
 
 model JurisprudenceChunk {

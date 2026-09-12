@@ -54,6 +54,12 @@ auditLogsRouter.get("/api/audit-logs", requireAuth, requireAdmin, async (req, re
     take: limit,
   });
 
+  // log.action est garanti non-null ici : le where ci-dessus filtre deja sur
+  // des champs imbriques de cette relation (Prisma exclut donc toute ligne
+  // ou elle serait absente) - non-null assertion sans risque. Depuis le Lot
+  // 20, AuditLog.actionId est devenu facultatif (extension additive pour
+  // couvrir aussi les evenements courrier, voir services/audit.ts), mais
+  // cette page reste strictement celle des Actions.
   return res.json(
     logs.map((log) => ({
       id: log.id,
@@ -61,11 +67,11 @@ auditLogsRouter.get("/api/audit-logs", requireAuth, requireAdmin, async (req, re
       etape: log.etape,
       statut: log.statut,
       detail: log.detail,
-      typeAction: log.action.typeAction,
-      canal: log.action.canal,
-      numeroDossier: log.action.dossier.numeroDossier,
-      nomAffaire: log.action.dossier.nomAffaire,
-      genereParNom: log.action.creePar.nom,
+      typeAction: log.action!.typeAction,
+      canal: log.action!.canal,
+      numeroDossier: log.action!.dossier.numeroDossier,
+      nomAffaire: log.action!.dossier.nomAffaire,
+      genereParNom: log.action!.creePar.nom,
     }))
   );
 });

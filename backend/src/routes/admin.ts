@@ -389,6 +389,9 @@ adminRouter.get("/api/admin/audit-logs", async (req, res) => {
     take: limit,
   });
 
+  // log.action garanti non-null ici (meme raisonnement que routes/auditLogs.ts) -
+  // le where filtre deja sur des champs imbriques de cette relation, devenue
+  // facultative au Lot 20 uniquement pour couvrir les evenements courrier.
   return res.json(
     logs.map((log) => ({
       id: log.id,
@@ -396,13 +399,13 @@ adminRouter.get("/api/admin/audit-logs", async (req, res) => {
       etape: log.etape,
       statut: log.statut,
       detail: log.detail,
-      typeAction: log.action.typeAction,
-      canal: log.action.canal,
-      cabinet: log.action.dossier?.cabinet ?? null,
-      dossier: log.action.dossier
-        ? { numeroDossier: log.action.dossier.numeroDossier, nomAffaire: log.action.dossier.nomAffaire }
+      typeAction: log.action!.typeAction,
+      canal: log.action!.canal,
+      cabinet: log.action!.dossier?.cabinet ?? null,
+      dossier: log.action!.dossier
+        ? { numeroDossier: log.action!.dossier.numeroDossier, nomAffaire: log.action!.dossier.nomAffaire }
         : null,
-      genrePar: log.action.creePar.nom,
+      genrePar: log.action!.creePar.nom,
     }))
   );
 });

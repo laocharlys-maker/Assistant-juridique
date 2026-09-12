@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aurore — Courriers</title>
+  <link rel="icon" type="image/png" href="/favicon-256.png" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="page">
+    <div class="page-hero">
+      <div class="eyebrow">Cabinet</div>
+      <h1>Gestion des courriers</h1>
+      <p>Registre du courrier physique/officiel du cabinet — entrants et sortants, numérotés automatiquement.</p>
+    </div>
+
+    <div id="error" class="error"></div>
+
+    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:16px;">
+      <div class="tabs" id="sens-tabs">
+        <button type="button" class="tab active" data-sens="entrant">Courriers entrants</button>
+        <button type="button" class="tab" data-sens="sortant">Courriers sortants</button>
+      </div>
+      <button type="button" id="nouveau-btn">+ Nouveau courrier</button>
+    </div>
+
+    <div class="stat-grid" id="compteurs-grid">
+      <div class="stat-card"><div class="stat-label">Reçus aujourd'hui</div><div class="stat-value" id="c-recus">—</div></div>
+      <div class="stat-card"><div class="stat-label">À affecter</div><div class="stat-value" id="c-a-affecter">—</div></div>
+      <div class="stat-card"><div class="stat-label">À traiter</div><div class="stat-value" id="c-a-traiter">—</div></div>
+      <div class="stat-card"><div class="stat-label">Avec échéance</div><div class="stat-value" id="c-echeance">—</div></div>
+      <div class="stat-card"><div class="stat-label">Envoyés ce mois</div><div class="stat-value" id="c-envoyes">—</div></div>
+    </div>
+
+    <div class="tabs" id="vue-tabs-entrant">
+      <button type="button" class="tab active" data-vue="">Tous</button>
+      <button type="button" class="tab" data-vue="aujourdhui">Reçus aujourd'hui</button>
+      <button type="button" class="tab" data-vue="a_affecter">À affecter</button>
+      <button type="button" class="tab" data-vue="a_traiter">À traiter</button>
+      <button type="button" class="tab" data-vue="avec_echeance">Avec échéance</button>
+      <button type="button" class="tab" data-vue="archives">Archives</button>
+    </div>
+    <div class="tabs" id="vue-tabs-sortant" style="display:none;">
+      <button type="button" class="tab active" data-vue="">Tous</button>
+      <button type="button" class="tab" data-vue="ce_mois">Envoyés ce mois</button>
+      <button type="button" class="tab" data-vue="archives">Archives</button>
+    </div>
+
+    <input id="recherche-input" type="search" placeholder="Rechercher par numéro, objet, expéditeur/destinataire…" style="margin-bottom:14px;" />
+
+    <div class="card">
+      <div id="liste"><p class="muted">Chargement…</p></div>
+    </div>
+  </div>
+
+  <!-- Creation rapide : SEUL l'objet est obligatoire (contrainte du Lot 20) -
+       tout le reste est optionnel, complétable ensuite depuis la fiche. -->
+  <div class="modal-overlay" id="nouveau-modal" hidden>
+    <div class="modal-box">
+      <h2 id="nouveau-titre">Nouveau courrier entrant</h2>
+      <p class="error" id="nouveau-error"></p>
+      <form id="nouveau-form">
+        <label>Objet <span class="muted">(obligatoire)</span></label>
+        <input name="objet" required />
+
+        <label>Nature <span class="muted">(optionnel)</span></label>
+        <select name="nature">
+          <option value="">— non précisée —</option>
+        </select>
+
+        <div id="champ-expediteur">
+          <label>Expéditeur <span class="muted">(optionnel)</span></label>
+          <input name="expediteur" />
+        </div>
+        <div id="champ-destinataire" style="display:none;">
+          <label>Destinataire <span class="muted">(optionnel)</span></label>
+          <input name="destinataire" />
+        </div>
+
+        <label>Dossier concerné <span class="muted">(optionnel, attachable plus tard)</span></label>
+        <select name="dossierId"><option value="">— aucun —</option></select>
+
+        <div style="display:flex; gap:10px; margin-top:14px;">
+          <button type="submit">Créer</button>
+          <button type="button" class="secondary" id="nouveau-annuler-btn">Annuler</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/layout.js"></script>
+  <script>
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str ?? "";
+      return div.innerHTML;
+    }
+
+    const NATURE_LABELS = {
+      correspondance: "Correspondance",
+      convocation: "Convocation",
+      assignation: "Assignation",
+      signification: "Signification",
+      mise_en_demeure: "Mise en demeure",
+      courrier_client: "Courrier client",
+      courrier_juridiction: "Courrier de juridiction",
+      courrier_confrere: "Courrier de confrère",
+      courrier_administratif: "Courrier administratif",
+      autre: "Autre",
+    };
+
+    const STATUT_ENTRANT_LABELS = {
+      recu: "Reçu", a_affecter: "À affecter", affecte: "Affecté",
+      en_traitement: "En traitement", traite: "Traité", classe: "Classé",
+    };
+    const STATUT_SORTANT_LABELS = { brouillon: "Brouillon", envoye: "Envoyé", classe: "Classé" };
+
+    let sens = "entrant";
+    let vue = "";
+    const errorEl = document.getElementById("error");
+
+    async function chargerCompteurs() {
+      try {
+        const c = await apiFetch("/api/courriers-entrants/compteurs");
+        document.getElementById("c-recus").textContent = c.recusAujourdhui;
+        document.getElementById("c-a-affecter").textContent = c.aAffecter;
+        document.getElementById("c-a-traiter").textContent = c.aTraiter;
+        document.getElementById("c-echeance").textContent = c.avecEcheance;
+        document.getElementById("c-envoyes").textContent = c.envoyesCeMois;
+      } catch (err) {
+        showError(errorEl, err.message);
+      }
+    }
+
+    function ligneEntrant(c) {
+      return `
+        <a class="action-item" href="/courrier-fiche.html?type=entrant&id=${c.id}" style="display:block; text-decoration:none; color:inherit;">
+          <span class="tag">${escapeHtml(c.numero)}</span>
+          <span class="badge badge-courrier-${c.statut}">${STATUT_ENTRANT_LABELS[c.statut] || c.statut}</span>
+          ${c.nature ? `<span class="muted"> · ${NATURE_LABELS[c.nature] || c.nature}</span>` : ""}
+          <div><strong>${escapeHtml(c.objet)}</strong></div>
+          <p class="muted" style="margin:4px 0 0;">
+            ${c.expediteur ? `De : ${escapeHtml(c.expediteur)} — ` : ""}Reçu le ${new Date(c.dateReception).toLocaleDateString("fr-FR")}
+            ${c.dossier ? ` — Dossier ${escapeHtml(c.dossier.numeroDossier)}` : ""}
+            ${c.affecteA ? ` — Affecté à ${escapeHtml(c.affecteA.nom)}` : ""}
+          </p>
+        </a>`;
+    }
+
+    function ligneSortant(c) {
+      return `
+        <a class="action-item" href="/courrier-fiche.html?type=sortant&id=${c.id}" style="display:block; text-decoration:none; color:inherit;">
+          <span class="tag">${escapeHtml(c.numero)}</span>
+          <span class="badge badge-courrier-${c.statut}">${STATUT_SORTANT_LABELS[c.statut] || c.statut}</span>
+          ${c.nature ? `<span class="muted"> · ${NATURE_LABELS[c.nature] || c.nature}</span>` : ""}
+          <div><strong>${escapeHtml(c.objet)}</strong></div>
+          <p class="muted" style="margin:4px 0 0;">
+            ${c.destinataire ? `À : ${escapeHtml(c.destinataire)} — ` : ""}Créé le ${new Date(c.createdAt).toLocaleDateString("fr-FR")}
+            ${c.dossier ? ` — Dossier ${escapeHtml(c.dossier.numeroDossier)}` : ""}
+          </p>
+        </a>`;
+    }
+
+    let rechercheTimeout;
+    async function chargerListe() {
+      const listeEl = document.getElementById("liste");
+      const q = document.getElementById("recherche-input").value.trim();
+      const params = new URLSearchParams();
+      if (vue) params.set("vue", vue);
+      if (q) params.set("q", q);
+      try {
+        const courriers = await apiFetch(`/api/courriers-${sens}s?${params.toString()}`);
+        if (courriers.length === 0) {
+          listeEl.innerHTML = '<p class="muted">Aucun courrier ne correspond à ces critères.</p>';
+          return;
+        }
+        listeEl.innerHTML = courriers.map(sens === "entrant" ? ligneEntrant : ligneSortant).join("");
+      } catch (err) {
+        listeEl.innerHTML = `<p class="error visible">${escapeHtml(err.message)}</p>`;
+      }
+    }
+
+    document.getElementById("sens-tabs").addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-sens]");
+      if (!btn) return;
+      sens = btn.dataset.sens;
+      vue = "";
+      document.querySelectorAll("#sens-tabs .tab").forEach((b) => b.classList.toggle("active", b === btn));
+      document.getElementById("vue-tabs-entrant").style.display = sens === "entrant" ? "flex" : "none";
+      document.getElementById("vue-tabs-sortant").style.display = sens === "sortant" ? "flex" : "none";
+      document.querySelectorAll(`#vue-tabs-${sens} .tab`).forEach((b) => b.classList.toggle("active", b.dataset.vue === ""));
+      chargerListe();
+    });
+
+    ["vue-tabs-entrant", "vue-tabs-sortant"].forEach((id) => {
+      document.getElementById(id).addEventListener("click", (e) => {
+        const btn = e.target.closest("[data-vue]");
+        if (!btn) return;
+        vue = btn.dataset.vue;
+        document.querySelectorAll(`#${id} .tab`).forEach((b) => b.classList.toggle("active", b === btn));
+        chargerListe();
+      });
+    });
+
+    document.getElementById("recherche-input").addEventListener("input", () => {
+      clearTimeout(rechercheTimeout);
+      rechercheTimeout = setTimeout(chargerListe, 300);
+    });
+
+    // --- Creation rapide ---
+    const modal = document.getElementById("nouveau-modal");
+    const form = document.getElementById("nouveau-form");
+    const natureSelect = form.querySelector('[name="nature"]');
+    const dossierSelect = form.querySelector('[name="dossierId"]');
+
+    natureSelect.innerHTML += Object.entries(NATURE_LABELS).map(([k, l]) => `<option value="${k}">${l}</option>`).join("");
+
+    async function chargerDossiers() {
+      try {
+        const { dossiers } = await apiFetch("/api/dossiers");
+        dossierSelect.innerHTML =
+          '<option value="">— aucun —</option>' +
+          dossiers.map((d) => `<option value="${d.id}">${escapeHtml(d.numeroDossier)} — ${escapeHtml(d.nomAffaire)}</option>`).join("");
+      } catch {
+        // Non bloquant pour la creation rapide.
+      }
+    }
+
+    document.getElementById("nouveau-btn").addEventListener("click", () => {
+      form.reset();
+      document.getElementById("nouveau-error").textContent = "";
+      document.getElementById("nouveau-titre").textContent = sens === "entrant" ? "Nouveau courrier entrant" : "Nouveau courrier sortant";
+      document.getElementById("champ-expediteur").style.display = sens === "entrant" ? "" : "none";
+      document.getElementById("champ-destinataire").style.display = sens === "sortant" ? "" : "none";
+      modal.hidden = false;
+    });
+    document.getElementById("nouveau-annuler-btn").addEventListener("click", () => (modal.hidden = true));
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const errEl = document.getElementById("nouveau-error");
+      errEl.textContent = "";
+      const fd = new FormData(form);
+      const body = {
+        objet: fd.get("objet"),
+        nature: fd.get("nature") || undefined,
+        dossierId: fd.get("dossierId") || undefined,
+      };
+      if (sens === "entrant") body.expediteur = fd.get("expediteur") || undefined;
+      else body.destinataire = fd.get("destinataire") || undefined;
+
+      const submitBtn = form.querySelector('button[type="submit"]');
+      submitBtn.disabled = true;
+      try {
+        const courrier = await apiFetch(`/api/courriers-${sens}s`, { method: "POST", body });
+        modal.hidden = true;
+        window.location.href = `/courrier-fiche.html?type=${sens}&id=${courrier.id}`;
+      } catch (err) {
+        errEl.textContent = err.message;
+      } finally {
+        submitBtn.disabled = false;
+      }
+    });
+
+    (async () => {
+      const me = await requireSession();
+      if (!me) return;
+      initLayout(me);
+      await Promise.all([chargerCompteurs(), chargerListe(), chargerDossiers()]);
+    })();
+  </script>
+</body>
+</html>

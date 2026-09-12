@@ -43,6 +43,7 @@ import { ocrRouter } from "./routes/ocr";
 import { transcriptionDocumentRouter } from "./routes/transcriptionDocument";
 import { emailIngestionRouter } from "./routes/emailIngestion";
 import { huissiersRouter } from "./routes/huissiers";
+import { courriersRouter } from "./routes/courriers";
 import { adminRouter } from "./routes/admin";
 import { licenceRouter } from "./routes/licence";
 import { networkInfoRouter } from "./routes/networkInfo";
@@ -115,6 +116,7 @@ app.use(ocrRouter);
 app.use(transcriptionDocumentRouter);
 app.use(emailIngestionRouter);
 app.use(huissiersRouter);
+app.use(courriersRouter);
 app.use(adminRouter);
 app.use(
   express.static(path.join(__dirname, "..", "public"), {

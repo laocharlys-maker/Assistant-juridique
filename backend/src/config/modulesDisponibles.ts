@@ -24,6 +24,10 @@ export const MODULES_DISPONIBLES = [
   "action_resume_jurisprudence",
   "action_transcription",
   "action_traduction",
+  // Lot 20 : module "Gestion des courriers" (registre entrants/sortants) -
+  // coupe toutes les routes /api/courriers* (voir routes/courriers.ts,
+  // requireModule("courriers")), meme fonctionnement que "facturation"/"delais".
+  "courriers",
 ] as const;
 
 export type ModuleDisponible = (typeof MODULES_DISPONIBLES)[number];

@@ -62,6 +62,24 @@
       <p class="muted" style="margin:8px 0 0;"><a href="/factures.html">Voir toutes les factures →</a></p>
     </div>
 
+    <!-- Lot 20 : widget "Courriers" - totalement independant du chargement
+         ci-dessus (son propre appel API, jamais mele a /api/stats) pour ne
+         prendre aucun risque sur le tableau de bord existant. Masque si le
+         module est desactive pour ce cabinet/utilisateur. -->
+    <div class="card" id="courriers-widget-card" style="display:none;">
+      <div style="display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:8px;">
+        <h2 style="margin:0;">Courriers</h2>
+        <a href="/courriers.html" class="muted">Voir le registre →</a>
+      </div>
+      <div class="stat-grid" id="courriers-stat-grid">
+        <div class="stat-card"><div class="stat-label">Reçus aujourd'hui</div><div class="stat-value" id="courriers-stat-recus">—</div></div>
+        <div class="stat-card"><div class="stat-label">À affecter</div><div class="stat-value" id="courriers-stat-a-affecter">—</div></div>
+        <div class="stat-card"><div class="stat-label">À traiter</div><div class="stat-value" id="courriers-stat-a-traiter">—</div></div>
+        <div class="stat-card"><div class="stat-label">Avec échéance</div><div class="stat-value" id="courriers-stat-echeance">—</div></div>
+        <div class="stat-card"><div class="stat-label">Envoyés ce mois</div><div class="stat-value" id="courriers-stat-envoyes">—</div></div>
+      </div>
+    </div>
+
     <div class="chart-grid">
       <div class="card chart-card">
         <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:8px;">
@@ -316,6 +334,26 @@
       return "Bonsoir";
     }
 
+    // Lot 20 : widget independant (voir carte courriers-widget-card
+    // ci-dessus) - n'echoue jamais silencieusement le reste du tableau de
+    // bord (try/catch propre, jamais mele a loadStats()).
+    async function loadCourriersWidget(me) {
+      const modulesDesactives = me.modulesDesactives || [];
+      if (modulesDesactives.includes("courriers")) return;
+      try {
+        const compteurs = await apiFetch("/api/courriers-entrants/compteurs");
+        document.getElementById("courriers-widget-card").style.display = "";
+        document.getElementById("courriers-stat-recus").textContent = compteurs.recusAujourdhui;
+        document.getElementById("courriers-stat-a-affecter").textContent = compteurs.aAffecter;
+        document.getElementById("courriers-stat-a-traiter").textContent = compteurs.aTraiter;
+        document.getElementById("courriers-stat-echeance").textContent = compteurs.avecEcheance;
+        document.getElementById("courriers-stat-envoyes").textContent = compteurs.envoyesCeMois;
+      } catch {
+        // Module non actif pour ce compte, ou erreur reseau ponctuelle -
+        // le widget reste simplement masque, sans impacter le reste de la page.
+      }
+    }
+
     (async () => {
       const me = await requireSession();
       if (!me) return;
@@ -342,6 +380,7 @@
       });
 
       loadStats();
+      loadCourriersWidget(me);
     })();
   </script>
 </body>

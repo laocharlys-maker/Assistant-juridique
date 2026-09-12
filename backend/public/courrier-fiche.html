@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aurore — Fiche courrier</title>
+  <link rel="icon" type="image/png" href="/favicon-256.png" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="page">
+    <p class="muted"><a href="/courriers.html">← Retour au registre</a></p>
+
+    <div class="page-hero">
+      <div class="eyebrow" id="fiche-numero">—</div>
+      <h1 id="fiche-objet">Chargement…</h1>
+      <p id="fiche-sous-titre" class="muted"></p>
+    </div>
+
+    <div id="error" class="error"></div>
+
+    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px;" id="actions-bar"></div>
+
+    <div class="card">
+      <div style="display:flex; align-items:baseline; justify-content:space-between;">
+        <h2 style="margin-top:0;">Informations</h2>
+        <button type="button" class="secondary btn-sm" id="editer-btn">Compléter la fiche</button>
+      </div>
+      <div id="infos-affichage"></div>
+      <form id="infos-form" style="display:none;"></form>
+    </div>
+
+    <div class="card" id="pieces-card">
+      <h2 style="margin-top:0;">Pièces</h2>
+      <div id="pieces-liste"><p class="muted">Aucune pièce.</p></div>
+      <label style="margin-top:12px;">Ajouter une pièce (scan)</label>
+      <input type="file" id="piece-input" accept=".pdf,.png,.jpg,.jpeg,.gif,.webp" />
+    </div>
+
+    <div class="card" id="delais-card" style="display:none;">
+      <h2 style="margin-top:0;">Délais</h2>
+      <div id="delais-liste"></div>
+    </div>
+
+    <div class="card" id="actions-liees-card" style="display:none;">
+      <h2 style="margin-top:0;">Actions liées</h2>
+      <div id="actions-liees-liste"></div>
+    </div>
+
+    <div class="card" id="reponses-card" style="display:none;">
+      <h2 style="margin-top:0;" id="reponses-titre">Réponses</h2>
+      <div id="reponses-liste"></div>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-top:0;">Historique</h2>
+      <div id="historique-liste"></div>
+    </div>
+  </div>
+
+  <!-- Creer un delai -->
+  <div class="modal-overlay" id="delai-modal" hidden>
+    <div class="modal-box">
+      <h2>Créer un délai</h2>
+      <p class="error" id="delai-error"></p>
+      <form id="delai-form">
+        <label>Type de délai</label>
+        <select name="delaiTypeId" required></select>
+        <label>Date de départ</label>
+        <input name="dateDepart" type="date" required />
+        <div style="display:flex; gap:10px; margin-top:14px;">
+          <button type="submit">Créer</button>
+          <button type="button" class="secondary" data-fermer-modal="delai-modal">Annuler</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Affecter -->
+  <div class="modal-overlay" id="affecter-modal" hidden>
+    <div class="modal-box">
+      <h2>Affecter ce courrier</h2>
+      <p class="error" id="affecter-error"></p>
+      <form id="affecter-form">
+        <label>Affecter à</label>
+        <select name="affecteAId" required></select>
+        <div style="display:flex; gap:10px; margin-top:14px;">
+          <button type="submit">Affecter</button>
+          <button type="button" class="secondary" data-fermer-modal="affecter-modal">Annuler</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Creer/lier une action - webActions.ts reste totalement inchange :
+       cette fiche ouvre "Nouvelle action" dans un nouvel onglet (dossier
+       deja pre-selectionne), puis propose de lier ensuite l'action creee (ou
+       une action deja existante sur ce dossier) via POST .../lier-action. -->
+  <div class="modal-overlay" id="action-modal" hidden>
+    <div class="modal-box">
+      <h2>Créer une action</h2>
+      <p class="error" id="action-error"></p>
+      <div id="action-sans-dossier" style="display:none;">
+        <p class="muted">Ce courrier n'est rattaché à aucun dossier — rattache d'abord un dossier (bouton "Compléter la fiche") pour pouvoir créer ou lier une action.</p>
+        <button type="button" class="secondary" data-fermer-modal="action-modal">Fermer</button>
+      </div>
+      <div id="action-avec-dossier" style="display:none;">
+        <p class="muted">1. Crée le document dans "Nouvelle action" (nouvel onglet), puis reviens ici pour le lier à ce courrier.</p>
+        <a id="ouvrir-nouvelle-action-link" href="#" target="_blank" style="display:inline-block; margin-bottom:16px;"><button type="button">Ouvrir "Nouvelle action" →</button></a>
+        <form id="lier-action-form">
+          <label>2. Lier une action déjà créée sur ce dossier</label>
+          <select name="actionId" required></select>
+          <div style="display:flex; gap:10px; margin-top:14px;">
+            <button type="submit">Lier au courrier</button>
+            <button type="button" class="secondary" data-fermer-modal="action-modal">Fermer</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Repondre au courrier -->
+  <div class="modal-overlay" id="repondre-modal" hidden>
+    <div class="modal-box">
+      <h2>Répondre au courrier</h2>
+      <p class="error" id="repondre-error"></p>
+      <form id="repondre-form">
+        <label>Objet</label>
+        <input name="objet" required />
+        <label>Destinataire</label>
+        <input name="destinataire" />
+        <div style="display:flex; gap:10px; margin-top:14px;">
+          <button type="submit">Créer la réponse (brouillon)</button>
+          <button type="button" class="secondary" data-fermer-modal="repondre-modal">Annuler</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/layout.js"></script>
+  <script src="/js/courrier-fiche.js"></script>
+</body>
+</html>
