@@ -28,6 +28,8 @@ function messageErreur(error: unknown): { statut: number; error: string } {
       return { statut: 404, error: "Utilisateur introuvable" };
     case "ACTION_INTROUVABLE":
       return { statut: 404, error: "Action introuvable" };
+    case "ACTION_DOSSIER_DIFFERENT":
+      return { statut: 409, error: "Cette action concerne un autre dossier que celui du courrier." };
     case "TYPE_DELAI_INTROUVABLE":
       return { statut: 404, error: "Type de délai introuvable ou inactif" };
     case "TRANSITION_INVALIDE":

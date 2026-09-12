@@ -404,7 +404,12 @@ export async function mettreAJourCourrierSortant(
 export async function affecterCourrierEntrant(id: string, cabinetId: string, affecteAId: string) {
   const courrier = await prisma.courrierEntrant.findFirst({ where: { id, cabinetId } });
   if (!courrier) throw new Error("COURRIER_INTROUVABLE");
-  const utilisateur = await prisma.user.findFirst({ where: { id: affecteAId, cabinetId } });
+  // Meme perimetre de roles que GET /api/courriers-entrants-affectables
+  // (jamais un compte super_admin/plateforme, meme si techniquement rattache
+  // a ce cabinetId - voir routes/admin.ts, CABINET_PLATEFORME_ID).
+  const utilisateur = await prisma.user.findFirst({
+    where: { id: affecteAId, cabinetId, actif: true, role: { in: ["titulaire", "avocat", "collaborateur"] } },
+  });
   if (!utilisateur) throw new Error("UTILISATEUR_INTROUVABLE");
 
   const misAJour = await prisma.courrierEntrant.update({
@@ -536,6 +541,13 @@ export async function lierActionACourrierEntrant(courrierId: string, cabinetId: 
 
   const action = await prisma.action.findFirst({ where: { id: actionId, dossier: { cabinetId } } });
   if (!action) throw new Error("ACTION_INTROUVABLE");
+  // Coherence de chainage : si le courrier a deja un dossier, l'action liee
+  // doit porter sur CE MEME dossier (sinon la fiche courrier afficherait une
+  // action sans rapport reel) - jamais bloquant si le courrier n'a pas
+  // encore de dossier (cas normal d'une fiche pas encore completee).
+  if (courrier.dossierId && action.dossierId !== courrier.dossierId) {
+    throw new Error("ACTION_DOSSIER_DIFFERENT");
+  }
 
   const misAJour = await prisma.action.update({ where: { id: actionId }, data: { courrierEntrantId: courrierId } });
 

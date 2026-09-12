@@ -26,6 +26,10 @@ describe.skipIf(!pgAvailable)("e2e : registre de gestion des courriers (Lot 20)"
   let titulaireCookie: string;
   let cabinetId: string;
   let titulaireId: string;
+  let avocatCookie: string;
+  let avocatId: string;
+  let collaborateurCookie: string;
+  let collaborateurId: string;
 
   beforeAll(async () => {
     if (!pgAvailable) return;
@@ -55,6 +59,18 @@ describe.skipIf(!pgAvailable)("e2e : registre de gestion des courriers (Lot 20)"
     cabinetId = cabinet.id;
     titulaireId = titulaire.id;
     titulaireCookie = await mintAuthCookie(titulaire.id, cabinet.id, "titulaire");
+
+    const avocat = await prisma.user.create({
+      data: { cabinetId, nom: "Avocat Test", email: "avocat-courriers-e2e@test.invalid", motDePasseHash: "x", role: "avocat" },
+    });
+    avocatId = avocat.id;
+    avocatCookie = await mintAuthCookie(avocat.id, cabinetId, "avocat");
+
+    const collaborateur = await prisma.user.create({
+      data: { cabinetId, nom: "Collaborateur Test", email: "collaborateur-courriers-e2e@test.invalid", motDePasseHash: "x", role: "collaborateur", responsableId: titulaireId },
+    });
+    collaborateurId = collaborateur.id;
+    collaborateurCookie = await mintAuthCookie(collaborateur.id, cabinetId, "collaborateur");
   });
 
   afterAll(async () => {
@@ -236,5 +252,124 @@ describe.skipIf(!pgAvailable)("e2e : registre de gestion des courriers (Lot 20)"
     const apres = await (await api(titulaireCookie, "/api/courriers-entrants/compteurs")).json();
     expect(apres.recusAujourdhui).toBe(avant.recusAujourdhui + 2);
     expect(apres.aAffecter).toBe(avant.aAffecter + 1);
+  });
+
+  it("la nature et le mode de réception sont acceptés et restitués sans erreur (validation des enums)", async () => {
+    const res = await api(titulaireCookie, "/api/courriers-entrants", {
+      method: "POST",
+      body: JSON.stringify({ objet: "Test enums", nature: "convocation", modeReception: "huissier" }),
+    });
+    expect(res.status).toBe(201);
+    const courrier = await res.json();
+    expect(courrier.nature).toBe("convocation");
+    expect(courrier.modeReception).toBe("huissier");
+  });
+
+  it("la recherche par mot-clé (q) fonctionne sans planter, y compris sans résultat", async () => {
+    await api(titulaireCookie, "/api/courriers-entrants", { method: "POST", body: JSON.stringify({ objet: "Objet unique recherchable XYZ" }) });
+    const trouve = await api(titulaireCookie, "/api/courriers-entrants?q=recherchable+XYZ");
+    expect(trouve.status).toBe(200);
+    expect((await trouve.json()).length).toBeGreaterThan(0);
+
+    const vide = await api(titulaireCookie, "/api/courriers-entrants?q=zzz-introuvable-zzz");
+    expect(vide.status).toBe(200);
+    expect(await vide.json()).toEqual([]);
+  });
+
+  it("un avocat et un collaborateur (module activé) peuvent créer, consulter et compléter un courrier comme le titulaire", async () => {
+    for (const cookie of [avocatCookie, collaborateurCookie]) {
+      const creation = await api(cookie, "/api/courriers-entrants", {
+        method: "POST",
+        body: JSON.stringify({ objet: "Courrier créé par un autre rôle" }),
+      });
+      expect(creation.status).toBe(201);
+      const courrier = await creation.json();
+
+      const detail = await api(cookie, `/api/courriers-entrants/${courrier.id}`);
+      expect(detail.status).toBe(200);
+
+      const maj = await api(cookie, `/api/courriers-entrants/${courrier.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ observations: "Complété par ce rôle" }),
+      });
+      expect(maj.status).toBe(200);
+
+      const liste = await api(cookie, "/api/courriers-entrants");
+      expect(liste.status).toBe(200);
+
+      const compteurs = await api(cookie, "/api/courriers-entrants/compteurs");
+      expect(compteurs.status).toBe(200);
+    }
+  });
+
+  it("un collaborateur peut être affecté et faire avancer le statut d'un courrier qui lui est confié", async () => {
+    const creation = await api(titulaireCookie, "/api/courriers-entrants", {
+      method: "POST",
+      body: JSON.stringify({ objet: "Courrier à traiter par le collaborateur" }),
+    });
+    const courrier = await creation.json();
+
+    const affectation = await api(titulaireCookie, `/api/courriers-entrants/${courrier.id}/affecter`, {
+      method: "POST",
+      body: JSON.stringify({ affecteAId: collaborateurId }),
+    });
+    expect(affectation.status).toBe(200);
+
+    const avance = await api(collaborateurCookie, `/api/courriers-entrants/${courrier.id}/statut`, {
+      method: "POST",
+      body: JSON.stringify({ statut: "en_traitement" }),
+    });
+    expect(avance.status).toBe(200);
+    expect((await avance.json()).statut).toBe("en_traitement");
+  });
+
+  it("le module 'courriers' désactivé pour UN collaborateur le bloque proprement (403, jamais un plantage) sans affecter les autres rôles", async () => {
+    await api(titulaireCookie, `/api/users/${collaborateurId}/modules`, {
+      method: "PATCH",
+      body: JSON.stringify({ modulesDesactives: ["courriers"] }),
+    });
+    try {
+      const bloque = await api(collaborateurCookie, "/api/courriers-entrants");
+      expect(bloque.status).toBe(403);
+      const body = await bloque.json();
+      expect(body.error).toContain("n'est pas activé pour ton compte");
+
+      const titulaireOk = await api(titulaireCookie, "/api/courriers-entrants");
+      expect(titulaireOk.status).toBe(200);
+      const avocatOk = await api(avocatCookie, "/api/courriers-entrants");
+      expect(avocatOk.status).toBe(200);
+    } finally {
+      await api(titulaireCookie, `/api/users/${collaborateurId}/modules`, {
+        method: "PATCH",
+        body: JSON.stringify({ modulesDesactives: [] }),
+      });
+    }
+  });
+
+  it("le module 'courriers' désactivé pour tout le CABINET bloque même le titulaire, proprement", async () => {
+    await prisma.cabinet.update({ where: { id: cabinetId }, data: { modulesDesactives: ["courriers"] } });
+    try {
+      const res = await api(titulaireCookie, "/api/courriers-entrants");
+      expect(res.status).toBe(403);
+      const body = await res.json();
+      expect(body.error).toContain("n'est pas activé pour votre cabinet");
+    } finally {
+      await prisma.cabinet.update({ where: { id: cabinetId }, data: { modulesDesactives: [] } });
+    }
+  });
+
+  it("une requête invalide (statut inconnu) renvoie une erreur 400 propre, jamais un plantage serveur", async () => {
+    const creation = await api(titulaireCookie, "/api/courriers-entrants", { method: "POST", body: JSON.stringify({ objet: "x" }) });
+    const courrier = await creation.json();
+    const res = await api(titulaireCookie, `/api/courriers-entrants/${courrier.id}/statut`, {
+      method: "POST",
+      body: JSON.stringify({ statut: "statut_inexistant" }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("un id inexistant renvoie 404 proprement, jamais un plantage serveur", async () => {
+    const res = await api(titulaireCookie, "/api/courriers-entrants/00000000-0000-0000-0000-000000000000");
+    expect(res.status).toBe(404);
   });
 });
