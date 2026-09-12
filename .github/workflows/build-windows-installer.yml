@@ -8,7 +8,20 @@ on:
   push:
     branches:
       - lot8-installeur-final
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      # Par defaut true (comportement inchange pour un declenchement manuel
+      # normal). Mettre a false pour un build de TEST depuis une branche non
+      # encore validee (ex: relecture d'un gros lot avant mise en prod) :
+      # produit uniquement l'installeur telechargeable depuis cette page
+      # Actions, SANS creer/mettre a jour la release GitHub "latest" que
+      # l'auto-update (tauri-plugin-updater) de tous les postes deja
+      # installes va chercher - aucun poste sur le terrain n'est donc
+      # impacte par ce build de test.
+      publier_release:
+        description: "Publier ce build comme release GitHub (auto-update pour tous les postes) ?"
+        type: boolean
+        default: true
 
 jobs:
   build-windows-installer:
@@ -199,7 +212,7 @@ jobs:
       # serait trompeur (l'updater le rejetterait de toute facon a la
       # verification).
       - name: Generer le manifeste de mise a jour (latest.json)
-        if: steps.signing-key.outputs.present == 'true'
+        if: steps.signing-key.outputs.present == 'true' && github.event.inputs.publier_release != 'false'
         id: manifest
         shell: pwsh
         run: |
@@ -233,7 +246,7 @@ jobs:
       # cours). Reexecuter ce workflow sur la MEME version ecrase les
       # assets de la release existante (--clobber) plutot que d'echouer.
       - name: Publier la release GitHub (installeur + signature + manifeste de mise a jour)
-        if: steps.signing-key.outputs.present == 'true'
+        if: steps.signing-key.outputs.present == 'true' && github.event.inputs.publier_release != 'false'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
