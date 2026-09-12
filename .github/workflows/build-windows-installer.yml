@@ -182,14 +182,19 @@ jobs:
 
       # Rend le fichier .exe telechargeable depuis l'onglet "Actions" de
       # GitHub (voir README-LOT8.md pour la procedure de telechargement,
-      # sans ligne de commande). Conserve 30 jours par defaut.
+      # sans ligne de commande). 7 jours (pas 30) : un installeur de test
+      # pese ~90 Mo et compte dans le quota de stockage Actions (0.5 Go sur
+      # le plan actuel, deja sature une fois par accumulation - voir
+      # discussion du 2026-09-12) - largement suffisant pour tester puis
+      # passer a autre chose, la retention plus longue ne servait a rien en
+      # pratique.
       - name: Publier l'installeur en telechargement
         uses: actions/upload-artifact@v4
         with:
           name: Aurore-Installeur-Windows-v${{ steps.version.outputs.version }}-${{ steps.version.outputs.date }}
           path: src-tauri/target/release/bundle/nsis/*.exe
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 7
 
       # Le contexte `secrets` n'est pas directement utilisable dans une
       # condition `if:` (rejete par le validateur de workflow GitHub :
