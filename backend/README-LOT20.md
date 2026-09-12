@@ -116,9 +116,13 @@ TypeScript, sans changement de comportement.
 
 `webActions.ts` (génération IA, formalisme, pseudonymisation...) reste
 **totalement inchangé**. Le bouton "Créer une action" de la fiche courrier
-ouvre "Nouvelle action" dans un nouvel onglet (dossier pré-rempli), puis
-propose de **lier après coup** l'action fraîchement créée — ou une action
-déjà existante sur ce dossier — via un nouvel endpoint dédié,
+envoie vers "Nouvelle action" (dossier pré-rempli) — dans la MÊME fenêtre,
+Aurore étant une application à une seule fenêtre (`target="_blank"` n'y a
+strictement aucun effet, voir `public/js/api.js`, commentaire de
+`downloadFile` — bug déjà rencontré ailleurs dans l'appli et corrigé ici
+selon le même correctif) — puis propose, une fois revenu sur cette fiche,
+de **lier après coup** l'action fraîchement créée — ou une action déjà
+existante sur ce dossier — via un nouvel endpoint dédié,
 `POST /api/courriers-entrants/:id/lier-action`, qui se contente de poser la
 référence `Action.courrierEntrantId` sur une ligne déjà créée par le flux
 habituel. Aucune ligne de `webActions.ts` n'est modifiée.

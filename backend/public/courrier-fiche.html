@@ -93,9 +93,11 @@
   </div>
 
   <!-- Creer/lier une action - webActions.ts reste totalement inchange :
-       cette fiche ouvre "Nouvelle action" dans un nouvel onglet (dossier
-       deja pre-selectionne), puis propose de lier ensuite l'action creee (ou
-       une action deja existante sur ce dossier) via POST .../lier-action. -->
+       cette fiche envoie vers "Nouvelle action" (dossier deja pre-selectionne -
+       Aurore est une appli a UNE SEULE fenetre, jamais de nouvel onglet
+       possible, voir tauri.conf.json), puis propose - une fois revenu sur
+       cette fiche courrier - de lier l'action fraichement creee (ou une
+       action deja existante sur ce dossier) via POST .../lier-action. -->
   <div class="modal-overlay" id="action-modal" hidden>
     <div class="modal-box">
       <h2>Créer une action</h2>
@@ -105,8 +107,8 @@
         <button type="button" class="secondary" data-fermer-modal="action-modal">Fermer</button>
       </div>
       <div id="action-avec-dossier" style="display:none;">
-        <p class="muted">1. Crée le document dans "Nouvelle action" (nouvel onglet), puis reviens ici pour le lier à ce courrier.</p>
-        <a id="ouvrir-nouvelle-action-link" href="#" target="_blank" style="display:inline-block; margin-bottom:16px;"><button type="button">Ouvrir "Nouvelle action" →</button></a>
+        <p class="muted">1. Crée le document dans "Nouvelle action" — tu vas quitter cette fiche. Une fois le document créé, reviens ici (menu "Courriers") pour le lier à ce courrier.</p>
+        <button type="button" id="ouvrir-nouvelle-action-btn" style="margin-bottom:16px;">Aller sur "Nouvelle action" →</button>
         <form id="lier-action-form">
           <label>2. Lier une action déjà créée sur ce dossier</label>
           <select name="actionId" required></select>

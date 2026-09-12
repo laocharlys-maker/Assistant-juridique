@@ -242,11 +242,41 @@
       .map(
         (p) => `<div class="action-item">
           <span class="tag">${escapeHtml(p.nomOriginal)}</span>
-          ${p.reelle ? `<a href="/api/documents/${p.id}?inline=1" target="_blank">Voir</a>` : '<span class="muted">— en attente d\'un dossier pour l\'OCR —</span>'}
+          ${p.reelle ? `<button type="button" class="secondary btn-sm" data-voir-piece="${p.id}" data-type-mime="${escapeHtml(p.typeMime)}">Voir</button>` : '<span class="muted">— en attente d\'un dossier pour l\'OCR —</span>'}
           <p class="muted" style="margin:4px 0 0;">Ajoutée le ${new Date(p.createdAt).toLocaleString("fr-FR")}</p>
+          ${p.reelle ? `<div id="piece-preview-${p.id}" hidden style="margin-top:8px;"></div>` : ""}
         </div>`
       )
       .join("");
+
+    // Apercu inline (jamais window.open/target="_blank" - sans effet dans la
+    // webview desktop Tauri, voir le commentaire detaille dans js/api.js,
+    // downloadFile) : fetch + blob + <img>/<iframe> directement dans la
+    // page, meme mecanisme deja utilise dans dossier.html (apercevoirPiece).
+    el.querySelectorAll("[data-voir-piece]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const pieceId = btn.dataset.voirPiece;
+        const previewEl = document.getElementById(`piece-preview-${pieceId}`);
+        if (!previewEl) return;
+        if (!previewEl.hidden) {
+          previewEl.hidden = true;
+          previewEl.innerHTML = "";
+          return;
+        }
+        try {
+          const response = await fetch(`/api/documents/${pieceId}?inline=1`, { credentials: "include" });
+          if (!response.ok) throw new Error("Aperçu indisponible.");
+          const blob = await response.blob();
+          const url = URL.createObjectURL(blob);
+          previewEl.innerHTML = btn.dataset.typeMime.startsWith("image/")
+            ? `<img src="${url}" style="max-width:100%; border-radius:8px;" />`
+            : `<iframe src="${url}" style="width:100%; height:500px; border:1px solid var(--border); border-radius:8px;"></iframe>`;
+          previewEl.hidden = false;
+        } catch (err) {
+          showError(errorEl, err.message);
+        }
+      });
+    });
   }
 
   document.getElementById("piece-input").addEventListener("change", (e) => {
@@ -345,9 +375,13 @@
   });
 
   // --- Creer/lier une action - webActions.ts et nouvelle-action.html
-  // restent totalement inchanges : on ouvre "Nouvelle action" dans un
-  // nouvel onglet (dossier pre-rempli), puis on lie APRES COUP l'action
-  // creee (ou une action deja existante) via POST .../lier-action.
+  // restent totalement inchanges : on envoie vers "Nouvelle action" (dossier
+  // pre-rempli), puis on lie APRES COUP l'action creee (ou une action deja
+  // existante) via POST .../lier-action, une fois revenu sur cette fiche.
+  // Aurore est une appli a UNE SEULE fenetre (voir tauri.conf.json) - un
+  // lien/bouton avec target="_blank" n'y ouvre jamais rien (contrairement a
+  // un navigateur classique) : navigation normale dans la meme fenetre,
+  // comme partout ailleurs dans l'appli.
 
   async function creerAction() {
     const modal = document.getElementById("action-modal");
@@ -363,7 +397,6 @@
 
     document.getElementById("action-sans-dossier").style.display = "none";
     document.getElementById("action-avec-dossier").style.display = "block";
-    document.getElementById("ouvrir-nouvelle-action-link").href = `/nouvelle-action.html?dossierId=${courrier.dossierId}`;
 
     const select = document.querySelector('#lier-action-form [name="actionId"]');
     select.innerHTML = '<option value="">Chargement…</option>';
@@ -379,6 +412,12 @@
     }
     modal.hidden = false;
   }
+
+  document.getElementById("ouvrir-nouvelle-action-btn").addEventListener("click", () => {
+    if (!courrier.dossierId) return;
+    showToastAfterReload("Une fois le document créé, reviens sur ce courrier (menu \"Courriers\") pour le lier.");
+    window.location.href = `/nouvelle-action.html?dossierId=${courrier.dossierId}`;
+  });
 
   document.getElementById("lier-action-form").addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -422,6 +461,12 @@
           clientId: courrier.clientId || undefined,
         },
       });
+      // Confirmation avant redirection - sans ca, rien n'indique clairement
+      // qu'une reponse (nouveau courrier SORTANT) vient d'etre creee : la
+      // page suivante peut sembler "vide" par rapport a celle-ci (moins de
+      // boutons, un brouillon sortant n'ayant pas les memes actions qu'un
+      // courrier entrant).
+      showToastAfterReload(`Réponse créée (${reponse.numero}) — tu es maintenant sur sa fiche.`);
       window.location.href = `/courrier-fiche.html?type=sortant&id=${reponse.id}`;
     } catch (err) {
       errEl.textContent = err.message;
