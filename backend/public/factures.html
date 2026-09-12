@@ -89,6 +89,13 @@
       return formatDateLongue(iso);
     }
 
+    // Heure d'émission, à côté du nom de l'éditeur - uniquement dans cet
+    // écran de gestion interne, jamais sur le PDF envoyé/téléchargé (voir
+    // services/facturePdf.ts, qui n'affiche que la date, pas cette fonction).
+    function formatHeure(iso) {
+      return new Date(iso).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+    }
+
     function formatMontant(montant) {
       return `${montant.toLocaleString("fr-FR")} F CFA`;
     }
@@ -327,7 +334,7 @@
             <div>Client : ${escapeHtml(f.clientNom || f.dossier?.nomClient || "-")}</div>
             <div>${escapeHtml(f.description)}</div>
             <p><strong>${f.appliquerTva ? `${formatMontant(f.montant)} HT — ${formatMontant(montantTtc)} TTC (TVA 18%)` : formatMontant(f.montant)}</strong>${f.dateEcheance ? ` — échéance ${formatDate(f.dateEcheance)}` : ""}</p>
-            <p class="muted">Émise le ${formatDate(f.dateEmission)} par ${escapeHtml(f.creePar?.nom || "-")}${f.envoyeAt ? ` · envoyée le ${formatDate(f.envoyeAt)}${f.destinataireEmail ? " à " + escapeHtml(f.destinataireEmail) : ""}` : ""}${f.payeeAt ? ` · payée le ${formatDate(f.payeeAt)}` : ""}</p>
+            <p class="muted">Émise le ${formatDate(f.dateEmission)} par ${escapeHtml(f.creePar?.nom || "-")} à ${formatHeure(f.dateEmission)}${f.envoyeAt ? ` · envoyée le ${formatDate(f.envoyeAt)}${f.destinataireEmail ? " à " + escapeHtml(f.destinataireEmail) : ""}` : ""}${f.payeeAt ? ` · payée le ${formatDate(f.payeeAt)}` : ""}</p>
             <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; align-items:center;">
               <a class="secondary" href="#" data-pdf="${f.id}" data-numero="${escapeHtml(f.numero)}" style="text-decoration:none; margin:0;">Télécharger le PDF</a>
               <button type="button" class="secondary" style="margin:0;" data-envoyer="${f.id}">Envoyer par email</button>

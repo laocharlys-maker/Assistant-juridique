@@ -206,6 +206,19 @@ function initLayout(me) {
   // de page.
   initHeaderChrono(me);
 
+  // Correctif : si le chronomètre est en cours et que la fenêtre Aurore se
+  // ferme, le mettre en pause automatiquement (sinon il resterait "en
+  // cours" indéfiniment côté serveur, source réelle d'erreur de
+  // facturation - le calcul du temps n'est jamais faux, mais rien n'arrête
+  // le compteur tant que personne ne le fait manuellement).
+  initFermetureChronoAutoPause(me);
+
+  // Correctif : au prochain lancement, si un chronomètre est resté EN
+  // PAUSE (auto-pause ci-dessus, ou pause manuelle jamais reprise), le
+  // signale une fois par session pour proposer de reprendre ou d'arrêter -
+  // jamais silencieux, pour éviter un temps "oublié" en pause indéfiniment.
+  initChronoRelancePopup(me);
+
   // Pop-up "Factures en attente de paiement" - une fois par jour maximum
   // (throttle localStorage), reserve aux avocats/titulaire (memes roles que
   // /api/factures/rappels, voir requireAvocat).
@@ -316,6 +329,106 @@ async function initHeaderChrono(me) {
   window.rafraichirHeaderChrono = rafraichir;
 
   await rafraichir();
+}
+
+// Correctif : met en pause le chronometre EN COURS de l'utilisateur juste
+// avant que la fenetre Aurore (Tauri) ne se ferme reellement - sans ca, un
+// chronometre demarre puis l'appli fermee resterait "en cours" indefiniment
+// cote serveur (voir routes/saisiesTemps.ts, /actif) : le calcul du temps
+// n'est jamais faux en soi (toujours recalcule depuis demarreA), mais rien
+// ne l'arrete tant que personne ne le fait manuellement - source reelle
+// d'erreur de facturation (temps compte largement au-dela du travail
+// effectif). Utilise l'evenement de fermeture natif de la fenetre (jamais
+// window.onbeforeunload : pas fiable pour attendre un appel reseau avant la
+// fermeture reelle, et de toute facon absent en mode navigateur/dev - voir
+// ci-dessous, ce correctif est un no-op silencieux hors Tauri).
+function initFermetureChronoAutoPause(me) {
+  if ((me.modulesDesactives || []).includes("facturation")) return;
+  // window.__TAURI__ absent en dehors de l'appli desktop (navigateur/dev) -
+  // rien a intercepter dans ce cas, comportement inchange.
+  if (!(window.__TAURI__ && window.__TAURI__.window)) return;
+
+  const appWindow = window.__TAURI__.window.getCurrentWindow();
+
+  // Volontairement PAS de event.preventDefault()/appWindow.close() ici : la
+  // fenetre continue de se fermer normalement, exactement comme avant ce
+  // correctif - seul un appel de mise en pause est tente en best-effort au
+  // moment de la fermeture. Cote Rust (main.rs, on_window_event), l'arret du
+  // sidecar backend laisse deja jusqu'a 10 secondes avant de le tuer
+  // reellement - largement le temps pour cet appel HTTP local (quelques
+  // dizaines de ms) de se terminer. Bloquer la fermeture nous-memes
+  // ajouterait un risque reel (fenetre qui ne se ferme plus si ce code a un
+  // bug) pour un gain marginal - contrainte explicite "il ne faut pas que
+  // ça plante" du correctif demande.
+  appWindow.onCloseRequested(async () => {
+    try {
+      const actif = await apiFetch("/api/saisies-temps/actif");
+      if (actif && actif.demarreA) {
+        await apiFetch(`/api/saisies-temps/${actif.id}/pause`, { method: "POST" });
+      }
+    } catch {
+      // Best-effort : ne doit jamais empecher la fermeture normale de l'appli.
+    }
+  });
+}
+
+// Correctif : signale, une fois par session applicative (pas a chaque
+// changement de page), un chronometre reste EN PAUSE - typiquement celui
+// que initFermetureChronoAutoPause ci-dessus vient de mettre en pause a la
+// derniere fermeture, mais aussi une pause manuelle jamais reprise. Un
+// chronometre EN COURS au chargement est normal (travail toujours actif) -
+// seule la pause merite cette alerte.
+const CHRONO_RELANCE_SESSION_KEY = "aurore-chrono-relance-verifie";
+
+async function initChronoRelancePopup(me) {
+  if ((me.modulesDesactives || []).includes("facturation")) return;
+  if (sessionStorage.getItem(CHRONO_RELANCE_SESSION_KEY)) return;
+  sessionStorage.setItem(CHRONO_RELANCE_SESSION_KEY, "1");
+
+  let actif;
+  try {
+    actif = await apiFetch("/api/saisies-temps/actif");
+  } catch {
+    return;
+  }
+  // demarreA null (mais arreteA aussi null) = EN PAUSE - voir le
+  // commentaire sur SaisieTemps.demarreA dans initHeaderChrono ci-dessus.
+  if (!actif || actif.demarreA) return;
+
+  afficherPopupChronoRelance(actif);
+}
+
+function afficherPopupChronoRelance(saisie) {
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay";
+  overlay.id = "chrono-relance-overlay";
+  overlay.innerHTML = `
+    <div class="modal-box">
+      <h2>Chronomètre resté en pause</h2>
+      <p>Le chronomètre du dossier <strong>${escapeHtmlHeaderChrono(saisie.dossier.numeroDossier)}</strong> n'a pas été arrêté — il est resté en pause depuis la dernière fermeture d'Aurore.</p>
+      <p class="error" id="chrono-relance-error"></p>
+      <div style="display:flex; gap:10px; margin-top:18px;">
+        <button type="button" id="chrono-relance-reprendre-btn">Reprendre</button>
+        <button type="button" class="danger" id="chrono-relance-arreter-btn">Arrêter</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  const errEl = document.getElementById("chrono-relance-error");
+
+  async function terminer(action) {
+    hideError(errEl);
+    try {
+      await apiFetch(`/api/saisies-temps/${saisie.id}/${action}`, { method: "POST" });
+      overlay.remove();
+      if (window.rafraichirHeaderChrono) window.rafraichirHeaderChrono();
+    } catch (err) {
+      showError(errEl, err.message);
+    }
+  }
+
+  document.getElementById("chrono-relance-reprendre-btn").addEventListener("click", () => terminer("reprendre"));
+  document.getElementById("chrono-relance-arreter-btn").addEventListener("click", () => terminer("arreter"));
 }
 
 // Seuils du bandeau d'alerte avant expiration (licence encore "valide") -
