@@ -27,6 +27,10 @@ describe.skipIf(!pgAvailable)("e2e : modules autorisés par collaborateur", () =
   let collaborateurId: string;
   let collaborateurCookie: string;
   let avocatId: string;
+  let avocatCookie: string;
+  let collaborateurDeLAvocatId: string;
+  let autreAvocatId: string;
+  let autreAvocatCookie: string;
 
   beforeAll(async () => {
     if (!pgAvailable) return;
@@ -80,6 +84,31 @@ describe.skipIf(!pgAvailable)("e2e : modules autorisés par collaborateur", () =
       },
     });
     avocatId = avocat.id;
+    avocatCookie = await mintAuthCookie(avocat.id, cabinetId, "avocat");
+
+    const collaborateurDeLAvocat = await prisma.user.create({
+      data: {
+        cabinetId,
+        nom: "Collaborateur de l'avocat",
+        email: "collaborateur-avocat-modules-e2e@test.invalid",
+        motDePasseHash: "x",
+        role: "collaborateur",
+        responsableId: avocat.id,
+      },
+    });
+    collaborateurDeLAvocatId = collaborateurDeLAvocat.id;
+
+    const autreAvocat = await prisma.user.create({
+      data: {
+        cabinetId,
+        nom: "Autre Avocat Test",
+        email: "autre-avocat-modules-e2e@test.invalid",
+        motDePasseHash: "x",
+        role: "avocat",
+      },
+    });
+    autreAvocatId = autreAvocat.id;
+    autreAvocatCookie = await mintAuthCookie(autreAvocat.id, cabinetId, "avocat");
   });
 
   afterAll(async () => {
@@ -171,5 +200,44 @@ describe.skipIf(!pgAvailable)("e2e : modules autorisés par collaborateur", () =
     } finally {
       await prisma.cabinet.update({ where: { id: cabinetId }, data: { modulesDesactives: [] } });
     }
+  });
+
+  // Reversion du 2026-09-12 : un avocat bloqué (403) alors qu'il essayait
+  // d'activer un module pour son propre collaborateur - cet endpoit était
+  // réservé au seul titulaire (requireAdmin), sans aucune raison métier de
+  // l'être. Corrigé pour autoriser un avocat sur SES PROPRES collaborateurs
+  // uniquement (voir routes/users.ts).
+  it("un avocat peut désormais gérer les modules de SON PROPRE collaborateur", async () => {
+    const res = await api(avocatCookie, `/api/users/${collaborateurDeLAvocatId}/modules`, {
+      method: "PATCH",
+      body: JSON.stringify({ modulesDesactives: ["facturation"] }),
+    });
+    expect(res.status).toBe(200);
+
+    const liste = await (await api(avocatCookie, "/api/users")).json();
+    const ligne = liste.find((u: { id: string }) => u.id === collaborateurDeLAvocatId);
+    expect(ligne.modulesDesactives).toEqual(["facturation"]);
+  });
+
+  it("un avocat ne peut PAS gérer les modules du collaborateur d'un AUTRE avocat (ni celui du titulaire)", async () => {
+    const surCollaborateurDuTitulaire = await api(autreAvocatCookie, `/api/users/${collaborateurId}/modules`, {
+      method: "PATCH",
+      body: JSON.stringify({ modulesDesactives: ["facturation"] }),
+    });
+    expect(surCollaborateurDuTitulaire.status).toBe(404);
+
+    const surCollaborateurDeLAutreAvocat = await api(autreAvocatCookie, `/api/users/${collaborateurDeLAvocatId}/modules`, {
+      method: "PATCH",
+      body: JSON.stringify({ modulesDesactives: ["facturation"] }),
+    });
+    expect(surCollaborateurDeLAutreAvocat.status).toBe(404);
+  });
+
+  it("le titulaire garde la main sur TOUS les collaborateurs, y compris ceux d'un avocat", async () => {
+    const res = await api(titulaireCookie, `/api/users/${collaborateurDeLAvocatId}/modules`, {
+      method: "PATCH",
+      body: JSON.stringify({ modulesDesactives: [] }),
+    });
+    expect(res.status).toBe(200);
   });
 });

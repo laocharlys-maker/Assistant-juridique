@@ -282,25 +282,35 @@ usersRouter.patch(
   }
 );
 
-// Le titulaire choisit, pour CE collaborateur precis, les modules retires
-// (en plus du reglage plateforme, jamais au-dessus - voir requireModule,
-// middleware/roles.ts) - jamais pour un avocat/titulaire, qui garde toujours
-// l'acces complet accorde par la plateforme.
+// Le titulaire OU l'avocat RESPONSABLE de ce collaborateur choisit, pour CE
+// collaborateur precis, les modules retires (en plus du reglage plateforme,
+// jamais au-dessus - voir requireModule, middleware/roles.ts) - jamais pour
+// un avocat/titulaire lui-meme, qui garde toujours l'acces complet accorde
+// par la plateforme. Un avocat ne peut gerer que SES PROPRES collaborateurs
+// (meme relation "responsable" que partout ailleurs dans l'appli, voir
+// services/access.ts) - le titulaire garde acces a tous, quel que soit leur
+// responsable (reversion du 2026-09-12 : reserve au seul titulaire jusque-la,
+// bloquant un avocat qui voulait activer un module pour son collaborateur).
 const modulesDesactivesSchema = z.object({
   modulesDesactives: z.array(z.enum(MODULES_DISPONIBLES)),
 });
 
-usersRouter.patch("/api/users/:id/modules", requireAuth, requireAdmin, async (req, res) => {
+usersRouter.patch("/api/users/:id/modules", requireAuth, requireAvocat, async (req, res) => {
   const parsed = modulesDesactivesSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "Requête invalide", details: parsed.error.issues });
   }
 
   const collaborateur = await prisma.user.findFirst({
-    where: { id: req.params.id, cabinetId: req.auth!.cabinetId, role: "collaborateur" },
+    where: {
+      id: req.params.id,
+      cabinetId: req.auth!.cabinetId,
+      role: "collaborateur",
+      ...(req.auth!.role === "avocat" ? { responsableId: req.auth!.userId } : {}),
+    },
   });
   if (!collaborateur) {
-    return res.status(404).json({ error: "Collaborateur introuvable dans ce cabinet" });
+    return res.status(404).json({ error: "Collaborateur introuvable dans ce cabinet (ou pas sous ta responsabilité)" });
   }
 
   await prisma.user.update({

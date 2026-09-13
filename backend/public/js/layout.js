@@ -224,6 +224,17 @@ function initLayout(me) {
   // /api/factures/rappels, voir requireAvocat).
   initFacturesRappel(me);
 
+  // Pop-up "Révision demandée" - un avocat/titulaire a renvoyé un de MES
+  // documents en révision (voir routes/commentairesRevision.ts) - EN PLUS de
+  // l'email envoyé au moment de la demande, jamais à sa place (le
+  // destinataire n'est pas forcément connecté a ce moment-la).
+  initRevisionsRappel(me);
+
+  // Pop-up "Courrier(s) affecté(s)" - un courrier entrant m'a été affecté
+  // (module Courriers, Lot 20) - EN PLUS de l'email envoyé au moment de
+  // l'affectation, jamais à sa place.
+  initCourriersAffectesRappel(me);
+
   // Pop-up "Evenements du jour" - une fois par jour maximum (meme mecanisme
   // de throttle localStorage que initFacturesRappel ci-dessus), reserve aux
   // roles ayant un agenda (titulaire/avocat/collaborateur).
@@ -605,6 +616,117 @@ function afficherPopupFacturesRappel(factures) {
       }
     });
   });
+}
+
+// Pop-up "Révision demandée" - meme mecanisme de throttle localStorage
+// (une fois par jour maximum) que factureRappelStorageKey ci-dessus.
+function revisionRappelStorageKey(me) {
+  return `aurore-rappel-revisions-dernier-${me.id}`;
+}
+
+function revisionRappelDejaAffiche(me) {
+  const aujourdHui = new Date().toISOString().slice(0, 10);
+  return localStorage.getItem(revisionRappelStorageKey(me)) === aujourdHui;
+}
+
+function revisionRappelMarquerAffiche(me) {
+  const aujourdHui = new Date().toISOString().slice(0, 10);
+  localStorage.setItem(revisionRappelStorageKey(me), aujourdHui);
+}
+
+async function initRevisionsRappel(me) {
+  if (revisionRappelDejaAffiche(me)) return;
+
+  let actions;
+  try {
+    actions = await apiFetch("/api/actions/mes-revisions-demandees");
+  } catch {
+    // Module "revision" desactive pour ce cabinet/compte, ou erreur reseau
+    // ponctuelle - jamais bloquant, on reessaiera au prochain chargement.
+    return;
+  }
+  if (!actions || actions.length === 0) return;
+
+  revisionRappelMarquerAffiche(me);
+  afficherPopupRevisionsRappel(actions);
+}
+
+function afficherPopupRevisionsRappel(actions) {
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay";
+  overlay.id = "revisions-rappel-overlay";
+
+  function ligneHtml(a) {
+    return `
+      <a class="action-item" href="/dossier.html?id=${a.dossierId}" style="display:block; text-decoration:none; color:inherit;">
+        <span class="tag">${escapeHtmlHeaderChrono(a.dossier.numeroDossier)}</span>
+        <div>${escapeHtmlHeaderChrono(a.nomDocument || a.typeAction)}</div>
+      </a>`;
+  }
+
+  overlay.innerHTML = `
+    <div class="modal-box">
+      <h2>Révision demandée</h2>
+      <p class="muted">${actions.length} document${actions.length > 1 ? "s" : ""} renvoyé${actions.length > 1 ? "s" : ""} en révision par un avocat.</p>
+      <div>${actions.map(ligneHtml).join("")}</div>
+      <div style="display:flex; gap:10px; margin-top:18px;">
+        <button type="button" class="ghost" id="revisions-rappel-fermer-btn">Fermer</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  document.getElementById("revisions-rappel-fermer-btn").addEventListener("click", () => overlay.remove());
+}
+
+// Pop-up "Courrier(s) affecté(s)" (module Courriers, Lot 20) - meme
+// mecanisme de throttle localStorage (une fois par jour maximum).
+function courriersAffectesRappelStorageKey(me) {
+  return `aurore-rappel-courriers-affectes-dernier-${me.id}`;
+}
+
+function courriersAffectesRappelDejaAffiche(me) {
+  const aujourdHui = new Date().toISOString().slice(0, 10);
+  return localStorage.getItem(courriersAffectesRappelStorageKey(me)) === aujourdHui;
+}
+
+function courriersAffectesRappelMarquerAffiche(me) {
+  const aujourdHui = new Date().toISOString().slice(0, 10);
+  localStorage.setItem(courriersAffectesRappelStorageKey(me), aujourdHui);
+}
+
+async function initCourriersAffectesRappel(me) {
+  if (courriersAffectesRappelDejaAffiche(me)) return;
+
+  let data;
+  try {
+    data = await apiFetch("/api/courriers-entrants/notifications");
+  } catch {
+    // Module "courriers" desactive pour ce cabinet/compte, ou erreur reseau
+    // ponctuelle - jamais bloquant.
+    return;
+  }
+  if (!data || !data.enAttente) return;
+
+  courriersAffectesRappelMarquerAffiche(me);
+  afficherPopupCourriersAffectes(data.enAttente);
+}
+
+function afficherPopupCourriersAffectes(nombre) {
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay";
+  overlay.id = "courriers-affectes-overlay";
+  overlay.innerHTML = `
+    <div class="modal-box">
+      <h2>Courrier${nombre > 1 ? "s" : ""} à traiter</h2>
+      <p>${nombre} courrier${nombre > 1 ? "s" : ""} vous ${nombre > 1 ? "ont" : "a"} été affecté${nombre > 1 ? "s" : ""}, encore à traiter.</p>
+      <div style="display:flex; gap:10px; margin-top:18px;">
+        <a href="/courriers.html" style="text-decoration:none;"><button type="button">Voir mes courriers</button></a>
+        <button type="button" class="ghost" id="courriers-affectes-fermer-btn">Fermer</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  document.getElementById("courriers-affectes-fermer-btn").addEventListener("click", () => overlay.remove());
 }
 
 // Meme cle par utilisateur que factureRappelStorageKey ci-dessus (poste

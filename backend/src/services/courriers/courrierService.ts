@@ -6,6 +6,8 @@ import { enregistrerFichier, lireFichier, supprimerFichier } from "../stockageDo
 import { enqueuerTraitementOcr } from "../../jobs/traitementOcr";
 import { computeDeadline } from "../delais";
 import { syncEvenementDepuisDelaiCalcul } from "../evenementSync";
+import { sendEmail } from "../mailer";
+import { resolveCabinetEmailIdentite } from "../cabinetContact";
 
 /**
  * Lot 20 - coeur metier du registre courrier. Reutilise integralement les
@@ -422,6 +424,24 @@ export async function affecterCourrierEntrant(id: string, cabinetId: string, aff
   });
 
   await logAuditCourrier({ courrierEntrantId: id }, "affectation", "succes", `Affecté à ${utilisateur.nom}`);
+
+  // Notification a l'utilisateur affecte - EN PLUS du badge in-app deja
+  // affiche a sa prochaine connexion (voir compterCourriersAffectesA et
+  // GET /api/courriers-entrants/notifications), jamais a sa place : un email
+  // atteint quelqu'un qui n'est pas connecte a Aurore au moment de
+  // l'affectation.
+  const { cabinetNom, replyToEmail } = await resolveCabinetEmailIdentite(cabinetId);
+  const mailResult = await sendEmail({
+    destinataireEmail: utilisateur.email,
+    cabinetNom,
+    replyToEmail,
+    subject: `${cabinetNom} - Un courrier vous a été affecté`,
+    text: `Le courrier "${courrier.objet}" (${courrier.numero}) t'a été affecté.\n\nConnecte-toi à Aurore pour le consulter.`,
+  });
+  if (!mailResult.ok) {
+    console.error(`[courriers] échec de l'envoi de la notification d'affectation à ${utilisateur.email} :`, mailResult.error);
+  }
+
   return misAJour;
 }
 

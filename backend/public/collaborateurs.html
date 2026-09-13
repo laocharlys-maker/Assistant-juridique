@@ -221,11 +221,12 @@
                 ? `<input type="number" min="1" data-taux-horaire="${u.id}" value="${u.tauxHoraireDefaut ?? ""}" placeholder="Taux horaire (F CFA)" style="width:170px; margin:0;" />`
                 : "";
 
-            // Reglage titulaire uniquement : quels modules ce collaborateur
-            // precis peut voir, en plus du reglage plateforme (jamais au-dela,
-            // voir requireModule, middleware/roles.ts).
+            // Reglage titulaire OU avocat responsable de CE collaborateur :
+            // quels modules il peut voir, en plus du reglage plateforme
+            // (jamais au-dela, voir requireModule, middleware/roles.ts) -
+            // un avocat ne voit ce controle que sur ses propres collaborateurs.
             const moduleChips =
-              me.role === "titulaire"
+              me.role === "titulaire" || isMyCollaborateur
                 ? `<div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;">
                     ${MODULES.map((m) => {
                       const actifModule = !(u.modulesDesactives || []).includes(m.key);

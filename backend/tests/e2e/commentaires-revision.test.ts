@@ -156,6 +156,20 @@ describe.skipIf(!pgAvailable)("e2e : remarques de revision (Lot 10)", () => {
     expect(body[0].auteur.nom).toBe("Avocat Test");
   });
 
+  it("le collaborateur auteur du document voit le document dans ses révisions en attente (notification in-app)", async () => {
+    const res = await api(collaborateurCookie, "/api/actions/mes-revisions-demandees");
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.map((a: { id: string }) => a.id)).toContain(actionId);
+  });
+
+  it("un autre membre du cabinet (pas l'auteur du document) ne voit rien dans SES révisions en attente", async () => {
+    const res = await api(autreAvocatCookie, "/api/actions/mes-revisions-demandees");
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.map((a: { id: string }) => a.id)).not.toContain(actionId);
+  });
+
   it("bloque la validation tant que la remarque reste ouverte", async () => {
     const res = await api(titulaireCookie, `/api/actions/${actionId}/valider`, { method: "POST" });
     expect(res.status).toBe(409);

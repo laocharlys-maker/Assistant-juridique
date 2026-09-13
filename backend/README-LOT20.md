@@ -143,9 +143,25 @@ juridique (`routes/veilleJuridiqueNotification.ts`), propre à un seul digest.
 Implémentation minimale et cohérente avec ce précédent : un simple compteur
 interrogé par polling (`GET /api/courriers-entrants/notifications`), sans
 nouvelle table — le badge disparaît de lui-même dès que l'utilisateur fait
-avancer le statut du courrier qui lui est affecté. Documentée ici comme
-**nouvelle brique**, comme demandé quand aucun mécanisme existant n'est
-réutilisable tel quel.
+avancer le statut du courrier qui lui est affecté.
+
+**Mise à jour du 2026-09-13** : deux canaux supplémentaires ajoutés, sur
+demande explicite ("chaque demande de l'avocat doit notifier le
+collaborateur concerné") :
+- Un pop-up in-app au login (`public/js/layout.js`,
+  `initCourriersAffectesRappel` — même throttle localStorage "une fois par
+  jour" que `initFacturesRappel`), listant qu'un courrier a été affecté.
+- Un email envoyé au moment de l'affectation elle-même
+  (`courrierService.affecterCourrierEntrant`, réutilise `services/mailer.ts`
+  tel quel) — pour atteindre l'utilisateur même s'il n'est pas connecté à
+  Aurore à ce moment-là. Un échec d'envoi (Brevo non configuré, erreur
+  réseau) est journalisé mais ne fait jamais échouer l'affectation
+  elle-même.
+
+Même traitement appliqué au Lot 10 (remarques de révision, hors périmètre de
+ce lot mais demandé en même temps) : voir `routes/commentairesRevision.ts`
+(email au moment de la remarque + `GET /api/actions/mes-revisions-demandees`
+pour le pop-up in-app correspondant, `initRevisionsRappel`).
 
 ## Compteurs du tableau de bord
 

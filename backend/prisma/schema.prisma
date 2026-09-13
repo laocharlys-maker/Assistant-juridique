@@ -317,13 +317,15 @@ model User {
   // Accorde par l'admin a un collaborateur : accede a TOUS les dossiers
   // du cabinet, pas seulement ceux de son responsable / des acces accordes.
   accesTousDossiers      Boolean   @default(false) @map("acces_tous_dossiers")
-  // Modules retires par le TITULAIRE pour CE collaborateur precis (memes
-  // cles que Cabinet.modulesDesactives) - s'applique EN PLUS du reglage
-  // plateforme, jamais au-dessus : un module deja desactive pour tout le
-  // cabinet reste desactive quel que soit ce champ. Uniquement pertinent
-  // pour role=collaborateur (voir routes/users.ts, PATCH .../modules) - un
-  // avocat/titulaire garde toujours l'acces complet accorde par la
-  // plateforme.
+  // Modules retires par le TITULAIRE, ou par l'AVOCAT dont ce collaborateur
+  // est responsable, pour CE collaborateur precis (memes cles que
+  // Cabinet.modulesDesactives) - s'applique EN PLUS du reglage plateforme,
+  // jamais au-dessus : un module deja desactive pour tout le cabinet reste
+  // desactive quel que soit ce champ. Uniquement pertinent pour
+  // role=collaborateur (voir routes/users.ts, PATCH .../modules, qui
+  // restreint un avocat a ses propres collaborateurs) - un avocat/titulaire
+  // garde toujours l'acces complet accorde par la plateforme sur son propre
+  // compte.
   modulesDesactives      String[]  @default([]) @map("modules_desactives")
   // Un avocat/titulaire peut se desinscrire de la veille juridique
   // hebdomadaire par email (sans effet pour un collaborateur).

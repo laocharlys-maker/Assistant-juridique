@@ -4,6 +4,8 @@ import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
 import { requireModule } from "../middleware/roles";
 import { logAuditStep } from "../services/audit";
+import { sendEmail } from "../services/mailer";
+import { resolveCabinetEmailIdentite } from "../services/cabinetContact";
 
 export const commentairesRevisionRouter = Router();
 
@@ -66,7 +68,62 @@ commentairesRevisionRouter.post(
       `Remarque ajoutée par ${req.auth!.userId} : ${parsed.data.contenu.slice(0, 200)}`
     );
 
+    // Notification au collaborateur (ou avocat) auteur du document - EN PLUS
+    // du badge in-app deja affiche au prochain chargement du tableau de bord
+    // (voir GET .../mes-revisions-demandees ci-dessous), jamais a sa place :
+    // un email atteint quelqu'un qui n'est pas connecte a Aurore au moment de
+    // la demande. Jamais envoyee si l'auteur du document est celui-la meme
+    // qui vient de laisser la remarque (cas rare mais possible : un avocat se
+    // corrigeant sur son propre document).
+    if (action.createdBy !== req.auth!.userId) {
+      const auteurDocument = await prisma.user.findUnique({
+        where: { id: action.createdBy },
+        select: { email: true, actif: true },
+      });
+      if (auteurDocument?.actif) {
+        const { cabinetNom, replyToEmail } = await resolveCabinetEmailIdentite(req.auth!.cabinetId);
+        const mailResult = await sendEmail({
+          destinataireEmail: auteurDocument.email,
+          cabinetNom,
+          replyToEmail,
+          subject: `${cabinetNom} - Révision demandée sur "${action.nomDocument || action.typeAction}"`,
+          text: `${commentaire.auteur.nom} a demandé une révision sur le document "${action.nomDocument || action.typeAction}".\n\nRemarque : ${parsed.data.contenu}\n\nConnecte-toi à Aurore pour y répondre.`,
+        });
+        if (!mailResult.ok) {
+          console.error(`[commentaires-revision] échec de l'envoi de la notification de révision à ${auteurDocument.email} :`, mailResult.error);
+        }
+      }
+    }
+
     return res.status(201).json(commentaire);
+  }
+);
+
+// Notification in-app (popup, voir public/js/layout.js) : documents dont
+// CET utilisateur precis est l'auteur et qui viennent d'etre renvoyes en
+// revision - jamais les revisions demandees sur le travail de quelqu'un
+// d'autre, meme visible dans le meme cabinet.
+commentairesRevisionRouter.get(
+  "/api/actions/mes-revisions-demandees",
+  requireAuth,
+  requireModule("revision"),
+  async (req, res) => {
+    const actions = await prisma.action.findMany({
+      where: {
+        createdBy: req.auth!.userId,
+        statut: "revision_demandee",
+        dossier: { cabinetId: req.auth!.cabinetId },
+      },
+      select: {
+        id: true,
+        nomDocument: true,
+        typeAction: true,
+        dossierId: true,
+        dossier: { select: { numeroDossier: true, nomAffaire: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    return res.json(actions);
   }
 );
 
