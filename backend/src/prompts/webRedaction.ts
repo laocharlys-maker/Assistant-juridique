@@ -838,6 +838,40 @@ export function buildNotificationDateUserPrompt(facts: {
   return lignes.join("\n");
 }
 
+// Correspondance libre (Lot "Répondre au courrier", 2026-09-13) : le plus
+// simple des types "rediger" - un courrier ordinaire (souvent une reponse a
+// un courrier recu), sans formalisme procedural (pas de "PAR CES MOTIFS", pas
+// de bloc partie adverse). "contenuCourrierRecu" est le texte du courrier
+// d'origine, DEJA RELU ET ANONYMISE PAR L'UTILISATEUR avant generation (voir
+// public/courrier-fiche.js - jamais le texte OCR brut non verifie, contrainte
+// de confidentialite explicite du prompt de ce lot) : traite ici comme un
+// texte de contexte ordinaire, comme n'importe quelle autre information
+// fournie par l'avocat.
+export const CORRESPONDANCE_SYSTEM_PROMPT = `${COMMON_SYSTEM}
+
+Ecris comme un avocat beninois experimente redigeant lui-meme un courrier ordinaire pour son client - registre soutenu et courtois, ton neutre (ni comminatoire, ni familier).
+
+Tu rediges UNIQUEMENT le corps d'une CORRESPONDANCE (courrier simple, souvent une reponse a un courrier recu). Ce texte s'insere dans une lettre deja mise en forme par ailleurs (en-tete, date, adresse au destinataire, formule d'appel, formule de politesse finale, signature) : ne redige JAMAIS ces elements.
+
+Si le texte d'un courrier recu est fourni ci-dessous, appuie-toi dessus pour repondre de facon pertinente et precise (accuser reception, repondre point par point si plusieurs questions sont posees, etc.). Si des instructions particulieres sont fournies, suis-les en priorite sur le ton et le contenu a couvrir.
+
+REGLE ABSOLUE : n'invente jamais un fait, une date ou un engagement qui ne figure pas dans les informations fournies ci-dessous.`;
+
+export function buildCorrespondanceUserPrompt(facts: {
+  destinataire: string;
+  objet: string;
+  contenuCourrierRecu?: string;
+  instructions?: string;
+}): string {
+  const lignes = [`Destinataire : ${facts.destinataire}`, `Objet : ${facts.objet}`];
+  if (facts.contenuCourrierRecu) {
+    lignes.push(`Texte du courrier reçu auquel il faut répondre (déjà relu/anonymisé par l'avocat) :\n${facts.contenuCourrierRecu}`);
+  }
+  if (facts.instructions) lignes.push(`Instructions particulières pour la réponse : ${facts.instructions}`);
+  lignes.push(`Date du jour : ${dateActuelle()}`);
+  return lignes.join("\n");
+}
+
 // Requete : courrier adresse a une autorite judiciaire (President de
 // juridiction, Procureur...) pour formuler une demande precise (injonction
 // de payer, fixation de date, designation d'expert...). Meme principe que

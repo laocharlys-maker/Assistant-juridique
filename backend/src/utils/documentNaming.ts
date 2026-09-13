@@ -18,6 +18,7 @@ export const TYPE_LABELS: Record<string, string> = {
   requete: "Requête",
   projet_ordonnance: "Projet d'ordonnance",
   note_plaidoirie: "Note de plaidoirie",
+  correspondance: "Correspondance",
 };
 
 const COMBINING_DIACRITICS = new RegExp("[\\u0300-\\u036f]", "g");

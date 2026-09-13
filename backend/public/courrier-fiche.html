@@ -121,21 +121,45 @@
     </div>
   </div>
 
-  <!-- Repondre au courrier -->
+  <!-- Repondre au courrier - 3 facons de repondre (demande explicite du
+       2026-09-13) : IA (avec relecture/anonymisation obligatoire avant tout
+       envoi externe), soi-meme (reutilise le flux "Créer une action"
+       existant), ou une reponse deja ecrite ailleurs (piece jointe). -->
   <div class="modal-overlay" id="repondre-modal" hidden>
     <div class="modal-box">
       <h2>Répondre au courrier</h2>
       <p class="error" id="repondre-error"></p>
-      <form id="repondre-form">
-        <label>Objet</label>
-        <input name="objet" required />
-        <label>Destinataire</label>
-        <input name="destinataire" />
-        <div style="display:flex; gap:10px; margin-top:14px;">
-          <button type="submit">Créer la réponse (brouillon)</button>
-          <button type="button" class="secondary" data-fermer-modal="repondre-modal">Annuler</button>
-        </div>
-      </form>
+      <label>Objet</label>
+      <input id="repondre-objet" required />
+      <label>Destinataire</label>
+      <input id="repondre-destinataire" />
+      <p class="muted" style="margin-top:14px; margin-bottom:6px;">Comment veux-tu répondre ?</p>
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <button type="button" id="repondre-ia-btn">Rédiger avec l'IA</button>
+        <button type="button" class="secondary" id="repondre-soimeme-btn">Rédiger soi-même</button>
+        <button type="button" class="secondary" id="repondre-dejaredigee-btn">Réponse déjà rédigée</button>
+      </div>
+      <div style="margin-top:14px;">
+        <button type="button" class="ghost" data-fermer-modal="repondre-modal">Annuler</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Etape de relecture obligatoire avant tout envoi a l'IA (option 2
+       validee : jamais le texte OCR brut, toujours relu/anonymise par
+       l'utilisateur d'abord). -->
+  <div class="modal-overlay" id="repondre-ia-relecture-modal" hidden>
+    <div class="modal-box">
+      <h2>Avant de continuer</h2>
+      <p class="error visible">⚠️ Le texte ci-dessous sera envoyé à un service d'intelligence artificielle externe pour rédiger la réponse. Il n'est <strong>pas anonymisé automatiquement</strong> — relis-le et remplace tout nom, adresse, numéro de téléphone ou autre donnée sensible par une mention générique (ex : « [NOM DU CLIENT] », « [ADRESSE] ») avant de continuer.</p>
+      <label>Contenu du courrier reçu (modifiable)</label>
+      <textarea id="repondre-ia-contenu" rows="10" style="width:100%; font-family:inherit;"></textarea>
+      <label>Instructions pour la réponse (optionnel)</label>
+      <textarea id="repondre-ia-instructions" style="width:100%; font-family:inherit;" placeholder="ex: Accuser réception et demander un délai supplémentaire"></textarea>
+      <div style="display:flex; gap:10px; margin-top:14px;">
+        <button type="button" id="repondre-ia-continuer-btn">Continuer vers l'IA</button>
+        <button type="button" class="secondary" data-fermer-modal="repondre-ia-relecture-modal">Annuler</button>
+      </div>
     </div>
   </div>
 

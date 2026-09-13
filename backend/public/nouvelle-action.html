@@ -168,6 +168,7 @@
         <button class="tab" data-type="notification_date">Notification</button>
         <button class="tab" data-type="requete">Requête</button>
         <button class="tab" data-type="projet_ordonnance">Projet d'ordonnance</button>
+        <button class="tab" data-type="correspondance">Correspondance</button>
         <button class="tab" data-type="jurisprudence">Recherche de jurisprudence</button>
         <button class="tab" data-type="recherche_juridique">Recherche juridique</button>
         <button class="tab" data-type="resume_pdf">Résumé de jurisprudence (PDF)</button>
@@ -978,6 +979,54 @@
         <button type="submit">Générer la notification</button>
       </form>
 
+      <!-- Lot "Répondre au courrier" (2026-09-13) : correspondance libre -
+           le plus simple des types "rédiger". Peut être ouverte "à froid"
+           (depuis l'accueil de Nouvelle action) ou pré-remplie depuis la
+           fiche d'un courrier reçu (voir aurore_prefill_correspondance,
+           géré plus bas dans ce fichier, et public/js/courrier-fiche.js). -->
+      <form id="correspondance-form" class="action-form" style="display:none;">
+        <input type="hidden" name="courrier_entrant_id" id="correspondance-courrier-entrant-id" />
+        <p class="muted" id="correspondance-courrier-info" style="display:none;"></p>
+        <label>Numéro de dossier concerné (optionnel)</label>
+        <input name="numero_dossier" list="dossiers-datalist" placeholder="Laisse vide si non applicable" />
+        <label>Nom de l'affaire (optionnel)</label>
+        <input name="nom_affaire" placeholder="Laisse vide si non applicable" />
+        <label>Nom du client (si nouveau dossier)</label>
+        <input name="nom_client" placeholder="Laisse vide si le dossier existe déjà ou non applicable" />
+        <label>Avocat en charge (optionnel)</label>
+        <input name="nom_avocat" />
+        <label>Adresse du cabinet (optionnel)</label>
+        <input name="adresse_cabinet_manuel" placeholder="Reprise automatiquement depuis Paramètres si déjà renseignée — sinon, précise-la ici" />
+
+        <h3>Destinataire</h3>
+        <label>Nom du destinataire</label>
+        <input name="destinataire" required />
+        <label>Civilité du destinataire (optionnel)</label>
+        <select name="civilite_destinataire">
+          <option value="">— Non précisé —</option>
+          <option value="M.">M.</option>
+          <option value="Mme">Mme</option>
+          <option value="Mlle">Mlle</option>
+        </select>
+        <label>Adresse du destinataire (optionnel)</label>
+        <input name="adresse_destinataire" placeholder="ex: Quartier Haie Vive, Cotonou" />
+
+        <h3>Le courrier</h3>
+        <label>Objet</label>
+        <input name="objet" required placeholder="ex: Réponse à votre courrier du..." />
+        <p class="error visible" id="correspondance-securite-warning" style="display:none;">
+          ⚠️ Le texte ci-dessous sera envoyé à un service d'intelligence artificielle externe pour rédiger la réponse.
+          Il n'est <strong>pas anonymisé automatiquement</strong> — relis-le attentivement et remplace tout nom, adresse,
+          numéro de téléphone ou autre donnée sensible par une mention générique (ex : « [NOM DU CLIENT] », « [ADRESSE] »)
+          avant de continuer.
+        </p>
+        <label>Contenu du courrier reçu (optionnel)<span class="field-hint" title="Aide l'IA à rédiger une réponse pertinente. Si tu es arrivé ici depuis un courrier scanné, relis bien ce texte et anonymise-le avant de générer.">?</span></label>
+        <textarea name="contenu_courrier_recu" id="correspondance-contenu-courrier"></textarea>
+        <label>Instructions pour la réponse (optionnel)</label>
+        <textarea name="instructions" placeholder="ex: Accuser réception et demander un délai supplémentaire de 15 jours"></textarea>
+        <button type="submit">Générer la correspondance</button>
+      </form>
+
       <form id="requete-form" class="action-form" style="display:none;">
         <label>Numéro de dossier concerné (optionnel)</label>
         <input name="numero_dossier" list="dossiers-datalist" placeholder="Laisse vide si non applicable" id="requete-numero-dossier" />
@@ -1594,6 +1643,7 @@
       notification_date: document.getElementById("notification_date-form"),
       requete: document.getElementById("requete-form"),
       projet_ordonnance: document.getElementById("projet_ordonnance-form"),
+      correspondance: document.getElementById("correspondance-form"),
       jurisprudence: document.getElementById("jurisprudence-form"),
       recherche_juridique: document.getElementById("recherche_juridique-form"),
       resume_pdf: document.getElementById("resume_pdf-form"),
@@ -1628,6 +1678,7 @@
       projet_ordonnance: { label: "Projet d'ordonnance", titre: "Rédiger un projet d'ordonnance", sub: "Ébauche à joindre à une requête", icon: "🖋️", category: "rediger" },
       contrat: { label: "Contrat", titre: "Rédiger un contrat", sub: "Bail, prestation, vente...", icon: "🤝", category: "rediger" },
       notification_date: { label: "Notification", titre: "Rédiger une notification", sub: "Courrier aux tiers concernés", icon: "📢", category: "rediger" },
+      correspondance: { label: "Correspondance", titre: "Rédiger une correspondance", sub: "Courrier simple, réponse à un courrier reçu...", icon: "✉️", category: "rediger" },
       jurisprudence: { label: "Recherche de jurisprudence", titre: "Lancer une recherche de jurisprudence", sub: "Décisions par thème et juridiction", icon: "🔍", category: "rechercher" },
       recherche_juridique: { label: "Recherche juridique", titre: "Lancer une recherche juridique", sub: "Question de droit générale", icon: "🔍", category: "rechercher" },
       resume_pdf: { label: "Résumé de jurisprudence (PDF)", titre: "Résumer un document PDF", sub: "Synthèse d'un document long", icon: "📄", category: "rechercher" },
@@ -1649,7 +1700,7 @@
       notes: "action_rediger", redac: "action_rediger", assignation: "action_rediger",
       conclusions: "action_rediger", note_plaidoirie: "action_rediger", mise_en_demeure: "action_rediger",
       plainte: "action_rediger", contrat: "action_rediger", notification_date: "action_rediger",
-      requete: "action_rediger", projet_ordonnance: "action_rediger",
+      requete: "action_rediger", projet_ordonnance: "action_rediger", correspondance: "action_rediger",
       recherche_juridique: "action_recherche_juridique",
       jurisprudence: "action_recherche_jurisprudence",
       resume_pdf: "action_resume_jurisprudence",
@@ -1831,6 +1882,23 @@
     } catch {
       naTexteInitialOcr = null;
     }
+    // Lot "Répondre au courrier" (2026-09-13) : arrivée depuis la fiche d'un
+    // courrier reçu, bouton "Rédiger avec l'IA" (voir public/js/courrier-fiche.js) -
+    // consommé immédiatement, jamais une pré-sélection automatique en dehors
+    // de ce parcours précis. Le contenu du courrier a DÉJÀ été relu/anonymisé
+    // par l'utilisateur à l'étape précédente (bandeau de sécurité affiché
+    // là-bas) - ici on ne fait que reporter ce texte déjà validé dans le
+    // formulaire, jamais une nouvelle lecture automatique du texte OCR brut.
+    let naPrefillCorrespondance = null;
+    try {
+      const naPrefillBrut = sessionStorage.getItem("aurore_prefill_correspondance");
+      if (naPrefillBrut) {
+        sessionStorage.removeItem("aurore_prefill_correspondance");
+        naPrefillCorrespondance = JSON.parse(naPrefillBrut);
+      }
+    } catch {
+      naPrefillCorrespondance = null;
+    }
     // Charge une seule fois au demarrage de la page (voir l'IIFE d'init plus
     // bas) - annuaire cabinet-entier, jamais filtre, meme principe que
     // clientsAvecEmail/collegues dans js/envoiActions.js.
@@ -1879,6 +1947,7 @@
       ["notification_date", "Notification"],
       ["requete", "Requête"],
       ["projet_ordonnance", "Projet d'ordonnance"],
+      ["correspondance", "Correspondance"],
     ];
     document.getElementById("na-libre-type").innerHTML = TYPES_REDACTION_LIBRE.map(
       ([value, label]) => `<option value="${value}">${label}</option>`
@@ -2226,6 +2295,26 @@
       naShowScreen("libre");
       const naLibreOcrBanner = document.getElementById("na-libre-ocr-banner");
       if (naLibreOcrBanner) naLibreOcrBanner.style.display = "block";
+    }
+
+    // Lot "Répondre au courrier" (2026-09-13) : ouvre directement le
+    // formulaire "Correspondance" (mode IA), pré-rempli depuis la fiche du
+    // courrier - jamais de soumission automatique, l'utilisateur relit et
+    // valide lui-même avant de générer.
+    if (naPrefillCorrespondance) {
+      naGoToForm("correspondance");
+      const cf = forms.correspondance;
+      if (naPrefillCorrespondance.destinataire) cf.querySelector('[name="destinataire"]').value = naPrefillCorrespondance.destinataire;
+      if (naPrefillCorrespondance.objet) cf.querySelector('[name="objet"]').value = naPrefillCorrespondance.objet;
+      if (naPrefillCorrespondance.contenuCourrierRecu) cf.querySelector('[name="contenu_courrier_recu"]').value = naPrefillCorrespondance.contenuCourrierRecu;
+      if (naPrefillCorrespondance.courrierEntrantId) document.getElementById("correspondance-courrier-entrant-id").value = naPrefillCorrespondance.courrierEntrantId;
+      const infoEl = document.getElementById("correspondance-courrier-info");
+      if (infoEl) {
+        infoEl.textContent = "Champs pré-remplis depuis un courrier reçu — vérifie avant de générer.";
+        infoEl.style.display = "block";
+      }
+      const warningEl = document.getElementById("correspondance-securite-warning");
+      if (warningEl && naPrefillCorrespondance.contenuCourrierRecu) warningEl.style.display = "block";
     }
 
     // ---------- Lot 17 : "Transcrire un document" (3e mode) ----------
@@ -2979,6 +3068,25 @@
         contexte: fd.get("contexte") || undefined,
         precisions: fd.get("precisions") || undefined,
       }, forms.notification_date.querySelector('button[type="submit"]'));
+    });
+
+    forms.correspondance.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const fd = new FormData(forms.correspondance);
+      submitForm("correspondance", {
+        numero_dossier: fd.get("numero_dossier") || undefined,
+        nom_affaire: fd.get("nom_affaire") || undefined,
+        nom_client: fd.get("nom_client") || undefined,
+        nom_avocat: fd.get("nom_avocat") || undefined,
+        adresse_cabinet_manuel: fd.get("adresse_cabinet_manuel") || undefined,
+        destinataire: fd.get("destinataire"),
+        civilite_destinataire: fd.get("civilite_destinataire") || undefined,
+        adresse_destinataire: fd.get("adresse_destinataire") || undefined,
+        objet: fd.get("objet"),
+        contenu_courrier_recu: fd.get("contenu_courrier_recu") || undefined,
+        instructions: fd.get("instructions") || undefined,
+        courrier_entrant_id: fd.get("courrier_entrant_id") || undefined,
+      }, forms.correspondance.querySelector('button[type="submit"]'));
     });
 
     forms.requete.addEventListener("submit", (e) => {

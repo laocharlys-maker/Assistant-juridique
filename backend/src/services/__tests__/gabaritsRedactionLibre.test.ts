@@ -3,9 +3,9 @@ import { TypeAction } from "@prisma/client";
 import { GABARITS_REDACTION_LIBRE, gabaritPour } from "../gabaritsRedactionLibre";
 
 describe("gabaritsRedactionLibre", () => {
-  it("fournit un gabarit non vide pour chacun des 16 types d'action existants", () => {
+  it("fournit un gabarit non vide pour chacun des 17 types d'action existants", () => {
     const types = Object.values(TypeAction);
-    expect(types).toHaveLength(16);
+    expect(types).toHaveLength(17);
     for (const type of types) {
       const gabarit = gabaritPour(type);
       expect(gabarit).toBeTypeOf("string");

@@ -420,6 +420,32 @@ export const notificationDateFormSchema = z.object({
   precisions: z.string().optional(),
 });
 
+// Correspondance libre (Lot "Répondre au courrier", 2026-09-13) - le plus
+// simple des types "rediger" : pas de civilite/juridiction composee, pas de
+// bloc partie adverse.
+export const correspondanceFormSchema = z.object({
+  type_action: z.literal("correspondance"),
+  numero_dossier: z.string().optional(),
+  nom_affaire: z.string().optional(),
+  nom_client: z.string().min(1).optional(),
+  nom_avocat: z.string().optional(),
+  adresse_cabinet_manuel: z.string().optional(),
+  destinataire: z.string().min(1),
+  civilite_destinataire: z.enum(["M.", "Mme", "Mlle"]).optional(),
+  adresse_destinataire: z.string().optional(),
+  objet: z.string().min(1),
+  // Texte du courrier reçu auquel on répond - DEJA relu et anonymisé par
+  // l'utilisateur avant d'arriver ici (voir public/courrier-fiche.js) :
+  // jamais le texte OCR brut non vérifié, contrainte de confidentialité
+  // explicite de ce lot.
+  contenu_courrier_recu: z.string().optional(),
+  instructions: z.string().optional(),
+  // Rattache la reponse au courrier d'origine (module Courriers, Lot 20) -
+  // optionnel : ce type reste utilisable pour une correspondance ordinaire,
+  // sans lien avec aucun courrier receptionne.
+  courrier_entrant_id: z.string().uuid().optional(),
+});
+
 export const requeteFormSchema = z.object({
   type_action: z.literal("requete"),
   numero_dossier: z.string().optional(),
@@ -525,6 +551,7 @@ export const webActionFormSchema = z.discriminatedUnion("type_action", [
   notificationDateFormSchema,
   requeteFormSchema,
   projetOrdonnanceFormSchema,
+  correspondanceFormSchema,
 ]);
 
 export type WebActionForm = z.infer<typeof webActionFormSchema>;

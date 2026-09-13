@@ -78,6 +78,11 @@ export const GABARITS_REDACTION_LIBRE: Record<TypeAction, string> = {
   resume_pdf: "## Résumé\n\n",
   veille_juridique: "## Veille juridique\n\n",
   traduction: "## Traduction\n\n",
+  // Salutation d'ouverture deja produite par le champ destinataire (voir
+  // documentFormalisme.ts, cas "correspondance") - un salut fixe ici en
+  // ferait un second, en double. Seule la formule de politesse de cloture
+  // reste ici, comme pour notification_date/mise_en_demeure ci-dessus.
+  correspondance: `${espace()}\n\n${espace()}\n\n${espace()}\n\n${espace()}\n\nVeuillez agréer, Madame, Monsieur, l'expression de mes salutations distinguées.`,
 };
 
 export function gabaritPour(typeAction: TypeAction): string {

@@ -21,6 +21,7 @@ const REQUIRED_FIELDS_BY_TYPE: Record<ActionOutput["type_action"], (keyof Action
   requete: ["nom_affaire"],
   projet_ordonnance: ["nom_affaire"],
   note_plaidoirie: ["nom_affaire"],
+  correspondance: ["nom_affaire"],
 };
 
 const FIELD_LABELS: Partial<Record<keyof ActionOutput, string>> = {

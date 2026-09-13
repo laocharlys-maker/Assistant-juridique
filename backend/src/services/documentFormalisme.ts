@@ -790,6 +790,38 @@ export function buildFormalisme(
       };
     }
 
+    // Correspondance libre (Lot "Répondre au courrier", 2026-09-13) - meme
+    // gabarit de mise en page que notification_date ci-dessus (en-tete
+    // cabinet, date a droite, bloc destinataire en retrait, objet, signature
+    // en retrait), sans le bloc "mode_notification"/huissier (une simple
+    // correspondance n'est jamais signifiee par exploit).
+    case "correspondance": {
+      const destinataireCorrespondance =
+        s(c, "civilite_nom_destinataire") || s(c, "destinataire");
+      return {
+        avant: bloc(
+          s(c, "nom_cabinet") && `**${s(c, "nom_cabinet")}**`,
+          s(c, "adresse_cabinet") && `**${s(c, "adresse_cabinet")}**`,
+          droite(`${ctx.ville}, le ${ctx.dateLongue}`),
+          espace(),
+          destinataireCorrespondance && retrait(4320, "**À l'attention de :**"),
+          destinataireCorrespondance && retrait(4320, `**${destinataireCorrespondance}**`),
+          s(c, "adresse_destinataire") && retrait(4320, `**${s(c, "adresse_destinataire")}**`),
+          espace(),
+          s(c, "objet") && `**OBJET : ${s(c, "objet")}**`,
+          s(c, "civilite_appel_destinataire")
+        ),
+        apres: bloc(
+          !redactionLibre &&
+            `Veuillez agréer, ${
+              s(c, "civilite_appel_destinataire") ? civiliteLongue(s(c, "civilite_appel_destinataire")) : "Madame, Monsieur,"
+            } l'expression de mes salutations distinguées.`,
+          s(c, "nom_avocat") && retrait(5760, `**Maître ${s(c, "nom_avocat")}**`),
+          retrait(5760, "**Avocat au Barreau du Bénin**")
+        ),
+      };
+    }
+
     default:
       return null;
   }

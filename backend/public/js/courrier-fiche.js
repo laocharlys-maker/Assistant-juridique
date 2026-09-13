@@ -435,42 +435,107 @@
     }
   });
 
-  // --- Repondre au courrier (cree un CourrierSortant lie) ---
+  // --- Repondre au courrier - 3 chemins (2026-09-13) ---
 
   function ouvrirModalRepondre() {
-    const modal = document.getElementById("repondre-modal");
-    const form = modal.querySelector("form");
-    form.objet.value = `Réponse : ${courrier.objet}`;
-    form.destinataire.value = courrier.expediteur || "";
-    modal.hidden = false;
+    document.getElementById("repondre-objet").value = `Réponse : ${courrier.objet}`;
+    document.getElementById("repondre-destinataire").value = courrier.expediteur || "";
+    document.getElementById("repondre-error").textContent = "";
+    document.getElementById("repondre-modal").hidden = false;
   }
 
-  document.getElementById("repondre-form").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const fd = new FormData(e.target);
+  // Texte OCR de la premiere piece REELLE (deja rattachee a un dossier, donc
+  // deja passee par l'OCR existant) attachee a ce courrier - null si aucune
+  // piece, ou si elle n'a pas encore ete traitee. Jamais envoye nulle part
+  // automatiquement : uniquement propose comme point de depart editable
+  // (rédaction libre) ou comme texte a relire/anonymiser (IA) - voir
+  // les deux usages ci-dessous.
+  async function texteOcrDuCourrier() {
+    const piece = (courrier.documents || [])[0];
+    if (!piece) return null;
+    try {
+      const ocr = await apiFetch(`/api/documents/${piece.id}/ocr`);
+      if (ocr && ocr.statut === "termine" && ocr.texteExtrait) return ocr.texteExtrait;
+    } catch {
+      // Pas grave : on continue simplement sans texte de depart.
+    }
+    return null;
+  }
+
+  function champsCommunsRepondre() {
+    return {
+      objet: document.getElementById("repondre-objet").value.trim(),
+      destinataire: document.getElementById("repondre-destinataire").value.trim(),
+    };
+  }
+
+  // Chemin 1 - "Réponse déjà rédigée" : cree la fiche de suivi (CourrierSortant,
+  // numerotee DEP-AAAA-NNNN, liee au courrier d'origine) - le vrai document
+  // (deja ecrit ailleurs) s'ajoute ensuite comme piece jointe sur cette fiche.
+  document.getElementById("repondre-dejaredigee-btn").addEventListener("click", async () => {
+    const { objet, destinataire } = champsCommunsRepondre();
     const errEl = document.getElementById("repondre-error");
     errEl.textContent = "";
+    if (!objet) { errEl.textContent = "L'objet est obligatoire."; return; }
     try {
       const reponse = await apiFetch("/api/courriers-sortants", {
         method: "POST",
-        body: {
-          objet: fd.get("objet"),
-          destinataire: fd.get("destinataire") || undefined,
-          reponseAId: id,
-          dossierId: courrier.dossierId || undefined,
-          clientId: courrier.clientId || undefined,
-        },
+        body: { objet, destinataire: destinataire || undefined, reponseAId: id, dossierId: courrier.dossierId || undefined, clientId: courrier.clientId || undefined },
       });
-      // Confirmation avant redirection - sans ca, rien n'indique clairement
-      // qu'une reponse (nouveau courrier SORTANT) vient d'etre creee : la
-      // page suivante peut sembler "vide" par rapport a celle-ci (moins de
-      // boutons, un brouillon sortant n'ayant pas les memes actions qu'un
-      // courrier entrant).
-      showToastAfterReload(`Réponse créée (${reponse.numero}) — tu es maintenant sur sa fiche.`);
+      showToastAfterReload(`Réponse créée (${reponse.numero}) — ajoute maintenant le document déjà rédigé comme pièce jointe.`);
       window.location.href = `/courrier-fiche.html?type=sortant&id=${reponse.id}`;
     } catch (err) {
       errEl.textContent = err.message;
     }
+  });
+
+  // Chemin 2 - "Rédiger soi-même" : reutilise integralement le flux "Créer
+  // une action" deja existant (memes ecrans, meme lien retour vers ce
+  // courrier) - seule difference, le texte OCR du courrier (s'il existe) est
+  // propose comme point de depart editable en redaction libre, exactement
+  // comme "Copier vers un document en redaction libre" (dossier.html).
+  document.getElementById("repondre-soimeme-btn").addEventListener("click", async () => {
+    const { objet } = champsCommunsRepondre();
+    const errEl = document.getElementById("repondre-error");
+    errEl.textContent = "";
+    if (!objet) { errEl.textContent = "L'objet est obligatoire."; return; }
+    document.getElementById("repondre-modal").hidden = true;
+    const texte = await texteOcrDuCourrier();
+    if (texte) sessionStorage.setItem("aurore_ocr_copie_redaction_libre", JSON.stringify({ texte }));
+    creerAction();
+  });
+
+  // Chemin 3 - "Rédiger avec l'IA" : etape de relecture/anonymisation
+  // obligatoire du texte OCR AVANT tout envoi externe (jamais automatique -
+  // contrainte de confidentialite explicite de ce lot), puis generation via
+  // Nouvelle Action (type "Correspondance"), liee directement a ce courrier.
+  document.getElementById("repondre-ia-btn").addEventListener("click", async () => {
+    const { objet } = champsCommunsRepondre();
+    const errEl = document.getElementById("repondre-error");
+    errEl.textContent = "";
+    if (!objet) { errEl.textContent = "L'objet est obligatoire."; return; }
+    document.getElementById("repondre-modal").hidden = true;
+    const texte = await texteOcrDuCourrier();
+    document.getElementById("repondre-ia-contenu").value = texte || "";
+    document.getElementById("repondre-ia-instructions").value = "";
+    document.getElementById("repondre-ia-relecture-modal").hidden = false;
+  });
+
+  document.getElementById("repondre-ia-continuer-btn").addEventListener("click", () => {
+    const { objet, destinataire } = champsCommunsRepondre();
+    const contenuCourrierRecu = document.getElementById("repondre-ia-contenu").value.trim();
+    const instructions = document.getElementById("repondre-ia-instructions").value.trim();
+    sessionStorage.setItem(
+      "aurore_prefill_correspondance",
+      JSON.stringify({
+        objet,
+        destinataire: destinataire || undefined,
+        contenuCourrierRecu: contenuCourrierRecu || undefined,
+        instructions: instructions || undefined,
+        courrierEntrantId: id,
+      })
+    );
+    window.location.href = "/nouvelle-action.html";
   });
 
   function renderReponses() {

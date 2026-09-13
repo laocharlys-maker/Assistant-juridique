@@ -11,7 +11,7 @@ CREATE TYPE "UserRole" AS ENUM ('titulaire', 'avocat', 'collaborateur', 'super_a
 CREATE TYPE "Canal" AS ENUM ('web', 'whatsapp');
 
 -- CreateEnum
-CREATE TYPE "TypeAction" AS ENUM ('notes', 'redac', 'jurisprudence', 'recherche_juridique', 'conclusions', 'assignation', 'mise_en_demeure', 'traduction', 'resume_pdf', 'veille_juridique', 'plainte', 'contrat', 'notification_date', 'requete', 'projet_ordonnance', 'note_plaidoirie');
+CREATE TYPE "TypeAction" AS ENUM ('notes', 'redac', 'jurisprudence', 'recherche_juridique', 'conclusions', 'assignation', 'mise_en_demeure', 'traduction', 'resume_pdf', 'veille_juridique', 'plainte', 'contrat', 'notification_date', 'requete', 'projet_ordonnance', 'note_plaidoirie', 'correspondance');
 
 -- CreateEnum
 CREATE TYPE "StatutExecution" AS ENUM ('succes', 'erreur');

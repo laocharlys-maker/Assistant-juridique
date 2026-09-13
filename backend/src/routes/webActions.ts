@@ -28,6 +28,7 @@ import {
   NOTIFICATION_DATE_SYSTEM_PROMPT,
   REQUETE_SYSTEM_PROMPT,
   PROJET_ORDONNANCE_SYSTEM_PROMPT,
+  CORRESPONDANCE_SYSTEM_PROMPT,
   buildNotesUserPrompt,
   buildNotesStrategieSuggestionUserPrompt,
   buildRedacUserPrompt,
@@ -42,6 +43,7 @@ import {
   buildNotificationDateUserPrompt,
   buildRequeteUserPrompt,
   buildProjetOrdonnanceUserPrompt,
+  buildCorrespondanceUserPrompt,
 } from "../prompts/webRedaction";
 import { ActionOutput } from "../schemas/action";
 import { searchJurisprudence } from "../services/rag";
@@ -387,6 +389,7 @@ export const ACTION_MODULE_MAP: Partial<Record<WebActionForm["type_action"], str
   notification_date: "action_rediger",
   requete: "action_rediger",
   projet_ordonnance: "action_rediger",
+  correspondance: "action_rediger",
   recherche_juridique: "action_recherche_juridique",
   jurisprudence: "action_recherche_jurisprudence",
   resume_pdf: "action_resume_jurisprudence",
@@ -557,6 +560,13 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
     // Tout type qui manipule un nom de client/partie adverse/destinataire
     // doit passer par redigerAvecPseudonymisation, sans exception.
     let donneesPseudonymisees = false;
+    // Lot "Répondre au courrier" (2026-09-13) : rattache directement l'action
+    // au courrier entrant d'origine des sa creation (evite l'aller-retour
+    // "revenir lier l'action" qu'impose "Créer une action" - inutile ici
+    // puisqu'on connait deja le courrier au moment de la soumission). Reste
+    // undefined pour tout type autre que "correspondance", ou pour une
+    // correspondance ordinaire sans lien avec un courrier reçu.
+    let courrierEntrantIdPourLiaison: string | undefined;
 
     if (form.type_action === "notes") {
       // Lot 5 : nomJuge/nomGreffier/nomPartieAdverse et le nom du client
@@ -1902,6 +1912,86 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
         synthese: null,
         argumentaire: redigé,
       };
+    } else if (form.type_action === "correspondance") {
+      // Lot 5 : seul le destinataire est une donnee identifiante envoyee au
+      // LLM pour ce type - le contenu du courrier recu (contenu_courrier_recu)
+      // n'est PAS passe a redigerAvecPseudonymisation : c'est un texte libre
+      // deja relu et anonymise par l'utilisateur avant soumission (voir
+      // public/courrier-fiche.js et le bandeau d'avertissement affiche a cette
+      // etape) - jamais le texte OCR brut, contrainte de confidentialite
+      // explicite de ce lot (voir prompts/webRedaction.ts, en-tete du prompt).
+      const champsIdentifiantsCorrespondance: ChampIdentifiantInput[] = [
+        { champ: "destinataire", role: "PARTIE", valeur: form.destinataire },
+      ];
+      const { texteFinal: redigeCorrespondance, donneesPseudonymisees: dpCorrespondance } = await redigerAvecPseudonymisation({
+        champsIdentifiants: champsIdentifiantsCorrespondance,
+        promptTexte: buildCorrespondanceUserPrompt({
+          destinataire: form.destinataire,
+          objet: form.objet,
+          contenuCourrierRecu: form.contenu_courrier_recu,
+          instructions: form.instructions,
+        }),
+        redact: (p) => llm.redact(CORRESPONDANCE_SYSTEM_PROMPT, p),
+        typeActionLog: "correspondance",
+      });
+      donneesPseudonymisees = dpCorrespondance;
+      // Verifie l'appartenance au cabinet avant de faire confiance a cet id
+      // fourni par le client (meme garde-fou que POST .../lier-action,
+      // routes/courriers.ts) - ignore silencieusement plutot que d'echouer
+      // toute la generation pour un id invalide/etranger.
+      if (form.courrier_entrant_id) {
+        const courrierALier = await prisma.courrierEntrant.findFirst({
+          where: { id: form.courrier_entrant_id, cabinetId: auth!.cabinetId },
+          select: { id: true },
+        });
+        courrierEntrantIdPourLiaison = courrierALier?.id;
+      }
+
+      const dossierLookupCorrespondance = await findOrCreateDossier({
+        cabinetId: auth!.cabinetId,
+        userId: auth!.userId,
+        numeroDossier: form.numero_dossier,
+        nomAffaire: form.nom_affaire,
+        nomClient: form.nom_client,
+      });
+      if (!dossierLookupCorrespondance.ok) {
+        return res.status(404).json({ error: dossierLookupCorrespondance.error });
+      }
+      const dossierCorrespondance = dossierLookupCorrespondance.dossier;
+      dossierId = dossierCorrespondance.id;
+
+      const cabinetPourAdresseCorrespondance = await prisma.cabinet.findUnique({
+        where: { id: auth!.cabinetId },
+        select: { nom: true, adresse: true },
+      });
+
+      extraWebhookFields = {
+        nom_avocat: form.nom_avocat ?? null,
+        adresse_cabinet: cabinetPourAdresseCorrespondance?.adresse || form.adresse_cabinet_manuel || null,
+        nom_cabinet: cabinetPourAdresseCorrespondance?.nom || null,
+        destinataire: form.destinataire,
+        civilite_destinataire: form.civilite_destinataire ?? null,
+        civilite_nom_destinataire: assemblerCivilite(form.civilite_destinataire ?? null, form.destinataire),
+        civilite_appel_destinataire: civiliteAppel(form.civilite_destinataire),
+        adresse_destinataire: form.adresse_destinataire ?? null,
+        objet: form.objet,
+      };
+
+      action = {
+        type_action: "correspondance",
+        categorie_texte: "Correspondance",
+        numero_dossier: dossierCorrespondance.numeroDossier,
+        nom_affaire: dossierCorrespondance.nomAffaire,
+        nom_client: dossierCorrespondance.nomClient,
+        nom_juridiction: null,
+        nom_chambre: null,
+        date_audience: null,
+        decision: null,
+        prochaine_audience: null,
+        pieces_prevoir: null,
+        synthese: null,
+        argumentaire: redigeCorrespondance,
+      };
     } else if (form.type_action === "requete") {
       const destinataireComposeRequete = composeDestinataire(form.destinataire, form.nom_juridiction, form.ville);
       // Lot 5 : le destinataire compose (peut contenir un nom de
@@ -2187,6 +2277,7 @@ webActionsRouter.post("/api/actions/web", requireAuth, requireModule("nouvelle_a
         nomDocument,
         donneesPseudonymisees,
         createdBy: auth!.userId,
+        courrierEntrantId: courrierEntrantIdPourLiaison,
       },
     });
 

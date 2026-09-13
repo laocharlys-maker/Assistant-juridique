@@ -19,10 +19,11 @@ import { ACTION_MODULE_MAP } from "../webActions";
  */
 
 describe("ACTION_MODULE_MAP - cartographie type_action -> cle de module", () => {
-  it("regroupe les onze actes de redaction sous une seule cle", () => {
+  it("regroupe les douze actes de redaction sous une seule cle", () => {
     const actesRediger = [
       "notes", "redac", "assignation", "conclusions", "note_plaidoirie",
       "mise_en_demeure", "plainte", "contrat", "notification_date", "requete", "projet_ordonnance",
+      "correspondance",
     ] as const;
     for (const acte of actesRediger) {
       expect(ACTION_MODULE_MAP[acte]).toBe("action_rediger");

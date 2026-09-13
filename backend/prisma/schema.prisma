@@ -48,6 +48,10 @@ enum TypeAction {
   requete
   projet_ordonnance
   note_plaidoirie
+  // Lot "Répondre au courrier" (2026-09-13) : correspondance libre (réponse à
+  // un courrier reçu, ou tout autre courrier hors procédure) - le plus
+  // simple des types "rédiger", jamais de civilité/juridiction composée.
+  correspondance
 }
 
 enum StatutExecution {

@@ -16,6 +16,7 @@ export const TYPE_ACTION_VALUES = [
   "requete",
   "projet_ordonnance",
   "note_plaidoirie",
+  "correspondance",
 ] as const;
 
 export const actionOutputSchema = z.object({

@@ -172,6 +172,48 @@ même si le volume de courriers grossit. Widget indépendant sur
 à `loadStats()`), pour ne prendre aucun risque sur le tableau de bord
 existant.
 
+## "Répondre au courrier" — trois façons de rédiger (2026-09-13)
+
+Sur demande explicite, le bouton "Répondre au courrier" propose désormais
+trois chemins, plutôt qu'une simple fiche de suivi vide :
+
+1. **Rédiger avec l'IA** — nouveau type de document `correspondance` dans
+   "Nouvelle Action" (`webActions.ts`, `prompts/webRedaction.ts`,
+   `documentFormalisme.ts`), généré par le LLM déjà configuré (Claude/
+   Gemini/Groq). L'action créée est **automatiquement liée** au courrier
+   d'origine (`Action.courrierEntrantId`), sans repasser par l'étape
+   manuelle "revenir lier l'action" qu'impose "Créer une action".
+2. **Rédiger soi-même** — réutilise **intégralement** le flux existant
+   "Créer une action" (dossier pré-rempli, lien manuel au retour via le
+   sélecteur déjà en place) : aucun code nouveau, juste un pont vers ce qui
+   existait déjà.
+3. **Réponse déjà rédigée** — comportement inchangé (crée la fiche de suivi
+   `CourrierSortant`, le document déjà écrit s'ajoute ensuite comme pièce
+   jointe).
+
+**Point de confidentialité important** : le texte OCR d'un courrier scanné
+n'est **jamais** envoyé automatiquement à un LLM (règle explicite et
+volontaire du projet, voir `schema.prisma`, commentaire sur `OcrResultat`).
+Pour le chemin "Rédiger avec l'IA", une étape de relecture obligatoire
+s'intercale (`courrier-fiche.js`, modale "Avant de continuer") : le texte
+extrait est affiché dans une zone modifiable, avec un avertissement
+explicite demandant de remplacer tout nom/adresse/donnée sensible avant de
+continuer — jamais le texte OCR brut, toujours une version relue et
+volontairement anonymisée par l'utilisateur. Seul le champ "destinataire"
+passe en plus par la pseudonymisation automatique existante
+(`redigerAvecPseudonymisation`, comme tous les autres types "rédiger").
+Pour "Rédiger soi-même", aucun appel LLM n'ayant lieu, ce texte n'est
+qu'un point de départ éditable (même mécanisme que "Copier vers un document
+en rédaction libre", `dossier.html`) — pas de bandeau de sécurité requis
+dans ce cas.
+
+Fichiers concernés en plus de la liste ci-dessous : `prisma/schema.prisma`
+(+migration `20260913000000_correspondance_type_action`), `schemas/action.ts`,
+`schemas/webForms.ts`, `services/gabaritsRedactionLibre.ts`,
+`services/documentFormalisme.ts`, `services/validation.ts`,
+`utils/documentNaming.ts`, `public/nouvelle-action.html`,
+`tests/e2e/correspondance-courrier.test.ts`.
+
 ## Permissions
 
 Nouveau module payant `"courriers"` dans `config/modulesDisponibles.ts` —
