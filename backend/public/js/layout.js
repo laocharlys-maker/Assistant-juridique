@@ -30,7 +30,8 @@ const NAV_ITEMS = [
   { href: "/clients.html", label: "Clients", roles: ["titulaire", "avocat", "collaborateur"], group: "Travail", icon: "clients" },
   { href: "/jurisprudence-base.html", label: "Jurisprudence", roles: ["titulaire", "avocat", "collaborateur"], group: "Travail", icon: "book", moduleKey: "jurisprudence" },
   { href: "/delais-calculateur.html", label: "Délais", roles: ["titulaire", "avocat", "collaborateur"], group: "Travail", icon: "clock", moduleKey: "delais" },
-  { href: "/feuilles-temps.html", label: "Feuilles de temps", roles: ["titulaire", "avocat", "collaborateur"], group: "Travail", icon: "clock", moduleKey: "facturation" },
+  // Decouple de "facturation" le 2026-09-14 : module independant.
+  { href: "/feuilles-temps.html", label: "Feuilles de temps", roles: ["titulaire", "avocat", "collaborateur"], group: "Travail", icon: "clock", moduleKey: "feuilles_temps" },
   { href: "/boite-reception.html", label: "Boîte de réception", roles: ["titulaire", "avocat", "collaborateur"], group: "Travail", icon: "mail" },
   { href: "/courriers.html", label: "Courriers", roles: ["titulaire", "avocat", "collaborateur"], group: "Travail", icon: "mail", moduleKey: "courriers" },
   {
@@ -263,9 +264,10 @@ let headerChronoIntervalId = null;
 async function initHeaderChrono(me) {
   const el = document.getElementById("header-chrono");
   if (!el) return;
-  // Meme module que la facturation (voir routes/saisiesTemps.ts) - inutile
-  // d'interroger une route que ce cabinet n'a pas.
-  if ((me.modulesDesactives || []).includes("facturation")) return;
+  // Module "feuilles_temps" (decouple de "facturation" le 2026-09-14, voir
+  // routes/saisiesTemps.ts) - inutile d'interroger une route que ce cabinet/
+  // compte n'a pas.
+  if ((me.modulesDesactives || []).includes("feuilles_temps")) return;
 
   let chronoActif = null;
 
@@ -358,7 +360,7 @@ async function initHeaderChrono(me) {
 // fermeture reelle, et de toute facon absent en mode navigateur/dev - voir
 // ci-dessous, ce correctif est un no-op silencieux hors Tauri).
 function initFermetureChronoAutoPause(me) {
-  if ((me.modulesDesactives || []).includes("facturation")) return;
+  if ((me.modulesDesactives || []).includes("feuilles_temps")) return;
   // window.__TAURI__ absent en dehors de l'appli desktop (navigateur/dev) -
   // rien a intercepter dans ce cas, comportement inchange.
   if (!(window.__TAURI__ && window.__TAURI__.window)) return;
@@ -396,7 +398,7 @@ function initFermetureChronoAutoPause(me) {
 const CHRONO_RELANCE_SESSION_KEY = "aurore-chrono-relance-verifie";
 
 async function initChronoRelancePopup(me) {
-  if ((me.modulesDesactives || []).includes("facturation")) return;
+  if ((me.modulesDesactives || []).includes("feuilles_temps")) return;
   if (sessionStorage.getItem(CHRONO_RELANCE_SESSION_KEY)) return;
   sessionStorage.setItem(CHRONO_RELANCE_SESSION_KEY, "1");
 

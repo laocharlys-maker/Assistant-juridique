@@ -14,10 +14,13 @@ import {
 
 export const saisiesTempsRouter = Router();
 
-// Meme module que la facturation (le suivi du temps existe avant tout pour
-// alimenter "Facturer ce dossier") - peut etre desactive par la plateforme
-// pour un cabinet dont la formule ne l'inclut pas, comme /api/factures*.
-saisiesTempsRouter.use("/api/saisies-temps", requireAuth, requireModule("facturation"));
+// Decouple de "facturation" le 2026-09-14 (module independant "feuilles_temps") -
+// un collaborateur peut desormais suivre son temps sans avoir acces a
+// Facturation, et inversement. Les routes de routes/factures.ts qui
+// CREENT une facture a partir du temps (POST .../depuis-temps, .../ajouter-temps)
+// restent elles sous "facturation" (une action de facturation, pas de suivi
+// du temps) - jamais dupliquees ici.
+saisiesTempsRouter.use("/api/saisies-temps", requireAuth, requireModule("feuilles_temps"));
 
 function peutVoirTouLeCabinet(role: string | undefined): boolean {
   return role === "titulaire" || role === "avocat";

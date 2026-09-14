@@ -28,6 +28,15 @@ export const MODULES_DISPONIBLES = [
   // coupe toutes les routes /api/courriers* (voir routes/courriers.ts,
   // requireModule("courriers")), meme fonctionnement que "facturation"/"delais".
   "courriers",
+  // Decouple du 2026-09-14 : "Feuilles de temps" (chronometre/saisie du
+  // temps, routes/saisiesTemps.ts) etait jusque-la gouverne par la meme cle
+  // que "facturation" - un collaborateur ne pouvait pas avoir l'un sans
+  // l'autre. Desormais une cle independante, demande explicite du cabinet.
+  // "facturation" reste seule responsable des pages Facturation/Factures
+  // payees (routes/factures.ts) - POST .../depuis-temps et .../ajouter-temps
+  // restent volontairement sous "facturation" (ils CREENT des factures a
+  // partir du temps, action de facturation, pas de suivi du temps).
+  "feuilles_temps",
 ] as const;
 
 export type ModuleDisponible = (typeof MODULES_DISPONIBLES)[number];

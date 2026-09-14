@@ -240,4 +240,45 @@ describe.skipIf(!pgAvailable)("e2e : modules autorisés par collaborateur", () =
     });
     expect(res.status).toBe(200);
   });
+
+  // Decouple du 2026-09-14 : "feuilles_temps" (routes/saisiesTemps.ts) et
+  // "facturation" (routes/factures.ts) sont desormais deux modules
+  // independants - un collaborateur peut avoir l'un sans l'autre.
+  it("un collaborateur peut avoir Feuilles de temps SANS Facturation", async () => {
+    await api(titulaireCookie, `/api/users/${collaborateurId}/modules`, {
+      method: "PATCH",
+      body: JSON.stringify({ modulesDesactives: ["facturation"] }),
+    });
+    try {
+      const saisiesTemps = await api(collaborateurCookie, "/api/saisies-temps/actif");
+      expect(saisiesTemps.status).toBe(200);
+
+      const factures = await api(collaborateurCookie, "/api/factures");
+      expect(factures.status).toBe(403);
+    } finally {
+      await api(titulaireCookie, `/api/users/${collaborateurId}/modules`, {
+        method: "PATCH",
+        body: JSON.stringify({ modulesDesactives: [] }),
+      });
+    }
+  });
+
+  it("un collaborateur peut avoir Facturation SANS Feuilles de temps", async () => {
+    await api(titulaireCookie, `/api/users/${collaborateurId}/modules`, {
+      method: "PATCH",
+      body: JSON.stringify({ modulesDesactives: ["feuilles_temps"] }),
+    });
+    try {
+      const factures = await api(collaborateurCookie, "/api/factures");
+      expect(factures.status).toBe(200);
+
+      const saisiesTemps = await api(collaborateurCookie, "/api/saisies-temps/actif");
+      expect(saisiesTemps.status).toBe(403);
+    } finally {
+      await api(titulaireCookie, `/api/users/${collaborateurId}/modules`, {
+        method: "PATCH",
+        body: JSON.stringify({ modulesDesactives: [] }),
+      });
+    }
+  });
 });

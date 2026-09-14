@@ -1592,10 +1592,10 @@
     function initChronoWidget(me) {
       const card = document.getElementById("na-chrono-card");
       if (!card) return;
-      // Meme module que la facturation (voir routes/saisiesTemps.ts) - si
-      // desactive pour ce cabinet, inutile d'afficher un widget dont chaque
-      // action echouerait.
-      if ((me.modulesDesactives || []).includes("facturation")) {
+      // Module "feuilles_temps" (decouple de "facturation" le 2026-09-14,
+      // voir routes/saisiesTemps.ts) - si desactive pour ce cabinet/compte,
+      // inutile d'afficher un widget dont chaque action echouerait.
+      if ((me.modulesDesactives || []).includes("feuilles_temps")) {
         card.hidden = true;
         return;
       }
