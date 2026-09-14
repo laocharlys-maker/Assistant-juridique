@@ -211,17 +211,13 @@ function initLayout(me) {
   // de page.
   initHeaderChrono(me);
 
-  // Correctif : si le chronomètre est en cours et que la fenêtre Aurore se
-  // ferme, le mettre en pause automatiquement (sinon il resterait "en
-  // cours" indéfiniment côté serveur, source réelle d'erreur de
-  // facturation - le calcul du temps n'est jamais faux, mais rien n'arrête
-  // le compteur tant que personne ne le fait manuellement).
-  initFermetureChronoAutoPause(me);
-
   // Correctif : au prochain lancement, si un chronomètre est resté EN
-  // PAUSE (auto-pause ci-dessus, ou pause manuelle jamais reprise), le
-  // signale une fois par session pour proposer de reprendre ou d'arrêter -
-  // jamais silencieux, pour éviter un temps "oublié" en pause indéfiniment.
+  // PAUSE (pause manuelle jamais reprise, ou appli fermée pendant qu'il
+  // tournait), le signale une fois par session pour proposer de reprendre
+  // ou d'arrêter - jamais silencieux, pour éviter un temps "oublié" en
+  // pause indéfiniment. L'auto-pause à la fermeture elle-même a dû être
+  // retirée (voir initChronoRelancePopup, régression réelle sur le bouton
+  // de fermeture natif de la fenêtre) - ce pop-up reste la seule protection.
   initChronoRelancePopup(me);
 
   // Pop-up "Factures en attente de paiement" - une fois par jour maximum
@@ -348,53 +344,27 @@ async function initHeaderChrono(me) {
   await rafraichir();
 }
 
-// Correctif : met en pause le chronometre EN COURS de l'utilisateur juste
-// avant que la fenetre Aurore (Tauri) ne se ferme reellement - sans ca, un
-// chronometre demarre puis l'appli fermee resterait "en cours" indefiniment
-// cote serveur (voir routes/saisiesTemps.ts, /actif) : le calcul du temps
-// n'est jamais faux en soi (toujours recalcule depuis demarreA), mais rien
-// ne l'arrete tant que personne ne le fait manuellement - source reelle
-// d'erreur de facturation (temps compte largement au-dela du travail
-// effectif). Utilise l'evenement de fermeture natif de la fenetre (jamais
-// window.onbeforeunload : pas fiable pour attendre un appel reseau avant la
-// fermeture reelle, et de toute facon absent en mode navigateur/dev - voir
-// ci-dessous, ce correctif est un no-op silencieux hors Tauri).
-function initFermetureChronoAutoPause(me) {
-  if ((me.modulesDesactives || []).includes("feuilles_temps")) return;
-  // window.__TAURI__ absent en dehors de l'appli desktop (navigateur/dev) -
-  // rien a intercepter dans ce cas, comportement inchange.
-  if (!(window.__TAURI__ && window.__TAURI__.window)) return;
-
-  const appWindow = window.__TAURI__.window.getCurrentWindow();
-
-  // Volontairement PAS de event.preventDefault()/appWindow.close() ici : la
-  // fenetre continue de se fermer normalement, exactement comme avant ce
-  // correctif - seul un appel de mise en pause est tente en best-effort au
-  // moment de la fermeture. Cote Rust (main.rs, on_window_event), l'arret du
-  // sidecar backend laisse deja jusqu'a 10 secondes avant de le tuer
-  // reellement - largement le temps pour cet appel HTTP local (quelques
-  // dizaines de ms) de se terminer. Bloquer la fermeture nous-memes
-  // ajouterait un risque reel (fenetre qui ne se ferme plus si ce code a un
-  // bug) pour un gain marginal - contrainte explicite "il ne faut pas que
-  // ça plante" du correctif demande.
-  appWindow.onCloseRequested(async () => {
-    try {
-      const actif = await apiFetch("/api/saisies-temps/actif");
-      if (actif && actif.demarreA) {
-        await apiFetch(`/api/saisies-temps/${actif.id}/pause`, { method: "POST" });
-      }
-    } catch {
-      // Best-effort : ne doit jamais empecher la fermeture normale de l'appli.
-    }
-  });
-}
+// SUPPRIME le 2026-09-14 (regression reelle constatee : le bouton de
+// fermeture natif de la fenetre - la croix rouge - ne fermait plus du tout
+// l'appli une fois ce correctif en place). Cause probable : le simple fait
+// d'enregistrer un ecouteur onCloseRequested(), meme SANS jamais appeler
+// event.preventDefault(), suffit a empecher la fermeture native tant que
+// l'appli elle-meme ne rappelle pas explicitement appWindow.close() - a
+// l'oppose de ce que documentait le commentaire retire ici. Impossible a
+// verifier dans cet environnement (pas de vrai runtime Tauri disponible) -
+// plutot que de retenter une variante non testable, la fonctionnalite
+// "auto-pause du chronometre a la fermeture" est retiree entierement :
+// aucun risque de reproduire un bug qui empeche de fermer l'appli
+// n'est acceptable, contrainte explicite "il ne faut pas que ça plante".
+// Le reste du correctif (pop-up "chronometre reste en pause" au lancement
+// suivant, voir initChronoRelancePopup ci-dessous) reste actif : il ne
+// touche jamais a la fermeture de la fenetre.
 
 // Correctif : signale, une fois par session applicative (pas a chaque
-// changement de page), un chronometre reste EN PAUSE - typiquement celui
-// que initFermetureChronoAutoPause ci-dessus vient de mettre en pause a la
-// derniere fermeture, mais aussi une pause manuelle jamais reprise. Un
-// chronometre EN COURS au chargement est normal (travail toujours actif) -
-// seule la pause merite cette alerte.
+// changement de page), un chronometre reste EN PAUSE - une pause manuelle
+// jamais reprise, ou une appli fermee (avec la croix rouge, Task Manager...)
+// pendant qu'il tournait. Un chronometre EN COURS au chargement est normal
+// (travail toujours actif) - seule la pause merite cette alerte.
 const CHRONO_RELANCE_SESSION_KEY = "aurore-chrono-relance-verifie";
 
 async function initChronoRelancePopup(me) {
