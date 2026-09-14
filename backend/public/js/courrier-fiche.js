@@ -515,10 +515,46 @@
     errEl.textContent = "";
     if (!objet) { errEl.textContent = "L'objet est obligatoire."; return; }
     document.getElementById("repondre-modal").hidden = true;
-    const texte = await texteOcrDuCourrier();
+    const piece = (courrier.documents || [])[0];
+    const texte = piece ? await texteOcrDuCourrier() : null;
     document.getElementById("repondre-ia-contenu").value = texte || "";
     document.getElementById("repondre-ia-instructions").value = "";
+    const voirScanWrap = document.getElementById("repondre-ia-voir-scan-wrap");
+    const scanPreview = document.getElementById("repondre-ia-scan-preview");
+    scanPreview.hidden = true;
+    scanPreview.innerHTML = "";
+    // Le texte OCR n'a pas toujours la mise en page du document original
+    // (tableaux/colonnes) - propose de voir le scan a cote pour comparer,
+    // plutot que de tenter de "corriger" automatiquement le texte extrait
+    // (risquerait de deformer un contenu que l'utilisateur doit justement
+    // pouvoir relire fidelement avant de l'envoyer a l'IA).
+    voirScanWrap.style.display = piece ? "block" : "none";
+    voirScanWrap.dataset.pieceId = piece ? piece.id : "";
     document.getElementById("repondre-ia-relecture-modal").hidden = false;
+  });
+
+  document.getElementById("repondre-ia-voir-scan-btn").addEventListener("click", async () => {
+    const pieceId = document.getElementById("repondre-ia-voir-scan-wrap").dataset.pieceId;
+    if (!pieceId) return;
+    const previewEl = document.getElementById("repondre-ia-scan-preview");
+    if (!previewEl.hidden) {
+      previewEl.hidden = true;
+      previewEl.innerHTML = "";
+      return;
+    }
+    const piece = (courrier.documents || []).find((p) => p.id === pieceId);
+    try {
+      const response = await fetch(`/api/documents/${pieceId}?inline=1`, { credentials: "include" });
+      if (!response.ok) throw new Error("Aperçu indisponible.");
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      previewEl.innerHTML = piece && piece.typeMime.startsWith("image/")
+        ? `<img src="${url}" style="max-width:100%; border-radius:8px;" />`
+        : `<iframe src="${url}" style="width:100%; height:420px; border:1px solid var(--border); border-radius:8px;"></iframe>`;
+      previewEl.hidden = false;
+    } catch (err) {
+      showError(document.getElementById("repondre-error"), err.message);
+    }
   });
 
   document.getElementById("repondre-ia-continuer-btn").addEventListener("click", () => {
