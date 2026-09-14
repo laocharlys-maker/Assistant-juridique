@@ -43,8 +43,12 @@ const NAV_ITEMS = [
       { href: "/collaborateurs.html?filtre=collaborateur", label: "Collaborateurs" },
     ],
   },
-  { href: "/factures.html", label: "Facturation", roles: ["titulaire", "avocat"], group: "Cabinet", icon: "invoice", moduleKey: "facturation" },
-  { href: "/factures-payees.html", label: "Factures payées", roles: ["titulaire", "avocat"], group: "Cabinet", icon: "invoice", moduleKey: "facturation" },
+  // Reversion du 2026-09-14 : ouvert aux collaborateurs (module "facturation"
+  // deja requis via moduleKey ci-dessous) - seule la validation/emission
+  // d'une facture reste reservee a un avocat/titulaire cote serveur (voir
+  // routes/factures.ts, POST .../envoyer), jamais cote navigation.
+  { href: "/factures.html", label: "Facturation", roles: ["titulaire", "avocat", "collaborateur"], group: "Cabinet", icon: "invoice", moduleKey: "facturation" },
+  { href: "/factures-payees.html", label: "Factures payées", roles: ["titulaire", "avocat", "collaborateur"], group: "Cabinet", icon: "invoice", moduleKey: "facturation" },
   { href: "/veille-juridique.html", label: "Veille juridique", roles: ["titulaire", "avocat"], group: "Cabinet", icon: "radar", moduleKey: "veille_juridique" },
   { href: "/audit-logs.html", label: "Journal d'audit", roles: ["titulaire"], group: "Cabinet", icon: "audit" },
   { href: "/parametres.html", label: "Paramètres", roles: ["titulaire"], group: "Cabinet", icon: "settings" },

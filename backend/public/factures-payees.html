@@ -68,6 +68,11 @@
     const errorEl = document.getElementById("error");
     const listeEl = document.getElementById("liste");
     let facturesCache = [];
+    // Partagee avec renderFacture() ci-dessous (bouton "Retirer" la facture
+    // normalisee, reserve a un avocat/titulaire cote serveur - voir
+    // routes/factures.ts, DELETE .../facture-normalisee) - affectee dans
+    // l'IIFE d'init plus bas.
+    let me = null;
 
     function renderFacture(f) {
       const montantTtc = f.appliquerTva ? Math.round(f.montant * 1.18) : f.montant;
@@ -79,7 +84,7 @@
             <div style="display:flex; gap:8px; flex-wrap:wrap;">
               <button type="button" class="secondary btn-sm" data-apercu-normalisee="${f.id}">Aperçu du PDF</button>
               <button type="button" class="secondary btn-sm" data-modifier-normalisee="${f.id}">Modifier</button>
-              <button type="button" class="danger btn-sm" data-retirer-normalisee="${f.id}">Retirer</button>
+              ${me && (me.role === "titulaire" || me.role === "avocat") ? `<button type="button" class="danger btn-sm" data-retirer-normalisee="${f.id}">Retirer</button>` : ""}
             </div>
             <div id="apercu-normalisee-${f.id}" hidden></div>
           </div>`
@@ -229,14 +234,12 @@
     }
 
     (async () => {
-      const me = await requireSession();
+      me = await requireSession();
       if (!me) return;
       initLayout(me);
-      if (me.role !== "titulaire" && me.role !== "avocat") {
-        document.querySelector(".page").innerHTML =
-          '<p class="error visible">Cette page est réservée aux avocats et à l\'administrateur du cabinet.</p>';
-        return;
-      }
+      // Reversion du 2026-09-14 : ouvert aux collaborateurs (module
+      // "facturation" deja verifie cote serveur) - seul "Retirer" une
+      // facture normalisee reste reserve a un avocat/titulaire (voir plus haut).
       await chargerFactures();
     })();
   </script>

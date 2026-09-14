@@ -52,7 +52,16 @@ const createFactureSchema = z.object({
   dateEcheance: z.string().optional(),
 });
 
-facturesRouter.post("/api/factures", requireAuth, requireAvocat, async (req, res) => {
+// Reversion du 2026-09-14 : Facturation ouverte aux collaborateurs (module
+// "facturation" active pour eux, meme reglage que Feuilles de temps - voir
+// requireModule ci-dessus, applique a TOUTE cette route via le .use()
+// ci-dessus) - seule la "validation"/emission d'une facture (POST
+// .../envoyer, et le statut "envoyee" via PATCH ci-dessous) reste reservee
+// a un avocat/titulaire, demande explicite du cabinet ("le patron valide,
+// le collaborateur peut ensuite tout faire sauf supprimer"). Aucune route
+// de suppression de facture n'existe (seule la facture normalisee peut
+// etre retiree, restee avocat-only ci-dessous).
+facturesRouter.post("/api/factures", requireAuth, async (req, res) => {
   const parsed = createFactureSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "Formulaire invalide", details: parsed.error.issues });
@@ -155,7 +164,7 @@ function calculerLignesTemps(
 // une nouvelle - evite qu'un second "Facturer ce dossier" (ex: apres une
 // seconde session de travail) ne produise deux factures brouillon
 // distinctes pour le meme dossier/client.
-facturesRouter.post("/api/factures/depuis-temps", requireAuth, requireAvocat, async (req, res) => {
+facturesRouter.post("/api/factures/depuis-temps", requireAuth, async (req, res) => {
   const parsed = depuisTempsSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "Formulaire invalide", details: parsed.error.issues });
@@ -272,7 +281,7 @@ facturesRouter.post("/api/factures/depuis-temps", requireAuth, requireAvocat, as
 // creation (ex: la facture a ete emise trop tot, ou du temps a ete
 // enregistre depuis). Refuse sur une facture deja envoyee/payee - une fois
 // partie au client, son contenu ne doit plus bouger tout seul.
-facturesRouter.post("/api/factures/:id/ajouter-temps", requireAuth, requireAvocat, async (req, res) => {
+facturesRouter.post("/api/factures/:id/ajouter-temps", requireAuth, async (req, res) => {
   const facture = await loadFacture(req.params.id, req.auth!.cabinetId);
   if (!facture) {
     return res.status(404).json({ error: "Facture introuvable" });
@@ -346,7 +355,7 @@ const fusionnerSchema = z.object({
   libelles: z.array(z.string().min(1)).min(1),
 });
 
-facturesRouter.post("/api/factures/:id/fusionner-avec", requireAuth, requireAvocat, async (req, res) => {
+facturesRouter.post("/api/factures/:id/fusionner-avec", requireAuth, async (req, res) => {
   const parsed = fusionnerSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "Formulaire invalide", details: parsed.error.issues });
@@ -403,7 +412,7 @@ facturesRouter.post("/api/factures/:id/fusionner-avec", requireAuth, requireAvoc
   return res.json(factureFusionnee);
 });
 
-facturesRouter.get("/api/factures", requireAuth, requireAvocat, async (req, res) => {
+facturesRouter.get("/api/factures", requireAuth, async (req, res) => {
   const dossierId = typeof req.query.dossierId === "string" ? req.query.dossierId : undefined;
 
   const factures = await prisma.facture.findMany({
@@ -435,7 +444,7 @@ facturesRouter.get("/api/factures", requireAuth, requireAvocat, async (req, res)
 // "Factures payées" de rester a jour sans aucune action manuelle
 // supplementaire au moment ou une facture est marquee payee (PATCH
 // /api/factures/:id ci-dessous, inchange).
-facturesRouter.get("/api/factures/payees", requireAuth, requireAvocat, async (req, res) => {
+facturesRouter.get("/api/factures/payees", requireAuth, async (req, res) => {
   const factures = await prisma.facture.findMany({
     where: { cabinetId: req.auth!.cabinetId, statut: "payee" },
     include: {
@@ -499,10 +508,19 @@ const updateFactureSchema = z.object({
   statut: z.enum(["brouillon", "envoyee", "payee"]),
 });
 
-facturesRouter.patch("/api/factures/:id", requireAuth, requireAvocat, async (req, res) => {
+facturesRouter.patch("/api/factures/:id", requireAuth, async (req, res) => {
   const parsed = updateFactureSchema.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: "Statut invalide" });
+  }
+
+  // "Valider"/emettre une facture (brouillon -> envoyee) reste reservee a un
+  // avocat/titulaire - un collaborateur peut tout faire ensuite (notamment
+  // marquer payee), jamais emettre lui-meme. Meme restriction que POST
+  // .../envoyer ci-dessous, pour cette meme transition passee par une autre
+  // route.
+  if (parsed.data.statut === "envoyee" && req.auth!.role === "collaborateur") {
+    return res.status(403).json({ error: "Seul un avocat du cabinet peut valider/émettre une facture." });
   }
 
   const facture = await loadFacture(req.params.id, req.auth!.cabinetId);
@@ -521,7 +539,7 @@ facturesRouter.patch("/api/factures/:id", requireAuth, requireAvocat, async (req
   return res.json(updated);
 });
 
-facturesRouter.get("/api/factures/:id/pdf", requireAuth, requireAvocat, async (req, res) => {
+facturesRouter.get("/api/factures/:id/pdf", requireAuth, async (req, res) => {
   const facture = await loadFacture(req.params.id, req.auth!.cabinetId);
   if (!facture) {
     return res.status(404).json({ error: "Facture introuvable" });
@@ -557,6 +575,10 @@ const envoyerSchema = z.object({
   email: z.string().email(),
 });
 
+// "Valider"/emettre une facture reste reservee a un avocat/titulaire, meme
+// depuis la reversion du 2026-09-14 (Facturation ouverte aux collaborateurs
+// par ailleurs) - c'est le seul point de passage oblige demande par le
+// cabinet ("le patron valide, le collaborateur fait le reste").
 facturesRouter.post("/api/factures/:id/envoyer", requireAuth, requireAvocat, async (req, res) => {
   const parsed = envoyerSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -626,7 +648,7 @@ const factureNormaliseeSchema = z.object({
   fichierDataUrl: z.string().min(1),
 });
 
-facturesRouter.post("/api/factures/:id/facture-normalisee", requireAuth, requireAvocat, async (req, res) => {
+facturesRouter.post("/api/factures/:id/facture-normalisee", requireAuth, async (req, res) => {
   const facture = await loadFacture(req.params.id, req.auth!.cabinetId);
   if (!facture) {
     return res.status(404).json({ error: "Facture introuvable" });
@@ -700,7 +722,7 @@ facturesRouter.post("/api/factures/:id/facture-normalisee", requireAuth, require
   return res.status(201).json(updated);
 });
 
-facturesRouter.get("/api/factures/:id/facture-normalisee", requireAuth, requireAvocat, async (req, res) => {
+facturesRouter.get("/api/factures/:id/facture-normalisee", requireAuth, async (req, res) => {
   const facture = await loadFacture(req.params.id, req.auth!.cabinetId);
   if (!facture || !facture.factureNormaliseeNomFichier) {
     return res.status(404).json({ error: "Aucune facture normalisée attachée." });
@@ -726,6 +748,9 @@ facturesRouter.get("/api/factures/:id/facture-normalisee", requireAuth, requireA
   return res.send(contenu);
 });
 
+// Reste reservee a un avocat/titulaire ("sauf supprimer", demande explicite
+// du cabinet) - la seule suppression possible dans tout ce routeur (aucune
+// route ne supprime une vraie Facture).
 facturesRouter.delete("/api/factures/:id/facture-normalisee", requireAuth, requireAvocat, async (req, res) => {
   const facture = await loadFacture(req.params.id, req.auth!.cabinetId);
   if (!facture) {

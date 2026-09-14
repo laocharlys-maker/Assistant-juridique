@@ -25,6 +25,8 @@ describe.skipIf(!pgAvailable)("e2e : GET /api/factures - tri factures payées/no
   let titulaireCookie: string;
   let cabinetId: string;
   let titulaireId: string;
+  let collaborateurCookie: string;
+  let collaborateurId: string;
 
   beforeAll(async () => {
     if (!pgAvailable) return;
@@ -54,6 +56,19 @@ describe.skipIf(!pgAvailable)("e2e : GET /api/factures - tri factures payées/no
     cabinetId = cabinet.id;
     titulaireId = titulaire.id;
     titulaireCookie = await mintAuthCookie(titulaire.id, cabinet.id, "titulaire");
+
+    const collaborateur = await prisma.user.create({
+      data: {
+        cabinetId,
+        nom: "Collaborateur Facturation",
+        email: "collaborateur-facturation-e2e@test.invalid",
+        motDePasseHash: "x",
+        role: "collaborateur",
+        responsableId: titulaireId,
+      },
+    });
+    collaborateurId = collaborateur.id;
+    collaborateurCookie = await mintAuthCookie(collaborateur.id, cabinetId, "collaborateur");
   });
 
   afterAll(async () => {
@@ -133,5 +148,68 @@ describe.skipIf(!pgAvailable)("e2e : GET /api/factures - tri factures payées/no
     expect(suffixe(f4.numero)).toBeGreaterThan(suffixe(f3.numero));
     expect(f4.numero).not.toBe(f1.numero);
     expect(f4.numero).not.toBe(f3.numero);
+  });
+
+  // Reversion du 2026-09-14 : Facturation ouverte aux collaborateurs (demande
+  // explicite du cabinet - "le patron valide, le collaborateur peut ensuite
+  // tout faire sauf supprimer"). Seule la transition vers "envoyee" (que ce
+  // soit via POST .../envoyer ou PATCH statut=envoyee) reste reservee a un
+  // avocat/titulaire.
+  it("un collaborateur peut créer une facture, la lister et voir son PDF", async () => {
+    const creation = await api(collaborateurCookie, "/api/factures", {
+      method: "POST",
+      body: JSON.stringify({ clientNom: "Client Collaborateur", description: "x", montant: 5000 }),
+    });
+    expect(creation.status).toBe(201);
+    const facture = await creation.json();
+
+    const liste = await api(collaborateurCookie, "/api/factures");
+    expect(liste.status).toBe(200);
+    expect((await liste.json()).some((f: { id: string }) => f.id === facture.id)).toBe(true);
+
+    const pdf = await api(collaborateurCookie, `/api/factures/${facture.id}/pdf`);
+    expect(pdf.status).toBe(200);
+  });
+
+  it("un collaborateur peut marquer une facture payée, mais pas la valider/émettre (ni via /envoyer, ni via PATCH statut=envoyee)", async () => {
+    const creation = await api(collaborateurCookie, "/api/factures", {
+      method: "POST",
+      body: JSON.stringify({ clientNom: "Client Validation", description: "x", montant: 5000 }),
+    });
+    const facture = await creation.json();
+
+    const viaEnvoyer = await api(collaborateurCookie, `/api/factures/${facture.id}/envoyer`, {
+      method: "POST",
+      body: JSON.stringify({ email: "client@test.invalid" }),
+    });
+    expect(viaEnvoyer.status).toBe(403);
+
+    const viaPatch = await api(collaborateurCookie, `/api/factures/${facture.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ statut: "envoyee" }),
+    });
+    expect(viaPatch.status).toBe(403);
+
+    const marquerPayee = await api(collaborateurCookie, `/api/factures/${facture.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ statut: "payee" }),
+    });
+    expect(marquerPayee.status).toBe(200);
+    expect((await marquerPayee.json()).statut).toBe("payee");
+  });
+
+  it("un avocat/titulaire peut toujours valider/émettre une facture normalement", async () => {
+    const creation = await api(titulaireCookie, "/api/factures", {
+      method: "POST",
+      body: JSON.stringify({ clientNom: "Client Titulaire", description: "x", montant: 5000 }),
+    });
+    const facture = await creation.json();
+
+    const res = await api(titulaireCookie, `/api/factures/${facture.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ statut: "envoyee" }),
+    });
+    expect(res.status).toBe(200);
+    expect((await res.json()).statut).toBe("envoyee");
   });
 });
