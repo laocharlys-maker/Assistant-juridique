@@ -56,10 +56,14 @@ function formatDateCourte(date: Date): string {
   return date.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
 }
 
-function formatIntituleSemaine(debut: Date, fin: Date): string {
+// Renomme "Rôle" (sans "de la semaine") le 2026-09-15 : cette periode peut
+// desormais couvrir une semaine, un mois, un trimestre ou des dates
+// personnalisees - le principe d'un tableau par jour reste inchange, voir
+// grouperParJour/grouperEvenementsParJour ci-dessous.
+function formatIntituleRole(debut: Date, fin: Date): string {
   const dernierJour = new Date(fin);
   dernierJour.setUTCDate(dernierJour.getUTCDate() - 1);
-  return `Rôle de la semaine du ${formatDateCourte(debut)} au ${formatDateCourte(dernierJour)}`;
+  return `Rôle du ${formatDateCourte(debut)} au ${formatDateCourte(dernierJour)}`;
 }
 
 function juridictionCellule(a: RoleSemaineAudienceInput): string {
@@ -121,7 +125,7 @@ export async function buildRoleSemainePdf(input: RoleSemaineExportInput): Promis
     }
     doc.moveDown(0.6);
     doc.font("Helvetica-Bold").fontSize(13);
-    centrer(formatIntituleSemaine(input.debut, input.fin));
+    centrer(formatIntituleRole(input.debut, input.fin));
     doc.moveDown(1);
 
     // Largeurs de colonnes calculees a partir de la largeur utile reelle de
@@ -281,7 +285,7 @@ export async function buildRoleSemaineWord(input: RoleSemaineExportInput): Promi
   }
   elements.push(
     new Paragraph({
-      children: [new TextRun({ text: formatIntituleSemaine(input.debut, input.fin), bold: true, size: 26 })],
+      children: [new TextRun({ text: formatIntituleRole(input.debut, input.fin), bold: true, size: 26 })],
       alignment: AlignmentType.CENTER,
       spacing: { after: 300 },
     })

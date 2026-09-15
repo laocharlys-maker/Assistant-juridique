@@ -82,28 +82,67 @@ roleAudiencesRouter.get("/api/role-audiences", requireAuth, async (req, res) => 
   return res.json({ scope, debut: debut.toISOString(), fin: fin.toISOString(), audiences });
 });
 
-// Semaine SUIVANTE par defaut (jamais la semaine en cours) - point de depart
-// demande explicitement : le role de la semaine sert a preparer ce qui vient,
-// jamais ce qui est deja en cours. `debut` (n'importe quelle date de la
-// semaine visee) permet de naviguer vers une autre semaine (navigation
-// avant/arriere cote frontend) - contrairement a l'ancien comportement
-// ("semaine sur-prochaine", disponible seulement du jeudi au dimanche),
-// aucune restriction d'acces par jour de semaine : la navigation manuelle
-// par semaine rend ce garde-fou obsolete, l'avocat choisit lui-meme la
-// semaine qu'il consulte.
-function semaineDepuisRequete(req: { query: { debut?: unknown } }): { debut: Date; fin: Date } {
+// Periode SUIVANTE par defaut (jamais la periode en cours) - point de depart
+// demande explicitement : le role sert a preparer ce qui vient, jamais ce
+// qui est deja en cours. `debut` (n'importe quelle date de la periode visee)
+// permet de naviguer vers une autre periode (navigation avant/arriere cote
+// frontend) - aucune restriction d'acces par jour de semaine : la navigation
+// manuelle rend ce garde-fou obsolete, l'avocat choisit lui-meme la periode
+// qu'il consulte.
+//
+// Generalisee le 2026-09-15 (reversion demandee : la page "Role de la
+// semaine" doit pouvoir afficher une periode plus large) pour accepter
+// `periode` = "semaine" (comportement HISTORIQUE inchange, par defaut si le
+// parametre est absent - retro-compatible avec tout appelant existant),
+// "mois", "trimestre", ou "personnalise" (bornes explicites via `debut`/`fin`).
+// N'affecte jamais calculerPeriode() ci-dessus (route GET /api/role-audiences
+// et /suggestions, structure volontairement laissee telle quelle).
+const DECALAGE_PERIODE_SUIVANTE_JOURS: Record<string, number> = {
+  semaine: 7,
+  mois: 30,
+  trimestre: 90,
+};
+
+function periodeRoleDepuisRequete(req: {
+  query: { debut?: unknown; fin?: unknown; periode?: unknown };
+}): { debut: Date; fin: Date; periode: "semaine" | "mois" | "trimestre" | "personnalise" } {
+  const periodeParam = typeof req.query.periode === "string" ? req.query.periode : "semaine";
+
+  if (periodeParam === "personnalise") {
+    const debutParam = typeof req.query.debut === "string" ? new Date(req.query.debut) : null;
+    const finParam = typeof req.query.fin === "string" ? new Date(req.query.fin) : null;
+    if (debutParam && !Number.isNaN(debutParam.getTime()) && finParam && !Number.isNaN(finParam.getTime())) {
+      return { debut: debutParam, fin: finParam, periode: "personnalise" };
+    }
+    // Bornes manquantes/invalides : repli silencieux sur "semaine" ci-dessous.
+  }
+
+  const periode = periodeParam === "mois" || periodeParam === "trimestre" ? periodeParam : "semaine";
+
   const debutParam = typeof req.query.debut === "string" ? new Date(req.query.debut) : null;
   let reference: Date;
   if (debutParam && !Number.isNaN(debutParam.getTime())) {
     reference = debutParam;
   } else {
     reference = new Date();
-    reference.setUTCDate(reference.getUTCDate() + 7);
+    reference.setUTCDate(reference.getUTCDate() + DECALAGE_PERIODE_SUIVANTE_JOURS[periode]);
   }
+
+  if (periode === "mois") {
+    const debut = new Date(Date.UTC(reference.getUTCFullYear(), reference.getUTCMonth(), 1));
+    const fin = new Date(Date.UTC(reference.getUTCFullYear(), reference.getUTCMonth() + 1, 1));
+    return { debut, fin, periode };
+  }
+  if (periode === "trimestre") {
+    const debut = new Date(Date.UTC(reference.getUTCFullYear(), reference.getUTCMonth(), 1));
+    const fin = new Date(Date.UTC(reference.getUTCFullYear(), reference.getUTCMonth() + 3, 1));
+    return { debut, fin, periode };
+  }
+
   const debut = lundiDeLaSemaine(reference);
   const fin = new Date(debut);
   fin.setUTCDate(fin.getUTCDate() + 7);
-  return { debut, fin };
+  return { debut, fin, periode: "semaine" };
 }
 
 // Meme condition d'acces que GET /api/evenements (routes/evenements.ts,
@@ -134,7 +173,7 @@ roleAudiencesRouter.get("/api/role-audiences/semaine", requireAuth, async (req, 
   const scope = requestedScope === "cabinet" && peutVoirTouLeCabinet(auth!.role) ? "cabinet" : "mine";
   const accessibleAvocatIds = scope === "mine" ? await getAccessibleAvocatIds(auth!) : null;
 
-  const { debut, fin } = semaineDepuisRequete(req);
+  const { debut, fin, periode } = periodeRoleDepuisRequete(req);
 
   const audiences = await prisma.roleAudience.findMany({
     where: {
@@ -149,7 +188,7 @@ roleAudiencesRouter.get("/api/role-audiences/semaine", requireAuth, async (req, 
     orderBy: { dateAudience: "asc" },
   });
 
-  return res.json({ scope, debut: debut.toISOString(), fin: fin.toISOString(), audiences });
+  return res.json({ scope, debut: debut.toISOString(), fin: fin.toISOString(), periode, audiences });
 });
 
 // Types a inclure dans l'export (checkboxes cote frontend, "Tout" pre-coche
@@ -169,7 +208,7 @@ async function exportSemaine(req: Request, res: Response, format: "pdf" | "word"
   const scope = requestedScope === "cabinet" && peutVoirTouLeCabinet(auth!.role) ? "cabinet" : "mine";
   const accessibleAvocatIds = scope === "mine" ? await getAccessibleAvocatIds(auth!) : null;
 
-  const { debut, fin } = semaineDepuisRequete(req);
+  const { debut, fin } = periodeRoleDepuisRequete(req);
   const typesSelectionnes = typesSelectionnesDepuisRequete(req);
   const inclureAudiences = typesSelectionnes.includes("audience");
   const autresTypesSelectionnes = typesSelectionnes.filter((t) => t !== "audience");
@@ -199,7 +238,7 @@ async function exportSemaine(req: Request, res: Response, format: "pdf" | "word"
       : [];
 
   if (audiences.length === 0 && autresEvenements.length === 0) {
-    return res.status(404).json({ error: "Aucun événement à exporter pour cette semaine." });
+    return res.status(404).json({ error: "Aucun événement à exporter pour cette période." });
   }
 
   const cabinet = await prisma.cabinet.findUnique({ where: { id: auth!.cabinetId } });
@@ -223,7 +262,7 @@ async function exportSemaine(req: Request, res: Response, format: "pdf" | "word"
   if (format === "pdf") {
     const buffer = await buildRoleSemainePdf(exportInput);
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", 'attachment; filename="role-de-la-semaine.pdf"');
+    res.setHeader("Content-Disposition", 'attachment; filename="role.pdf"');
     return res.send(buffer);
   }
 
@@ -232,7 +271,7 @@ async function exportSemaine(req: Request, res: Response, format: "pdf" | "word"
     "Content-Type",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
   );
-  res.setHeader("Content-Disposition", 'attachment; filename="role-de-la-semaine.docx"');
+  res.setHeader("Content-Disposition", 'attachment; filename="role.docx"');
   return res.send(buffer);
 }
 

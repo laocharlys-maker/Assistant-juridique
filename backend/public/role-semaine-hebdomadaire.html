@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Aurore — Rôle de la semaine</title>
+  <title>Aurore — Rôle</title>
   <link rel="icon" type="image/png" href="/favicon-256.png" />
   <link rel="stylesheet" href="/style.css" />
   <style>
@@ -29,18 +29,32 @@
   <div class="page">
     <div class="page-hero">
       <div class="eyebrow">Procédure</div>
-      <h1>Rôle de la semaine</h1>
-      <p>Audiences et événements de la semaine consultée — navigue entre les semaines et choisis les types d'événements à afficher.</p>
+      <h1>Rôle</h1>
+      <p>Audiences et événements de la période consultée — choisis la durée (semaine, mois, trimestre, ou dates personnalisées), navigue dans le temps, et choisis les types d'événements à afficher.</p>
     </div>
 
     <div id="error" class="error"></div>
 
     <div class="card" id="semaine-filtres">
       <div class="semaine-nav">
-        <button type="button" class="ghost" id="semaine-precedente-btn">◀ Semaine précédente</button>
-        <span class="semaine-nav-label" id="semaine-nav-label">Semaine…</span>
-        <button type="button" class="ghost" id="semaine-suivante-btn">Semaine suivante ▶</button>
-        <button type="button" class="secondary" id="semaine-reset-btn" style="margin-left:auto;">Revenir à la semaine suivante</button>
+        <select id="periode-select" style="width:auto; margin:0;">
+          <option value="semaine">Semaine</option>
+          <option value="mois">Mois</option>
+          <option value="trimestre">Trimestre</option>
+          <option value="personnalise">Dates personnalisées…</option>
+        </select>
+        <span id="periode-nav-boutons">
+          <button type="button" class="ghost" id="semaine-precedente-btn">◀ Précédent</button>
+          <span class="semaine-nav-label" id="semaine-nav-label">…</span>
+          <button type="button" class="ghost" id="semaine-suivante-btn">Suivant ▶</button>
+        </span>
+        <span id="periode-personnalisee-champs" hidden style="display:flex; align-items:center; gap:8px;">
+          <input type="date" id="personnalise-debut" style="width:auto; margin:0;" />
+          <span class="muted">au</span>
+          <input type="date" id="personnalise-fin" style="width:auto; margin:0;" />
+          <button type="button" class="secondary" id="personnalise-charger-btn" style="margin:0;">Afficher</button>
+        </span>
+        <button type="button" class="secondary" id="semaine-reset-btn" style="margin-left:auto;">Revenir à la période suivante</button>
       </div>
       <div class="semaine-filtres-types" id="semaine-filtres-types"></div>
     </div>
@@ -151,10 +165,14 @@
     }
 
     let dernieresAudiences = [];
-    // Lundi de la semaine actuellement consultee (Date, minuit UTC) - null
+    // Debut de la periode actuellement consultee (Date, minuit UTC) - null
     // tant que la premiere reponse serveur n'est pas arrivee (le serveur
-    // fixe la valeur par defaut : semaine suivante, voir routes/roleAudiences.ts).
+    // fixe la valeur par defaut : periode suivante, voir routes/roleAudiences.ts,
+    // periodeRoleDepuisRequete). Reversion du 2026-09-15 : la periode n'est
+    // plus forcement une semaine, voir periodeCourante/personnaliseFin ci-dessous.
     let semaineDebut = null;
+    let periodeCourante = "semaine"; // "semaine" | "mois" | "trimestre" | "personnalise"
+    let personnaliseFin = null; // uniquement renseigne quand periodeCourante === "personnalise"
     // Types coches - "Tout" par defaut (voir demande explicite).
     let typesSelectionnes = new Set(TYPES_ORDRE);
 
@@ -177,20 +195,42 @@
     }
 
     // Construite au moment du clic (jamais mise en cache) : reflete toujours
-    // la semaine et les types actuellement selectionnes, y compris juste
+    // la periode et les types actuellement selectionnes, y compris juste
     // apres un changement de filtre sans rechargement (voir renderContenu()).
     function urlExport(format) {
-      const debutIso = semaineDebut.toISOString();
-      const types = [...typesSelectionnes].join(",");
-      return `/api/role-audiences/semaine/${format}?debut=${encodeURIComponent(debutIso)}&types=${encodeURIComponent(types)}`;
+      const params = new URLSearchParams();
+      params.set("debut", semaineDebut.toISOString());
+      params.set("periode", periodeCourante);
+      if (periodeCourante === "personnalise" && personnaliseFin) {
+        params.set("fin", personnaliseFin.toISOString());
+      }
+      params.set("types", [...typesSelectionnes].join(","));
+      return `/api/role-audiences/semaine/${format}?${params.toString()}`;
     }
 
-    function majLabelSemaine() {
+    // Dernier jour REELLEMENT couvert (la borne "fin" renvoyee par le
+    // serveur est exclusive, voir routes/roleAudiences.ts) - calcule a partir
+    // de la periode plutot que d'un simple "+6 jours" fixe (valable
+    // uniquement pour "semaine").
+    function dernierJourCouvert() {
+      const fin = new Date(semaineDebut);
+      if (periodeCourante === "mois") { fin.setMonth(fin.getMonth() + 1); }
+      else if (periodeCourante === "trimestre") { fin.setMonth(fin.getMonth() + 3); }
+      else if (periodeCourante === "personnalise" && personnaliseFin) { return new Date(personnaliseFin.getTime() - 86400000); }
+      else { fin.setDate(fin.getDate() + 7); }
+      fin.setDate(fin.getDate() - 1);
+      return fin;
+    }
+
+    function majLabelPeriode() {
       if (!semaineDebut) return;
-      const dernierJour = new Date(semaineDebut);
-      dernierJour.setDate(dernierJour.getDate() + 6);
       const fmt = (d) => d.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
-      document.getElementById("semaine-nav-label").textContent = `Semaine du ${fmt(semaineDebut)} au ${fmt(dernierJour)}`;
+      const dernierJour = dernierJourCouvert();
+      const label =
+        periodeCourante === "mois"
+          ? `Mois de ${semaineDebut.toLocaleDateString("fr-FR", { month: "long", year: "numeric" })}`
+          : `${periodeCourante === "semaine" ? "Semaine" : periodeCourante === "trimestre" ? "Trimestre" : "Période"} du ${fmt(semaineDebut)} au ${fmt(dernierJour)}`;
+      document.getElementById("semaine-nav-label").textContent = label;
     }
 
     let audiencesCourantes = [];
@@ -202,10 +242,21 @@
       const contentEl = document.getElementById("content");
       contentEl.innerHTML = '<p class="muted">Chargement…</p>';
       try {
-        const paramsAudiences = semaineDebut ? `?debut=${encodeURIComponent(semaineDebut.toISOString())}` : "";
-        const dataAudiences = await apiFetch(`/api/role-audiences/semaine${paramsAudiences}`);
+        const params = new URLSearchParams();
+        if (semaineDebut) params.set("debut", semaineDebut.toISOString());
+        params.set("periode", periodeCourante);
+        if (periodeCourante === "personnalise" && personnaliseFin) {
+          params.set("fin", personnaliseFin.toISOString());
+        }
+        const dataAudiences = await apiFetch(`/api/role-audiences/semaine?${params.toString()}`);
 
         semaineDebut = new Date(dataAudiences.debut);
+        // Reflete la periode reellement appliquee par le serveur (utile au
+        // tout premier chargement, ou si "personnalise" est retombe sur
+        // "semaine" faute de bornes valides - voir periodeRoleDepuisRequete).
+        periodeCourante = dataAudiences.periode || periodeCourante;
+        document.getElementById("periode-select").value = periodeCourante;
+        majAffichagePeriode();
         const fin = new Date(dataAudiences.fin);
 
         const dataEvenements = await apiFetch(
@@ -218,7 +269,7 @@
         // jamais duplique via la liste generique des evenements.
         evenementsCourants = dataEvenements.evenements.filter((e) => e.type !== "audience");
 
-        majLabelSemaine();
+        majLabelPeriode();
         renderContenu();
       } catch (err) {
         showError(errorEl, err.message);
@@ -234,7 +285,7 @@
       const evenementsAffiches = evenementsCourants.filter((e) => typesSelectionnes.has(e.type));
 
       if (audiencesAffichees.length === 0 && evenementsAffiches.length === 0) {
-        contentEl.innerHTML = `<div class="card"><p class="muted" style="margin:0;">Aucun événement pour cette semaine, avec les types actuellement sélectionnés.</p></div>`;
+        contentEl.innerHTML = `<div class="card"><p class="muted" style="margin:0;">Aucun événement pour cette période, avec les types actuellement sélectionnés.</p></div>`;
         return;
       }
 
@@ -331,14 +382,14 @@
       // navigation directe.
       document.getElementById("telecharger-pdf-btn").addEventListener("click", async () => {
         try {
-          await downloadFile(urlExport("pdf"), "role-de-la-semaine.pdf");
+          await downloadFile(urlExport("pdf"), "role.pdf");
         } catch (err) {
           showError(document.getElementById("error"), err.message);
         }
       });
       document.getElementById("telecharger-word-btn").addEventListener("click", async () => {
         try {
-          await downloadFile(urlExport("word"), "role-de-la-semaine.docx");
+          await downloadFile(urlExport("word"), "role.docx");
         } catch (err) {
           showError(document.getElementById("error"), err.message);
         }
@@ -348,12 +399,56 @@
       });
     }
 
+    // Affiche soit les boutons Précédent/Suivant (semaine/mois/trimestre),
+    // soit les deux champs de dates (personnalise) - jamais les deux a la
+    // fois.
+    function majAffichagePeriode() {
+      const personnalise = periodeCourante === "personnalise";
+      document.getElementById("periode-nav-boutons").hidden = personnalise;
+      document.getElementById("periode-personnalisee-champs").hidden = !personnalise;
+    }
+
+    document.getElementById("periode-select").addEventListener("change", (e) => {
+      periodeCourante = e.target.value;
+      majAffichagePeriode();
+      if (periodeCourante !== "personnalise") {
+        semaineDebut = null; // repart sur la periode SUIVANTE par defaut, voir backend.
+        chargerSemaine();
+      }
+    });
+
+    document.getElementById("personnalise-charger-btn").addEventListener("click", () => {
+      const debutVal = document.getElementById("personnalise-debut").value;
+      const finVal = document.getElementById("personnalise-fin").value;
+      if (!debutVal || !finVal) {
+        showError(document.getElementById("error"), "Choisis une date de début et une date de fin.");
+        return;
+      }
+      const debut = new Date(`${debutVal}T00:00:00Z`);
+      const fin = new Date(`${finVal}T00:00:00Z`);
+      fin.setUTCDate(fin.getUTCDate() + 1); // borne "fin" exclusive cote serveur - inclut le jour choisi.
+      if (fin <= debut) {
+        showError(document.getElementById("error"), "La date de fin doit être après la date de début.");
+        return;
+      }
+      semaineDebut = debut;
+      personnaliseFin = fin;
+      chargerSemaine();
+    });
+
+    // Pas de decalage fixe : avance/recule d'une periode ENTIERE, quelle
+    // que soit sa duree (7 jours / 1 mois / 3 mois) - jamais pertinent pour
+    // "personnalise" (boutons masques dans ce cas, voir majAffichagePeriode).
     document.getElementById("semaine-precedente-btn").addEventListener("click", () => {
-      semaineDebut.setDate(semaineDebut.getDate() - 7);
+      if (periodeCourante === "mois") semaineDebut.setMonth(semaineDebut.getMonth() - 1);
+      else if (periodeCourante === "trimestre") semaineDebut.setMonth(semaineDebut.getMonth() - 3);
+      else semaineDebut.setDate(semaineDebut.getDate() - 7);
       chargerSemaine();
     });
     document.getElementById("semaine-suivante-btn").addEventListener("click", () => {
-      semaineDebut.setDate(semaineDebut.getDate() + 7);
+      if (periodeCourante === "mois") semaineDebut.setMonth(semaineDebut.getMonth() + 1);
+      else if (periodeCourante === "trimestre") semaineDebut.setMonth(semaineDebut.getMonth() + 3);
+      else semaineDebut.setDate(semaineDebut.getDate() + 7);
       chargerSemaine();
     });
     document.getElementById("semaine-reset-btn").addEventListener("click", () => {

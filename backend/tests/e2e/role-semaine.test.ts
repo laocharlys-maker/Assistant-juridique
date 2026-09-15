@@ -169,4 +169,61 @@ describe.skipIf(!pgAvailable)('e2e : "Rôle de la semaine" (navigation par semai
     const buffer = Buffer.from(await res.arrayBuffer());
     expect(buffer.subarray(0, 2).toString()).toBe("PK");
   });
+
+  // Reversion du 2026-09-15 : periodes plus larges que la semaine, demande
+  // explicite du cabinet. "Garde le principe" (export : toujours un tableau
+  // par jour, jamais de regroupement different) et renomme "Rôle" (plus
+  // "Rôle de la semaine") - voir routes/roleAudiences.ts, periodeRoleDepuisRequete.
+  it("periode=mois renvoie le mois calendaire complet contenant l'audience de test (couvre bien plus que 7 jours)", async () => {
+    const res = await api(`/api/role-audiences/semaine?debut=${encodeURIComponent(lundiSuivant.toISOString())}&periode=mois`);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.periode).toBe("mois");
+    const debut = new Date(body.debut);
+    const fin = new Date(body.fin);
+    expect(debut.getUTCDate()).toBe(1);
+    expect(fin.getUTCDate()).toBe(1);
+    expect((fin.getTime() - debut.getTime()) / (24 * 60 * 60 * 1000)).toBeGreaterThan(27);
+    expect(body.audiences.some((a: { id: string }) => a.id)).toBe(true);
+  });
+
+  it("periode=trimestre couvre 3 mois calendaires", async () => {
+    const res = await api(`/api/role-audiences/semaine?debut=${encodeURIComponent(lundiSuivant.toISOString())}&periode=trimestre`);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.periode).toBe("trimestre");
+    const debut = new Date(body.debut);
+    const fin = new Date(body.fin);
+    const moisEcarts = (fin.getUTCFullYear() - debut.getUTCFullYear()) * 12 + (fin.getUTCMonth() - debut.getUTCMonth());
+    expect(moisEcarts).toBe(3);
+  });
+
+  it("periode=personnalise respecte exactement les bornes debut/fin fournies", async () => {
+    const debutPerso = new Date(Date.UTC(lundiSuivant.getUTCFullYear(), lundiSuivant.getUTCMonth(), 1));
+    const finPerso = new Date(Date.UTC(lundiSuivant.getUTCFullYear(), lundiSuivant.getUTCMonth() + 2, 1));
+    const res = await api(
+      `/api/role-audiences/semaine?periode=personnalise&debut=${encodeURIComponent(debutPerso.toISOString())}&fin=${encodeURIComponent(finPerso.toISOString())}`
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.periode).toBe("personnalise");
+    expect(body.debut).toBe(debutPerso.toISOString());
+    expect(body.fin).toBe(finPerso.toISOString());
+  });
+
+  it("periode=personnalise sans bornes valides retombe proprement sur la semaine (jamais une erreur serveur)", async () => {
+    const res = await api("/api/role-audiences/semaine?periode=personnalise");
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.periode).toBe("semaine");
+  });
+
+  it("l'export PDF fonctionne aussi sur une periode mois/trimestre (même principe : un tableau par jour)", async () => {
+    const res = await api(
+      `/api/role-audiences/semaine/pdf?debut=${encodeURIComponent(lundiSuivant.toISOString())}&periode=mois&types=audience`
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toBe("application/pdf");
+    expect(res.headers.get("Content-Disposition")).toContain("role.pdf");
+  });
 });
