@@ -321,14 +321,15 @@
                   ? `
                 <table class="role-hebdo-table">
                   <thead>
-                    <tr><th colspan="7" class="role-hebdo-date-header">${escapeHtml(formatEnTeteJour(dateJour))}</th></tr>
+                    <tr><th colspan="8" class="role-hebdo-date-header">${escapeHtml(formatEnTeteJour(dateJour))}</th></tr>
                     <tr>
                       <th>Heure</th>
                       <th>Juridiction / Chambre / Procédure</th>
                       <th>Parties</th>
                       <th>Qualité procédurale du client</th>
                       <th>Objet de la procédure</th>
-                      <th>Dernier motif / Diligences</th>
+                      <th>Dernier motif</th>
+                      <th>Diligences</th>
                       <th class="no-print"></th>
                     </tr>
                   </thead>
@@ -342,7 +343,8 @@
                         <td>${escapeHtml(a.parties)}</td>
                         <td>${escapeHtml(a.qualiteProcedurale || "")}</td>
                         <td>${escapeHtml(a.objetProcedure || "")}</td>
-                        <td>${escapeHtml(a.dernierMotif || "")}${a.diligences ? "<br />" + escapeHtml(a.diligences) : ""}</td>
+                        <td>${escapeHtml(a.dernierMotif || "")}</td>
+                        <td>${escapeHtml(a.diligences || "")}</td>
                         <td class="no-print"><button type="button" class="ghost btn-sm" data-modifier="${a.id}">Modifier</button></td>
                       </tr>`
                       )

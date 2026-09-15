@@ -42,7 +42,11 @@ export interface RoleSemaineExportInput {
   autresEvenements: RoleSemaineEvenementInput[];
 }
 
-const COLONNES = ["Heure", "Juridiction / Chambre / Procédure", "Parties", "Qualité procédurale", "Objet de la procédure", "Dernier motif / Diligences"];
+// Separe le 2026-09-15 (correctif demande) : "Dernier motif" et "Diligences"
+// sont deux informations distinctes, fusionnees a tort dans une seule
+// colonne jusque-la - desormais chacune sa propre colonne, comme dans le
+// formulaire de saisie/modification (deja deux champs separes).
+const COLONNES = ["Heure", "Juridiction / Chambre / Procédure", "Parties", "Qualité procédurale", "Objet de la procédure", "Dernier motif", "Diligences"];
 const COLONNES_AUTRES_EVENEMENTS = ["Heure", "Type", "Titre", "Lieu", "Description"];
 
 function formatHeure(date: Date): string {
@@ -68,10 +72,6 @@ function formatIntituleRole(debut: Date, fin: Date): string {
 
 function juridictionCellule(a: RoleSemaineAudienceInput): string {
   return [a.juridiction, a.chambre, a.procedureNumero].filter(Boolean).join("\n");
-}
-
-function motifCellule(a: RoleSemaineAudienceInput): string {
-  return [a.dernierMotif, a.diligences].filter(Boolean).join("\n");
 }
 
 function grouperParJour(audiences: RoleSemaineAudienceInput[]): { date: Date; audiences: RoleSemaineAudienceInput[] }[] {
@@ -131,7 +131,7 @@ export async function buildRoleSemainePdf(input: RoleSemaineExportInput): Promis
     // Largeurs de colonnes calculees a partir de la largeur utile reelle de
     // la page (leur somme doit correspondre exactement, sinon la derniere
     // colonne deborde de la marge droite) - jamais de valeurs codees en dur.
-    const poidsColonnes = [60, 175, 130, 110, 150, 170];
+    const poidsColonnes = [60, 175, 130, 110, 150, 85, 85];
     const poidsTotal = poidsColonnes.reduce((a, b) => a + b, 0);
     const largeurs = poidsColonnes.map((p) => (p / poidsTotal) * usableWidth);
     largeurs[largeurs.length - 1] += usableWidth - largeurs.reduce((a, b) => a + b, 0);
@@ -171,7 +171,7 @@ export async function buildRoleSemainePdf(input: RoleSemaineExportInput): Promis
       for (const a of jour.audiences) {
         if (doc.y > doc.page.height - doc.page.margins.bottom - 60) nouvellePage();
 
-        const valeurs = [formatHeure(a.dateAudience), juridictionCellule(a), a.parties, a.qualiteProcedurale || "", a.objetProcedure || "", motifCellule(a)];
+        const valeurs = [formatHeure(a.dateAudience), juridictionCellule(a), a.parties, a.qualiteProcedurale || "", a.objetProcedure || "", a.dernierMotif || "", a.diligences || ""];
         const rowTop = doc.y;
         const hauteurs = valeurs.map((v, i) => doc.heightOfString(v, { width: largeurs[i] - 8 }));
         const rowHeight = Math.max(...hauteurs) + 10;
@@ -313,7 +313,8 @@ export async function buildRoleSemaineWord(input: RoleSemaineExportInput): Promi
                   docxCell(a.parties),
                   docxCell(a.qualiteProcedurale || ""),
                   docxCell(a.objetProcedure || ""),
-                  docxCell(motifCellule(a)),
+                  docxCell(a.dernierMotif || ""),
+                  docxCell(a.diligences || ""),
                 ],
               })
           ),
