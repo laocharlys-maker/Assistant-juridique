@@ -98,7 +98,7 @@
       if (!me) return;
       initLayout(me);
       renderCurrent(me.signatureUrl);
-      document.getElementById("onglets-actifs-checkbox").checked = me.ongletsActifs !== false;
+      document.getElementById("onglets-actifs-checkbox").checked = me.ongletsActifs === true;
       const form = document.getElementById("profil-form");
       form.querySelector('input[name="email"]').value = me.email || "";
       form.querySelector('input[name="telephone"]').value = me.telephone || "";

@@ -364,12 +364,14 @@ model User {
   // configure (une saisie sans taux n'est pas valorisable, voir
   // services/feuillesTemps.ts).
   tauxHoraireDefaut      Int?      @map("taux_horaire_defaut")
-  // Coquille a onglets (2026-10-06) : CET utilisateur peut desactiver pour
+  // Coquille a onglets (2026-10-06) : CET utilisateur peut activer pour
   // lui-meme l'ouverture des ecrans en onglets persistants (public/js/app-shell.js)
-  // et retrouver la navigation classique (un ecran = une page qui se
-  // recharge) - prefere par certains, purement une preference d'affichage
-  // individuelle, jamais imposee par le cabinet.
-  ongletsActifs          Boolean   @default(true) @map("onglets_actifs")
+  // au lieu de la navigation classique (un ecran = une page qui se
+  // recharge), qui reste le comportement PAR DEFAUT - purement une
+  // preference d'affichage individuelle que chacun active s'il le souhaite
+  // (Mon profil > Affichage), jamais imposee par le cabinet ni activee
+  // d'office.
+  ongletsActifs          Boolean   @default(false) @map("onglets_actifs")
   createdAt              DateTime  @default(now()) @map("created_at")
 
   cabinet             Cabinet        @relation(fields: [cabinetId], references: [id])

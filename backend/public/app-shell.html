@@ -27,13 +27,14 @@
     (async () => {
       const me = await requireSession();
       if (!me) return;
-      // Preference individuelle (profil.html, "Affichage") : un utilisateur
-      // peut desactiver pour lui-meme l'ouverture des ecrans en onglets et
-      // retrouver la navigation classique - dans ce cas la coquille ne se
-      // construit meme pas, on renvoie directement vers l'ecran d'accueil
-      // habituel (meme regle que login.html avant la coquille, voir
-      // auroraPageInitialePourRole dans js/app-shell.js).
-      if (me.ongletsActifs === false) {
+      // Preference individuelle (profil.html, "Affichage") : DESACTIVEE par
+      // defaut (navigation classique) - seul un utilisateur qui l'a
+      // explicitement cochee dans Mon profil passe par la coquille. Dans
+      // tous les autres cas, la coquille ne se construit meme pas, on
+      // renvoie directement vers l'ecran d'accueil habituel (meme regle que
+      // login.html avant la coquille, voir auroraPageInitialePourRole dans
+      // js/app-shell.js).
+      if (me.ongletsActifs !== true) {
         window.location.href = auroraPageInitialePourRole(me.role);
         return;
       }

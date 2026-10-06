@@ -132,7 +132,7 @@ CREATE TABLE "users" (
     "adresse" TEXT,
     "date_arrivee" TIMESTAMP(3),
     "taux_horaire_defaut" INTEGER,
-    "onglets_actifs" BOOLEAN NOT NULL DEFAULT true,
+    "onglets_actifs" BOOLEAN NOT NULL DEFAULT false,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "users_pkey" PRIMARY KEY ("id")
