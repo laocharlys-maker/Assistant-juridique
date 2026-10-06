@@ -186,5 +186,10 @@ window.auroraOuvrirOnglet = function (url) {
 };
 
 function initAuroraOnglets(me) {
+  // Voir style.css, ".main-area.main-area--shell" : limite le display:flex
+  // vertical a la coquille elle-meme, jamais aux autres pages (qui
+  // reutilisent la meme classe ".main-area" sans jamais l'IIFE de
+  // app-shell.js).
+  document.querySelector(".main-area")?.classList.add("main-area--shell");
   window.auroraOuvrirOnglet(auroraPageInitialePourRole(me.role));
 }

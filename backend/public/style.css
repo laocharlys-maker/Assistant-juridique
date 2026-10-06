@@ -594,6 +594,19 @@ button.btn-sm { padding: 7px 14px; font-size: 0.82rem; margin-top: 0; }
 .main-area {
   flex: 1;
   min-width: 0;
+}
+
+/* Coquille a onglets (app-shell.html) UNIQUEMENT (classe ajoutee par
+   js/app-shell.js, jamais presente sur une page normale) - isole le
+   display:flex a la coquille seule. L'avoir mis sur ".main-area" tout
+   court (plutot que cette variante) cassait silencieusement la largeur de
+   TOUTES les autres pages : un flex-item avec "margin:0 auto" (voir .page)
+   se redimensionne a la taille de son CONTENU (plus de stretch sur l'axe
+   transverse) au lieu de s'etirer jusqu'a son max-width - une grille
+   auto-fit (ex: .na-type-grid) perd alors toute largeur definie et
+   retombe sur une seule colonne, quelle que soit la taille de la fenetre -
+   constate concretement sur "Nouvelle action", corrige le 2026-10-06. */
+.main-area.main-area--shell {
   display: flex;
   flex-direction: column;
 }
