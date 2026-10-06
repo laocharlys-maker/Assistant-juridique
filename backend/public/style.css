@@ -100,7 +100,7 @@ body {
 }
 
 .page {
-  max-width: 1100px;
+  max-width: 1440px;
   margin: 0 auto;
   padding: 32px 32px 64px;
 }
@@ -594,6 +594,8 @@ button.btn-sm { padding: 7px 14px; font-size: 0.82rem; margin-top: 0; }
 .main-area {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 header.app-topbar {
@@ -1229,3 +1231,86 @@ h5.md-heading { font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0
 .cal-assignes-list { display: flex; flex-direction: column; gap: 6px; max-height: 160px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; padding: 8px; }
 .cal-assignes-list label { display: flex; align-items: center; gap: 8px; font-weight: 400; margin: 0; }
 .cal-assignes-list input[type="checkbox"] { width: auto; }
+
+/* Coquille a onglets (app-shell.html) - voir js/app-shell.js. Chaque ecran
+   reste charge dans son propre iframe, jamais detruit en changeant d'onglet
+   (le formulaire en cours de remplissage n'est jamais perdu). */
+.tab-shell-page {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.tab-bar {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  padding: 6px 10px 0;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  flex-shrink: 0;
+}
+
+.tab-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 8px 8px 14px;
+  border-radius: 8px 8px 0 0;
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 0.85rem;
+  white-space: nowrap;
+  cursor: pointer;
+  border: 1px solid transparent;
+  border-bottom: none;
+  max-width: 220px;
+  transition: background 0.14s ease, color 0.14s ease;
+}
+.tab-item:hover { color: var(--text); }
+.tab-item.active {
+  background: var(--panel);
+  color: var(--text);
+  font-weight: 600;
+  border-color: var(--border);
+}
+
+.tab-item-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tab-close-btn {
+  border: none;
+  background: none;
+  color: inherit;
+  font-size: 1.05rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 3px;
+  border-radius: 4px;
+  opacity: 0.6;
+}
+.tab-close-btn:hover { opacity: 1; background: var(--sidebar-hover-bg); }
+
+.tab-content {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+.tab-iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: var(--bg);
+}

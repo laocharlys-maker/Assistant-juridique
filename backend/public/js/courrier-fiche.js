@@ -416,7 +416,7 @@
   document.getElementById("ouvrir-nouvelle-action-btn").addEventListener("click", () => {
     if (!courrier.dossierId) return;
     showToastAfterReload("Une fois le document créé, reviens sur ce courrier (menu \"Courriers\") pour le lier.");
-    window.location.href = `/nouvelle-action.html?dossierId=${courrier.dossierId}`;
+    irAPagina(`/nouvelle-action.html?dossierId=${courrier.dossierId}`);
   });
 
   document.getElementById("lier-action-form").addEventListener("submit", async (e) => {
@@ -483,7 +483,7 @@
         body: { objet, destinataire: destinataire || undefined, reponseAId: id, dossierId: courrier.dossierId || undefined, clientId: courrier.clientId || undefined },
       });
       showToastAfterReload(`Réponse créée (${reponse.numero}) — ajoute maintenant le document déjà rédigé comme pièce jointe.`);
-      window.location.href = `/courrier-fiche.html?type=sortant&id=${reponse.id}`;
+      irAPagina(`/courrier-fiche.html?type=sortant&id=${reponse.id}`);
     } catch (err) {
       errEl.textContent = err.message;
     }
@@ -571,7 +571,7 @@
         courrierEntrantId: id,
       })
     );
-    window.location.href = "/nouvelle-action.html";
+    irAPagina("/nouvelle-action.html");
   });
 
   function renderReponses() {

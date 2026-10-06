@@ -132,6 +132,7 @@ CREATE TABLE "users" (
     "adresse" TEXT,
     "date_arrivee" TIMESTAMP(3),
     "taux_horaire_defaut" INTEGER,
+    "onglets_actifs" BOOLEAN NOT NULL DEFAULT true,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "users_pkey" PRIMARY KEY ("id")
@@ -414,6 +415,18 @@ CREATE TABLE "saisies_temps" (
     "updated_at" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "saisies_temps_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "brouillons_formulaire" (
+    "id" TEXT NOT NULL,
+    "user_id" TEXT NOT NULL,
+    "type_action" TEXT NOT NULL,
+    "donnees" JSONB NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "brouillons_formulaire_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -746,6 +759,9 @@ CREATE INDEX "saisies_temps_user_id_idx" ON "saisies_temps"("user_id");
 CREATE INDEX "saisies_temps_facture_id_idx" ON "saisies_temps"("facture_id");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "brouillons_formulaire_user_id_type_action_key" ON "brouillons_formulaire"("user_id", "type_action");
+
+-- CreateIndex
 CREATE INDEX "factures_dossier_id_idx" ON "factures"("dossier_id");
 
 -- CreateIndex
@@ -939,6 +955,9 @@ ALTER TABLE "saisies_temps" ADD CONSTRAINT "saisies_temps_user_id_fkey" FOREIGN 
 
 -- AddForeignKey
 ALTER TABLE "saisies_temps" ADD CONSTRAINT "saisies_temps_facture_id_fkey" FOREIGN KEY ("facture_id") REFERENCES "factures"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "brouillons_formulaire" ADD CONSTRAINT "brouillons_formulaire_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "factures" ADD CONSTRAINT "factures_cabinet_id_fkey" FOREIGN KEY ("cabinet_id") REFERENCES "cabinets"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

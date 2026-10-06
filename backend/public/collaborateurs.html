@@ -255,7 +255,7 @@
 
         listEl.querySelectorAll("[data-voir-activite]").forEach((btn) => {
           btn.addEventListener("click", () => {
-            window.location.href = `/activite-collaborateur.html?id=${btn.dataset.voirActivite}`;
+            irAPagina(`/activite-collaborateur.html?id=${btn.dataset.voirActivite}`);
           });
         });
 

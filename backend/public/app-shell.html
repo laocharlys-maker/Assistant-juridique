@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aurore</title>
+  <link rel="icon" type="image/png" href="/favicon-256.png" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <!--
+    Coquille a onglets : initLayout() (layout.js) a besoin de trouver un
+    unique ".page" a deplacer dans ".main-area", exactement comme sur
+    n'importe quelle autre page - on lui donne donc un ".page" qui contient
+    la barre d'onglets + la zone de contenu, au lieu du contenu habituel
+    d'un ecran. Rien d'autre a changer dans initLayout().
+  -->
+  <div class="page tab-shell-page">
+    <div id="tab-bar" class="tab-bar"></div>
+    <div id="tab-content" class="tab-content"></div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/layout.js"></script>
+  <script src="/js/app-shell.js"></script>
+  <script>
+    (async () => {
+      const me = await requireSession();
+      if (!me) return;
+      // Preference individuelle (profil.html, "Affichage") : un utilisateur
+      // peut desactiver pour lui-meme l'ouverture des ecrans en onglets et
+      // retrouver la navigation classique - dans ce cas la coquille ne se
+      // construit meme pas, on renvoie directement vers l'ecran d'accueil
+      // habituel (meme regle que login.html avant la coquille, voir
+      // auroraPageInitialePourRole dans js/app-shell.js).
+      if (me.ongletsActifs === false) {
+        window.location.href = auroraPageInitialePourRole(me.role);
+        return;
+      }
+      initLayout(me);
+      initAuroraOnglets(me);
+    })();
+  </script>
+</body>
+</html>

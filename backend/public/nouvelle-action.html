@@ -1575,7 +1575,7 @@
           }
           await apiFetch("/api/saisies-temps/demarrer", { method: "POST", body: { dossierId: dossier.id } });
           await chargerChronoWidget();
-          if (window.rafraichirHeaderChrono) window.rafraichirHeaderChrono();
+          auroraRafraichirChronoGlobal();
         } catch (err) {
           errorEl.textContent = err.message;
         }
@@ -1659,6 +1659,133 @@
         document.getElementById("result").style.display = "none";
       });
     });
+
+    // ---------- Brouillons serveur (autosave) ----------
+    // Sauvegarde automatiquement, cote serveur et prive a CE compte (voir
+    // routes/brouillonsFormulaire.ts), le contenu en cours de saisie de
+    // chacun des formulaires de generation IA ci-dessus - en quittant cette
+    // page (meme en fermant completement Aurore) puis en y revenant plus
+    // tard, le formulaire peut etre repris tel qu'il etait laisse. Jamais
+    // restaure automatiquement (voir tenterRestaurationBrouillons plus bas) :
+    // toujours un choix explicite "Reprendre"/"Ignorer", meme principe que
+    // les prefills OCR/correspondance existants sur cette page.
+    function brouillonCapturerEtat(form) {
+      const champs = Array.from(new FormData(form).entries()).filter(([, v]) => typeof v === "string");
+      // Les listes ajoutees dynamiquement (pieces a prevoir, axes de
+      // plaidoirie...) ne sont pas toujours de simples champs nommes - on
+      // sauvegarde/restaure leur HTML tel quel, sans avoir a connaitre le
+      // detail d'implementation de chaque type de formulaire.
+      const listes = {};
+      form.querySelectorAll("ul[id]").forEach((ul) => {
+        listes[ul.id] = ul.innerHTML;
+      });
+      return { champs, listes };
+    }
+
+    function brouillonRestaurerEtat(form, etat) {
+      if (!etat) return;
+      Object.entries(etat.listes || {}).forEach(([id, html]) => {
+        const ul = form.querySelector(`#${CSS.escape(id)}`);
+        if (ul) ul.innerHTML = html;
+      });
+      (etat.champs || []).forEach(([name, value]) => {
+        const field = form.querySelector(`[name="${CSS.escape(name)}"]`);
+        if (field && field.type !== "file") field.value = value;
+      });
+    }
+
+    const brouillonMinuteries = {};
+    function brouillonProgrammerSauvegarde(type) {
+      clearTimeout(brouillonMinuteries[type]);
+      brouillonMinuteries[type] = setTimeout(async () => {
+        const form = forms[type];
+        if (!form) return;
+        const etat = brouillonCapturerEtat(form);
+        // Rien a sauvegarder tant qu'aucun champ texte n'a ete touche - evite
+        // de creer un brouillon fantome des l'ouverture d'un formulaire
+        // jamais rempli.
+        const aDuContenu = etat.champs.some(([, v]) => v && v.trim());
+        if (!aDuContenu) return;
+        try {
+          await apiFetch(`/api/brouillons-formulaire/${type}`, { method: "PUT", body: { donnees: etat } });
+        } catch {
+          // Jamais bloquant - un echec d'autosave ne doit jamais gener la
+          // saisie en cours.
+        }
+      }, 2000);
+    }
+
+    Object.entries(forms).forEach(([type, form]) => {
+      form.addEventListener("input", () => brouillonProgrammerSauvegarde(type));
+    });
+
+    async function brouillonSupprimer(type) {
+      try {
+        await apiFetch(`/api/brouillons-formulaire/${type}`, { method: "DELETE" });
+      } catch {
+        // Jamais bloquant.
+      }
+    }
+
+    async function tenterRestaurationBrouillons() {
+      let liste;
+      try {
+        liste = await apiFetch("/api/brouillons-formulaire");
+      } catch {
+        return;
+      }
+      if (!liste || liste.length === 0) return;
+
+      const banniere = document.createElement("div");
+      banniere.className = "card";
+      banniere.style.cssText = "background:var(--accent-tint); border:1px solid var(--accent); margin-bottom:18px;";
+      banniere.innerHTML = `<strong>Brouillon(s) non terminé(s)</strong><div id="na-brouillons-liste" style="margin-top:10px; display:flex; flex-direction:column; gap:8px;"></div>`;
+      const pageEl = document.querySelector(".page");
+      pageEl.insertBefore(banniere, pageEl.firstChild);
+      const listeEl = banniere.querySelector("#na-brouillons-liste");
+
+      liste.forEach((b) => {
+        const entry = TYPE_CATALOG[b.typeAction];
+        if (!entry) return;
+        const ligne = document.createElement("div");
+        ligne.style.cssText = "display:flex; align-items:center; gap:10px; flex-wrap:wrap;";
+        const label = document.createElement("span");
+        label.textContent = `${entry.icon} ${entry.label}`;
+        const reprendreBtn = document.createElement("button");
+        reprendreBtn.type = "button";
+        reprendreBtn.className = "btn-sm";
+        reprendreBtn.textContent = "Reprendre";
+        const ignorerBtn = document.createElement("button");
+        ignorerBtn.type = "button";
+        ignorerBtn.className = "secondary btn-sm";
+        ignorerBtn.textContent = "Ignorer";
+        ligne.appendChild(label);
+        ligne.appendChild(reprendreBtn);
+        ligne.appendChild(ignorerBtn);
+        listeEl.appendChild(ligne);
+
+        function retirerLigne() {
+          ligne.remove();
+          if (!listeEl.children.length) banniere.remove();
+        }
+
+        reprendreBtn.addEventListener("click", async () => {
+          try {
+            const brouillonComplet = await apiFetch(`/api/brouillons-formulaire/${b.typeAction}`);
+            naGoToForm(b.typeAction);
+            brouillonRestaurerEtat(forms[b.typeAction], brouillonComplet.donnees);
+          } catch (err) {
+            alert(err.message);
+            return;
+          }
+          retirerLigne();
+        });
+        ignorerBtn.addEventListener("click", async () => {
+          await brouillonSupprimer(b.typeAction);
+          retirerLigne();
+        });
+      });
+    }
 
     // ---------- Nouvelle action : accueil / catégories / formulaire ----------
     // Catalogue de tous les types d'actions, regroupes par categorie, pour
@@ -2278,7 +2405,7 @@
         const params = new URLSearchParams({ id: res.dossierId, actionId: res.actionId });
         if (avecEntete) params.set("avecEntete", "1");
         if (avecSignature) params.set("avecSignature", "1");
-        window.location.href = `/dossier.html?${params.toString()}`;
+        irAPagina(`/dossier.html?${params.toString()}`);
       } catch (err) {
         submitBtn.disabled = false;
         showError(naLibreErrorEl, err.message);
@@ -2315,6 +2442,14 @@
       }
       const warningEl = document.getElementById("correspondance-securite-warning");
       if (warningEl && naPrefillCorrespondance.contenuCourrierRecu) warningEl.style.display = "block";
+    }
+
+    // Jamais de restauration de brouillon si on arrive via un pre-remplissage
+    // explicite ci-dessus (OCR/correspondance) - ne jamais ecraser un contenu
+    // tout juste apporte par un bouton clique sur une autre page avec un
+    // brouillon serveur plus ancien.
+    if (!naTexteInitialOcr && !naPrefillCorrespondance) {
+      tenterRestaurationBrouillons();
     }
 
     // ---------- Lot 17 : "Transcrire un document" (3e mode) ----------
@@ -2367,7 +2502,7 @@
         // Renvoie directement sur l'onglet Pieces du dossier : le badge de
         // statut OCR (en_attente -> termine) et le bouton "Copier vers un
         // document en rédaction libre" y sont deja geres (voir dossier.html).
-        window.location.href = `/dossier.html?id=${dossierId}`;
+        irAPagina(`/dossier.html?id=${dossierId}`);
       } catch (err) {
         submitBtn.disabled = false;
         showError(naTranscrireErrorEl, err.message);
@@ -2730,6 +2865,9 @@
           resultDownloadsEl.style.display = "none";
         }
         resultEl.style.display = "block";
+        // Document genere avec succes : le brouillon de saisie n'a plus lieu
+        // d'etre (le resultat reel est maintenant sur la fiche du dossier).
+        brouillonSupprimer(type);
         setButtonLoading(submitButton, false);
         if (submitButton) {
           submitButton.disabled = true;

@@ -218,10 +218,124 @@ async function requireSession() {
     // l'API (voir middleware/requireLicence.ts) - dans ce cas, rediriger
     // vers l'ecran de connexion serait une impasse (le login lui-meme est
     // bloque). Seul l'ecran d'activation permet de sortir de cet etat.
-    window.location.href = err && err.body && err.body.licenceEtat ? "/licence.html" : "/login.html";
+    const cible = err && err.body && err.body.licenceEtat ? "/licence.html" : "/login.html";
+    // Coquille a onglets (app-shell.html) : si cette page tourne dans un
+    // onglet (iframe), une session expiree doit faire sortir TOUTE l'appli,
+    // pas seulement cet onglet - sinon un seul onglet affiche l'ecran de
+    // connexion pendant que les autres restent figes avec une session
+    // perimee. window.parent reste accessible ici (meme origine garantie,
+    // tout est servi par le meme Express - voir app.ts).
+    if (window.parent && window.parent !== window) {
+      window.parent.location.href = cible;
+    } else {
+      window.location.href = cible;
+    }
     return null;
   }
 }
+
+/**
+ * Coquille a onglets : rafraichit le chronometre de l'en-tete apres une
+ * action (demarrer/pause/arreter) declenchee depuis une page chargee DANS un
+ * onglet (dossier.html, nouvelle-action.html via js/timer.js) - le widget
+ * `#header-chrono` et `window.rafraichirHeaderChrono` (layout.js) ne vivent
+ * desormais QUE dans la fenetre de la coquille, plus dans chaque iframe (voir
+ * la garde no-op en tete d'initLayout(), layout.js) - il faut donc viser
+ * window.parent quand on est dans un onglet, jamais sa propre fenetre.
+ */
+function auroraRafraichirChronoGlobal() {
+  const cible = window.parent && window.parent !== window ? window.parent : window;
+  if (typeof cible.rafraichirHeaderChrono === "function") cible.rafraichirHeaderChrono();
+}
+
+// Pages hors coquille (pas de session/pas encore de licence valide) -
+// toujours une vraie navigation top-level meme cliquees depuis l'interieur
+// d'un onglet (ex: bandeau d'expiration de licence) : les ouvrir DANS un
+// onglet laisserait la sidebar/topbar affichees comme si de rien n'etait,
+// trompeur pour un ecran de connexion/activation.
+const PAGES_HORS_COQUILLE = ["/login.html", "/licence.html", "/setup-mode.html", "/welcome-setup.html", "/index.html"];
+
+/**
+ * Coquille a onglets (app-shell.html) : retourne la fenetre qui gere les
+ * onglets (celle qui expose auroraOuvrirOnglet), en se verifiant d'abord
+ * elle-meme avant son parent - ainsi la coquille elle-meme (sa propre
+ * sidebar) et chaque page chargee DANS un onglet utilisent exactement le
+ * meme mecanisme pour naviguer. Retourne null si aucune coquille n'est
+ * presente (page ouverte seule, ex: acces direct par URL) - la navigation
+ * classique prend alors le relais, comportement inchange.
+ */
+function obtenirControleurOnglets() {
+  if (typeof window.auroraOuvrirOnglet === "function") return window;
+  try {
+    if (window.parent && window.parent !== window && typeof window.parent.auroraOuvrirOnglet === "function") {
+      return window.parent;
+    }
+  } catch {
+    // Jamais de probleme cross-origin attendu ici (meme origine garantie),
+    // mais defensif : ne jamais planter une page pour cette detection.
+  }
+  return null;
+}
+
+/**
+ * Navigue vers une autre page de l'appli : ouvre/active un onglet dans la
+ * coquille si elle est presente (jamais de rechargement complet, le travail
+ * en cours dans les AUTRES onglets reste intact), sinon un rechargement
+ * complet classique (comportement inchange quand une page est ouverte
+ * seule, hors coquille). A utiliser a la place de
+ * `window.location.href = "/xxx.html"` pour toute navigation interne
+ * page-a-page (PAS pour sortir de l'appli : login/licence/logout restent de
+ * vraies navigations top-level, voir requireSession() ci-dessus).
+ */
+function irAPagina(url) {
+  const chemin = url.split("?")[0].split("#")[0];
+  if (PAGES_HORS_COQUILLE.includes(chemin)) {
+    // Toujours une vraie navigation top-level (jamais un onglet) - si on est
+    // dans un onglet, fait sortir TOUTE l'appli, pas seulement cet iframe.
+    if (window.parent && window.parent !== window) {
+      window.parent.location.href = url;
+    } else {
+      window.location.href = url;
+    }
+    return;
+  }
+  const controleur = obtenirControleurOnglets();
+  if (controleur) {
+    controleur.auroraOuvrirOnglet(url);
+  } else {
+    window.location.href = url;
+  }
+}
+
+// Intercepte les clics sur les liens internes (`<a href="/xxx.html">`) pour
+// les ouvrir comme un onglet au lieu de recharger toute la page - un seul
+// ecouteur ici couvre TOUTE l'appli (y compris les liens ajoutes
+// dynamiquement en innerHTML par n'importe quelle page), jamais besoin
+// d'editer un lien un par un. Ignore les liens externes (class
+// "lien-externe", deja geres plus haut par ouvrirLienExterne), les
+// mailto/ancres/telechargements, et tout clic modifie (ctrl/cmd/shift/clic
+// du milieu - comportement navigateur standard laisse intact). Si aucune
+// coquille n'est presente (page ouverte seule), ne fait rien : le lien
+// navigue normalement, comportement inchange.
+document.addEventListener("click", (event) => {
+  if (event.defaultPrevented || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) {
+    return;
+  }
+  const lien = event.target.closest("a");
+  if (!lien || lien.classList.contains("lien-externe")) return;
+  if (lien.target === "_blank" || lien.hasAttribute("download")) return;
+  const href = lien.getAttribute("href");
+  if (!href || href.startsWith("#") || href.startsWith("mailto:") || href.startsWith("javascript:")) return;
+  let url;
+  try {
+    url = new URL(href, window.location.href);
+  } catch {
+    return;
+  }
+  if (url.origin !== window.location.origin || !url.pathname.endsWith(".html")) return;
+  event.preventDefault();
+  irAPagina(url.pathname + url.search + url.hash);
+});
 
 function showError(el, message) {
   el.textContent = message;

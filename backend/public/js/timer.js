@@ -174,7 +174,7 @@
     try {
       await apiFetch("/api/saisies-temps/demarrer", { method: "POST", body: { dossierId: dossierIdCourant } });
       await chargerEtat();
-      if (window.rafraichirHeaderChrono) window.rafraichirHeaderChrono();
+      auroraRafraichirChronoGlobal();
     } catch (err) {
       if (errorEl) errorEl.textContent = err.message;
     }
@@ -265,7 +265,7 @@
       document.getElementById("timer-facturer-modal").hidden = true;
       // facturee=1 : la facture existe deja (montant deja calcule cote
       // serveur) - voir factures.html, evite de rouvrir un formulaire vide.
-      window.location.href = `/factures.html?dossierId=${dossierIdCourant}&facturee=1`;
+      irAPagina(`/factures.html?dossierId=${dossierIdCourant}&facturee=1`);
     } catch (err) {
       errorEl.textContent = err.message;
     } finally {

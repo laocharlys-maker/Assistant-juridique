@@ -256,7 +256,7 @@
       try {
         const courrier = await apiFetch(`/api/courriers-${sens}s`, { method: "POST", body });
         modal.hidden = true;
-        window.location.href = `/courrier-fiche.html?type=${sens}&id=${courrier.id}`;
+        irAPagina(`/courrier-fiche.html?type=${sens}&id=${courrier.id}`);
       } catch (err) {
         errEl.textContent = err.message;
       } finally {

@@ -71,6 +71,16 @@ function applyStoredTheme() {
 applyStoredTheme();
 
 function initLayout(me) {
+  // Coquille a onglets (app-shell.html) : quand cette page tourne dans un
+  // onglet (iframe) de la coquille, la sidebar/topbar/tous les pop-ups
+  // (factures, revisions, courriers, veille juridique, chrono reste en
+  // pause) ne doivent se construire QU'UNE FOIS, dans la coquille elle-meme
+  // - jamais une fois par onglet ouvert (sinon autant de sidebars/pop-ups
+  // dupliques que d'onglets). La coquille, elle, n'est PAS dans un iframe
+  // (window.parent === window) et continue d'appeler initLayout()
+  // normalement - voir obtenirControleurOnglets() dans api.js.
+  if (window.parent && window.parent !== window) return;
+
   const oldHeader = document.querySelector("header.topbar");
   if (oldHeader) oldHeader.remove();
 
@@ -859,6 +869,6 @@ function afficherPopupVeilleJuridique(digest) {
 
   overlay.querySelector("#veille-juridique-plus-tard-btn").addEventListener("click", () => overlay.remove());
   overlay.querySelector("#veille-juridique-lire-btn").addEventListener("click", () => {
-    window.location.href = `/dossier.html?id=${digest.dossierId}`;
+    irAPagina(`/dossier.html?id=${digest.dossierId}`);
   });
 }

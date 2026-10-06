@@ -44,6 +44,7 @@ import { transcriptionDocumentRouter } from "./routes/transcriptionDocument";
 import { emailIngestionRouter } from "./routes/emailIngestion";
 import { huissiersRouter } from "./routes/huissiers";
 import { courriersRouter } from "./routes/courriers";
+import { brouillonsFormulaireRouter } from "./routes/brouillonsFormulaire";
 import { adminRouter } from "./routes/admin";
 import { licenceRouter } from "./routes/licence";
 import { networkInfoRouter } from "./routes/networkInfo";
@@ -117,6 +118,7 @@ app.use(transcriptionDocumentRouter);
 app.use(emailIngestionRouter);
 app.use(huissiersRouter);
 app.use(courriersRouter);
+app.use(brouillonsFormulaireRouter);
 app.use(adminRouter);
 app.use(
   express.static(path.join(__dirname, "..", "public"), {

@@ -367,7 +367,7 @@
         // Point de depart editable, jamais une creation automatique - meme
         // mecanisme que dossier.html.
         sessionStorage.setItem("aurore_ocr_copie_redaction_libre", JSON.stringify({ texte }));
-        window.location.href = "/nouvelle-action.html";
+        irAPagina("/nouvelle-action.html");
       });
       document.getElementById("ocr-modal-pdf").addEventListener("click", async () => {
         if (!ocrModalDocumentId) return;

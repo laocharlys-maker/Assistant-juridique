@@ -264,6 +264,7 @@ authRouter.get("/api/auth/me", requireAuth, async (req, res) => {
       adresse: true,
       dateArrivee: true,
       modulesDesactives: true,
+      ongletsActifs: true,
       responsable: { select: { nom: true, signatureUrl: true } },
       cabinet: { select: { modulesDesactives: true } },
     },

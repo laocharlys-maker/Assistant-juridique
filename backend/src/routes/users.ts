@@ -414,6 +414,26 @@ usersRouter.patch("/api/users/me/veille", requireAuth, requireAvocat, async (req
   return res.json({ ok: true });
 });
 
+// Coquille a onglets (2026-10-06) : preference purement individuelle,
+// ouverte a tous les roles (titulaire/avocat/collaborateur), contrairement a
+// recoitVeille ci-dessus - jamais restreinte par requireAvocat.
+const ongletsActifsSchema = z.object({
+  actif: z.boolean(),
+});
+
+usersRouter.patch("/api/users/me/onglets", requireAuth, async (req, res) => {
+  const parsed = ongletsActifsSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Requête invalide" });
+  }
+
+  await prisma.user.update({
+    where: { id: req.auth!.userId },
+    data: { ongletsActifs: parsed.data.actif },
+  });
+  return res.json({ ok: true });
+});
+
 // Desactive (ou reactive) un compte : reserve a l'admin. Bloque la
 // connexion et invalide immediatement toute session en cours (verifie a
 // chaque requete par requireAuth), sans toucher a l'historique du compte

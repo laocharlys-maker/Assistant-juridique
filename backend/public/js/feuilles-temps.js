@@ -216,7 +216,7 @@ async function confirmerFacturer() {
     document.getElementById("feuilles-facturer-modal").hidden = true;
     // facturee=1 : la facture existe deja (montant deja calcule cote
     // serveur) - voir factures.html, evite de rouvrir un formulaire vide.
-    window.location.href = `/factures.html?dossierId=${dossierId}&facturee=1`;
+    irAPagina(`/factures.html?dossierId=${dossierId}&facturee=1`);
   } catch (err) {
     errorEl.textContent = err.message;
   } finally {

@@ -8,7 +8,7 @@
     (async () => {
       try {
         await apiFetch("/api/auth/me");
-        window.location.href = "/dashboard.html";
+        window.location.href = "/app-shell.html";
       } catch {
         window.location.href = "/login.html";
       }

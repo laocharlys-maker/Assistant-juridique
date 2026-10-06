@@ -364,6 +364,12 @@ model User {
   // configure (une saisie sans taux n'est pas valorisable, voir
   // services/feuillesTemps.ts).
   tauxHoraireDefaut      Int?      @map("taux_horaire_defaut")
+  // Coquille a onglets (2026-10-06) : CET utilisateur peut desactiver pour
+  // lui-meme l'ouverture des ecrans en onglets persistants (public/js/app-shell.js)
+  // et retrouver la navigation classique (un ecran = une page qui se
+  // recharge) - prefere par certains, purement une preference d'affichage
+  // individuelle, jamais imposee par le cabinet.
+  ongletsActifs          Boolean   @default(true) @map("onglets_actifs")
   createdAt              DateTime  @default(now()) @map("created_at")
 
   cabinet             Cabinet        @relation(fields: [cabinetId], references: [id])
@@ -405,6 +411,10 @@ model User {
   // Lot 14 : temps enregistre par CET utilisateur (chronometre ou saisie
   // manuelle).
   saisiesTemps SaisieTemps[]
+
+  // Brouillons autosauvegardes (2026-10-06) : voir BrouillonFormulaire plus
+  // bas.
+  brouillonsFormulaire BrouillonFormulaire[]
 
   // Lot 15 : pieces uploadees par CET utilisateur.
   documentsUploades DocumentDossier[]
@@ -1064,6 +1074,29 @@ model SaisieTemps {
   @@index([userId])
   @@index([factureId])
   @@map("saisies_temps")
+}
+
+// Autosauvegarde serveur (2026-10-06) des formulaires longs de "Nouvelle
+// action" (public/nouvelle-action.html) - prive a CHAQUE utilisateur (jamais
+// visible par un autre compte, meme du meme cabinet), pour retrouver un
+// formulaire en cours de redaction (ex: un compte-rendu d'audience) meme
+// apres avoir quitte la page ou ferme completement Aurore. Un seul brouillon
+// par utilisateur et par type de formulaire (typeAction) : reprendre ou
+// ignorer explicitement, jamais de cumul silencieux. Separe du concept de
+// "brouillon" existant sur Action.statut (StatutAction.brouillon, un
+// document DEJA genere, pas un formulaire en cours de saisie).
+model BrouillonFormulaire {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  typeAction String   @map("type_action")
+  donnees    Json
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, typeAction])
+  @@map("brouillons_formulaire")
 }
 
 model Facture {
