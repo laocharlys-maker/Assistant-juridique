@@ -280,6 +280,18 @@ dossiersRouter.get("/api/dossiers/:id", requireAuth, async (req, res) => {
           },
         },
       },
+      // Courriers rattaches a ce dossier (2026-10-07) - un courrier redige
+      // avec un dossier concerne doit se retrouver DANS ce dossier, pas
+      // seulement dans la liste generale "Courriers" (voir public/courriers.html,
+      // qui elle montre toujours tous les courriers, lies ou non).
+      courriersEntrants: {
+        orderBy: { dateReception: "desc" },
+        select: { id: true, numero: true, objet: true, expediteur: true, statut: true, dateReception: true },
+      },
+      courriersSortants: {
+        orderBy: { createdAt: "desc" },
+        select: { id: true, numero: true, objet: true, destinataire: true, statut: true, createdAt: true },
+      },
     },
   });
 

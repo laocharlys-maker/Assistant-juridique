@@ -294,8 +294,11 @@
           <h2>Historique (${dossier.actions.length})</h2>
           <div id="actions-list"></div>
           <div id="agenda-section"></div>
+          <div id="courriers-section"></div>
           <div id="pieces-section"></div>
         `;
+
+        renderCourriersSection(dossier);
 
         if (!currentDossierEstRecherche) {
           initTimerWidget(id, me);
@@ -755,6 +758,41 @@
         boutons.push(`<button type="button" class="ghost btn-sm" data-ocr-relancer="${document.id}">Lancer la reconnaissance</button>`);
       }
       return boutons.join("");
+    }
+
+    // Courriers rattaches a ce dossier (2026-10-07) - un courrier redige
+    // (IA ou redaction libre) avec ce dossier concerne doit se retrouver
+    // ICI, pas seulement dans la liste generale "Courriers" (voir
+    // routes/dossiers.ts, GET /api/dossiers/:id qui inclut maintenant
+    // courriersEntrants/courriersSortants).
+    function renderCourriersSection(dossier) {
+      const section = document.getElementById("courriers-section");
+      if (!section) return;
+      const entrants = dossier.courriersEntrants || [];
+      const sortants = dossier.courriersSortants || [];
+      if (entrants.length === 0 && sortants.length === 0) {
+        section.innerHTML = "";
+        return;
+      }
+
+      const ligneEntrant = (c) => `
+        <a class="action-item" href="/courrier-fiche.html?type=entrant&id=${c.id}" style="display:block; text-decoration:none; color:inherit;">
+          <span class="tag">${escapeHtml(c.numero)}</span>
+          <span class="muted">Reçu</span>
+          <div>${escapeHtml(c.objet)}${c.expediteur ? " — " + escapeHtml(c.expediteur) : ""}</div>
+        </a>`;
+      const ligneSortant = (c) => `
+        <a class="action-item" href="/courrier-fiche.html?type=sortant&id=${c.id}" style="display:block; text-decoration:none; color:inherit;">
+          <span class="tag">${escapeHtml(c.numero)}</span>
+          <span class="muted">Envoyé</span>
+          <div>${escapeHtml(c.objet)}${c.destinataire ? " — " + escapeHtml(c.destinataire) : ""}</div>
+        </a>`;
+
+      section.innerHTML = `
+        <div class="card">
+          <h2 style="margin-top:0;">Courriers (${entrants.length + sortants.length})</h2>
+          ${[...entrants.map(ligneEntrant), ...sortants.map(ligneSortant)].join("") || '<p class="muted">Aucun courrier rattaché à ce dossier.</p>'}
+        </div>`;
     }
 
     let piecesDossierCourant = [];
