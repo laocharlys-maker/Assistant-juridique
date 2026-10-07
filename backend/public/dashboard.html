@@ -434,7 +434,10 @@
       const me = await requireSession();
       if (!me) return;
       initLayout(me);
-      document.getElementById("greeting").textContent = `Bienvenue ${me.nom}`;
+      // "Maître" uniquement pour un avocat/titulaire - jamais pour un
+      // collaborateur (meme regle que tableau-de-bord.html).
+      const nomAffiche = me.role === "titulaire" || me.role === "avocat" ? `Maître ${me.nom}` : me.nom;
+      document.getElementById("greeting").textContent = `Bienvenue ${nomAffiche}`;
       wireOcrModal();
 
       currentUserRole = me.role;

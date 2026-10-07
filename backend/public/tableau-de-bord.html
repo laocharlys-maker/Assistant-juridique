@@ -359,7 +359,10 @@
       if (!me) return;
       initLayout(me);
 
-      document.getElementById("greeting").textContent = `${formuleSalut()}, ${me.nom}`;
+      // "Maître" uniquement pour un avocat/titulaire - jamais pour un
+      // collaborateur (pas encore avocat lui-meme).
+      const nomAffiche = me.role === "titulaire" || me.role === "avocat" ? `Maître ${me.nom}` : me.nom;
+      document.getElementById("greeting").textContent = `${formuleSalut()}, ${nomAffiche}`;
       document.getElementById("date-eyebrow").textContent = formatDateLongue(new Date());
 
       // Un collaborateur n'a pas de bascule de vue : il ne voit que le
