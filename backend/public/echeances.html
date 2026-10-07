@@ -82,14 +82,14 @@
           .join("");
 
         listEl.querySelectorAll("[data-supprimer]").forEach((btn) => {
-          btn.addEventListener("click", async () => {
-            if (!confirm("Supprimer ce délai dépassé ? Cette action est irréversible.")) return;
-            try {
-              await apiFetch(`/api/delais/${btn.dataset.supprimer}`, { method: "DELETE" });
-              await loadEcheances();
-            } catch (err) {
-              showError(document.getElementById("error"), err.message);
-            }
+          btn.addEventListener("click", () => {
+            confirmerSuppression({
+              message: "Supprimer ce délai dépassé ? Cette action est irréversible.",
+              onConfirm: async () => {
+                await apiFetch(`/api/delais/${btn.dataset.supprimer}`, { method: "DELETE" });
+                await loadEcheances();
+              },
+            });
           });
         });
       } catch (err) {

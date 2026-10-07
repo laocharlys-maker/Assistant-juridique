@@ -210,6 +210,51 @@ async function apiFetch(path, options = {}) {
   return data;
 }
 
+/**
+ * Modal de confirmation generique AVANT toute suppression - jamais un
+ * window.confirm() natif (pas de bouton stylé, texte impose par le
+ * navigateur) ni une suppression en un clic. Meme pattern de modale que le
+ * reste de l'app (voir layout.js, afficherPopupChronoRelance) : overlay
+ * cree dynamiquement, retire du DOM en annulant ou apres succes.
+ *
+ * `message` peut contenir du HTML (ex: un nom en <strong>) - c'est a
+ * l'appelant d'echapper toute donnee variable qu'il y insere (meme
+ * responsabilite que partout ailleurs dans l'app, voir escapeHtml par
+ * page). `onConfirm` peut etre async et lancer une erreur : elle s'affiche
+ * DANS la modale (jamais une alert()), qui ne se ferme qu'apres un
+ * `onConfirm()` reussi.
+ */
+function confirmerSuppression({ titre = "Confirmer la suppression", message, boutonLabel = "Supprimer définitivement", onConfirm }) {
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay";
+  overlay.innerHTML = `
+    <div class="modal-box">
+      <h2>${titre}</h2>
+      <p>${message}</p>
+      <p class="error" id="confirmer-suppression-error"></p>
+      <div style="display:flex; gap:10px; margin-top:18px;">
+        <button type="button" class="secondary" id="confirmer-suppression-annuler-btn">Annuler</button>
+        <button type="button" class="danger" id="confirmer-suppression-valider-btn">${boutonLabel}</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  const errEl = overlay.querySelector("#confirmer-suppression-error");
+  const validerBtn = overlay.querySelector("#confirmer-suppression-valider-btn");
+  overlay.querySelector("#confirmer-suppression-annuler-btn").addEventListener("click", () => overlay.remove());
+  validerBtn.addEventListener("click", async () => {
+    hideError(errEl);
+    validerBtn.disabled = true;
+    try {
+      await onConfirm();
+      overlay.remove();
+    } catch (err) {
+      validerBtn.disabled = false;
+      showError(errEl, err.message);
+    }
+  });
+}
+
 async function requireSession() {
   try {
     return await apiFetch("/api/auth/me");

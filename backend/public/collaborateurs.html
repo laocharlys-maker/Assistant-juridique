@@ -275,19 +275,24 @@
         });
 
         listEl.querySelectorAll("[data-toggle-access]").forEach((btn) => {
-          btn.addEventListener("click", async () => {
+          btn.addEventListener("click", () => {
             const collaborateurId = btn.dataset.toggleAccess;
             const granted = btn.dataset.granted === "true";
-            try {
-              if (granted) {
-                await apiFetch(`/api/users/access-grants/${collaborateurId}`, { method: "DELETE" });
-              } else {
-                await apiFetch("/api/users/access-grants", { method: "POST", body: { collaborateurId } });
-              }
-              loadUsers();
-            } catch (err) {
-              showError(document.getElementById("error"), err.message);
+            if (!granted) {
+              apiFetch("/api/users/access-grants", { method: "POST", body: { collaborateurId } })
+                .then(loadUsers)
+                .catch((err) => showError(document.getElementById("error"), err.message));
+              return;
             }
+            confirmerSuppression({
+              titre: "Retirer cet accès ?",
+              message: "Ce collaborateur n'aura plus accès à vos dossiers (vous pourrez le redonner à tout moment).",
+              boutonLabel: "Retirer l'accès",
+              onConfirm: async () => {
+                await apiFetch(`/api/users/access-grants/${collaborateurId}`, { method: "DELETE" });
+                loadUsers();
+              },
+            });
           });
         });
 

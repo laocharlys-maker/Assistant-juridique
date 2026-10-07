@@ -95,10 +95,14 @@ function initDelaisTypesPanel(container) {
         });
       });
       listEl.querySelectorAll("[data-delete]").forEach((btn) => {
-        btn.addEventListener("click", async () => {
-          if (!confirm("Supprimer ce type de délai du référentiel ?")) return;
-          await apiFetch(`/api/delais-types/${btn.dataset.delete}`, { method: "DELETE" });
-          loadTypes();
+        btn.addEventListener("click", () => {
+          confirmerSuppression({
+            message: "Supprimer ce type de délai du référentiel ?",
+            onConfirm: async () => {
+              await apiFetch(`/api/delais-types/${btn.dataset.delete}`, { method: "DELETE" });
+              loadTypes();
+            },
+          });
         });
       });
     } catch (err) {

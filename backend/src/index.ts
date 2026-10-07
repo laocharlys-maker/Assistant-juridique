@@ -501,6 +501,12 @@ async function main() {
     // reste disponible des le depassement, sans attendre ces 3 jours.
     const { scheduleSuppressionDelaisExpires } = await import("./jobs/suppressionDelaisExpires");
     scheduleSuppressionDelaisExpires();
+
+    // Corbeille (2026-10-07) : purge definitive des dossiers/clients/
+    // documents generes en corbeille depuis plus de 30 jours - une fois par
+    // jour, independant du mode de base de donnees.
+    const { schedulePurgeCorbeille } = await import("./jobs/purgeCorbeille");
+    schedulePurgeCorbeille();
   } catch (error) {
     if (stopPortableDatabase) {
       console.error("Echec du demarrage apres l'ouverture de Postgres portable - arret de Postgres avant de quitter...");

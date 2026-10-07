@@ -76,16 +76,16 @@ async function verifierMaintenant(id, bouton) {
   }
 }
 
-async function deconnecter(id) {
-  if (!confirm("Déconnecter cette boîte mail ? Les pièces déjà importées et les événements déjà créés dans Aurore ne sont jamais affectés — seule la récupération future de nouveaux emails s'arrête.")) {
-    return;
-  }
-  try {
-    await apiFetch(`/api/email-ingestion/${id}`, { method: "DELETE" });
-    await chargerStatuts();
-  } catch (err) {
-    showError(document.getElementById("error"), err.message);
-  }
+function deconnecter(id) {
+  confirmerSuppression({
+    titre: "Déconnecter cette boîte mail ?",
+    message: "Les pièces déjà importées et les événements déjà créés dans Aurore ne sont jamais affectés — seule la récupération future de nouveaux emails s'arrête.",
+    boutonLabel: "Déconnecter",
+    onConfirm: async () => {
+      await apiFetch(`/api/email-ingestion/${id}`, { method: "DELETE" });
+      await chargerStatuts();
+    },
+  });
 }
 
 async function chargerStatuts() {

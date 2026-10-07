@@ -119,6 +119,7 @@
         <div style="display:flex; gap:10px; margin-top:18px;">
           <button type="button" id="detail-modifier-btn">Modifier</button>
           <button type="button" class="secondary" id="detail-close-btn">Fermer</button>
+          <button type="button" class="danger" id="detail-supprimer-btn" style="margin-left:auto;">Supprimer ce client</button>
         </div>
       </div>
       <div id="detail-edit" style="display:none;">
@@ -324,6 +325,7 @@
       document.getElementById("detail-fields").innerHTML =
         rows || '<p class="muted">Aucune information complémentaire renseignée pour ce client.</p>';
       document.getElementById("detail-modifier-btn").dataset.clientId = clientId;
+      document.getElementById("detail-supprimer-btn").dataset.clientId = clientId;
       document.getElementById("detail-view").style.display = "block";
       document.getElementById("detail-edit").style.display = "none";
       document.getElementById("detail-modal").hidden = false;
@@ -409,6 +411,19 @@
     });
     document.getElementById("detail-modifier-btn").addEventListener("click", (e) => {
       openEditForm(e.target.dataset.clientId);
+    });
+    document.getElementById("detail-supprimer-btn").addEventListener("click", (e) => {
+      const clientId = e.target.dataset.clientId;
+      const c = clientsCache.find((x) => x.id === clientId);
+      confirmerSuppression({
+        titre: "Supprimer ce client ?",
+        message: `<strong>${escapeHtml(c ? c.nom : "")}</strong> sera envoyé à la corbeille, récupérable pendant 30 jours (voir le menu "Corbeille"). Bloqué s'il a encore un dossier non supprimé.`,
+        onConfirm: async () => {
+          await apiFetch(`/api/clients/${clientId}`, { method: "DELETE" });
+          closeDetailModal();
+          loadClients();
+        },
+      });
     });
     document.getElementById("edit-cancel-btn").addEventListener("click", () => {
       document.getElementById("detail-view").style.display = "block";

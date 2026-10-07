@@ -170,6 +170,8 @@ CREATE TABLE "clients" (
     "fonction" TEXT,
     "entreprise" TEXT,
     "adresse_entreprise" TEXT,
+    "supprime_le" TIMESTAMP(3),
+    "supprime_par_id" TEXT,
 
     CONSTRAINT "clients_pkey" PRIMARY KEY ("id")
 );
@@ -220,6 +222,8 @@ CREATE TABLE "dossiers" (
     "est_recherche" BOOLEAN NOT NULL DEFAULT false,
     "date_cloture" TIMESTAMP(3),
     "archived_at" TIMESTAMP(3),
+    "supprime_le" TIMESTAMP(3),
+    "supprime_par_id" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
@@ -495,6 +499,8 @@ CREATE TABLE "actions" (
     "version_actuelle" INTEGER NOT NULL DEFAULT 0,
     "mode_creation" TEXT NOT NULL DEFAULT 'genere_ia',
     "courrier_entrant_id" TEXT,
+    "supprime_le" TIMESTAMP(3),
+    "supprime_par_id" TEXT,
 
     CONSTRAINT "actions_pkey" PRIMARY KEY ("id")
 );
@@ -675,6 +681,9 @@ CREATE UNIQUE INDEX "acces_supplementaires_collaborateur_id_avocat_id_key" ON "a
 CREATE INDEX "clients_cabinet_id_idx" ON "clients"("cabinet_id");
 
 -- CreateIndex
+CREATE INDEX "clients_supprime_le_idx" ON "clients"("supprime_le");
+
+-- CreateIndex
 CREATE INDEX "delai_types_cabinet_id_idx" ON "delai_types"("cabinet_id");
 
 -- CreateIndex
@@ -688,6 +697,9 @@ CREATE INDEX "dossiers_client_id_idx" ON "dossiers"("client_id");
 
 -- CreateIndex
 CREATE INDEX "dossiers_archived_at_idx" ON "dossiers"("archived_at");
+
+-- CreateIndex
+CREATE INDEX "dossiers_supprime_le_idx" ON "dossiers"("supprime_le");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "dossiers_cabinet_id_numero_dossier_key" ON "dossiers"("cabinet_id", "numero_dossier");
@@ -780,6 +792,9 @@ CREATE INDEX "actions_created_by_idx" ON "actions"("created_by");
 CREATE INDEX "actions_courrier_entrant_id_idx" ON "actions"("courrier_entrant_id");
 
 -- CreateIndex
+CREATE INDEX "actions_supprime_le_idx" ON "actions"("supprime_le");
+
+-- CreateIndex
 CREATE INDEX "action_versions_action_id_idx" ON "action_versions"("action_id");
 
 -- CreateIndex
@@ -849,6 +864,9 @@ ALTER TABLE "acces_supplementaires" ADD CONSTRAINT "acces_supplementaires_avocat
 ALTER TABLE "clients" ADD CONSTRAINT "clients_cabinet_id_fkey" FOREIGN KEY ("cabinet_id") REFERENCES "cabinets"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "clients" ADD CONSTRAINT "clients_supprime_par_id_fkey" FOREIGN KEY ("supprime_par_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "delai_types" ADD CONSTRAINT "delai_types_cabinet_id_fkey" FOREIGN KEY ("cabinet_id") REFERENCES "cabinets"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -874,6 +892,9 @@ ALTER TABLE "dossiers" ADD CONSTRAINT "dossiers_client_id_fkey" FOREIGN KEY ("cl
 
 -- AddForeignKey
 ALTER TABLE "dossiers" ADD CONSTRAINT "dossiers_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "dossiers" ADD CONSTRAINT "dossiers_supprime_par_id_fkey" FOREIGN KEY ("supprime_par_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "documents_dossier" ADD CONSTRAINT "documents_dossier_cabinet_id_fkey" FOREIGN KEY ("cabinet_id") REFERENCES "cabinets"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -982,6 +1003,9 @@ ALTER TABLE "actions" ADD CONSTRAINT "actions_created_by_fkey" FOREIGN KEY ("cre
 
 -- AddForeignKey
 ALTER TABLE "actions" ADD CONSTRAINT "actions_verrouille_par_fkey" FOREIGN KEY ("verrouille_par") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "actions" ADD CONSTRAINT "actions_supprime_par_id_fkey" FOREIGN KEY ("supprime_par_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "actions" ADD CONSTRAINT "actions_courrier_entrant_id_fkey" FOREIGN KEY ("courrier_entrant_id") REFERENCES "courriers_entrants"("id") ON DELETE SET NULL ON UPDATE CASCADE;

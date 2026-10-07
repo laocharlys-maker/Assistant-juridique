@@ -138,19 +138,17 @@
     document.getElementById("filter-periode").addEventListener("change", loadLogs);
     document.getElementById("filter-genere-par").addEventListener("change", loadLogs);
 
-    document.getElementById("purge-btn").addEventListener("click", async () => {
+    document.getElementById("purge-btn").addEventListener("click", () => {
       const mois = document.getElementById("purge-periode").value;
       const label = document.getElementById("purge-periode").selectedOptions[0].textContent;
-      if (!confirm(`Supprimer définitivement toutes les entrées du journal de plus de ${label} ? Cette action est irréversible.`)) {
-        return;
-      }
-      try {
-        const res = await apiFetch(`/api/audit-logs?plusVieuxQueMois=${mois}`, { method: "DELETE" });
-        loadLogs();
-        alert(`${res.deleted} entrée(s) supprimée(s).`);
-      } catch (err) {
-        showError(document.getElementById("error"), err.message);
-      }
+      confirmerSuppression({
+        message: `Supprimer définitivement toutes les entrées du journal de plus de <strong>${escapeHtml(label)}</strong> ? Cette action est irréversible.`,
+        onConfirm: async () => {
+          const res = await apiFetch(`/api/audit-logs?plusVieuxQueMois=${mois}`, { method: "DELETE" });
+          loadLogs();
+          showToast(`${res.deleted} entrée(s) supprimée(s).`);
+        },
+      });
     });
   </script>
 </body>

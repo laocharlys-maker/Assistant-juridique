@@ -367,22 +367,22 @@ document.getElementById("cal-detail-audience-statut").addEventListener("change",
     alert(err.message);
   }
 });
-document.getElementById("cal-detail-supprimer-btn").addEventListener("click", async () => {
+document.getElementById("cal-detail-supprimer-btn").addEventListener("click", () => {
   if (!currentDetailEvenement) return;
   const estAudience = currentDetailEvenement.source === "role_audience";
-  if (!confirm(estAudience ? "Supprimer cette audience du calendrier ?" : "Supprimer cet événement ?")) return;
-  try {
-    if (estAudience && currentDetailEvenement.roleAudienceId) {
-      await apiFetch(`/api/role-audiences/${currentDetailEvenement.roleAudienceId}`, { method: "DELETE" });
-    } else {
-      await apiFetch(`/api/evenements/${currentDetailEvenement.id}`, { method: "DELETE" });
-    }
-    detailModal.hidden = true;
-    await chargerEvenements();
-    await chargerSuggestions();
-  } catch (err) {
-    alert(err.message);
-  }
+  confirmerSuppression({
+    message: estAudience ? "Supprimer cette audience du calendrier ?" : "Supprimer cet événement ?",
+    onConfirm: async () => {
+      if (estAudience && currentDetailEvenement.roleAudienceId) {
+        await apiFetch(`/api/role-audiences/${currentDetailEvenement.roleAudienceId}`, { method: "DELETE" });
+      } else {
+        await apiFetch(`/api/evenements/${currentDetailEvenement.id}`, { method: "DELETE" });
+      }
+      detailModal.hidden = true;
+      await chargerEvenements();
+      await chargerSuggestions();
+    },
+  });
 });
 document.getElementById("cal-detail-modifier-btn").addEventListener("click", async () => {
   if (!currentDetailEvenement) return;

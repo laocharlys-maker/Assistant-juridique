@@ -226,13 +226,16 @@
               )
               .join("");
         el.querySelectorAll("[data-remove-huissier]").forEach((btn) => {
-          btn.addEventListener("click", async () => {
-            try {
-              await apiFetch(`/api/huissiers/${btn.dataset.removeHuissier}`, { method: "DELETE" });
-              loadHuissiers();
-            } catch (err) {
-              showError(document.getElementById("error"), err.message);
-            }
+          btn.addEventListener("click", () => {
+            confirmerSuppression({
+              titre: "Retirer cet huissier ?",
+              message: "Il ne sera plus proposé dans la liste des huissiers du cabinet.",
+              boutonLabel: "Retirer",
+              onConfirm: async () => {
+                await apiFetch(`/api/huissiers/${btn.dataset.removeHuissier}`, { method: "DELETE" });
+                loadHuissiers();
+              },
+            });
           });
         });
       } catch (err) {
@@ -369,9 +372,16 @@
       reader.readAsDataURL(file);
     });
 
-    document.getElementById("remove-entete-btn").addEventListener("click", async () => {
-      await apiFetch("/api/cabinet/entete", { method: "DELETE" });
-      renderEntete(null);
+    document.getElementById("remove-entete-btn").addEventListener("click", () => {
+      confirmerSuppression({
+        titre: "Retirer l'en-tête du cabinet ?",
+        message: "Les prochains documents générés n'afficheront plus cette image d'en-tête.",
+        boutonLabel: "Retirer",
+        onConfirm: async () => {
+          await apiFetch("/api/cabinet/entete", { method: "DELETE" });
+          renderEntete(null);
+        },
+      });
     });
 
     document.getElementById("retention-form").addEventListener("submit", async (e) => {

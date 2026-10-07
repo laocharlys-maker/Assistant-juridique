@@ -223,14 +223,14 @@
       reader.readAsDataURL(fichier);
     });
 
-    async function retirerNormalisee(factureId) {
-      if (!confirm("Retirer la facture normalisée attachée à cette facture ?")) return;
-      try {
-        await apiFetch(`/api/factures/${factureId}/facture-normalisee`, { method: "DELETE" });
-        await chargerFactures();
-      } catch (err) {
-        showError(errorEl, err.message);
-      }
+    function retirerNormalisee(factureId) {
+      confirmerSuppression({
+        message: "Retirer la facture normalisée attachée à cette facture ?",
+        onConfirm: async () => {
+          await apiFetch(`/api/factures/${factureId}/facture-normalisee`, { method: "DELETE" });
+          await chargerFactures();
+        },
+      });
     }
 
     (async () => {

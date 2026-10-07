@@ -153,9 +153,16 @@
       reader.readAsDataURL(file);
     });
 
-    document.getElementById("remove-btn").addEventListener("click", async () => {
-      await apiFetch("/api/users/me/signature", { method: "DELETE" });
-      renderCurrent(null);
+    document.getElementById("remove-btn").addEventListener("click", () => {
+      confirmerSuppression({
+        titre: "Retirer ta signature ?",
+        message: "Elle ne sera plus insérée dans les documents que tu valides.",
+        boutonLabel: "Retirer",
+        onConfirm: async () => {
+          await apiFetch("/api/users/me/signature", { method: "DELETE" });
+          renderCurrent(null);
+        },
+      });
     });
 
     document.getElementById("onglets-actifs-checkbox").addEventListener("change", async (e) => {

@@ -124,10 +124,14 @@
           })
           .join("");
         listEl.querySelectorAll("[data-delete]").forEach((btn) => {
-          btn.addEventListener("click", async () => {
-            if (!confirm("Supprimer cette source de la base ?")) return;
-            await apiFetch(`/api/jurisprudence-base/${btn.dataset.delete}`, { method: "DELETE" });
-            loadEntries();
+          btn.addEventListener("click", () => {
+            confirmerSuppression({
+              message: "Supprimer cette source de la base ?",
+              onConfirm: async () => {
+                await apiFetch(`/api/jurisprudence-base/${btn.dataset.delete}`, { method: "DELETE" });
+                loadEntries();
+              },
+            });
           });
         });
         listEl.querySelectorAll("[data-lien-form]").forEach((form) => {

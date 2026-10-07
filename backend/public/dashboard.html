@@ -174,12 +174,17 @@
                   ? ' <span class="badge badge-echeance_proche">Échéance proche</span>'
                   : "";
               const envoiControls = envoiContext ? renderEnvoiControls(doc, envoiContext) : "";
+              const supprimerBtn =
+                currentUserRole === "titulaire" || currentUserRole === "avocat"
+                  ? `<button type="button" class="danger btn-sm" data-supprimer-document="${doc.id}" data-dossier-id="${doc.dossier.id}">Supprimer</button>`
+                  : "";
               return `
             <div class="dossier-item">
               <div>
                 <div><a href="/dossier.html?id=${doc.dossier.id}">${escapeHtml(titre)}</a>${badgeCloture}${badgeEcheance}</div>
                 <div class="meta">${meta}</div>
                 ${envoiControls}
+                ${supprimerBtn}
               </div>
             </div>`;
             })
@@ -197,6 +202,20 @@
       listEl.querySelectorAll("[data-accordion-toggle]").forEach((header) => {
         header.addEventListener("click", () => {
           header.closest(".accordion-item").classList.toggle("open");
+        });
+      });
+
+      listEl.querySelectorAll("[data-supprimer-document]").forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          confirmerSuppression({
+            titre: "Supprimer ce document ?",
+            message: "Il sera envoyé à la corbeille, récupérable pendant 30 jours (voir le menu \"Corbeille\").",
+            onConfirm: async () => {
+              await apiFetch(`/api/dossiers/${btn.dataset.dossierId}/actions/${btn.dataset.supprimerDocument}`, { method: "DELETE" });
+              await loadListe();
+            },
+          });
         });
       });
 

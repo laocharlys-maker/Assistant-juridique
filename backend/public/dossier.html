@@ -280,6 +280,11 @@
                           : ""
                       }
                       <a class="secondary" href="/delais-calculateur.html?dossierId=${dossier.id}" style="display:inline-block; text-decoration:none; padding:6px 12px; border-radius:6px;">Calculer un délai</a>
+                      ${
+                        me.role === "titulaire" || me.role === "avocat"
+                          ? `<button type="button" class="danger" id="supprimer-dossier-btn">Supprimer ce dossier</button>`
+                          : ""
+                      }
                     </div>`
                 }
               </div>
@@ -309,6 +314,20 @@
             } catch (err) {
               alert(err.message);
             }
+          });
+        }
+
+        const supprimerDossierBtn = document.getElementById("supprimer-dossier-btn");
+        if (supprimerDossierBtn) {
+          supprimerDossierBtn.addEventListener("click", () => {
+            confirmerSuppression({
+              titre: "Supprimer ce dossier ?",
+              message: `Le dossier <strong>${escapeHtml(dossier.numeroDossier)}</strong> et ses documents seront envoyés à la corbeille, récupérables pendant 30 jours (voir le menu "Corbeille").`,
+              onConfirm: async () => {
+                await apiFetch(`/api/dossiers/${id}`, { method: "DELETE" });
+                irAPagina("/tableau-de-bord.html");
+              },
+            });
           });
         }
 
@@ -857,14 +876,14 @@
         });
       });
       listEl.querySelectorAll("[data-piece-supprimer]").forEach((btn) => {
-        btn.addEventListener("click", async () => {
-          if (!confirm("Supprimer définitivement cette pièce ?")) return;
-          try {
-            await apiFetch(`/api/documents/${btn.dataset.pieceSupprimer}`, { method: "DELETE" });
-            await rafraichirPiecesListe();
-          } catch (err) {
-            alert(err.message);
-          }
+        btn.addEventListener("click", () => {
+          confirmerSuppression({
+            message: "Supprimer définitivement cette pièce ?",
+            onConfirm: async () => {
+              await apiFetch(`/api/documents/${btn.dataset.pieceSupprimer}`, { method: "DELETE" });
+              await rafraichirPiecesListe();
+            },
+          });
         });
       });
     }

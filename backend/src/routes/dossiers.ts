@@ -3,7 +3,7 @@ import { z } from "zod";
 import { Prisma, TypeAction } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
-import { requireModule } from "../middleware/roles";
+import { requireModule, requireAvocat } from "../middleware/roles";
 import { getAccessibleAvocatIds } from "../services/access";
 
 export const dossiersRouter = Router();
@@ -67,6 +67,7 @@ dossiersRouter.get("/api/dossiers", requireAuth, async (req, res) => {
       where: {
         cabinetId: auth!.cabinetId,
         estRecherche: false,
+        supprimeLe: null,
         OR: [{ createdBy: membreParam }, { actions: { some: { createdBy: membreParam } } }],
       },
       orderBy: { updatedAt: "desc" },
@@ -108,6 +109,7 @@ dossiersRouter.get("/api/dossiers", requireAuth, async (req, res) => {
     where: {
       cabinetId: auth!.cabinetId,
       estRecherche: vue === "recherches" || vue === "traductions",
+      supprimeLe: null,
       ...(vue === "dossiers" ? { archivedAt: null } : {}),
       ...(vue === "archives" ? { archivedAt: { not: null } } : {}),
       ...(vue === "traductions" ? { numeroDossier: { startsWith: "TRAD-" } } : {}),
@@ -184,9 +186,11 @@ dossiersRouter.get("/api/documents", requireAuth, requireModule("documents_gener
 
   const documents = await prisma.action.findMany({
     where: {
+      supprimeLe: null,
       dossier: {
         cabinetId: auth!.cabinetId,
         estRecherche: vue === "recherches" || vue === "traductions",
+        supprimeLe: null,
         ...(vue === "dossiers" ? { archivedAt: null } : {}),
         ...(vue === "archives" ? { archivedAt: { not: null } } : {}),
         ...(vue === "traductions" ? { numeroDossier: { startsWith: "TRAD-" } } : {}),
@@ -239,11 +243,13 @@ dossiersRouter.get("/api/dossiers/:id", requireAuth, async (req, res) => {
     where: {
       id: req.params.id,
       cabinetId: auth!.cabinetId,
+      supprimeLe: null,
       ...(accessibleAvocatIds ? { createdBy: { in: accessibleAvocatIds } } : {}),
     },
     include: {
       creePar: { select: { nom: true } },
       actions: {
+        where: { supprimeLe: null },
         orderBy: { createdAt: "desc" },
         include: {
           creePar: { select: { nom: true } },
@@ -356,6 +362,106 @@ dossiersRouter.patch("/api/dossiers/:id", requireAuth, async (req, res) => {
       parsed.data.statut === "cloture"
         ? { statut: "cloture", dateCloture: new Date() }
         : { statut: "actif", dateCloture: null, archivedAt: null },
+  });
+  return res.json({ ok: true });
+});
+
+// Corbeille (2026-10-07) : suppression douce, jamais un vrai DELETE SQL ici
+// (voir schema.prisma, Dossier.supprimeLe) - reserve a l'avocat/titulaire,
+// jamais un collaborateur, meme createur du dossier (meme convention que
+// cloturer un dossier ci-dessus). Bloquee si au moins une Facture est
+// rattachee : une donnee comptable ne doit jamais risquer de disparaitre
+// silencieusement a la purge automatique a 30 jours (voir
+// jobs/purgeCorbeille.ts).
+dossiersRouter.delete("/api/dossiers/:id", requireAuth, requireAvocat, async (req, res) => {
+  const { auth } = req;
+
+  const dossier = await prisma.dossier.findFirst({
+    where: { id: req.params.id, cabinetId: auth!.cabinetId, supprimeLe: null },
+    include: { _count: { select: { factures: true } } },
+  });
+  if (!dossier) {
+    return res.status(404).json({ error: "Dossier introuvable" });
+  }
+  if (dossier._count.factures > 0) {
+    return res.status(409).json({
+      error: "Impossible de supprimer ce dossier : au moins une facture y est rattachée. Traitez-la d'abord.",
+    });
+  }
+
+  await prisma.dossier.update({
+    where: { id: dossier.id },
+    data: { supprimeLe: new Date(), supprimeParId: auth!.userId },
+  });
+  return res.json({ ok: true });
+});
+
+dossiersRouter.post("/api/dossiers/:id/restaurer", requireAuth, requireAvocat, async (req, res) => {
+  const { auth } = req;
+
+  const dossier = await prisma.dossier.findFirst({
+    where: { id: req.params.id, cabinetId: auth!.cabinetId, supprimeLe: { not: null } },
+  });
+  if (!dossier) {
+    return res.status(404).json({ error: "Dossier introuvable dans la corbeille" });
+  }
+
+  await prisma.dossier.update({
+    where: { id: dossier.id },
+    data: { supprimeLe: null, supprimeParId: null },
+  });
+  return res.json({ ok: true });
+});
+
+// Suppression douce d'un document genere (Action) precis d'un dossier -
+// meme principe, meme restriction de role. Pas de blocage particulier (un
+// document genere n'a pas de dependance comptable) - mais refusee si
+// quelqu'un detient actuellement le verrou d'edition (meme regle que
+// middleware/verifierVerrou.ts pour l'edition elle-meme : on ne retire
+// jamais un document en cours de modification sous quelqu'un).
+dossiersRouter.delete("/api/dossiers/:dossierId/actions/:actionId", requireAuth, requireAvocat, async (req, res) => {
+  const { auth } = req;
+
+  const action = await prisma.action.findFirst({
+    where: {
+      id: req.params.actionId,
+      dossierId: req.params.dossierId,
+      supprimeLe: null,
+      dossier: { cabinetId: auth!.cabinetId },
+    },
+  });
+  if (!action) {
+    return res.status(404).json({ error: "Document introuvable" });
+  }
+  if (action.verrouillePar && action.verrouillePar !== auth!.userId) {
+    return res.status(409).json({ error: "Ce document est en cours de modification par quelqu'un d'autre - impossible de le supprimer maintenant." });
+  }
+
+  await prisma.action.update({
+    where: { id: action.id },
+    data: { supprimeLe: new Date(), supprimeParId: auth!.userId },
+  });
+  return res.json({ ok: true });
+});
+
+dossiersRouter.post("/api/dossiers/:dossierId/actions/:actionId/restaurer", requireAuth, requireAvocat, async (req, res) => {
+  const { auth } = req;
+
+  const action = await prisma.action.findFirst({
+    where: {
+      id: req.params.actionId,
+      dossierId: req.params.dossierId,
+      supprimeLe: { not: null },
+      dossier: { cabinetId: auth!.cabinetId },
+    },
+  });
+  if (!action) {
+    return res.status(404).json({ error: "Document introuvable dans la corbeille" });
+  }
+
+  await prisma.action.update({
+    where: { id: action.id },
+    data: { supprimeLe: null, supprimeParId: null },
   });
   return res.json({ ok: true });
 });

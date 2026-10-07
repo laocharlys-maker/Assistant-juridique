@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
+import { requireAvocat } from "../middleware/roles";
 import { sendEmail } from "../services/mailer";
 import { resolveCabinetEmailIdentite } from "../services/cabinetContact";
 
@@ -9,7 +10,7 @@ export const clientsRouter = Router();
 
 clientsRouter.get("/api/clients", requireAuth, async (req, res) => {
   const clients = await prisma.client.findMany({
-    where: { cabinetId: req.auth!.cabinetId },
+    where: { cabinetId: req.auth!.cabinetId, supprimeLe: null },
     orderBy: { nom: "asc" },
     include: { _count: { select: { dossiers: true } } },
   });
@@ -103,13 +104,58 @@ clientsRouter.patch("/api/clients/:id", requireAuth, async (req, res) => {
 
 clientsRouter.get("/api/clients/:id", requireAuth, async (req, res) => {
   const client = await prisma.client.findFirst({
-    where: { id: req.params.id, cabinetId: req.auth!.cabinetId },
-    include: { dossiers: { orderBy: { updatedAt: "desc" } } },
+    where: { id: req.params.id, cabinetId: req.auth!.cabinetId, supprimeLe: null },
+    include: { dossiers: { where: { supprimeLe: null }, orderBy: { updatedAt: "desc" } } },
   });
   if (!client) {
     return res.status(404).json({ error: "Client introuvable" });
   }
   return res.json(client);
+});
+
+// Corbeille (2026-10-07) : suppression douce (voir schema.prisma,
+// Client.supprimeLe), reservee a l'avocat/titulaire. Bloquee s'il reste au
+// moins un Dossier NON supprime pour ce client - jamais de client "fantome"
+// derriere un dossier encore actif (voir aussi la regle symetrique dans
+// routes/dossiers.ts : un dossier bloque sa propre suppression s'il a une
+// facture rattachee).
+clientsRouter.delete("/api/clients/:id", requireAuth, requireAvocat, async (req, res) => {
+  const client = await prisma.client.findFirst({
+    where: { id: req.params.id, cabinetId: req.auth!.cabinetId, supprimeLe: null },
+  });
+  if (!client) {
+    return res.status(404).json({ error: "Client introuvable" });
+  }
+
+  const dossiersActifs = await prisma.dossier.count({
+    where: { clientId: client.id, supprimeLe: null },
+  });
+  if (dossiersActifs > 0) {
+    return res.status(409).json({
+      error: "Impossible de supprimer ce client : il a encore au moins un dossier non supprimé.",
+    });
+  }
+
+  await prisma.client.update({
+    where: { id: client.id },
+    data: { supprimeLe: new Date(), supprimeParId: req.auth!.userId },
+  });
+  return res.json({ ok: true });
+});
+
+clientsRouter.post("/api/clients/:id/restaurer", requireAuth, requireAvocat, async (req, res) => {
+  const client = await prisma.client.findFirst({
+    where: { id: req.params.id, cabinetId: req.auth!.cabinetId, supprimeLe: { not: null } },
+  });
+  if (!client) {
+    return res.status(404).json({ error: "Client introuvable dans la corbeille" });
+  }
+
+  await prisma.client.update({
+    where: { id: client.id },
+    data: { supprimeLe: null, supprimeParId: null },
+  });
+  return res.json({ ok: true });
 });
 
 const envoyerEmailSchema = z.object({

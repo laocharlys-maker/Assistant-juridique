@@ -379,6 +379,10 @@ model User {
   collaborateurs      User[]         @relation("ResponsableCollaborateurs")
   dossiersCrees       Dossier[]      @relation("DossierCreatedBy")
   actionsCreees       Action[]       @relation("ActionCreatedBy")
+  // Corbeille (2026-10-07) : qui a envoye chaque element en corbeille.
+  dossiersSupprimes   Dossier[]      @relation("DossierSupprimePar")
+  clientsSupprimes    Client[]       @relation("ClientSupprimePar")
+  actionsSupprimees   Action[]       @relation("ActionSupprimePar")
   delaiTypesCrees     DelaiType[]
   delaiCalculsCrees   DelaiCalcul[]
   facturesCreees      Facture[]      @relation("FactureCreatedBy")
@@ -491,14 +495,23 @@ model Client {
   entreprise            String?
   adresseEntreprise     String?   @map("adresse_entreprise")
 
-  cabinet  Cabinet   @relation(fields: [cabinetId], references: [id])
-  dossiers Dossier[]
+  // Corbeille (2026-10-07) : suppression douce, jamais un vrai DELETE SQL
+  // direct - voir Dossier.supprimeLe pour la logique complete (purge
+  // automatique a 30 jours, restauration). Bloquee tant que ce client a au
+  // moins un Dossier non supprime (voir routes/clients.ts).
+  supprimeLe    DateTime? @map("supprime_le")
+  supprimeParId String?   @map("supprime_par_id")
+
+  cabinet     Cabinet   @relation(fields: [cabinetId], references: [id])
+  supprimePar User?     @relation("ClientSupprimePar", fields: [supprimeParId], references: [id])
+  dossiers    Dossier[]
   // Lot 20 : courriers rattaches directement a ce client (avec ou sans
   // dossier associe).
   courriersEntrants CourrierEntrant[]
   courriersSortants CourrierSortant[]
 
   @@index([cabinetId])
+  @@index([supprimeLe])
   @@map("clients")
 }
 
@@ -576,12 +589,22 @@ model Dossier {
   // dateCloture. N'entraine jamais de suppression : juste masque de la
   // liste "Dossiers" par defaut, toujours consultable via "Archives".
   archivedAt     DateTime? @map("archived_at")
+  // Corbeille (2026-10-07) : suppression douce - masque le dossier des
+  // listes/fiches comme archivedAt, mais avec une intention differente
+  // (l'utilisateur VEUT s'en debarrasser, pas juste le classer). Restaurable
+  // pendant 30 jours (voir jobs/purgeCorbeille.ts pour la purge definitive),
+  // bloquee s'il reste au moins une Facture rattachee (voir
+  // routes/dossiers.ts) - jamais de suppression silencieuse de donnees
+  // comptables.
+  supprimeLe     DateTime? @map("supprime_le")
+  supprimeParId  String?   @map("supprime_par_id")
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
 
   cabinet       Cabinet        @relation(fields: [cabinetId], references: [id])
   client        Client?        @relation(fields: [clientId], references: [id])
   creePar       User           @relation("DossierCreatedBy", fields: [createdBy], references: [id])
+  supprimePar   User?          @relation("DossierSupprimePar", fields: [supprimeParId], references: [id])
   actions       Action[]
   delaiCalculs  DelaiCalcul[]
   factures      Facture[]
@@ -597,6 +620,7 @@ model Dossier {
   @@unique([cabinetId, numeroDossier])
   @@index([clientId])
   @@index([archivedAt])
+  @@index([supprimeLe])
   @@map("dossiers")
 }
 
@@ -1250,10 +1274,16 @@ model Action {
   // le chainage visible dans les deux sens (voir CourrierEntrant.actions).
   // Null = action creee normalement, hors de tout courrier.
   courrierEntrantId String? @map("courrier_entrant_id")
+  // Corbeille (2026-10-07) : suppression douce, meme principe que
+  // Dossier.supprimeLe - masque le document des listes/fiche dossier,
+  // restaurable 30 jours avant purge definitive (jobs/purgeCorbeille.ts).
+  supprimeLe        DateTime? @map("supprime_le")
+  supprimeParId     String?   @map("supprime_par_id")
 
   dossier               Dossier               @relation(fields: [dossierId], references: [id])
   creePar               User                  @relation("ActionCreatedBy", fields: [createdBy], references: [id])
   verrouilleParUtilisateur User?               @relation("ActionVerrouillePar", fields: [verrouillePar], references: [id])
+  supprimePar           User?                 @relation("ActionSupprimePar", fields: [supprimeParId], references: [id])
   courrierEntrant       CourrierEntrant?      @relation(fields: [courrierEntrantId], references: [id])
   auditLogs             AuditLog[]
   commentaires          CommentaireRevision[]
@@ -1274,6 +1304,7 @@ model Action {
   @@index([dossierId])
   @@index([createdBy])
   @@index([courrierEntrantId])
+  @@index([supprimeLe])
   @@map("actions")
 }
 

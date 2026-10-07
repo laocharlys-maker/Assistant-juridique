@@ -53,16 +53,16 @@ function renderCaldavStatus(connexionCaldav) {
   form.style.display = "none";
 }
 
-async function deconnecter(id) {
-  if (!confirm("Déconnecter cet agenda ? Les événements déjà créés dans Aurore et dans l'agenda externe ne sont jamais affectés — seule la synchronisation future s'arrête.")) {
-    return;
-  }
-  try {
-    await apiFetch(`/api/calendrier-externe/${id}`, { method: "DELETE" });
-    await chargerStatuts();
-  } catch (err) {
-    showError(document.getElementById("error"), err.message);
-  }
+function deconnecter(id) {
+  confirmerSuppression({
+    titre: "Déconnecter cet agenda ?",
+    message: "Les événements déjà créés dans Aurore et dans l'agenda externe ne sont jamais affectés — seule la synchronisation future s'arrête.",
+    boutonLabel: "Déconnecter",
+    onConfirm: async () => {
+      await apiFetch(`/api/calendrier-externe/${id}`, { method: "DELETE" });
+      await chargerStatuts();
+    },
+  });
 }
 
 async function chargerStatuts() {
