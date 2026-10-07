@@ -76,6 +76,7 @@ CREATE TABLE "cabinets" (
     "police_documents" TEXT NOT NULL DEFAULT 'Times New Roman',
     "taille_documents" INTEGER NOT NULL DEFAULT 13,
     "entete_url" TEXT,
+    "logo_url" TEXT,
     "veille_sujets" TEXT,
     "veille_active" BOOLEAN NOT NULL DEFAULT false,
     "veille_derniere_execution" TIMESTAMP(3),

@@ -80,6 +80,19 @@
       </div>
 
       <div class="settings-card">
+        <div class="icon-badge"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a15 15 0 0 1 0 20"/><path d="M12 2a15 15 0 0 0 0 20"/><path d="M2 12h20"/></svg></div>
+        <h3>Logo du cabinet</h3>
+        <p class="desc">Affiché dans l'interface (écran de connexion) à côté de la marque Aurore — jamais inséré dans les documents générés (voir "En-tête du cabinet" pour ça). Une image carrée/compacte convient mieux ici qu'un bandeau large.</p>
+        <div id="current-logo"></div>
+        <label>Nouveau logo</label>
+        <input type="file" id="logo-file" accept="image/png,image/jpeg" />
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <button type="button" id="upload-logo-btn" class="btn-sm">Enregistrer</button>
+          <button type="button" class="secondary btn-sm" id="remove-logo-btn">Retirer le logo</button>
+        </div>
+      </div>
+
+      <div class="settings-card">
         <div class="icon-badge"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg></div>
         <h3>Archivage automatique</h3>
         <p class="desc">Un dossier clôturé est rangé dans "Archives" après ce délai — rien n'est jamais supprimé, tout reste consultable et réouvrable.</p>
@@ -210,6 +223,13 @@
         : `<p class="muted">Aucun en-tête enregistré pour l'instant.</p>`;
     }
 
+    function renderLogo(logoUrl) {
+      const el = document.getElementById("current-logo");
+      el.innerHTML = logoUrl
+        ? `<p>Logo actuel :</p><img src="${escapeHtml(logoUrl)}" alt="Logo du cabinet" style="max-width:160px; max-height:160px; border:1px solid var(--border); border-radius:8px; padding:8px;" />`
+        : `<p class="muted">Aucun logo enregistré pour l'instant.</p>`;
+    }
+
     async function loadHuissiers() {
       const el = document.getElementById("huissiers-list");
       try {
@@ -263,6 +283,7 @@
         document.querySelector('#style-documents-form select[name="policeDocuments"]').value = cabinet.policeDocuments;
         document.querySelector('#style-documents-form input[name="tailleDocuments"]').value = cabinet.tailleDocuments;
         renderEntete(cabinet.enteteUrl);
+        renderLogo(cabinet.logoUrl);
         document.querySelector('#retention-form input[name="archivageDelaiMois"]').value = cabinet.archivageDelaiMois;
         document.querySelector('#limite-documents-form input[name="limiteDocumentsCollaborateurParMois"]').value =
           cabinet.limiteDocumentsCollaborateurParMois ?? "";
@@ -380,6 +401,42 @@
         onConfirm: async () => {
           await apiFetch("/api/cabinet/entete", { method: "DELETE" });
           renderEntete(null);
+        },
+      });
+    });
+
+    document.getElementById("upload-logo-btn").addEventListener("click", async () => {
+      hideError(errorEl);
+      const fileInput = document.getElementById("logo-file");
+      const file = fileInput.files[0];
+      if (!file) {
+        showError(errorEl, "Choisis d'abord une image.");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = async () => {
+        try {
+          const res = await apiFetch("/api/cabinet/logo", {
+            method: "POST",
+            body: { imageDataUrl: reader.result },
+          });
+          renderLogo(res.logoUrl);
+          fileInput.value = "";
+        } catch (err) {
+          showError(errorEl, err.message);
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+
+    document.getElementById("remove-logo-btn").addEventListener("click", () => {
+      confirmerSuppression({
+        titre: "Retirer le logo du cabinet ?",
+        message: "L'écran de connexion n'affichera plus que le nom du cabinet, sans logo.",
+        boutonLabel: "Retirer",
+        onConfirm: async () => {
+          await apiFetch("/api/cabinet/logo", { method: "DELETE" });
+          renderLogo(null);
         },
       });
     });

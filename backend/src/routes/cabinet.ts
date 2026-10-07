@@ -17,9 +17,9 @@ export const cabinetRouter = Router();
 // l'ecran de connexion, jamais a sa place (voir public/login.html).
 cabinetRouter.get("/api/cabinet/identite-publique", async (_req, res) => {
   const cabinet = await prisma.cabinet.findFirst({
-    select: { nom: true, enteteUrl: true },
+    select: { nom: true, logoUrl: true },
   });
-  return res.json({ nom: cabinet?.nom || null, enteteUrl: cabinet?.enteteUrl || null });
+  return res.json({ nom: cabinet?.nom || null, logoUrl: cabinet?.logoUrl || null });
 });
 
 cabinetRouter.get("/api/cabinet", requireAuth, async (req, res) => {
@@ -33,6 +33,7 @@ cabinetRouter.get("/api/cabinet", requireAuth, async (req, res) => {
       policeDocuments: true,
       tailleDocuments: true,
       enteteUrl: true,
+      logoUrl: true,
       veilleSujets: true,
       veilleActive: true,
       archivageDelaiMois: true,
@@ -243,6 +244,67 @@ cabinetRouter.delete("/api/cabinet/entete", requireAuth, requireAdmin, async (re
   await prisma.cabinet.update({ where: { id: req.auth!.cabinetId }, data: { enteteUrl: null } });
   if (ancienCabinet?.enteteUrl) {
     const chemin = path.join(ENTETE_UPLOAD_DIR, path.basename(ancienCabinet.enteteUrl));
+    await fs.unlink(chemin).catch(() => {});
+  }
+  return res.json({ ok: true });
+});
+
+// Logo du cabinet (2026-10-07) - DISTINCT de l'en-tete ci-dessus : jamais
+// insere dans un document genere, uniquement affiche dans l'interface
+// (ecran de connexion, voir /api/cabinet/identite-publique et
+// public/login.html). Meme mecanisme d'upload que l'en-tete (nom de
+// fichier unique par upload, meme limite de taille).
+const LOGO_UPLOAD_DIR = path.join(__dirname, "..", "..", "public", "uploads", "logos");
+
+const uploadLogoSchema = z.object({
+  imageDataUrl: z.string().regex(/^data:image\/(png|jpeg);base64,/),
+});
+
+cabinetRouter.post("/api/cabinet/logo", requireAuth, requireAdmin, async (req, res) => {
+  const parsed = uploadLogoSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Image invalide (PNG ou JPEG attendu)" });
+  }
+
+  const matches = parsed.data.imageDataUrl.match(/^data:image\/(png|jpeg);base64,(.+)$/);
+  if (!matches) {
+    return res.status(400).json({ error: "Format d'image invalide" });
+  }
+  const [, ext, base64Data] = matches;
+  const buffer = Buffer.from(base64Data, "base64");
+
+  if (buffer.length > 2 * 1024 * 1024) {
+    return res.status(413).json({ error: "Image trop volumineuse (2 Mo max)" });
+  }
+
+  await fs.mkdir(LOGO_UPLOAD_DIR, { recursive: true });
+  const filename = `${req.auth!.cabinetId}-${Date.now()}.${ext === "jpeg" ? "jpg" : "png"}`;
+  await fs.writeFile(path.join(LOGO_UPLOAD_DIR, filename), buffer);
+
+  const ancienCabinet = await prisma.cabinet.findUnique({
+    where: { id: req.auth!.cabinetId },
+    select: { logoUrl: true },
+  });
+
+  const logoUrl = `/uploads/logos/${filename}`;
+  await prisma.cabinet.update({ where: { id: req.auth!.cabinetId }, data: { logoUrl } });
+
+  if (ancienCabinet?.logoUrl) {
+    const ancienChemin = path.join(LOGO_UPLOAD_DIR, path.basename(ancienCabinet.logoUrl));
+    await fs.unlink(ancienChemin).catch(() => {});
+  }
+
+  return res.json({ logoUrl });
+});
+
+cabinetRouter.delete("/api/cabinet/logo", requireAuth, requireAdmin, async (req, res) => {
+  const ancienCabinet = await prisma.cabinet.findUnique({
+    where: { id: req.auth!.cabinetId },
+    select: { logoUrl: true },
+  });
+  await prisma.cabinet.update({ where: { id: req.auth!.cabinetId }, data: { logoUrl: null } });
+  if (ancienCabinet?.logoUrl) {
+    const chemin = path.join(LOGO_UPLOAD_DIR, path.basename(ancienCabinet.logoUrl));
     await fs.unlink(chemin).catch(() => {});
   }
   return res.json({ ok: true });

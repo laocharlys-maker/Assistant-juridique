@@ -203,9 +203,15 @@ model Cabinet {
   // standard PDFKit uniquement, sans police a embarquer).
   policeDocuments                     String    @default("Times New Roman") @map("police_documents")
   tailleDocuments                     Int       @default(13) @map("taille_documents")
-  // Image d'en-tete (logo/bandeau) inseree en haut des documents, a la
-  // demande (case a cocher), jamais automatiquement.
+  // Image d'en-tete (bandeau) inseree en haut des documents, a la demande
+  // (case a cocher), jamais automatiquement.
   enteteUrl                           String?   @map("entete_url")
+  // Logo du cabinet (2026-10-07) - DISTINCT de l'en-tete ci-dessus : jamais
+  // insere dans les documents, uniquement affiche dans l'interface (ecran
+  // de connexion notamment, voir public/login.html) a cote de la marque
+  // Aurore. Un cabinet qui n'a que l'en-tete pour ses documents n'a pas
+  // forcement une image adaptee a un affichage compact/carre comme un logo.
+  logoUrl                             String?   @map("logo_url")
   // Sujets/mots-cles a surveiller pour la veille juridique hebdomadaire,
   // saisis en texte libre par le titulaire (separes par virgule ou saut de
   // ligne).

@@ -102,9 +102,9 @@
         const identite = await apiFetch("/api/cabinet/identite-publique");
         if (!identite || !identite.nom) return;
         document.getElementById("cabinet-identite-nom").textContent = identite.nom;
-        if (identite.enteteUrl) {
+        if (identite.logoUrl) {
           const logoEl = document.getElementById("cabinet-identite-logo");
-          logoEl.src = identite.enteteUrl;
+          logoEl.src = identite.logoUrl;
           logoEl.alt = identite.nom;
           logoEl.style.display = "inline-block";
         }
