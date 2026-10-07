@@ -429,3 +429,71 @@ document.addEventListener("DOMContentLoaded", markRequiredFields);
     // requireSession()/l'ecran de licence prennent le relais normalement.
   }
 })();
+
+/**
+ * Barre de progression visible pendant la mise a jour automatique
+ * (src-tauri/src/updater.rs, evenements "aurore-update-*" emis cote Rust) -
+ * avant ce correctif, rien ne s'affichait pendant le telechargement/
+ * installation (~85 Mo), ce qui donnait l'impression que la mise a jour
+ * acceptee ne faisait rien du tout. Chargee sur TOUTE page (ce script est
+ * commun) puisque la mise a jour peut etre proposee quel que soit l'ecran
+ * ouvert au demarrage. Absent de window.__TAURI__ en dehors de la webview
+ * desktop (navigateur classique en dev) - rien a faire dans ce cas.
+ */
+(function () {
+  if (!window.__TAURI__ || !window.__TAURI__.event) return;
+
+  let overlay = null;
+  let fillEl = null;
+  let labelEl = null;
+
+  function afficherOverlayMiseAJour() {
+    if (overlay) return;
+    overlay = document.createElement("div");
+    overlay.className = "modal-overlay";
+    overlay.innerHTML = `
+      <div class="modal-box" style="text-align:center;">
+        <h2>Mise à jour en cours</h2>
+        <p class="muted" id="update-progress-label">Téléchargement…</p>
+        <div style="background:var(--hairline); border-radius:8px; height:10px; overflow:hidden; margin-top:12px;">
+          <div id="update-progress-fill" style="background:var(--accent); height:100%; width:0%; transition:width 0.2s ease;"></div>
+        </div>
+        <p class="muted" style="margin-top:14px; font-size:0.85rem;">Ne fermez pas Aurore pendant la mise à jour.</p>
+      </div>`;
+    document.body.appendChild(overlay);
+    labelEl = overlay.querySelector("#update-progress-label");
+    fillEl = overlay.querySelector("#update-progress-fill");
+  }
+
+  function masquerOverlayMiseAJour() {
+    if (overlay) overlay.remove();
+    overlay = null;
+    fillEl = null;
+    labelEl = null;
+  }
+
+  window.__TAURI__.event.listen("aurore-update-start", afficherOverlayMiseAJour);
+
+  window.__TAURI__.event.listen("aurore-update-progress", (event) => {
+    afficherOverlayMiseAJour();
+    const { downloaded, total } = event.payload || {};
+    if (total) {
+      const pct = Math.min(100, Math.round((downloaded / total) * 100));
+      if (fillEl) fillEl.style.width = `${pct}%`;
+      if (labelEl) labelEl.textContent = `Téléchargement… ${pct}%`;
+    } else if (labelEl) {
+      labelEl.textContent = `Téléchargement… ${Math.round(downloaded / 1024 / 1024)} Mo`;
+    }
+  });
+
+  window.__TAURI__.event.listen("aurore-update-installing", () => {
+    afficherOverlayMiseAJour();
+    if (labelEl) labelEl.textContent = "Installation en cours…";
+    if (fillEl) fillEl.style.width = "100%";
+  });
+
+  // En cas d'echec, src-tauri/src/updater.rs affiche sa propre boite de
+  // dialogue d'erreur native juste apres cet evenement - cette barre n'a
+  // plus lieu d'etre affichee en meme temps.
+  window.__TAURI__.event.listen("aurore-update-error", masquerOverlayMiseAJour);
+})();

@@ -17,7 +17,9 @@
 // suivant precisement l'API documentee de tauri-plugin-updater v2 et
 // tauri-plugin-dialog v2, a valider au premier vrai build.
 
-use tauri::AppHandle;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
+use tauri::{AppHandle, Emitter};
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 use tauri_plugin_updater::UpdaterExt;
 
@@ -80,16 +82,29 @@ pub fn check_for_updates(app: AppHandle) {
                 let app_handle = app_for_callback.clone();
                 tauri::async_runtime::spawn(async move {
                     println!("[updater] telechargement et installation de la mise a jour...");
+                    // Barre de progression visible cote frontend (voir public/js/api.js,
+                    // ecouteurs "aurore-update-*") - avant ce correctif, rien ne
+                    // s'affichait pendant le telechargement/installation (~85 Mo), ce qui
+                    // donnait l'impression que la mise a jour ne faisait rien du tout.
+                    let _ = app_handle.emit("aurore-update-start", ());
+                    let telecharge = Arc::new(AtomicU64::new(0));
+                    let telecharge_pour_callback = telecharge.clone();
+                    let app_handle_pour_progres = app_handle.clone();
+                    let app_handle_pour_installation = app_handle.clone();
                     let install_result = update
                         .download_and_install(
-                            |_chunk_length, _content_length| {
-                                // Progression du telechargement - pas de barre de
-                                // progression dediee pour ce lot, le journal
-                                // suffit (voir README-LOT8.md, ameliorations
-                                // possibles).
+                            move |chunk_length, content_length| {
+                                let total = telecharge_pour_callback
+                                    .fetch_add(chunk_length as u64, Ordering::SeqCst)
+                                    + chunk_length as u64;
+                                let _ = app_handle_pour_progres.emit(
+                                    "aurore-update-progress",
+                                    serde_json::json!({ "downloaded": total, "total": content_length }),
+                                );
                             },
-                            || {
+                            move || {
                                 println!("[updater] telechargement termine, installation en cours...");
+                                let _ = app_handle_pour_installation.emit("aurore-update-installing", ());
                             },
                         )
                         .await;
@@ -101,6 +116,7 @@ pub fn check_for_updates(app: AppHandle) {
                         }
                         Err(err) => {
                             eprintln!("[updater] echec de la mise a jour : {err}");
+                            let _ = app_handle.emit("aurore-update-error", ());
                             app_handle
                                 .dialog()
                                 .message(format!(
