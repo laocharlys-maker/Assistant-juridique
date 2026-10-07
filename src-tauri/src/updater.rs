@@ -89,6 +89,13 @@ pub fn check_for_updates(app: AppHandle) {
                     let _ = app_handle.emit("aurore-update-start", ());
                     let telecharge = Arc::new(AtomicU64::new(0));
                     let telecharge_pour_callback = telecharge.clone();
+                    // Dernier pourcentage deja emis - evite d'appeler emit() a CHAQUE
+                    // morceau recu (potentiellement des milliers pour ~85 Mo, un par
+                    // segment TCP/HTTP) : un emit() par pourcentage uniquement, bien
+                    // assez fluide pour une barre de progression visuelle, et qui ne
+                    // risque plus de ralentir la lecture du flux HTTP sous-jacent en
+                    // la bloquant trop souvent sur l'IPC vers la fenetre.
+                    let dernier_pourcentage = Arc::new(AtomicU64::new(u64::MAX));
                     let app_handle_pour_progres = app_handle.clone();
                     let app_handle_pour_installation = app_handle.clone();
                     let install_result = update
@@ -97,10 +104,18 @@ pub fn check_for_updates(app: AppHandle) {
                                 let total = telecharge_pour_callback
                                     .fetch_add(chunk_length as u64, Ordering::SeqCst)
                                     + chunk_length as u64;
-                                let _ = app_handle_pour_progres.emit(
-                                    "aurore-update-progress",
-                                    serde_json::json!({ "downloaded": total, "total": content_length }),
-                                );
+                                let pourcentage = match content_length {
+                                    Some(longueur_totale) if longueur_totale > 0 => {
+                                        (total.min(longueur_totale) * 100) / longueur_totale
+                                    }
+                                    _ => 0,
+                                };
+                                if dernier_pourcentage.swap(pourcentage, Ordering::SeqCst) != pourcentage {
+                                    let _ = app_handle_pour_progres.emit(
+                                        "aurore-update-progress",
+                                        serde_json::json!({ "downloaded": total, "total": content_length }),
+                                    );
+                                }
                             },
                             move || {
                                 println!("[updater] telechargement termine, installation en cours...");
