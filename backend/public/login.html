@@ -22,7 +22,11 @@
       <div style="text-align:center; margin-bottom:8px;">
         <img src="/logo-aurore-login.png" alt="Aurore" style="max-width:200px;" onerror="this.style.display='none'" />
         <h1 style="margin-top:8px; margin-bottom:0;">Aurore</h1>
-        <p class="muted">Assistant juridique du cabinet</p>
+        <p class="muted">Gestion complète de cabinet d'avocat</p>
+        <div id="cabinet-identite" style="display:none; margin-top:10px; padding-top:10px; border-top:1px solid var(--border);">
+          <img id="cabinet-identite-logo" src="" alt="" style="display:none; max-height:44px; max-width:180px; margin-bottom:4px;" onerror="this.style.display='none'" />
+          <div id="cabinet-identite-nom" class="muted" style="font-weight:600; font-size:0.92rem;"></div>
+        </div>
       </div>
       <div id="error" class="error"></div>
 
@@ -86,6 +90,29 @@
     const forgotRequestForm = document.getElementById("forgot-request-form");
     const forgotResetForm = document.getElementById("forgot-reset-form");
     const errorEl = document.getElementById("error");
+
+    // Affiche le nom (et le logo, si enregistré) du cabinet EN PLUS de la
+    // marque Aurore, jamais à sa place - voir routes/cabinet.ts,
+    // /api/cabinet/identite-publique (sans authentification, uniquement le
+    // nom/logo, rien de sensible). Reste caché si le cabinet n'a pas encore
+    // de nom enregistré ou en cas d'erreur réseau - jamais bloquant pour la
+    // connexion elle-même.
+    (async () => {
+      try {
+        const identite = await apiFetch("/api/cabinet/identite-publique");
+        if (!identite || !identite.nom) return;
+        document.getElementById("cabinet-identite-nom").textContent = identite.nom;
+        if (identite.enteteUrl) {
+          const logoEl = document.getElementById("cabinet-identite-logo");
+          logoEl.src = identite.enteteUrl;
+          logoEl.alt = identite.nom;
+          logoEl.style.display = "inline-block";
+        }
+        document.getElementById("cabinet-identite").style.display = "block";
+      } catch {
+        // Jamais bloquant.
+      }
+    })();
 
     function apresConnexion() {
       // La coquille a onglets (app-shell.html) choisit elle-meme l'onglet

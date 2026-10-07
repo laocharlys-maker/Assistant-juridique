@@ -10,6 +10,18 @@ import { resolveCabinetEmailIdentite } from "../services/cabinetContact";
 
 export const cabinetRouter = Router();
 
+// Accessible SANS authentification (ecran de connexion, avant toute
+// session) - uniquement le nom et le logo/en-tete du cabinet, jamais une
+// donnee sensible. Une seule installation = un seul cabinet (mode desktop),
+// pas de parametre a fournir. Affiche en PLUS de la marque Aurore sur
+// l'ecran de connexion, jamais a sa place (voir public/login.html).
+cabinetRouter.get("/api/cabinet/identite-publique", async (_req, res) => {
+  const cabinet = await prisma.cabinet.findFirst({
+    select: { nom: true, enteteUrl: true },
+  });
+  return res.json({ nom: cabinet?.nom || null, enteteUrl: cabinet?.enteteUrl || null });
+});
+
 cabinetRouter.get("/api/cabinet", requireAuth, async (req, res) => {
   const cabinet = await prisma.cabinet.findUnique({
     where: { id: req.auth!.cabinetId },
