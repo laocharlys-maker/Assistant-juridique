@@ -4,7 +4,8 @@ import cron from "node-cron";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { loadCredentials } from "./credentialsStore";
-import { backupsDir, pgExecutable } from "./portablePaths";
+import { backupsDir, pgExecutable, userDataDir, secretsDir } from "./portablePaths";
+import { appRoot } from "../lib/seaPaths";
 
 const execFileAsync = promisify(execFile);
 
@@ -25,6 +26,50 @@ function pruneOldBackups(dir: string, keep: number): void {
   for (const file of toDelete) {
     fs.rmSync(path.join(dir, file), { force: true });
     console.log(`[postgres-backup] ancienne sauvegarde supprimee (retention=${keep}) : ${file}`);
+  }
+}
+
+/**
+ * Corbeille/pieces jointes (2026-10-07) : les pieces jointes de dossier
+ * (DocumentDossier/ActionVersionFichier, services/stockageDocuments.ts),
+ * les signatures utilisateur et l'en-tete du cabinet (routes/signature.ts,
+ * routes/cabinet.ts) sont des FICHIERS SUR DISQUE, jamais dans Postgres -
+ * le pg_dump ci-dessous ne les protege donc pas du tout. Sans ceci, une
+ * panne disque ou une perte du poste rendrait TOUTES les pieces jointes et
+ * signatures irrecuperables, meme avec la sauvegarde de base de donnees en
+ * place (le seul filet de securite que l'utilisateur croit avoir).
+ *
+ * Miroir simple (pas un historique par nuit comme les dumps SQL ci-dessus -
+ * ces fichiers changent rarement une fois crees, un miroir a jour suffit et
+ * evite de dupliquer des gigaoctets de pieces jointes chaque nuit) : copie
+ * recursive vers backups/fichiers, jamais de suppression du cote source,
+ * jamais destructif si la copie echoue partiellement (les fichiers
+ * precedents dans le miroir restent en l'etat, prochaine tentative la nuit
+ * suivante).
+ *
+ * La cle de chiffrement (secretsDir(), security/encryptionAtRest.ts) est
+ * INDISPENSABLE a inclure : sans elle, les pieces jointes chiffrees
+ * (stockageDocuments.ts) copiees seraient illisibles meme restaurees.
+ */
+function mirrorFichiersUtilisateur(): void {
+  const cibleRacine = path.join(backupsDir(), "fichiers");
+  const sources: Array<{ src: string; dest: string }> = [
+    { src: path.join(userDataDir(), "documents"), dest: path.join(cibleRacine, "documents") },
+    { src: secretsDir(), dest: path.join(cibleRacine, "secrets") },
+    { src: path.join(appRoot(), "public", "uploads"), dest: path.join(cibleRacine, "uploads") },
+  ];
+
+  for (const { src, dest } of sources) {
+    if (!fs.existsSync(src)) continue; // rien a sauvegarder encore (ex: premier lancement, aucune piece jointe).
+    try {
+      fs.mkdirSync(path.dirname(dest), { recursive: true });
+      fs.cpSync(src, dest, { recursive: true });
+    } catch (error) {
+      console.error(
+        `[postgres-backup] échec de la copie de secours de "${src}" (ignoré, retenté au prochain cycle) :`,
+        error instanceof Error ? error.message : error
+      );
+    }
   }
 }
 
@@ -68,6 +113,11 @@ export async function runBackupNow(): Promise<string> {
 
   console.log("[postgres-backup] sauvegarde terminee.");
   pruneOldBackups(dir, Number(process.env.POSTGRES_BACKUP_RETENTION || DEFAULT_RETENTION));
+
+  console.log("[postgres-backup] copie de secours des pièces jointes/signatures/clé de chiffrement...");
+  mirrorFichiersUtilisateur();
+  console.log("[postgres-backup] copie de secours terminée.");
+
   return outFile;
 }
 

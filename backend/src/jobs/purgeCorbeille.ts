@@ -16,13 +16,31 @@ const RETENTION_JOURS = 30;
  * duree meme si le document genere correspondant disparait, jamais
  * supprimee avec lui.
  */
-async function purgerAction(tx: Prisma.TransactionClient, actionId: string): Promise<void> {
+// `exigerEnCorbeille` : quand cette Action est purgee EN TANT QUE TEL (appel
+// independant, pas via un Dossier entier) - revalide supprimeLe au moment
+// meme de la suppression finale, PAS seulement au moment du findMany
+// initial (voir runPurgeCorbeille) - une restauration (POST .../restaurer)
+// qui arriverait juste entre les deux annule alors la purge (0 ligne
+// supprimee -> erreur -> transaction annulee) au lieu de supprimer malgre
+// tout un element qui vient d'etre restaure (faille temporelle reelle,
+// fenetre etroite mais corrigee ici). Quand on purge un Dossier ENTIER,
+// `exigerEnCorbeille` doit rester false : les actions NORMALES de ce
+// dossier n'ont elles-memes jamais ete mises en corbeille individuellement,
+// exiger leur propre supprimeLe empecherait alors toute purge de dossier.
+async function purgerAction(tx: Prisma.TransactionClient, actionId: string, exigerEnCorbeille = false): Promise<void> {
   await tx.saisieTemps.updateMany({ where: { actionId }, data: { actionId: null } });
   await tx.auditLog.deleteMany({ where: { actionId } });
   await tx.commentaireRevision.deleteMany({ where: { actionId } });
   await tx.actionVersionFichier.deleteMany({ where: { actionId } });
   await tx.actionVersion.deleteMany({ where: { actionId } });
-  await tx.action.delete({ where: { id: actionId } });
+  if (exigerEnCorbeille) {
+    const { count } = await tx.action.deleteMany({ where: { id: actionId, supprimeLe: { not: null } } });
+    if (count === 0) {
+      throw new Error(`action ${actionId} a ete restauree entre temps - purge annulee`);
+    }
+  } else {
+    await tx.action.delete({ where: { id: actionId } });
+  }
 }
 
 /**
@@ -66,7 +84,13 @@ async function purgerDossier(dossierId: string): Promise<void> {
     await tx.courrierEntrant.updateMany({ where: { dossierId }, data: { dossierId: null } });
     await tx.courrierSortant.updateMany({ where: { dossierId }, data: { dossierId: null } });
 
-    await tx.dossier.delete({ where: { id: dossierId } });
+    // Revalide supprimeLe ici, pas seulement au moment du findMany initial
+    // (voir runPurgeCorbeille) - meme faille temporelle que purgerAction,
+    // meme correctif.
+    const { count } = await tx.dossier.deleteMany({ where: { id: dossierId, supprimeLe: { not: null } } });
+    if (count === 0) {
+      throw new Error(`dossier ${dossierId} a ete restaure entre temps - purge annulee`);
+    }
   });
 }
 
@@ -85,7 +109,12 @@ async function purgerClient(clientId: string): Promise<void> {
     }
     await tx.courrierEntrant.updateMany({ where: { clientId }, data: { clientId: null } });
     await tx.courrierSortant.updateMany({ where: { clientId }, data: { clientId: null } });
-    await tx.client.delete({ where: { id: clientId } });
+
+    // Meme correctif que purgerAction/purgerDossier.
+    const { count } = await tx.client.deleteMany({ where: { id: clientId, supprimeLe: { not: null } } });
+    if (count === 0) {
+      throw new Error(`client ${clientId} a ete restaure entre temps - purge annulee`);
+    }
   });
 }
 
@@ -103,7 +132,7 @@ export async function runPurgeCorbeille(): Promise<{ dossiers: number; clients: 
   });
   for (const a of actionsAPurger) {
     try {
-      await prisma.$transaction((tx) => purgerAction(tx, a.id));
+      await prisma.$transaction((tx) => purgerAction(tx, a.id, true));
       actionsCount++;
       console.log(`[corbeille] document genere purge definitivement : ${a.id}`);
     } catch (error) {
