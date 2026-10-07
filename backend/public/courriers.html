@@ -22,7 +22,10 @@
         <button type="button" class="tab active" data-sens="entrant">Courriers entrants</button>
         <button type="button" class="tab" data-sens="sortant">Courriers sortants</button>
       </div>
-      <button type="button" id="nouveau-btn">+ Nouveau courrier</button>
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <button type="button" class="secondary" id="rediger-btn">Rédiger un courrier</button>
+        <button type="button" id="nouveau-btn">+ Nouveau courrier</button>
+      </div>
     </div>
 
     <div class="stat-grid" id="compteurs-grid">
@@ -84,6 +87,59 @@
         <div style="display:flex; gap:10px; margin-top:14px;">
           <button type="submit">Créer</button>
           <button type="button" class="secondary" id="nouveau-annuler-btn">Annuler</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- "Rédiger un courrier" (2026-10-07) - choix entre l'IA (reutilise le
+       formulaire "Correspondance" existant de Nouvelle action) et la
+       rédaction libre (formulaire dédié ci-dessous). -->
+  <div class="modal-overlay" id="rediger-choix-modal" hidden>
+    <div class="modal-box">
+      <h2>Rédiger un courrier</h2>
+      <p class="muted" style="margin-top:-6px;">Un nouveau courrier sortant, adressé à un tiers.</p>
+      <div style="display:flex; flex-direction:column; gap:10px; margin-top:10px;">
+        <button type="button" class="secondary" id="rediger-choix-ia-btn" style="text-align:left; padding:14px;">
+          <strong>🤖 Rédiger avec l'IA</strong><br />
+          <span class="muted" style="font-size:0.85rem;">Tu donnes le contexte, l'IA propose un texte à relire avant d'enregistrer.</span>
+        </button>
+        <button type="button" class="secondary" id="rediger-choix-libre-btn" style="text-align:left; padding:14px;">
+          <strong>✍️ Rédaction libre</strong><br />
+          <span class="muted" style="font-size:0.85rem;">Tu écris toi-même le texte du courrier.</span>
+        </button>
+      </div>
+      <div style="display:flex; gap:10px; margin-top:16px;">
+        <button type="button" class="secondary" id="rediger-choix-annuler-btn">Annuler</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Rédaction libre : destinataire/objet/corps/formule de fin saisis
+       directement, numéro de référence généré automatiquement (même
+       numérotation que tous les courriers sortants, voir numerotation.ts).
+       Pas d'en-tête/signature pour ce lot. -->
+  <div class="modal-overlay" id="redaction-libre-modal" hidden>
+    <div class="modal-box">
+      <h2>Rédaction libre d'un courrier</h2>
+      <p class="error" id="redaction-libre-error"></p>
+      <form id="redaction-libre-form">
+        <label>Destinataire <span class="muted">(obligatoire)</span></label>
+        <input name="destinataire" required />
+        <label>Adresse du destinataire <span class="muted">(optionnel)</span></label>
+        <input name="adresseDestinataire" placeholder="ex: Quartier Haie Vive, Cotonou" />
+        <label>Objet <span class="muted">(obligatoire)</span></label>
+        <input name="objet" required placeholder="ex: Mise en demeure de payer" />
+        <label>Corps du courrier <span class="muted">(obligatoire)</span></label>
+        <textarea name="corps" required rows="8" placeholder="Rédige ici le texte du courrier..."></textarea>
+        <label>Formule de fin <span class="muted">(obligatoire)</span></label>
+        <textarea name="formuleDeFin" required rows="2">Veuillez agréer, Madame, Monsieur, l'expression de nos salutations distinguées.</textarea>
+        <label>Dossier concerné <span class="muted">(optionnel)</span></label>
+        <select name="dossierId"><option value="">— aucun —</option></select>
+        <p class="muted" style="font-size:0.85rem;">Le numéro de référence du courrier sera généré automatiquement à l'enregistrement.</p>
+        <div style="display:flex; gap:10px; margin-top:14px;">
+          <button type="submit">Enregistrer le courrier</button>
+          <button type="button" class="secondary" id="redaction-libre-annuler-btn">Annuler</button>
         </div>
       </form>
     </div>
@@ -220,9 +276,12 @@
     async function chargerDossiers() {
       try {
         const { dossiers } = await apiFetch("/api/dossiers");
-        dossierSelect.innerHTML =
+        const optionsHtml =
           '<option value="">— aucun —</option>' +
           dossiers.map((d) => `<option value="${d.id}">${escapeHtml(d.numeroDossier)} — ${escapeHtml(d.nomAffaire)}</option>`).join("");
+        dossierSelect.innerHTML = optionsHtml;
+        const dossierSelectLibre = document.querySelector('#redaction-libre-form [name="dossierId"]');
+        if (dossierSelectLibre) dossierSelectLibre.innerHTML = optionsHtml;
       } catch {
         // Non bloquant pour la creation rapide.
       }
@@ -237,6 +296,65 @@
       modal.hidden = false;
     });
     document.getElementById("nouveau-annuler-btn").addEventListener("click", () => (modal.hidden = true));
+
+    const redigerChoixModal = document.getElementById("rediger-choix-modal");
+    const redactionLibreModal = document.getElementById("redaction-libre-modal");
+    const redactionLibreForm = document.getElementById("redaction-libre-form");
+
+    document.getElementById("rediger-btn").addEventListener("click", () => {
+      redigerChoixModal.hidden = false;
+    });
+    document.getElementById("rediger-choix-annuler-btn").addEventListener("click", () => {
+      redigerChoixModal.hidden = true;
+    });
+    document.getElementById("rediger-choix-ia-btn").addEventListener("click", () => {
+      // Reutilise tel quel le formulaire IA "Correspondance" de Nouvelle
+      // action (meme mecanisme de prefill que "Répondre au courrier", voir
+      // js/courrier-fiche.js) - juste sans destinataire/objet ni
+      // courrierEntrantId a prefiler ici, puisqu'il n'y a pas de courrier
+      // reçu d'origine.
+      sessionStorage.setItem("aurore_prefill_correspondance", JSON.stringify({}));
+      irAPagina("/nouvelle-action.html");
+    });
+    document.getElementById("rediger-choix-libre-btn").addEventListener("click", () => {
+      redigerChoixModal.hidden = true;
+      redactionLibreForm.reset();
+      redactionLibreForm.querySelector('[name="formuleDeFin"]').value =
+        "Veuillez agréer, Madame, Monsieur, l'expression de nos salutations distinguées.";
+      document.getElementById("redaction-libre-error").textContent = "";
+      redactionLibreModal.hidden = false;
+    });
+    document.getElementById("redaction-libre-annuler-btn").addEventListener("click", () => {
+      redactionLibreModal.hidden = true;
+    });
+
+    redactionLibreForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const errEl = document.getElementById("redaction-libre-error");
+      errEl.textContent = "";
+      const fd = new FormData(redactionLibreForm);
+      const submitBtn = redactionLibreForm.querySelector('button[type="submit"]');
+      submitBtn.disabled = true;
+      try {
+        const courrier = await apiFetch("/api/courriers-sortants/redaction-libre", {
+          method: "POST",
+          body: {
+            destinataire: fd.get("destinataire"),
+            adresseDestinataire: fd.get("adresseDestinataire") || undefined,
+            objet: fd.get("objet"),
+            corps: fd.get("corps"),
+            formuleDeFin: fd.get("formuleDeFin"),
+            dossierId: fd.get("dossierId") || undefined,
+          },
+        });
+        redactionLibreModal.hidden = true;
+        irAPagina(`/courrier-fiche.html?type=sortant&id=${courrier.id}`);
+      } catch (err) {
+        errEl.textContent = err.message;
+      } finally {
+        submitBtn.disabled = false;
+      }
+    });
 
     form.addEventListener("submit", async (e) => {
       e.preventDefault();

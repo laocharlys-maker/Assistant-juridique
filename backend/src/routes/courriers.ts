@@ -5,6 +5,7 @@ import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
 import { requireModule } from "../middleware/roles";
 import * as courrierService from "../services/courriers/courrierService";
+import { buildCourrierDocx } from "../services/courriers/courrierDocx";
 
 export const courriersRouter = Router();
 
@@ -276,6 +277,59 @@ courriersRouter.post("/api/courriers-sortants", requireAuth, async (req, res) =>
       ...parsed.data,
       dateCourrier: parsed.data.dateCourrier ? new Date(parsed.data.dateCourrier) : undefined,
     });
+    return res.status(201).json(courrier);
+  } catch (error) {
+    const { statut, error: message } = messageErreur(error);
+    return res.status(statut).json({ error: message });
+  }
+});
+
+// "Rédiger un courrier" (2026-10-07) - rédaction libre depuis l'écran
+// Courriers (distinct du formulaire "Correspondance" avec IA de Nouvelle
+// action, qui reste accessible séparément) : crée le CourrierSortant (même
+// service que la création rapide ci-dessus, numéro généré automatiquement)
+// PUIS génère immédiatement un fichier Word à partir du texte saisi,
+// attaché comme pièce jointe - jamais d'en-tête/signature pour ce lot
+// (voir courrierDocx.ts).
+const redigerLibreSchema = z.object({
+  destinataire: z.string().min(1),
+  adresseDestinataire: z.string().optional(),
+  objet: z.string().min(1),
+  corps: z.string().min(1),
+  formuleDeFin: z.string().min(1),
+  dossierId: z.string().uuid().optional(),
+  clientId: z.string().uuid().optional(),
+});
+
+courriersRouter.post("/api/courriers-sortants/redaction-libre", requireAuth, async (req, res) => {
+  const parsed = redigerLibreSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Formulaire invalide", details: parsed.error.issues });
+  }
+  try {
+    const courrier = await courrierService.creerCourrierSortant(req.auth!.cabinetId, req.auth!.userId, {
+      objet: parsed.data.objet,
+      destinataire: parsed.data.destinataire,
+      dossierId: parsed.data.dossierId,
+      clientId: parsed.data.clientId,
+      nature: "correspondance",
+    });
+
+    const buffer = await buildCourrierDocx({
+      numero: courrier.numero,
+      objet: parsed.data.objet,
+      destinataire: parsed.data.destinataire,
+      adresseDestinataire: parsed.data.adresseDestinataire,
+      corps: parsed.data.corps,
+      formuleDeFin: parsed.data.formuleDeFin,
+      date: new Date(),
+    });
+    const fichierDataUrl = `data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,${buffer.toString("base64")}`;
+    await courrierService.uploaderPieceCourrierSortant(courrier.id, req.auth!.cabinetId, req.auth!.userId, {
+      nom: `${courrier.numero}.docx`,
+      fichierDataUrl,
+    });
+
     return res.status(201).json(courrier);
   } catch (error) {
     const { statut, error: message } = messageErreur(error);
