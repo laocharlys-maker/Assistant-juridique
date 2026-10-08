@@ -318,9 +318,13 @@ async function ouvrirDetail(evenement) {
   const VISIBILITE_LABELS = { prive: "visible par moi seul", equipe: "visible par mon équipe", cabinet: "visible par tout le cabinet" };
   const visibiliteTexte = !evenement.dossier && evenement.visibilite ? ` (${VISIBILITE_LABELS[evenement.visibilite] || evenement.visibilite})` : "";
   createurEl.textContent = nomCreateur ? `Créé par ${creeParMoi ? "moi" : nomCreateur}${visibiliteTexte}` : "";
+
+  const modificateurEl = document.getElementById("cal-detail-modificateur");
   if (evenement.updatedBy) {
     const modifieParMoi = evenement.updatedBy.id === me.id;
-    createurEl.textContent += ` — Modifié par ${modifieParMoi ? "moi" : evenement.updatedBy.nom}`;
+    modificateurEl.textContent = `Modifié par ${modifieParMoi ? "moi" : evenement.updatedBy.nom}`;
+  } else {
+    modificateurEl.textContent = "";
   }
 
   const extraEl = document.getElementById("cal-detail-audience-extra");
