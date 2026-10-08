@@ -37,6 +37,12 @@ export const MODULES_DISPONIBLES = [
   // restent volontairement sous "facturation" (ils CREENT des factures a
   // partir du temps, action de facturation, pas de suivi du temps).
   "feuilles_temps",
+  // Lot 23 : acces a l'ecran Corbeille (restauration des dossiers/clients/
+  // documents supprimes) pour un collaborateur - meme fonctionnement que
+  // "delais"/"courriers" ci-dessus. Reserve a l'avocat/titulaire par defaut
+  // au niveau role (voir layout.js, NAV_ITEMS) ; cette cle permet a l'avocat
+  // d'ouvrir l'ecran, en plus, a un collaborateur precis.
+  "corbeille",
 ] as const;
 
 export type ModuleDisponible = (typeof MODULES_DISPONIBLES)[number];

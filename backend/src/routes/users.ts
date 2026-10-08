@@ -494,6 +494,69 @@ usersRouter.patch("/api/users/:id/promouvoir-admin", requireAuth, requireAdmin, 
   return res.json({ ok: true });
 });
 
+// Le titulaire peut corriger le nom d'un collaborateur (faute de frappe a
+// la creation du compte, nom marital...) - reserve au titulaire comme les
+// autres reglages sensibles ci-dessus (taux horaire, activation du compte).
+const renommerCollaborateurSchema = z.object({
+  nom: z.string().min(1),
+});
+
+usersRouter.patch("/api/users/:id/nom", requireAuth, requireAdmin, async (req, res) => {
+  const parsed = renommerCollaborateurSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Requête invalide", details: parsed.error.issues });
+  }
+
+  const collaborateur = await prisma.user.findFirst({
+    where: { id: req.params.id, cabinetId: req.auth!.cabinetId, role: "collaborateur" },
+  });
+  if (!collaborateur) {
+    return res.status(404).json({ error: "Collaborateur introuvable dans ce cabinet" });
+  }
+
+  await prisma.user.update({
+    where: { id: collaborateur.id },
+    data: { nom: parsed.data.nom },
+  });
+  return res.json({ ok: true });
+});
+
+// Suppression reelle d'un compte collaborateur - reserve au titulaire.
+// Contrairement a PATCH .../actif (desactivation, qui preserve tout
+// l'historique), ceci efface le compte lui-meme : seulement possible si le
+// collaborateur n'a encore RIEN cree dans Aurore (dossiers, documents,
+// evenements, factures, temps...), puisqu'aucune relation de ce schema
+// n'utilise onDelete:Cascade (convention du projet - voir les autres
+// jobs de purge). On nettoie juste les liens annexes qui lui appartiennent
+// en propre (acces supplementaires recus, assignations a des evenements) -
+// jamais le travail d'un tiers. Si une contrainte d'integrite bloque malgre
+// tout la suppression (compte avec historique), on renvoie un message clair
+// invitant a desactiver le compte a la place.
+usersRouter.delete("/api/users/:id", requireAuth, requireAdmin, async (req, res) => {
+  const collaborateur = await prisma.user.findFirst({
+    where: { id: req.params.id, cabinetId: req.auth!.cabinetId, role: "collaborateur" },
+  });
+  if (!collaborateur) {
+    return res.status(404).json({ error: "Collaborateur introuvable dans ce cabinet" });
+  }
+
+  try {
+    await prisma.$transaction([
+      prisma.accesSupplementaire.deleteMany({ where: { collaborateurId: collaborateur.id } }),
+      prisma.evenementAssigne.deleteMany({ where: { userId: collaborateur.id } }),
+      prisma.user.delete({ where: { id: collaborateur.id } }),
+    ]);
+  } catch (error) {
+    console.error("Échec de suppression du collaborateur :", error);
+    return res.status(409).json({
+      error:
+        "Impossible de supprimer ce compte : il a déjà créé des dossiers, documents ou autres éléments dans Aurore (l'historique ne peut jamais être effacé). Désactive-le plutôt pour conserver cet historique tout en lui bloquant l'accès.",
+    });
+  }
+
+  return res.json({ ok: true });
+});
+
 // Chacun met a jour ses propres coordonnees (jamais celles d'un tiers).
 const updateProfilSchema = z.object({
   email: z.string().email().optional(),

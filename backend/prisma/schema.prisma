@@ -121,6 +121,19 @@ enum SourceEvenement {
   email
 }
 
+// Visibilite d'un Evenement manuel sans dossier (un evenement lie a un
+// dossier reste regi par l'acces au dossier lui-meme, ce champ ne joue
+// aucun role dans ce cas) - "equipe" par defaut : l'avocat responsable et
+// tous ses collaborateurs se voient mutuellement, ce qui n'etait pas le cas
+// avant ce champ (un collaborateur ne voyait jamais les evenements libres
+// d'un autre collaborateur du meme avocat - cause du signalement du
+// 2026-10-08).
+enum VisibiliteEvenement {
+  prive
+  equipe
+  cabinet
+}
+
 // Lot 20 : liste FERMEE (pas de saisie libre), pour garder les filtres et
 // statistiques du registre courrier fiables - voir README-LOT20.md pour la
 // correspondance nature <-> cas d'usage. Partagee par CourrierEntrant et
@@ -900,6 +913,7 @@ model Evenement {
   dateFin        DateTime?        @map("date_fin")
   touteLaJournee Boolean          @default(false) @map("toute_la_journee")
   lieu           String?
+  visibilite     VisibiliteEvenement @default(equipe) @map("visibilite")
   createdById    String           @map("created_by_id")
   createdAt      DateTime         @default(now()) @map("created_at")
   updatedAt      DateTime         @updatedAt @map("updated_at")

@@ -11,6 +11,34 @@ function peutVoirTouLeCabinet(role: string | undefined): boolean {
   return role === "titulaire" || role === "avocat";
 }
 
+// "Equipe" pour un evenement manuel = l'avocat responsable et TOUS ses
+// collaborateurs (y compris les collaborateurs entre eux) - distinct de
+// getAccessibleAvocatIds qui, cote collaborateur, ne renvoie jamais les
+// identifiants des collaborateurs freres (seulement soi-meme + son avocat
+// responsable + d'eventuels acces supplementaires). Ce helper est local a
+// ce routeur et ne touche pas access.ts, utilise ailleurs dans l'app avec
+// une semantique differente (acces aux dossiers), pour ne pas risquer d'
+// effets de bord sur ces autres usages.
+async function getEquipeUserIds(auth: { userId: string; cabinetId: string; role: string }): Promise<string[]> {
+  if (auth.role === "titulaire" || auth.role === "avocat") {
+    return getAccessibleAvocatIds(auth as Parameters<typeof getAccessibleAvocatIds>[0]);
+  }
+  const user = await prisma.user.findUnique({
+    where: { id: auth.userId },
+    select: { responsableId: true },
+  });
+  const ids = new Set<string>([auth.userId]);
+  if (user?.responsableId) {
+    ids.add(user.responsableId);
+    const collegues = await prisma.user.findMany({
+      where: { cabinetId: auth.cabinetId, responsableId: user.responsableId },
+      select: { id: true },
+    });
+    collegues.forEach((c) => ids.add(c.id));
+  }
+  return Array.from(ids);
+}
+
 // Exporte : reutilise tel quel par routes/roleAudiences.ts (filtre par
 // types du "Role de la semaine") - source unique de la liste des types,
 // jamais une copie qui pourrait diverger.
@@ -70,6 +98,7 @@ evenementsRouter.get("/api/evenements", requireAuth, async (req, res) => {
   const requestedScope = req.query.scope === "cabinet" ? "cabinet" : "mine";
   const scope = requestedScope === "cabinet" && peutVoirTouLeCabinet(auth!.role) ? "cabinet" : "mine";
   const accessibleAvocatIds = scope === "mine" ? await getAccessibleAvocatIds(auth!) : null;
+  const equipeUserIds = scope === "mine" ? await getEquipeUserIds(auth!) : null;
 
   const typeParam =
     typeof req.query.type === "string" && (TYPES_EVENEMENT as readonly string[]).includes(req.query.type)
@@ -84,11 +113,19 @@ evenementsRouter.get("/api/evenements", requireAuth, async (req, res) => {
     OR: [{ dateFin: { gte: debut } }, { dateFin: null, dateDebut: { gte: debut } }],
   };
 
+  // Un evenement lie a un dossier reste regi par l'acces au dossier
+  // (inchange). Un evenement libre (sans dossier) depend desormais de sa
+  // visibilite : "cabinet" pour tous, "equipe" pour l'avocat responsable et
+  // tous ses collaborateurs (corrige le defaut de visibilite entre
+  // collaborateurs d'un meme avocat), "prive" pour le createur seul (sauf
+  // assignation explicite, geree par la 3e branche dans tous les cas).
   const accessCondition = accessibleAvocatIds
     ? {
         OR: [
           { dossier: { createdBy: { in: accessibleAvocatIds } } },
-          { dossierId: null, createdById: { in: [...accessibleAvocatIds, auth!.userId] } },
+          { dossierId: null, createdById: auth!.userId },
+          { dossierId: null, visibilite: "cabinet" as const },
+          { dossierId: null, visibilite: "equipe" as const, createdById: { in: equipeUserIds! } },
           { assignes: { some: { userId: auth!.userId } } },
         ],
       }
@@ -109,6 +146,8 @@ evenementsRouter.get("/api/evenements", requireAuth, async (req, res) => {
   return res.json({ scope, debut: debut.toISOString(), fin: fin.toISOString(), evenements });
 });
 
+const VISIBILITES_EVENEMENT = ["prive", "equipe", "cabinet"] as const;
+
 const createSchema = z.object({
   type: z.enum(TYPES_MANUELS),
   titre: z.string().min(1),
@@ -119,6 +158,7 @@ const createSchema = z.object({
   lieu: z.string().optional(),
   dossierId: z.string().uuid().optional(),
   assignes: z.array(z.string().uuid()).optional().default([]),
+  visibilite: z.enum(VISIBILITES_EVENEMENT).optional().default("equipe"),
 });
 
 async function assignesValidesPourCabinet(assignes: string[], cabinetId: string): Promise<string[]> {
@@ -175,6 +215,7 @@ evenementsRouter.post("/api/evenements", requireAuth, async (req, res) => {
       dateFin,
       touteLaJournee: parsed.data.touteLaJournee,
       lieu: parsed.data.lieu,
+      visibilite: parsed.data.visibilite,
       createdById: req.auth!.userId,
       assignes: { create: assignesValides.map((userId) => ({ userId })) },
     },
@@ -198,6 +239,7 @@ const updateSchema = z.object({
   lieu: z.string().optional(),
   dossierId: z.string().uuid().nullable().optional(),
   assignes: z.array(z.string().uuid()).optional(),
+  visibilite: z.enum(VISIBILITES_EVENEMENT).optional(),
 });
 
 evenementsRouter.patch("/api/evenements/:id", requireAuth, async (req, res) => {
@@ -275,6 +317,7 @@ evenementsRouter.patch("/api/evenements/:id", requireAuth, async (req, res) => {
         dateFin,
         touteLaJournee: parsed.data.touteLaJournee,
         lieu: parsed.data.lieu,
+        visibilite: parsed.data.visibilite,
         ...(dossierId !== undefined ? { dossierId } : {}),
       },
       include: INCLUDE_STANDARD,

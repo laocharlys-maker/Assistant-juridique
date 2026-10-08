@@ -35,6 +35,9 @@ CREATE TYPE "TypeEvenement" AS ENUM ('audience', 'rdv', 'appel', 'tache', 'echea
 CREATE TYPE "SourceEvenement" AS ENUM ('manuel', 'role_audience', 'delai_calcule', 'sync_google', 'sync_caldav', 'email');
 
 -- CreateEnum
+CREATE TYPE "VisibiliteEvenement" AS ENUM ('prive', 'equipe', 'cabinet');
+
+-- CreateEnum
 CREATE TYPE "NatureCourrier" AS ENUM ('correspondance', 'convocation', 'assignation', 'signification', 'mise_en_demeure', 'courrier_client', 'courrier_juridiction', 'courrier_confrere', 'courrier_administratif', 'autre');
 
 -- CreateEnum
@@ -347,6 +350,7 @@ CREATE TABLE "evenements" (
     "date_fin" TIMESTAMP(3),
     "toute_la_journee" BOOLEAN NOT NULL DEFAULT false,
     "lieu" TEXT,
+    "visibilite" "VisibiliteEvenement" NOT NULL DEFAULT 'equipe',
     "created_by_id" TEXT NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,

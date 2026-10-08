@@ -95,6 +95,7 @@
       { key: "jurisprudence", label: "Jurisprudence" },
       { key: "delais", label: "Délais" },
       { key: "courriers", label: "Gestion des courriers" },
+      { key: "corbeille", label: "Corbeille" },
     ];
 
     function iconBtn({ icon, tooltip, dataset, isOn, isDanger }) {
@@ -204,6 +205,10 @@
                   isDanger: u.actif !== false,
                 })
               );
+              actions.push(
+                `<button type="button" class="secondary btn-sm" data-renommer="${u.id}" data-nom-actuel="${escapeHtml(u.nom)}">Renommer</button>`
+              );
+              actions.push(`<button type="button" class="danger btn-sm" data-supprimer-collaborateur="${u.id}">Supprimer</button>`);
             }
 
             const reassignSelect =
@@ -328,6 +333,35 @@
             } catch (err) {
               showError(document.getElementById("error"), err.message);
             }
+          });
+        });
+
+        listEl.querySelectorAll("[data-renommer]").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            const userId = btn.dataset.renommer;
+            const nouveauNom = prompt("Nouveau nom du collaborateur :", btn.dataset.nomActuel);
+            if (!nouveauNom || nouveauNom.trim() === "" || nouveauNom === btn.dataset.nomActuel) return;
+            try {
+              await apiFetch(`/api/users/${userId}/nom`, { method: "PATCH", body: { nom: nouveauNom.trim() } });
+              loadUsers();
+            } catch (err) {
+              showError(document.getElementById("error"), err.message);
+            }
+          });
+        });
+
+        listEl.querySelectorAll("[data-supprimer-collaborateur]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const userId = btn.dataset.supprimerCollaborateur;
+            confirmerSuppression({
+              titre: "Supprimer ce collaborateur ?",
+              message: "Cette action efface définitivement son compte. Impossible s'il a déjà créé des dossiers, documents ou autres éléments dans Aurore — dans ce cas, désactive-le plutôt pour conserver l'historique.",
+              boutonLabel: "Supprimer définitivement",
+              onConfirm: async () => {
+                await apiFetch(`/api/users/${userId}`, { method: "DELETE" });
+                loadUsers();
+              },
+            });
           });
         });
 

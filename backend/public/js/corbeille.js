@@ -10,33 +10,39 @@ function formatJoursRestants(jours) {
   return `purge définitive dans ${jours} jours`;
 }
 
-function ligneCorbeille({ titre, supprimePar, joursRestants, onRestaurer }) {
+// La restauration reste reservee a l'avocat/titulaire (meme droits que la
+// suppression elle-meme, inchange) - un collaborateur autorise a VOIR la
+// corbeille (reglage "modules", voir users.ts) n'a donc pas le bouton, pour
+// eviter un clic qui echouerait silencieusement en 403 cote serveur.
+function ligneCorbeille({ titre, supprimePar, joursRestants, onRestaurer, peutRestaurer }) {
   const div = document.createElement("div");
   div.className = "action-item";
   div.innerHTML = `
     <div>${escapeHtmlCorbeille(titre)}</div>
     <div class="muted">Supprimé par ${escapeHtmlCorbeille(supprimePar || "—")} — ${formatJoursRestants(joursRestants)}</div>
   `;
-  const restaurerBtn = document.createElement("button");
-  restaurerBtn.type = "button";
-  restaurerBtn.className = "secondary btn-sm";
-  restaurerBtn.textContent = "Restaurer";
-  restaurerBtn.style.marginTop = "6px";
-  restaurerBtn.addEventListener("click", async () => {
-    restaurerBtn.disabled = true;
-    try {
-      await onRestaurer();
-      div.remove();
-    } catch (err) {
-      restaurerBtn.disabled = false;
-      alert(err.message);
-    }
-  });
-  div.appendChild(restaurerBtn);
+  if (peutRestaurer) {
+    const restaurerBtn = document.createElement("button");
+    restaurerBtn.type = "button";
+    restaurerBtn.className = "secondary btn-sm";
+    restaurerBtn.textContent = "Restaurer";
+    restaurerBtn.style.marginTop = "6px";
+    restaurerBtn.addEventListener("click", async () => {
+      restaurerBtn.disabled = true;
+      try {
+        await onRestaurer();
+        div.remove();
+      } catch (err) {
+        restaurerBtn.disabled = false;
+        alert(err.message);
+      }
+    });
+    div.appendChild(restaurerBtn);
+  }
   return div;
 }
 
-async function chargerCorbeille() {
+async function chargerCorbeille(peutRestaurer) {
   const errorEl = document.getElementById("error");
   hideError(errorEl);
   try {
@@ -51,6 +57,7 @@ async function chargerCorbeille() {
         dossiersEl.appendChild(
           ligneCorbeille({
             ...d,
+            peutRestaurer,
             onRestaurer: () => apiFetch(`/api/dossiers/${d.id}/restaurer`, { method: "POST" }),
           })
         );
@@ -66,6 +73,7 @@ async function chargerCorbeille() {
         clientsEl.appendChild(
           ligneCorbeille({
             ...c,
+            peutRestaurer,
             onRestaurer: () => apiFetch(`/api/clients/${c.id}/restaurer`, { method: "POST" }),
           })
         );
@@ -81,6 +89,7 @@ async function chargerCorbeille() {
         actionsEl.appendChild(
           ligneCorbeille({
             ...a,
+            peutRestaurer,
             onRestaurer: () => apiFetch(`/api/dossiers/${a.dossierId}/actions/${a.id}/restaurer`, { method: "POST" }),
           })
         );
@@ -95,5 +104,6 @@ async function chargerCorbeille() {
   const me = await requireSession();
   if (!me) return;
   initLayout(me);
-  await chargerCorbeille();
+  const peutRestaurer = me.role === "titulaire" || me.role === "avocat";
+  await chargerCorbeille(peutRestaurer);
 })();

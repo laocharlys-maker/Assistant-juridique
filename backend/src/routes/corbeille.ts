@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
-import { requireAvocat } from "../middleware/roles";
+import { requireModule } from "../middleware/roles";
+import { getAccessibleAvocatIds } from "../services/access";
 
 export const corbeilleRouter = Router();
 
@@ -15,15 +16,31 @@ function joursRestants(supprimeLe: Date): number {
   return Math.max(0, Math.ceil((expireLe.getTime() - Date.now()) / (24 * 60 * 60 * 1000)));
 }
 
-// Liste groupee des 3 types d'elements en corbeille pour CE cabinet - meme
-// droits que la suppression elle-meme (avocat/titulaire uniquement, voir
-// routes/dossiers.ts et routes/clients.ts).
-corbeilleRouter.get("/api/corbeille", requireAuth, requireAvocat, async (req, res) => {
+function peutVoirTouLeCabinet(role: string | undefined): boolean {
+  return role === "titulaire" || role === "avocat";
+}
+
+// Liste groupee des 3 types d'elements en corbeille pour CE cabinet.
+// Reservee a l'avocat/titulaire par defaut (voir layout.js, NAV_ITEMS) mais
+// ouvrable a un collaborateur precis via le reglage "modules" (meme
+// mecanisme que "delais"/"courriers", voir routes/users.ts PATCH
+// .../modules) - requireModule() ne verifie QUE ce reglage, jamais le role,
+// d'ou le filtrage manuel ci-dessous pour un collaborateur : son perimetre
+// reste celui de son avocat (comme pour la liste des dossiers), jamais la
+// corbeille d'une autre equipe du cabinet. Les clients n'ont pas de notion
+// de "proprietaire" (voir routes/clients.ts, deja partages par tout le
+// cabinet) : pas de filtrage supplementaire pour eux.
+corbeilleRouter.get("/api/corbeille", requireAuth, requireModule("corbeille"), async (req, res) => {
   const { auth } = req;
+  const accessibleAvocatIds = peutVoirTouLeCabinet(auth!.role) ? null : await getAccessibleAvocatIds(auth!);
 
   const [dossiers, clients, actions] = await Promise.all([
     prisma.dossier.findMany({
-      where: { cabinetId: auth!.cabinetId, supprimeLe: { not: null } },
+      where: {
+        cabinetId: auth!.cabinetId,
+        supprimeLe: { not: null },
+        ...(accessibleAvocatIds ? { createdBy: { in: accessibleAvocatIds } } : {}),
+      },
       orderBy: { supprimeLe: "desc" },
       select: { id: true, numeroDossier: true, nomAffaire: true, supprimeLe: true, supprimePar: { select: { nom: true } } },
     }),
@@ -33,7 +50,13 @@ corbeilleRouter.get("/api/corbeille", requireAuth, requireAvocat, async (req, re
       select: { id: true, nom: true, supprimeLe: true, supprimePar: { select: { nom: true } } },
     }),
     prisma.action.findMany({
-      where: { dossier: { cabinetId: auth!.cabinetId }, supprimeLe: { not: null } },
+      where: {
+        dossier: {
+          cabinetId: auth!.cabinetId,
+          ...(accessibleAvocatIds ? { createdBy: { in: accessibleAvocatIds } } : {}),
+        },
+        supprimeLe: { not: null },
+      },
       orderBy: { supprimeLe: "desc" },
       select: {
         id: true,

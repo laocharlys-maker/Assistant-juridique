@@ -311,6 +311,10 @@ async function ouvrirDetail(evenement) {
     evenement.assignes && evenement.assignes.length > 0
       ? `Assigné(e)(s) : ${evenement.assignes.map((a) => a.user.nom).join(", ")}`
       : "";
+  if (!evenement.dossier && evenement.visibilite) {
+    const labels = { prive: "Visible par moi seul", equipe: "Visible par mon équipe", cabinet: "Visible par tout le cabinet" };
+    assignesEl.textContent += `${assignesEl.textContent ? " — " : ""}${labels[evenement.visibilite] || ""}`;
+  }
 
   const extraEl = document.getElementById("cal-detail-audience-extra");
   extraEl.hidden = true;
@@ -438,6 +442,7 @@ function basculerChampsFormulaire(type) {
   document.getElementById("cal-form-manuel-fields").hidden = estAudience;
   document.getElementById("cal-form-fin-fields").hidden = estAudience;
   document.getElementById("cal-form-assignes-field").hidden = estAudience;
+  document.getElementById("cal-form-visibilite-field").hidden = estAudience;
   document.getElementById("cal-form-titre").required = !estAudience;
   document.getElementById("cal-form-juridiction").required = estAudience;
   document.getElementById("cal-form-parties").required = estAudience;
@@ -462,6 +467,7 @@ function ouvrirFormulaire(evenement, dateInitiale) {
   document.getElementById("cal-form-touteLaJournee").checked = evenement ? evenement.touteLaJournee : false;
   document.getElementById("cal-form-lieu").value = evenement ? evenement.lieu || "" : "";
   document.getElementById("cal-form-dossierNumero").value = evenement && evenement.dossier ? evenement.dossier.numeroDossier : "";
+  document.getElementById("cal-form-visibilite").value = evenement ? evenement.visibilite || "equipe" : "equipe";
   CHAMPS_AUDIENCE.forEach((f) => {
     document.getElementById(`cal-form-${f}`).value = "";
   });
@@ -560,6 +566,7 @@ calForm.addEventListener("submit", async (e) => {
     lieu: fd.get("lieu") || undefined,
     dossierId: dossier ? dossier.id : undefined,
     assignes,
+    visibilite: fd.get("visibilite") || "equipe",
   };
 
   try {
