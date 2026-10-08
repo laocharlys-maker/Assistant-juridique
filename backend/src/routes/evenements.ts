@@ -51,7 +51,7 @@ const TYPES_MANUELS = ["rdv", "appel", "tache", "autre"] as const;
 
 const INCLUDE_STANDARD = {
   dossier: { select: { id: true, numeroDossier: true, nomAffaire: true } },
-  createdBy: { select: { nom: true } },
+  createdBy: { select: { id: true, nom: true } },
   assignes: { include: { user: { select: { id: true, nom: true } } } },
 } as const;
 
@@ -317,7 +317,12 @@ evenementsRouter.patch("/api/evenements/:id", requireAuth, async (req, res) => {
         dateFin,
         touteLaJournee: parsed.data.touteLaJournee,
         lieu: parsed.data.lieu,
-        visibilite: parsed.data.visibilite,
+        // Seul le createur choisit la visibilite de SON evenement - un
+        // tiers qui peut le modifier (meme equipe, assigne...) ne doit
+        // jamais pouvoir la changer a son insu (constat du 2026-10-08 :
+        // le collaborateur B rendait "prive" un evenement cree par A, qui
+        // disparaissait alors de l'ecran de B sans que A l'ait decide).
+        ...(existing.createdById === req.auth!.userId ? { visibilite: parsed.data.visibilite } : {}),
         ...(dossierId !== undefined ? { dossierId } : {}),
       },
       include: INCLUDE_STANDARD,

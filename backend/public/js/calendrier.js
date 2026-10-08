@@ -311,10 +311,13 @@ async function ouvrirDetail(evenement) {
     evenement.assignes && evenement.assignes.length > 0
       ? `Assigné(e)(s) : ${evenement.assignes.map((a) => a.user.nom).join(", ")}`
       : "";
-  if (!evenement.dossier && evenement.visibilite) {
-    const labels = { prive: "Visible par moi seul", equipe: "Visible par mon équipe", cabinet: "Visible par tout le cabinet" };
-    assignesEl.textContent += `${assignesEl.textContent ? " — " : ""}${labels[evenement.visibilite] || ""}`;
-  }
+
+  const createurEl = document.getElementById("cal-detail-createur");
+  const creeParMoi = evenement.createdBy && evenement.createdBy.id === me.id;
+  const nomCreateur = evenement.createdBy ? evenement.createdBy.nom : "";
+  const VISIBILITE_LABELS = { prive: "visible par moi seul", equipe: "visible par mon équipe", cabinet: "visible par tout le cabinet" };
+  const visibiliteTexte = !evenement.dossier && evenement.visibilite ? ` (${VISIBILITE_LABELS[evenement.visibilite] || evenement.visibilite})` : "";
+  createurEl.textContent = nomCreateur ? `Créé par ${creeParMoi ? "moi" : nomCreateur}${visibiliteTexte}` : "";
 
   const extraEl = document.getElementById("cal-detail-audience-extra");
   extraEl.hidden = true;
@@ -468,6 +471,15 @@ function ouvrirFormulaire(evenement, dateInitiale) {
   document.getElementById("cal-form-lieu").value = evenement ? evenement.lieu || "" : "";
   document.getElementById("cal-form-dossierNumero").value = evenement && evenement.dossier ? evenement.dossier.numeroDossier : "";
   document.getElementById("cal-form-visibilite").value = evenement ? evenement.visibilite || "equipe" : "equipe";
+  // Seul le createur peut changer la visibilite (voir routes/evenements.ts,
+  // PATCH .../:id - le serveur ignore deja ce champ pour un tiers, mais le
+  // masquer ici evite de laisser croire qu'un autre que le createur peut la
+  // modifier). typeSelect est desactive sur un evenement existant, donc ce
+  // n'est jamais ecrase par basculerChampsFormulaire au changement de type.
+  const estCreateur = !evenement || (evenement.createdBy && evenement.createdBy.id === me.id);
+  if (!estCreateur) {
+    document.getElementById("cal-form-visibilite-field").hidden = true;
+  }
   CHAMPS_AUDIENCE.forEach((f) => {
     document.getElementById(`cal-form-${f}`).value = "";
   });
