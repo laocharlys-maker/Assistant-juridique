@@ -52,6 +52,7 @@ const TYPES_MANUELS = ["rdv", "appel", "tache", "autre"] as const;
 const INCLUDE_STANDARD = {
   dossier: { select: { id: true, numeroDossier: true, nomAffaire: true } },
   createdBy: { select: { id: true, nom: true } },
+  updatedBy: { select: { id: true, nom: true } },
   assignes: { include: { user: { select: { id: true, nom: true } } } },
 } as const;
 
@@ -324,6 +325,7 @@ evenementsRouter.patch("/api/evenements/:id", requireAuth, async (req, res) => {
         // disparaissait alors de l'ecran de B sans que A l'ait decide).
         ...(existing.createdById === req.auth!.userId ? { visibilite: parsed.data.visibilite } : {}),
         ...(dossierId !== undefined ? { dossierId } : {}),
+        updatedById: req.auth!.userId,
       },
       include: INCLUDE_STANDARD,
     });

@@ -352,6 +352,7 @@ CREATE TABLE "evenements" (
     "lieu" TEXT,
     "visibilite" "VisibiliteEvenement" NOT NULL DEFAULT 'equipe',
     "created_by_id" TEXT NOT NULL,
+    "updated_by_id" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
     "role_audience_id" TEXT,
@@ -945,6 +946,9 @@ ALTER TABLE "evenements" ADD CONSTRAINT "evenements_dossier_id_fkey" FOREIGN KEY
 
 -- AddForeignKey
 ALTER TABLE "evenements" ADD CONSTRAINT "evenements_created_by_id_fkey" FOREIGN KEY ("created_by_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "evenements" ADD CONSTRAINT "evenements_updated_by_id_fkey" FOREIGN KEY ("updated_by_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "evenements" ADD CONSTRAINT "evenements_role_audience_id_fkey" FOREIGN KEY ("role_audience_id") REFERENCES "role_audiences"("id") ON DELETE SET NULL ON UPDATE CASCADE;

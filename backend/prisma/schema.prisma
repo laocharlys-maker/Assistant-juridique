@@ -427,6 +427,7 @@ model User {
   // Lot 12a : evenements crees par CET utilisateur, et ceux auxquels
   // il/elle est assigne(e) (table de liaison EvenementAssigne).
   evenementsCrees    Evenement[]        @relation("EvenementCreatedBy")
+  evenementsModifies Evenement[]        @relation("EvenementUpdatedBy")
   evenementsAssignes EvenementAssigne[]
 
   // Lot 12b : agendas externes connectes par CET utilisateur (OAuth2
@@ -915,6 +916,11 @@ model Evenement {
   lieu           String?
   visibilite     VisibiliteEvenement @default(equipe) @map("visibilite")
   createdById    String           @map("created_by_id")
+  // Dernier a avoir modifie l'evenement via PATCH /api/evenements/:id -
+  // null tant qu'il n'a jamais ete modifie depuis sa creation (voir
+  // routes/evenements.ts). Juste "qui en dernier", pas un historique complet
+  // de chaque modification.
+  updatedById    String?          @map("updated_by_id")
   createdAt      DateTime         @default(now()) @map("created_at")
   updatedAt      DateTime         @updatedAt @map("updated_at")
   // Lien vers l'enregistrement source pour les Evenement auto-generes (au
@@ -926,6 +932,7 @@ model Evenement {
   cabinet       Cabinet                @relation(fields: [cabinetId], references: [id])
   dossier       Dossier?               @relation(fields: [dossierId], references: [id])
   createdBy     User                   @relation("EvenementCreatedBy", fields: [createdById], references: [id])
+  updatedBy     User?                  @relation("EvenementUpdatedBy", fields: [updatedById], references: [id])
   roleAudience  RoleAudience?          @relation(fields: [roleAudienceId], references: [id], onDelete: SetNull)
   delaiCalcul   DelaiCalcul?           @relation(fields: [delaiCalculId], references: [id], onDelete: SetNull)
   assignes      EvenementAssigne[]
