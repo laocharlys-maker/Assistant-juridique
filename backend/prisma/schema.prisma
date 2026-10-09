@@ -302,6 +302,13 @@ model Cabinet {
   // ConnexionCalendrierExterne (voir security/prismaEncryption.ts).
   mobileServerClePublique             String?   @map("mobile_server_cle_publique")
   mobileServerClePrivee               String?   @map("mobile_server_cle_privee") // [chiffre-au-repos]
+  // Conservation de l'audio mobile (Prompt 2) - reserve au titulaire. Null
+  // = manuelle (valeur par defaut, jamais de suppression automatique),
+  // sinon nombre de jours apres passage au statut "traite" avant
+  // suppression automatique du fichier ET de la ligne MobileItem (voir
+  // jobs/purgeAudioMobile.ts). Ne s'applique jamais aux scans/notes, ni a
+  // un element pas encore traite.
+  mobileConservationAudioJours        Int?      @map("mobile_conservation_audio_jours")
   createdAt                           DateTime  @default(now()) @map("created_at")
 
   mobileDevices MobileDevice[]

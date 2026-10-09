@@ -115,6 +115,7 @@ CREATE TABLE "cabinets" (
     "mobile_sync_port" INTEGER NOT NULL DEFAULT 3100,
     "mobile_server_cle_publique" TEXT,
     "mobile_server_cle_privee" TEXT,
+    "mobile_conservation_audio_jours" INTEGER,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "cabinets_pkey" PRIMARY KEY ("id")

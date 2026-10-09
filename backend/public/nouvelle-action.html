@@ -1352,7 +1352,8 @@
       // BUG CORRIGE (2026-09-07) : cette fonction (autocompletion numero de
       // dossier -> nom_affaire/nom_client) etait definie mais jamais
       // appelee - le mecanisme entier restait inactif sur cette page.
-      loadDossiersForAutofill();
+      await loadDossiersForAutofill();
+      preselectionnerDossierDepuisUrl();
       try {
         naHuissiersDisponibles = await apiFetch("/api/huissiers");
       } catch {
@@ -1607,6 +1608,10 @@
     // remplissent automatiquement - jamais invente, uniquement recopie
     // depuis le dossier trouve.
     const dossiersParNumero = new Map();
+    // Lot 10 (Aurore Mobile) : par id, pour la preselection depuis
+    // ?dossierId=... (voir preselectionnerDossierDepuisUrl ci-dessous) - le
+    // champ du formulaire ne connait que le numero, jamais l'id directement.
+    const dossiersParId = new Map();
     async function loadDossiersForAutofill() {
       try {
         const { dossiers } = await apiFetch("/api/dossiers");
@@ -1614,7 +1619,10 @@
         datalist.innerHTML = dossiers
           .map((d) => `<option value="${escapeHtmlAttr(d.numeroDossier)}">${escapeHtmlAttr(d.nomAffaire)}</option>`)
           .join("");
-        dossiers.forEach((d) => dossiersParNumero.set(d.numeroDossier, d));
+        dossiers.forEach((d) => {
+          dossiersParNumero.set(d.numeroDossier, d);
+          dossiersParId.set(d.id, d);
+        });
       } catch {
         // Pas bloquant : la saisie manuelle reste possible sans autocompletion.
       }
@@ -1629,6 +1637,31 @@
           if (nomClientInput) nomClientInput.value = dossier.nomClient;
         });
       });
+    }
+
+    // Lot 10 (Aurore Mobile) : "Boîte de réception mobile" ouvre ce
+    // formulaire avec ?dossierId=...&type=notes pour présélectionner le
+    // dossier d'un compte-rendu d'audience - avant ce lot, aucune page de
+    // cette appli ne passait de dossier par l'URL (voir docs/lot10/
+    // 00-audit.md, risque R4). Ne fait rien si le dossier est introuvable
+    // (accès révoqué entre-temps, etc.) - jamais une erreur bloquante pour
+    // un simple confort de préremplissage.
+    function preselectionnerDossierDepuisUrl() {
+      const params = new URLSearchParams(window.location.search);
+      const dossierId = params.get("dossierId");
+      if (!dossierId) return;
+      const dossier = dossiersParId.get(dossierId);
+      if (!dossier) return;
+
+      const typeSouhaite = params.get("type") || "notes";
+      const tabBtn = document.querySelector(`.tab[data-type="${typeSouhaite}"]`);
+      if (tabBtn && !tabBtn.classList.contains("active")) tabBtn.click();
+
+      const form = document.getElementById(`${typeSouhaite}-form`);
+      const input = form ? form.querySelector('input[name="numero_dossier"]') : null;
+      if (!input) return;
+      input.value = dossier.numeroDossier;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
     }
 
     const forms = {

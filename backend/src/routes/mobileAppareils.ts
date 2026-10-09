@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
+import QRCode from "qrcode";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
 import { requireAdmin } from "../middleware/roles";
@@ -50,12 +51,25 @@ mobileAppareilsRouter.post("/api/mobile/appareils/qr", async (req, res) => {
 
   const adresses = listerAdressesLocales(cabinet.mobileSyncInterface).map((ip) => `${ip}:${cabinet.mobileSyncPort}`);
 
+  const contenuQr = JSON.stringify({
+    v: 1,
+    pairingId: pairing.id,
+    secret: secretBase64,
+    clePubliquePC: clePubliqueBase64,
+    adresses,
+  });
+  // PNG en data URL - rendu 100% local (aucun appel reseau, meme principe
+  // offline-first que le reste de l'app), affiche tel quel dans un <img>
+  // cote ecran (Prompt 2).
+  const qrDataUrl = await QRCode.toDataURL(contenuQr, { errorCorrectionLevel: "M", margin: 1, scale: 6 });
+
   return res.status(201).json({
     pairingId: pairing.id,
     secret: secretBase64,
     clePubliquePC: clePubliqueBase64,
     adresses,
     expireAt: expireAt.toISOString(),
+    qrDataUrl,
   });
 });
 
@@ -125,7 +139,12 @@ mobileAppareilsRouter.patch("/api/mobile/appareils/:id/revoquer", async (req, re
 mobileAppareilsRouter.get("/api/mobile/reglages", requireAdmin, async (req, res) => {
   const cabinet = await prisma.cabinet.findUnique({
     where: { id: req.auth!.cabinetId },
-    select: { mobileSyncActif: true, mobileSyncInterface: true, mobileSyncPort: true },
+    select: {
+      mobileSyncActif: true,
+      mobileSyncInterface: true,
+      mobileSyncPort: true,
+      mobileConservationAudioJours: true,
+    },
   });
   return res.json(cabinet);
 });
@@ -134,6 +153,9 @@ const reglagesSchema = z.object({
   actif: z.boolean(),
   interface: z.string().nullable().optional(),
   port: z.number().int().min(1024).max(65535).optional(),
+  // Conservation de l'audio (Prompt 2) - null/absent = manuelle (jamais de
+  // suppression automatique, valeur par defaut).
+  conservationAudioJours: z.union([z.literal(7), z.literal(30), z.literal(90)]).nullable().optional(),
 });
 
 mobileAppareilsRouter.patch("/api/mobile/reglages", requireAdmin, async (req, res) => {
@@ -148,8 +170,16 @@ mobileAppareilsRouter.patch("/api/mobile/reglages", requireAdmin, async (req, re
       mobileSyncActif: parsed.data.actif,
       ...(parsed.data.interface !== undefined ? { mobileSyncInterface: parsed.data.interface } : {}),
       ...(parsed.data.port !== undefined ? { mobileSyncPort: parsed.data.port } : {}),
+      ...(parsed.data.conservationAudioJours !== undefined
+        ? { mobileConservationAudioJours: parsed.data.conservationAudioJours }
+        : {}),
     },
-    select: { mobileSyncActif: true, mobileSyncInterface: true, mobileSyncPort: true },
+    select: {
+      mobileSyncActif: true,
+      mobileSyncInterface: true,
+      mobileSyncPort: true,
+      mobileConservationAudioJours: true,
+    },
   });
 
   let pareFeu: { ok: boolean; message: string } | null = null;

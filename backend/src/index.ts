@@ -528,6 +528,11 @@ async function main() {
     // jour, independant du mode de base de donnees.
     const { schedulePurgeCorbeille } = await import("./jobs/purgeCorbeille");
     schedulePurgeCorbeille();
+
+    // Lot 10 (Aurore Mobile) : purge automatique de l'audio selon le
+    // reglage par cabinet (jamais par defaut, voir jobs/purgeAudioMobile.ts).
+    const { schedulePurgeAudioMobile } = await import("./jobs/purgeAudioMobile");
+    schedulePurgeAudioMobile();
   } catch (error) {
     if (stopPortableDatabase) {
       console.error("Echec du demarrage apres l'ouverture de Postgres portable - arret de Postgres avant de quitter...");

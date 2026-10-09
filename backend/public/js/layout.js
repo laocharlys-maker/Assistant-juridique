@@ -22,6 +22,7 @@ const NAV_ICONS = {
   mail: '<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 6-10 7L2 6"/>',
   trash: '<path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
   folder: '<path d="M4 20a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h4.2a2 2 0 0 1 1.66.9l.9 1.35a1 1 0 0 0 .83.45H20a2 2 0 0 1 2 2v9.3a2 2 0 0 1-2 2z"/>',
+  phone: '<rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/>',
 };
 
 const NAV_ITEMS = [
@@ -55,6 +56,11 @@ const NAV_ITEMS = [
   { href: "/factures-payees.html", label: "Factures payées", roles: ["titulaire", "avocat", "collaborateur"], group: "Cabinet", icon: "invoice", moduleKey: "facturation" },
   { href: "/veille-juridique.html", label: "Veille juridique", roles: ["titulaire", "avocat"], group: "Cabinet", icon: "radar", moduleKey: "veille_juridique" },
   { href: "/corbeille.html", label: "Corbeille", roles: ["titulaire", "avocat", "collaborateur"], group: "Cabinet", icon: "trash", moduleKey: "corbeille" },
+  // Lot 10 (Aurore Mobile) - pas de moduleKey : depend uniquement de la
+  // licence du cabinet, jamais d'un module payant separe (decision du
+  // 2026-10-09, voir docs/lot10/01-protocole.md).
+  { href: "/mobile-boite-reception.html", label: "Boîte de réception mobile", roles: ["titulaire", "avocat", "collaborateur"], group: "Cabinet", icon: "phone" },
+  { href: "/mobile-appareils.html", label: "Appareils mobiles", roles: ["titulaire", "avocat", "collaborateur"], group: "Cabinet", icon: "phone" },
   { href: "/audit-logs.html", label: "Journal d'audit", roles: ["titulaire"], group: "Cabinet", icon: "audit" },
   { href: "/parametres.html", label: "Paramètres", roles: ["titulaire"], group: "Cabinet", icon: "settings" },
   { href: "/admin-tableau-de-bord.html", label: "Tableau de bord", roles: ["super_admin"], group: "Plateforme", icon: "dashboard" },
