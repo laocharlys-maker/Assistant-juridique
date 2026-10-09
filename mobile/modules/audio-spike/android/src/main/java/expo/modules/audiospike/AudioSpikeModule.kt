@@ -10,7 +10,7 @@ class AudioSpikeModule : Module() {
     Name("AudioSpike")
 
     Function("demarrer") { cheminAudio: String, cheminHeartbeat: String ->
-      val contexte = appContext.reactContext ?: return@Function
+      val contexte = appContext.reactContext ?: return@Function Unit
       val intent = Intent(contexte, RecordingService::class.java).apply {
         action = RecordingService.ACTION_START
         putExtra(RecordingService.EXTRA_OUTPUT_PATH, cheminAudio)
@@ -21,14 +21,16 @@ class AudioSpikeModule : Module() {
       } else {
         contexte.startService(intent)
       }
+      Unit
     }
 
     Function("arreter") {
-      val contexte = appContext.reactContext ?: return@Function
+      val contexte = appContext.reactContext ?: return@Function Unit
       val intent = Intent(contexte, RecordingService::class.java).apply {
         action = RecordingService.ACTION_STOP
       }
       contexte.startService(intent)
+      Unit
     }
 
     Function("etat") {
