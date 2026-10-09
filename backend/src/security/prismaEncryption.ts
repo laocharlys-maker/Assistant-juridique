@@ -48,6 +48,16 @@ const ENCRYPTED_FIELDS_BY_MODEL: Record<string, Record<string, "string" | "json"
     refreshToken: "string",
     imapPassword: "string",
   },
+  // Lot 10 (Aurore Mobile) : cle privee X25519 permanente du cabinet (sert a
+  // recalculer la cle partagee ECDH avec chaque telephone appaire, voir
+  // docs/lot10/01-protocole.md section 2) et note texte libre saisie depuis
+  // le telephone - memes raisons que les champs ci-dessus.
+  Cabinet: {
+    mobileServerClePrivee: "string",
+  },
+  MobileItem: {
+    noteTexte: "string",
+  },
 };
 
 interface RelationInfo {

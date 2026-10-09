@@ -46,6 +46,7 @@ import { huissiersRouter } from "./routes/huissiers";
 import { courriersRouter } from "./routes/courriers";
 import { brouillonsFormulaireRouter } from "./routes/brouillonsFormulaire";
 import { corbeilleRouter } from "./routes/corbeille";
+import { mobileAppareilsRouter } from "./routes/mobileAppareils";
 import { adminRouter } from "./routes/admin";
 import { licenceRouter } from "./routes/licence";
 import { networkInfoRouter } from "./routes/networkInfo";
@@ -121,6 +122,7 @@ app.use(huissiersRouter);
 app.use(courriersRouter);
 app.use(brouillonsFormulaireRouter);
 app.use(corbeilleRouter);
+app.use(mobileAppareilsRouter);
 app.use(adminRouter);
 app.use(
   express.static(path.join(__dirname, "..", "public"), {

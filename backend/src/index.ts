@@ -307,6 +307,20 @@ async function main() {
       schedulePortableBackups();
     }
 
+    // Lot 10 (Aurore Mobile) : serveur de synchronisation mobile, mode
+    // portable uniquement (un seul cabinet par installation - hors
+    // perimetre en mode externe/VPS potentiellement multi-cabinets). Non
+    // bloquant par conception (voir mobileServer.ts) : un echec ici ne doit
+    // jamais empecher le reste d'Aurore de demarrer normalement.
+    let arreterServeurMobileFn: (() => Promise<void>) | null = null;
+    if (databaseMode === "portable") {
+      const { demarrerServeurMobileSiActif, arreterServeurMobile } = await import("./mobileServer");
+      arreterServeurMobileFn = arreterServeurMobile;
+      demarrerServeurMobileSiActif().catch((error) => {
+        console.error("[mobile-sync] erreur inattendue au demarrage :", error);
+      });
+    }
+
     // Arret propre : ferme le serveur HTTP, deconnecte Prisma, puis arrete
     // Postgres portable (si actif) - dans cet ordre, pour ne jamais couper
     // une requete/transaction en cours ni arreter Postgres avant que Prisma
@@ -319,6 +333,13 @@ async function main() {
       if (shuttingDown) return;
       shuttingDown = true;
       console.log(`Arret du backend demande (${reason})...`);
+      if (arreterServeurMobileFn) {
+        try {
+          await arreterServeurMobileFn();
+        } catch (error) {
+          console.error("Erreur lors de l'arret du serveur mobile :", error);
+        }
+      }
       if (stopMdns) {
         try {
           stopMdns();
