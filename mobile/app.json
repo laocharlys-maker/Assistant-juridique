@@ -1,0 +1,46 @@
+{
+  "expo": {
+    "name": "Aurore Mobile",
+    "slug": "aurore-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "platforms": ["android"],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "bj.azomedia.aurore.mobile",
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "minSdkVersion": 29,
+      "allowBackup": false,
+      "permissions": ["android.permission.CAMERA"]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-sqlite",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Aurore Mobile a besoin de la caméra pour scanner le QR d'appairage et les documents."
+        }
+      ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Aurore Mobile utilise la biométrie pour déverrouiller l'application."
+        }
+      ]
+    ]
+  }
+}
