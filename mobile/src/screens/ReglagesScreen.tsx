@@ -80,6 +80,10 @@ export default function ReglagesScreen({ navigation }: Props) {
       <Pressable style={[styles.bouton, styles.boutonDanger, { marginTop: 40 }]} onPress={confirmerOubliAppairage}>
         <Text style={styles.boutonTexte}>Déconnecter cet appareil</Text>
       </Pressable>
+
+      <Pressable style={[styles.bouton, { marginTop: 40, backgroundColor: "#374151" }]} onPress={() => navigation.navigate("SpikeAudio")}>
+        <Text style={styles.boutonTexte}>Spike audio (test interne)</Text>
+      </Pressable>
     </View>
   );
 }

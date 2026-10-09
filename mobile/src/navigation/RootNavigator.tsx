@@ -4,12 +4,14 @@ import AppairageScreen from "../screens/AppairageScreen";
 import AccueilScreen from "../screens/AccueilScreen";
 import DossiersScreen from "../screens/DossiersScreen";
 import ReglagesScreen from "../screens/ReglagesScreen";
+import SpikeAudioScreen from "../screens/SpikeAudioScreen";
 
 export type RootStackParamList = {
   Appairage: undefined;
   Accueil: undefined;
   Dossiers: undefined;
   Reglages: undefined;
+  SpikeAudio: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -25,6 +27,7 @@ export default function RootNavigator({ ecranInitial }: { ecranInitial: keyof Ro
       <Stack.Screen name="Accueil" component={AccueilScreen} options={{ title: "Aurore Mobile", headerBackVisible: false }} />
       <Stack.Screen name="Dossiers" component={DossiersScreen} options={{ title: "Mes dossiers" }} />
       <Stack.Screen name="Reglages" component={ReglagesScreen} options={{ title: "Réglages" }} />
+      <Stack.Screen name="SpikeAudio" component={SpikeAudioScreen} options={{ title: "Spike audio (test interne)" }} />
     </Stack.Navigator>
   );
 }
