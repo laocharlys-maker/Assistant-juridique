@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aurore — Mes dossiers</title>
+  <link rel="icon" type="image/png" href="/favicon-256.png" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="page">
+    <div class="page-hero">
+      <div class="eyebrow">Travail</div>
+      <h1>Mes dossiers</h1>
+      <p>Tous vos dossiers, pour y accéder rapidement — quels que soient les documents déjà générés ou pièces déjà scannées qui y sont rattachés.</p>
+    </div>
+
+    <div class="tabs" id="scope-tabs" style="display:none;">
+      <button class="tab active" data-scope="mine">Mes dossiers</button>
+      <button class="tab" data-scope="cabinet">Dossiers du cabinet</button>
+    </div>
+
+    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px;">
+      <input type="search" id="dossiers-search" placeholder="Rechercher par numéro, affaire ou client…" style="flex:1; min-width:240px; margin-bottom:0;" />
+      <select id="dossiers-filtre-statut" style="width:auto; margin-bottom:0;">
+        <option value="tous">Tous les statuts</option>
+        <option value="actif">Actifs</option>
+        <option value="cloture">Clôturés</option>
+        <option value="echeance_proche">Échéance proche</option>
+      </select>
+      <button type="button" class="ghost" id="voir-archives-btn">Voir les archives</button>
+    </div>
+
+    <div id="error" class="error"></div>
+
+    <div class="card">
+      <div id="dossiers-list"><p class="muted">Chargement…</p></div>
+    </div>
+  </div>
+  <script src="/js/api.js"></script>
+  <script src="/js/layout.js"></script>
+  <script>
+    let currentScope = "mine";
+    let currentVue = "dossiers";
+    let currentDossiers = [];
+
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str ?? "";
+      return div.innerHTML;
+    }
+
+    async function loadListe() {
+      const listEl = document.getElementById("dossiers-list");
+      listEl.innerHTML = '<p class="muted">Chargement…</p>';
+      try {
+        const { dossiers, scope: appliedScope } = await apiFetch(
+          `/api/dossiers?scope=${currentScope}&vue=${currentVue}`
+        );
+        currentScope = appliedScope;
+        document.querySelectorAll("#scope-tabs .tab").forEach((btn) => {
+          btn.classList.toggle("active", btn.dataset.scope === appliedScope);
+        });
+        currentDossiers = dossiers;
+        applyFiltres();
+      } catch (err) {
+        listEl.innerHTML = `<p class="error visible">${escapeHtml(err.message)}</p>`;
+      }
+    }
+
+    // Classement : du plus recemment actif au plus ancien (deja trie ainsi
+    // par l'API, voir routes/dossiers.ts orderBy updatedAt desc) - jamais un
+    // ordre fixe, pour que le dossier qu'on vient de toucher soit toujours
+    // en haut.
+    function renderListe(dossiers) {
+      const listEl = document.getElementById("dossiers-list");
+      if (dossiers.length === 0) {
+        listEl.innerHTML =
+          currentVue === "archives"
+            ? '<p class="muted">Aucun dossier archivé.</p>'
+            : '<p class="muted">Aucun dossier pour l\'instant.</p>';
+        return;
+      }
+
+      listEl.innerHTML = dossiers
+        .map((d) => {
+          const badgeCloture = d.statut === "cloture" ? ' <span class="tag">Clôturé</span>' : "";
+          const badgeEcheance =
+            d.statutTag === "echeance_proche"
+              ? ' <span class="badge badge-echeance_proche">Échéance proche</span>'
+              : "";
+          const nbDocuments = d._count?.actions ?? 0;
+          const meta = `${escapeHtml(d.nomClient)} · ${nbDocuments} document${nbDocuments === 1 ? "" : "s"} · créé par ${escapeHtml(d.creePar.nom)} · mis à jour le ${formatDateLongue(d.updatedAt)}`;
+          return `
+        <div class="dossier-item">
+          <div>
+            <div><a href="/dossier.html?id=${d.id}"><strong>${escapeHtml(d.numeroDossier)} — ${escapeHtml(d.nomAffaire)}</strong></a>${badgeCloture}${badgeEcheance}</div>
+            <div class="meta">${meta}</div>
+          </div>
+        </div>`;
+        })
+        .join("");
+    }
+
+    function applyFiltres() {
+      const terme = document.getElementById("dossiers-search").value.trim().toLowerCase();
+      const statutFiltre = document.getElementById("dossiers-filtre-statut").value;
+
+      let filtres = currentDossiers;
+      if (statutFiltre === "echeance_proche") {
+        filtres = filtres.filter((d) => d.statutTag === "echeance_proche");
+      } else if (statutFiltre === "cloture") {
+        filtres = filtres.filter((d) => d.statut === "cloture");
+      } else if (statutFiltre === "actif") {
+        filtres = filtres.filter((d) => d.statut !== "cloture");
+      }
+
+      if (terme) {
+        filtres = filtres.filter((d) => {
+          const numero = (d.numeroDossier || "").toLowerCase();
+          const affaire = (d.nomAffaire || "").toLowerCase();
+          const client = (d.nomClient || "").toLowerCase();
+          return numero.includes(terme) || affaire.includes(terme) || client.includes(terme);
+        });
+      }
+
+      renderListe(filtres);
+    }
+
+    (async () => {
+      const me = await requireSession();
+      if (!me) return;
+      initLayout(me);
+
+      const peutVoirCabinet = me.role === "titulaire" || me.role === "avocat" || me.role === "collaborateur";
+      if (peutVoirCabinet) {
+        document.getElementById("scope-tabs").style.display = "flex";
+        document.querySelectorAll("#scope-tabs .tab").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            currentScope = btn.dataset.scope;
+            loadListe();
+          });
+        });
+      }
+
+      document.getElementById("dossiers-search").addEventListener("input", applyFiltres);
+      document.getElementById("dossiers-filtre-statut").addEventListener("change", applyFiltres);
+
+      const archivesBtn = document.getElementById("voir-archives-btn");
+      archivesBtn.addEventListener("click", () => {
+        currentVue = currentVue === "archives" ? "dossiers" : "archives";
+        archivesBtn.textContent = currentVue === "archives" ? "Voir les dossiers actifs" : "Voir les archives";
+        loadListe();
+      });
+
+      loadListe();
+    })();
+  </script>
+</body>
+</html>
