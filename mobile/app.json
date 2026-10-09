@@ -6,7 +6,9 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "platforms": ["android"],
+    "platforms": [
+      "android"
+    ],
     "ios": {
       "supportsTablet": true
     },
@@ -21,7 +23,12 @@
       "predictiveBackGestureEnabled": false,
       "minSdkVersion": 29,
       "allowBackup": false,
-      "permissions": ["android.permission.CAMERA"]
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -41,6 +48,12 @@
           "faceIDPermission": "Aurore Mobile utilise la biométrie pour déverrouiller l'application."
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "ba0a6556-4e19-41e1-838a-808cfa22524a"
+      }
+    },
+    "owner": "charlys2025"
   }
 }
