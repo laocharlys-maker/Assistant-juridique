@@ -103,7 +103,11 @@ const INTERFACE_NAME_DEPRIORITISE_PATTERNS = [
   /bluetooth/i,
 ];
 
-function isPrivateIPv4(address: string): boolean {
+// Exporte (Lot 10) : reutilise par services/mobileSync/reseauMobile.ts pour
+// lister TOUTES les adresses locales candidates (pas seulement la premiere,
+// contrairement a getLocalNetworkAddress ci-dessous) - meme critere de
+// filtrage, jamais une deuxieme logique qui pourrait diverger.
+export function isPrivateIPv4(address: string): boolean {
   const parts = address.split(".").map(Number);
   if (parts.length !== 4 || parts.some((n) => Number.isNaN(n))) return false;
   const [a, b] = parts;
