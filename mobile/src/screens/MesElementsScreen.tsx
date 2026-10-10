@@ -76,7 +76,15 @@ export default function MesElementsScreen() {
   function peutSupprimer(element: ElementLocal): boolean {
     // Confirme par Aurore (cas normal), OU vide (aucun audio valide -
     // jamais envoyé, rien a perdre cote serveur, voir EnregistrementVideError).
-    return element.statut === "confirme" || element.nombreSegments === 0;
+    // nombreSegments === 0 ne suffit pas seul : un element peut avoir des
+    // segments enregistres en base mais dont le fichier reel est introuvable
+    // (ex. ancien element cree avant le correctif de numerotation) - dans ce
+    // cas c'est le message d'erreur, pas le compteur, qui fait foi.
+    return (
+      element.statut === "confirme" ||
+      element.nombreSegments === 0 ||
+      (element.derniereErreurEnvoi?.includes("trop court") ?? false)
+    );
   }
 
   function supprimer(element: ElementLocal) {
