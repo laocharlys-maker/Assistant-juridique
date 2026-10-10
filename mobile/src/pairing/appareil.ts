@@ -212,7 +212,10 @@ async function envoyerRequeteAuthentifieeSansVerrou<T>(chemin: string, payload: 
 
   if (!reponse.ok) {
     const corpsErreur = await reponse.json().catch(() => ({ error: `HTTP ${reponse.status}` }));
-    const erreur = new Error(corpsErreur.error || `HTTP ${reponse.status}`);
+    const detailsTexte = Array.isArray(corpsErreur.details)
+      ? ` (${corpsErreur.details.map((d: { path?: unknown[]; message?: string }) => `${(d.path || []).join(".")}: ${d.message}`).join(", ")})`
+      : "";
+    const erreur = new Error(`${corpsErreur.error || `HTTP ${reponse.status}`}${detailsTexte}`);
     (erreur as Error & { status?: number }).status = reponse.status;
     throw erreur;
   }

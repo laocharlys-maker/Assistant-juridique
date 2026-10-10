@@ -214,7 +214,7 @@ mobileSyncRouter.post("/api/m/items/:itemId/chunks/:numero", async (req, res) =>
   }
   const parsed = chunkSchema.safeParse(req.mobilePayload);
   if (!parsed.success) {
-    return res.status(400).json({ error: "Requête invalide" });
+    return res.status(400).json({ error: "Requête invalide", details: parsed.error.issues });
   }
 
   const item = await prisma.mobileItem.findFirst({ where: { id: req.params.itemId, deviceId: device.id } });
@@ -246,7 +246,7 @@ mobileSyncRouter.post("/api/m/items/:itemId/commit", async (req, res) => {
   const device = req.mobileDevice!;
   const parsed = commitSchema.safeParse(req.mobilePayload);
   if (!parsed.success) {
-    return res.status(400).json({ error: "Requête invalide" });
+    return res.status(400).json({ error: "Requête invalide", details: parsed.error.issues });
   }
 
   const item = await prisma.mobileItem.findFirst({ where: { id: req.params.itemId, deviceId: device.id } });
