@@ -206,7 +206,7 @@ mobileSyncRouter.post("/api/m/items", async (req, res) => {
 
 const chunkSchema = z.object({ contenuBase64: z.string().min(1) });
 
-mobileSyncRouter.put("/api/m/items/:itemId/chunks/:numero", async (req, res) => {
+mobileSyncRouter.post("/api/m/items/:itemId/chunks/:numero", async (req, res) => {
   const device = req.mobileDevice!;
   const numero = Number(req.params.numero);
   if (!Number.isInteger(numero) || numero < 0) {
