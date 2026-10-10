@@ -22,7 +22,14 @@ import {
  * exigée par le prompt, sans attendre la fin de tout l'enregistrement.
  */
 
-const DUREE_SEGMENT_MS = 20000;
+// 60s plutot que 20s : chaque rotation de segment provoque une coupure
+// audible (arret/redemarrage de MediaRecorder, quelques centaines de ms
+// sans capture) - un intervalle plus long reduit le nombre de coupures
+// sur un enregistrement donne, au prix d'une granularite de recuperation
+// legerement moins fine en cas de coupure brutale (au pire 60s perdues
+// au lieu de 20s). Compromis accepte (2026-10-10) : l'usage vise est des
+// notes courtes, pas une transcription fidele d'audience.
+const DUREE_SEGMENT_MS = 60000;
 const INTERVALLE_POMPE_MS = 2000;
 
 const DOSSIER_RACINE = "audio-enc";
