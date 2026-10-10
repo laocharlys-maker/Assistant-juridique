@@ -47,8 +47,9 @@ export default function AccueilScreen({ navigation }: Props) {
         </Text>
       </View>
 
-      <Pressable onPress={() => navigation.navigate("MesElements")}>
-        <Text style={styles.compteur}>
+      <Pressable style={styles.carteElements} onPress={() => navigation.navigate("MesElements")}>
+        <Text style={styles.carteElementsTitre}>📁 Mes éléments</Text>
+        <Text style={styles.carteElementsDetail}>
           {enAttenteEnvoi} élément{enAttenteEnvoi === 1 ? "" : "s"} en attente d’envoi
         </Text>
       </Pressable>
@@ -81,7 +82,16 @@ const styles = StyleSheet.create({
   enTete: { flexDirection: "row", alignItems: "center", marginTop: 40, marginBottom: 24 },
   pastille: { width: 10, height: 10, borderRadius: 5, marginRight: 8 },
   texteEtat: { color: "#9aa5b1", fontSize: 13 },
-  compteur: { color: "#fff", fontSize: 15, marginBottom: 32 },
+  carteElements: {
+    backgroundColor: "#141c2b",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 32,
+    borderWidth: 1,
+    borderColor: "#2a3545",
+  },
+  carteElementsTitre: { color: "#fff", fontSize: 16, fontWeight: "700" },
+  carteElementsDetail: { color: "#9aa5b1", fontSize: 13, marginTop: 4 },
   boutonPrincipal: {
     backgroundColor: "#3b82f6",
     paddingVertical: 28,
