@@ -58,7 +58,9 @@
             "usesCleartextTraffic": true
           }
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker",
+      "expo-audio"
     ],
     "extra": {
       "eas": {

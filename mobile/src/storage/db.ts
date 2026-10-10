@@ -19,6 +19,30 @@ export interface DossierCache {
   prochaineAudience: string | null;
 }
 
+export type StatutElementLocal = "en_attente" | "envoye" | "confirme";
+
+export interface MarqueurLocal {
+  type: "prochaine_audience" | "decision" | "a_faire" | "point_important";
+  positionMs: number;
+  dateAudience: string | null;
+}
+
+/** Élément local (Prompt 4, objectifs A-D) - un enregistrement audio en
+ * attente d'envoi, de confirmation ou de classement. `clientId` est l'id
+ * stable généré par le téléphone, identique à celui envoyé au serveur
+ * (idempotence, voir backend/src/routes/mobileSync.ts). */
+export interface ElementLocal {
+  clientId: string;
+  type: "audio";
+  statut: StatutElementLocal;
+  dossierId: string | null;
+  dureeSecondes: number;
+  creeLe: string;
+  nombreSegments: number;
+  marqueurs: MarqueurLocal[];
+  noteTexte: string | null;
+}
+
 let db: SQLite.SQLiteDatabase | null = null;
 
 async function obtenirDb(): Promise<SQLite.SQLiteDatabase> {
@@ -32,6 +56,11 @@ async function obtenirDb(): Promise<SQLite.SQLiteDatabase> {
     CREATE TABLE IF NOT EXISTS meta (
       cle TEXT PRIMARY KEY NOT NULL,
       valeur TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS elements_locaux (
+      client_id TEXT PRIMARY KEY NOT NULL,
+      statut TEXT NOT NULL,
+      donnees_chiffrees TEXT NOT NULL
     );
   `);
   return db;
@@ -78,6 +107,49 @@ export async function dateDerniereMajDossiers(): Promise<Date | null> {
     "SELECT valeur FROM meta WHERE cle = 'dossiers_derniere_maj'"
   );
   return ligne ? new Date(Number(ligne.valeur)) : null;
+}
+
+export async function enregistrerElementLocal(element: ElementLocal): Promise<void> {
+  const base = await obtenirDb();
+  const chiffre = await chiffrerTexte(JSON.stringify(element));
+  await base.runAsync("INSERT OR REPLACE INTO elements_locaux (client_id, statut, donnees_chiffrees) VALUES (?, ?, ?)", [
+    element.clientId,
+    element.statut,
+    chiffre,
+  ]);
+}
+
+export async function listerElementsLocaux(): Promise<ElementLocal[]> {
+  const base = await obtenirDb();
+  const lignes = await base.getAllAsync<{ client_id: string; donnees_chiffrees: string }>(
+    "SELECT client_id, donnees_chiffrees FROM elements_locaux ORDER BY client_id DESC"
+  );
+  const elements: ElementLocal[] = [];
+  for (const ligne of lignes) {
+    try {
+      elements.push(JSON.parse(await dechiffrerTexte(ligne.donnees_chiffrees)) as ElementLocal);
+    } catch {
+      // Ligne illisible - jamais bloquant pour les autres elements.
+    }
+  }
+  return elements;
+}
+
+export async function majStatutElementLocal(clientId: string, statut: StatutElementLocal): Promise<void> {
+  const base = await obtenirDb();
+  const ligne = await base.getFirstAsync<{ donnees_chiffrees: string }>(
+    "SELECT donnees_chiffrees FROM elements_locaux WHERE client_id = ?",
+    [clientId]
+  );
+  if (!ligne) return;
+  const element = JSON.parse(await dechiffrerTexte(ligne.donnees_chiffrees)) as ElementLocal;
+  element.statut = statut;
+  await enregistrerElementLocal(element);
+}
+
+export async function supprimerElementLocal(clientId: string): Promise<void> {
+  const base = await obtenirDb();
+  await base.runAsync("DELETE FROM elements_locaux WHERE client_id = ?", [clientId]);
 }
 
 /** Pour les tests uniquement - force une nouvelle connexion/fichier au

@@ -5,6 +5,10 @@ import AccueilScreen from "../screens/AccueilScreen";
 import DossiersScreen from "../screens/DossiersScreen";
 import ReglagesScreen from "../screens/ReglagesScreen";
 import SpikeAudioScreen from "../screens/SpikeAudioScreen";
+import ApresAudienceScreen from "../screens/ApresAudienceScreen";
+import EnregistrementScreen from "../screens/EnregistrementScreen";
+import ApresEnregistrementScreen from "../screens/ApresEnregistrementScreen";
+import MesElementsScreen from "../screens/MesElementsScreen";
 
 export type RootStackParamList = {
   Appairage: undefined;
@@ -12,6 +16,10 @@ export type RootStackParamList = {
   Dossiers: undefined;
   Reglages: undefined;
   SpikeAudio: undefined;
+  ApresAudience: undefined;
+  Enregistrement: { dossierId: string | null };
+  ApresEnregistrement: { clientId: string; dossierId: string | null };
+  MesElements: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -28,6 +36,14 @@ export default function RootNavigator({ ecranInitial }: { ecranInitial: keyof Ro
       <Stack.Screen name="Dossiers" component={DossiersScreen} options={{ title: "Mes dossiers" }} />
       <Stack.Screen name="Reglages" component={ReglagesScreen} options={{ title: "Réglages" }} />
       <Stack.Screen name="SpikeAudio" component={SpikeAudioScreen} options={{ title: "Spike audio (test interne)" }} />
+      <Stack.Screen name="ApresAudience" component={ApresAudienceScreen} options={{ title: "Après audience" }} />
+      <Stack.Screen
+        name="Enregistrement"
+        component={EnregistrementScreen}
+        options={{ title: "Enregistrement", headerBackVisible: false, gestureEnabled: false }}
+      />
+      <Stack.Screen name="ApresEnregistrement" component={ApresEnregistrementScreen} options={{ title: "Terminer" }} />
+      <Stack.Screen name="MesElements" component={MesElementsScreen} options={{ title: "Mes éléments" }} />
     </Stack.Navigator>
   );
 }

@@ -277,3 +277,72 @@ mobileSyncRouter.post("/api/m/items/:itemId/commit", async (req, res) => {
     return res.status(409).json({ error: "Assemblage impossible (morceau manquant ou intégrité invalide)." });
   }
 });
+
+// -----------------------------------------------------------------------
+// Repères (Prompt 4, objectif B) - toujours envoyes APRES le commit de
+// l'item (jamais avant : un repere sans item assemble n'aurait pas de sens).
+// -----------------------------------------------------------------------
+
+const marqueursSchema = z.object({
+  marqueurs: z
+    .array(
+      z.object({
+        type: z.enum(["prochaine_audience", "decision", "a_faire", "point_important"]),
+        positionMs: z.number().int().nonnegative(),
+        dateAudience: z.string().datetime().nullable().optional(),
+      })
+    )
+    .max(500),
+});
+
+mobileSyncRouter.post("/api/m/items/:itemId/marqueurs", async (req, res) => {
+  const device = req.mobileDevice!;
+  const parsed = marqueursSchema.safeParse(req.mobilePayload);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Requête invalide", details: parsed.error.issues });
+  }
+
+  const item = await prisma.mobileItem.findFirst({ where: { id: req.params.itemId, deviceId: device.id } });
+  if (!item) return res.status(404).json({ error: "Élément introuvable" });
+
+  if (parsed.data.marqueurs.length > 0) {
+    await prisma.mobileMarker.createMany({
+      data: parsed.data.marqueurs.map((m) => ({
+        itemId: item.id,
+        type: m.type,
+        positionMs: m.positionMs,
+        dateAudience: m.dateAudience ? new Date(m.dateAudience) : undefined,
+      })),
+    });
+  }
+
+  return res.status(201).json({ ok: true, nombre: parsed.data.marqueurs.length });
+});
+
+// -----------------------------------------------------------------------
+// Statut (Prompt 4, objectif D) - le telephone interroge l'avancement de
+// SES PROPRES elements deja envoyes ("Mes elements"). POST (jamais GET)
+// pour la meme raison que /appairage/statut ci-dessus : le corps chiffre
+// doit voyager dans un vrai corps JSON.
+// -----------------------------------------------------------------------
+
+const statutsSchema = z.object({ clientIds: z.array(z.string().uuid()).max(200) });
+
+mobileSyncRouter.post("/api/m/items/statuts", async (req, res) => {
+  const device = req.mobileDevice!;
+  const parsed = statutsSchema.safeParse(req.mobilePayload);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Requête invalide" });
+  }
+
+  const items = await prisma.mobileItem.findMany({
+    where: { deviceId: device.id, clientId: { in: parsed.data.clientIds } },
+    select: { clientId: true, statut: true },
+  });
+
+  const resultat: Record<string, "envoye" | "confirme"> = {};
+  for (const item of items) {
+    resultat[item.clientId] = item.statut === "traite" ? "confirme" : "envoye";
+  }
+  return res.json({ statuts: resultat });
+});

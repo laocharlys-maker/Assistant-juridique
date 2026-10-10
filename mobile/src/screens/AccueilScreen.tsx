@@ -1,30 +1,36 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, Pressable, StyleSheet, Alert } from "react-native";
+import { View, Text, Pressable, StyleSheet } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { testerConnexion } from "../pairing/appareil";
+import { listerElementsLocaux } from "../storage/db";
 import type { RootStackParamList } from "../navigation/RootNavigator";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Accueil">;
 
 /**
- * Écran d'accueil (Prompt 3, objectif E). "Après audience" navigue vers un
- * écran d'attente : l'enregistrement audio réel arrive au Prompt 4, pas
- * construit ici - jamais présenté comme fonctionnel avant de l'être
- * réellement. Scanner/Note restent visuellement inactifs (Prompt 5).
+ * Écran d'accueil (Prompts 3 et 4). Scanner reste visuellement inactif
+ * (Prompt 5).
  */
 export default function AccueilScreen({ navigation }: Props) {
   const [connecte, setConnecte] = useState<boolean | null>(null);
+  const [enAttenteEnvoi, setEnAttenteEnvoi] = useState(0);
 
   const verifierConnexion = useCallback(async () => {
     const ok = await testerConnexion();
     setConnecte(ok);
   }, []);
 
+  const compterEnAttente = useCallback(async () => {
+    const elements = await listerElementsLocaux();
+    setEnAttenteEnvoi(elements.filter((e) => e.statut !== "confirme").length);
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       verifierConnexion();
-    }, [verifierConnexion])
+      compterEnAttente();
+    }, [verifierConnexion, compterEnAttente])
   );
 
   useEffect(() => {
@@ -41,17 +47,13 @@ export default function AccueilScreen({ navigation }: Props) {
         </Text>
       </View>
 
-      <Text style={styles.compteur}>0 élément en attente d’envoi</Text>
+      <Pressable onPress={() => navigation.navigate("MesElements")}>
+        <Text style={styles.compteur}>
+          {enAttenteEnvoi} élément{enAttenteEnvoi === 1 ? "" : "s"} en attente d’envoi
+        </Text>
+      </Pressable>
 
-      <Pressable
-        style={styles.boutonPrincipal}
-        onPress={() =>
-          Alert.alert(
-            "Après audience",
-            "L'enregistrement audio arrive dans une prochaine mise à jour d'Aurore Mobile."
-          )
-        }
-      >
+      <Pressable style={styles.boutonPrincipal} onPress={() => navigation.navigate("ApresAudience")}>
         <Text style={styles.boutonPrincipalTexte}>🎙️ Après audience</Text>
       </Pressable>
 
