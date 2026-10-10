@@ -1,5 +1,6 @@
 import * as Crypto from "expo-crypto";
 import { Directory, File, Paths } from "expo-file-system";
+import { PermissionsAndroid, Platform } from "react-native";
 import AudioRecorder from "../../modules/audio-recorder/src/AudioRecorderModule";
 import { chiffrer, dechiffrer } from "../vault/vault";
 import {
@@ -44,6 +45,21 @@ interface SessionEnCours {
 
 let session: SessionEnCours | null = null;
 
+export class PermissionMicrophoneRefuseeError extends Error {
+  constructor() {
+    super("PERMISSION_MICROPHONE_REFUSEE");
+  }
+}
+
+async function demanderPermissions(): Promise<boolean> {
+  const demandes = [PermissionsAndroid.PERMISSIONS.RECORD_AUDIO];
+  if (Number(Platform.Version) >= 33) {
+    demandes.push("android.permission.POST_NOTIFICATIONS" as never);
+  }
+  const resultats = await PermissionsAndroid.requestMultiple(demandes);
+  return Object.values(resultats).every((v) => v === PermissionsAndroid.RESULTS.GRANTED);
+}
+
 function versCheminNatif(uri: string): string {
   return uri.replace(/^file:\/\//, "");
 }
@@ -74,6 +90,9 @@ async function traiterSegmentsEnAttente(): Promise<void> {
 
 export async function demarrerEnregistrement(): Promise<{ clientId: string }> {
   if (session) throw new Error("ENREGISTREMENT_DEJA_EN_COURS");
+
+  const permissionsAccordees = await demanderPermissions();
+  if (!permissionsAccordees) throw new PermissionMicrophoneRefuseeError();
 
   const clientId = Crypto.randomUUID();
   const dossierChiffre = new Directory(Paths.document, DOSSIER_RACINE, clientId);
@@ -207,10 +226,12 @@ export async function reconstituerAudioClair(clientId: string, nombreSegments: n
   return resultat;
 }
 
-/** Pour les tests uniquement - repart d'une session vide (chaque test doit
+/** Repart d'une session vide - utilisée par les tests (chaque test doit
  * pouvoir démarrer son propre enregistrement sans effet de bord du test
- * précédent). */
-export function _reinitialiserSessionPourTests(): void {
+ * précédent) ET en production si une session précédente n'a pas été
+ * proprement terminée (écran quitté de force, crash) pour ne jamais
+ * bloquer durablement sur "ENREGISTREMENT_DEJA_EN_COURS". */
+export function reinitialiserSession(): void {
   if (session?.intervallePompe) clearInterval(session.intervallePompe);
   session = null;
 }

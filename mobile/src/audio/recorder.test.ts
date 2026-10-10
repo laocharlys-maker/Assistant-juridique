@@ -122,7 +122,7 @@ import {
   marqueursActuels,
   arreterEtEnregistrer,
   reconstituerAudioClair,
-  _reinitialiserSessionPourTests,
+  reinitialiserSession,
 } from "./recorder";
 import { enregistrerElementLocal } from "../storage/db";
 
@@ -136,7 +136,7 @@ beforeEach(() => {
   mockMagasinFichiers.clear();
   mockSegmentsEnAttente = [];
   jest.clearAllMocks();
-  _reinitialiserSessionPourTests();
+  reinitialiserSession();
 });
 
 describe("audio/recorder - repères et chronologie", () => {

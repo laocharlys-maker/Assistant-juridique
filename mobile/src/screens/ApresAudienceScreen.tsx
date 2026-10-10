@@ -1,8 +1,8 @@
 import React, { useState } from "react";
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import { View, Text, Pressable, StyleSheet, Alert } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import SelecteurDossier from "../components/SelecteurDossier";
-import { demarrerEnregistrement } from "../audio/recorder";
+import { demarrerEnregistrement, PermissionMicrophoneRefuseeError, reinitialiserSession } from "../audio/recorder";
 import type { RootStackParamList } from "../navigation/RootNavigator";
 
 type Props = NativeStackScreenProps<RootStackParamList, "ApresAudience">;
@@ -21,6 +21,21 @@ export default function ApresAudienceScreen({ navigation }: Props) {
     try {
       await demarrerEnregistrement();
       navigation.replace("Enregistrement", { dossierId });
+    } catch (erreur) {
+      if (erreur instanceof PermissionMicrophoneRefuseeError) {
+        Alert.alert(
+          "Permission refusée",
+          "Aurore Mobile a besoin du micro pour enregistrer. Autorise-le dans les réglages du téléphone."
+        );
+      } else if (erreur instanceof Error && erreur.message === "ENREGISTREMENT_DEJA_EN_COURS") {
+        // Une session precedente n'a pas ete correctement terminee (ecran
+        // quitte de force, crash...) - on la reinitialise et on reessaie
+        // immediatement, plutot que de laisser l'utilisateur bloque.
+        reinitialiserSession();
+        Alert.alert("Nouvelle tentative", "Une session précédente a été nettoyée, réessaie.");
+      } else {
+        Alert.alert("Erreur", "Impossible de démarrer l'enregistrement.");
+      }
     } finally {
       setDemarrage(false);
     }
