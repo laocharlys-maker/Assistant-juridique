@@ -163,6 +163,25 @@ async function chargerContexte(): Promise<ContexteAppareil | null> {
   };
 }
 
+// Serialise TOUS les appels a envoyerRequeteAuthentifiee, quel que soit
+// l'appelant (envoi d'un element, ping de testerConnexion, synchronisation
+// des dossiers...) - le compteur anti-rejeu est partage par appareil, pas
+// par ecran. Sans ce verrou global, deux appels concurrents (ex. le ping
+// periodique de l'accueil, jamais arrete puisque l'ecran reste monte sous
+// la pile de navigation, pendant l'envoi d'un enregistrement depuis un
+// autre ecran) lisent/incrementent le meme compteur en course, et le
+// serveur rejette l'un des deux comme rejoue (voir
+// middleware/mobileDeviceAuth.ts). Un verrou par-clientId (cote
+// sync/elements.ts) ne suffit pas : il ne protege pas contre un appelant
+// totalement different comme le ping.
+let verrouRequete: Promise<unknown> = Promise.resolve();
+
+export function envoyerRequeteAuthentifiee<T>(chemin: string, payload: unknown): Promise<T> {
+  const tache = verrouRequete.then(() => envoyerRequeteAuthentifieeSansVerrou<T>(chemin, payload));
+  verrouRequete = tache.catch(() => undefined);
+  return tache;
+}
+
 /**
  * Envoie une requête chiffrée authentifiée vers une route /api/m/* - voir
  * docs/lot10/01-protocole.md section 4. Incrémente et persiste le compteur
@@ -172,7 +191,7 @@ async function chargerContexte(): Promise<ContexteAppareil | null> {
  * croissante) que risquer de renvoyer deux fois le même compteur après un
  * redémarrage (ce que le serveur rejetterait comme un rejeu).
  */
-export async function envoyerRequeteAuthentifiee<T>(chemin: string, payload: unknown): Promise<T> {
+async function envoyerRequeteAuthentifieeSansVerrou<T>(chemin: string, payload: unknown): Promise<T> {
   const contexte = await chargerContexte();
   if (!contexte) throw new Error("APPAREIL_NON_APPAIRE");
 
