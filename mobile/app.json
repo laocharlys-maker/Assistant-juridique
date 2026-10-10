@@ -30,7 +30,9 @@
         "android.permission.USE_FINGERPRINT",
         "android.permission.FOREGROUND_SERVICE",
         "android.permission.FOREGROUND_SERVICE_MICROPHONE",
-        "android.permission.POST_NOTIFICATIONS"
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
       ]
     },
     "web": {
@@ -64,9 +66,9 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "ba0a6556-4e19-41e1-838a-808cfa22524a"
+        "projectId": "88c32764-1089-4d16-b8d6-d83751b5fd61"
       }
     },
-    "owner": "charlys2025"
+    "owner": "isabelle001"
   }
 }
