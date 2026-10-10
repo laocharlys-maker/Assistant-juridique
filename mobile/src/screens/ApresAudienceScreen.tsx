@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { View, Text, Pressable, StyleSheet, Alert } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import SelecteurDossier from "../components/SelecteurDossier";
 import { demarrerEnregistrement, PermissionMicrophoneRefuseeError, reinitialiserSession } from "../audio/recorder";
@@ -15,6 +16,7 @@ type Props = NativeStackScreenProps<RootStackParamList, "ApresAudience">;
 export default function ApresAudienceScreen({ navigation }: Props) {
   const [dossierId, setDossierId] = useState<string | null>(null);
   const [demarrage, setDemarrage] = useState(false);
+  const insets = useSafeAreaInsets();
 
   async function demarrer() {
     setDemarrage(true);
@@ -42,7 +44,7 @@ export default function ApresAudienceScreen({ navigation }: Props) {
   }
 
   return (
-    <View style={styles.conteneur}>
+    <View style={[styles.conteneur, { paddingBottom: Math.max(16, insets.bottom) }]}>
       <Text style={styles.titre}>Choisir le dossier (facultatif)</Text>
       <SelecteurDossier dossierSelectionneId={dossierId} onSelection={setDossierId} />
       <Pressable style={styles.bouton} onPress={demarrer} disabled={demarrage}>
