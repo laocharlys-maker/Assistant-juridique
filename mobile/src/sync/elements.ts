@@ -1,7 +1,7 @@
 import * as Crypto from "expo-crypto";
 import { envoyerRequeteAuthentifiee } from "../pairing/appareil";
 import { reconstituerAudioClair } from "../audio/recorder";
-import { listerElementsLocaux, majStatutElementLocal, type ElementLocal } from "../storage/db";
+import { listerElementsLocaux, majStatutElementLocal, majErreurEnvoiElementLocal, type ElementLocal } from "../storage/db";
 
 /**
  * Envoi des éléments locaux vers Aurore (Prompt 4, objectifs A et D) -
@@ -94,6 +94,7 @@ async function envoyerElementSansVerrou(element: ElementLocal): Promise<void> {
   }
 
   await majStatutElementLocal(element.clientId, "envoye");
+  await majErreurEnvoiElementLocal(element.clientId, null);
 }
 
 /** Envoie tous les éléments encore "en_attente" - appelée à l'ouverture de
@@ -105,9 +106,13 @@ export async function envoyerElementsEnAttente(): Promise<void> {
     if (element.statut !== "en_attente") continue;
     try {
       await envoyerElement(element);
-    } catch {
+    } catch (erreur) {
       // Coupure réseau ou Aurore éteint - on réessaiera au prochain appel,
-      // jamais bloquant pour les autres éléments de la liste.
+      // jamais bloquant pour les autres éléments de la liste. L'erreur
+      // reste néanmoins visible dans "Mes éléments" (avant ce correctif,
+      // un échec ici était totalement silencieux pour l'utilisateur).
+      const message = erreur instanceof Error ? erreur.message : "Erreur inconnue";
+      await majErreurEnvoiElementLocal(element.clientId, message).catch(() => undefined);
     }
   }
 }

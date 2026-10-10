@@ -106,6 +106,9 @@ export default function MesElementsScreen() {
             <View style={styles.ligne}>
               <Text style={styles.duree}>{Math.round(item.dureeSecondes / 60)} min</Text>
               <Text style={styles.statut}>{LIBELLE_STATUT[item.statut]}</Text>
+              {item.statut === "en_attente" && item.derniereErreurEnvoi && (
+                <Text style={styles.erreurEnvoi}>Dernier échec d’envoi : {item.derniereErreurEnvoi}</Text>
+              )}
               {item.noteTexte && <Text style={styles.note}>{item.noteTexte}</Text>}
 
               {enLecture && (
@@ -146,6 +149,7 @@ const styles = StyleSheet.create({
   duree: { color: "#fff", fontSize: 16, fontWeight: "600" },
   statut: { color: "#9aa5b1", fontSize: 13, marginTop: 4 },
   note: { color: "#9aa5b1", fontSize: 13, marginTop: 4, fontStyle: "italic" },
+  erreurEnvoi: { color: "#f87171", fontSize: 12, marginTop: 4 },
   blocLecture: { marginTop: 10 },
   barreProgression: { height: 6, backgroundColor: "#0b1220", borderRadius: 3, overflow: "hidden" },
   barreProgressionRemplie: { height: "100%", backgroundColor: "#3b82f6" },

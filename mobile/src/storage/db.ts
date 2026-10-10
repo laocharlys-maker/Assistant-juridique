@@ -41,6 +41,7 @@ export interface ElementLocal {
   nombreSegments: number;
   marqueurs: MarqueurLocal[];
   noteTexte: string | null;
+  derniereErreurEnvoi: string | null;
 }
 
 let db: SQLite.SQLiteDatabase | null = null;
@@ -144,6 +145,21 @@ export async function majStatutElementLocal(clientId: string, statut: StatutElem
   if (!ligne) return;
   const element = JSON.parse(await dechiffrerTexte(ligne.donnees_chiffrees)) as ElementLocal;
   element.statut = statut;
+  await enregistrerElementLocal(element);
+}
+
+/** Consigne la dernière erreur d'envoi - visible dans "Mes éléments" tant
+ * que l'élément reste "en_attente", pour ne jamais laisser un échec
+ * silencieux (contrairement au comportement avant ce correctif). */
+export async function majErreurEnvoiElementLocal(clientId: string, message: string | null): Promise<void> {
+  const base = await obtenirDb();
+  const ligne = await base.getFirstAsync<{ donnees_chiffrees: string }>(
+    "SELECT donnees_chiffrees FROM elements_locaux WHERE client_id = ?",
+    [clientId]
+  );
+  if (!ligne) return;
+  const element = JSON.parse(await dechiffrerTexte(ligne.donnees_chiffrees)) as ElementLocal;
+  element.derniereErreurEnvoi = message;
   await enregistrerElementLocal(element);
 }
 

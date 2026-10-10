@@ -44,14 +44,21 @@ export async function decoderEnveloppeAppareil(req: Request, res: Response, next
   }
   const { deviceId, compteur, horodatage, enveloppe } = parsed.data;
 
-  if (Math.abs(Date.now() - horodatage) > ENVELOPPE_HORODATAGE_TOLERANCE_MS) {
-    res.status(401).json({ error: "Horloge de l'appareil désynchronisée (plus de 5 minutes d'écart)." });
-    return;
-  }
-
   const device = await prisma.mobileDevice.findUnique({ where: { id: deviceId } });
   if (!device) {
     res.status(401).json({ error: "Appareil inconnu" });
+    return;
+  }
+
+  if (Math.abs(Date.now() - horodatage) > ENVELOPPE_HORODATAGE_TOLERANCE_MS) {
+    await logMobileAudit(
+      device.cabinetId,
+      "horloge_desynchronisee",
+      "erreur",
+      `ecartMs=${Date.now() - horodatage},compteur=${compteur},chemin=${req.path}`,
+      device.id
+    );
+    res.status(401).json({ error: "Horloge de l'appareil désynchronisée (plus de 5 minutes d'écart)." });
     return;
   }
 

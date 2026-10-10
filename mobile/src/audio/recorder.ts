@@ -200,6 +200,7 @@ export async function arreterEtEnregistrer(options: {
     nombreSegments: s.segments.length,
     marqueurs: s.marqueurs,
     noteTexte: options.noteTexte,
+    derniereErreurEnvoi: null,
   };
   await enregistrerElementLocal(element);
 
