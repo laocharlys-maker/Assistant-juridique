@@ -73,9 +73,19 @@ export default function MesElementsScreen() {
     }
   }
 
+  function peutSupprimer(element: ElementLocal): boolean {
+    // Confirme par Aurore (cas normal), OU vide (aucun audio valide -
+    // jamais envoyé, rien a perdre cote serveur, voir EnregistrementVideError).
+    return element.statut === "confirme" || element.nombreSegments === 0;
+  }
+
   function supprimer(element: ElementLocal) {
-    if (element.statut !== "confirme") return;
-    Alert.alert("Supprimer cet élément ?", "Il a déjà été confirmé par Aurore.", [
+    if (!peutSupprimer(element)) return;
+    const message =
+      element.statut === "confirme"
+        ? "Il a déjà été confirmé par Aurore."
+        : "Cet enregistrement est vide (trop court) et n'a jamais pu être envoyé.";
+    Alert.alert("Supprimer cet élément ?", message, [
       { text: "Annuler", style: "cancel" },
       {
         text: "Supprimer",
@@ -123,12 +133,14 @@ export default function MesElementsScreen() {
               )}
 
               <View style={styles.actions}>
-                <Pressable style={styles.boutonAction} onPress={() => basculerLecture(item)}>
-                  <Text style={styles.boutonActionTexte}>
-                    {enLecture && statutLecture.playing ? "⏸ Pause" : "▶ Réécouter"}
-                  </Text>
-                </Pressable>
-                {item.statut === "confirme" && (
+                {item.nombreSegments > 0 && (
+                  <Pressable style={styles.boutonAction} onPress={() => basculerLecture(item)}>
+                    <Text style={styles.boutonActionTexte}>
+                      {enLecture && statutLecture.playing ? "⏸ Pause" : "▶ Réécouter"}
+                    </Text>
+                  </Pressable>
+                )}
+                {peutSupprimer(item) && (
                   <Pressable style={[styles.boutonAction, styles.boutonSuppression]} onPress={() => supprimer(item)}>
                     <Text style={styles.boutonActionTexte}>Supprimer</Text>
                   </Pressable>

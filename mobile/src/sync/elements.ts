@@ -55,8 +55,21 @@ export async function envoyerElement(element: ElementLocal): Promise<void> {
   }
 }
 
+export class EnregistrementVideError extends Error {
+  constructor() {
+    super("ENREGISTREMENT_VIDE");
+  }
+}
+
 async function envoyerElementSansVerrou(element: ElementLocal): Promise<void> {
   const audio = await reconstituerAudioClair(element.clientId, element.nombreSegments);
+  if (audio.length === 0) {
+    // Enregistrement trop court pour que le premier segment ait ete
+    // valide par Android (MediaRecorder.stop() echoue silencieusement sur
+    // un segment de quelques centaines de ms) - rien a envoyer, jamais la
+    // peine de contacter le serveur pour echouer a coup sur.
+    throw new EnregistrementVideError();
+  }
   const digest = await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA256, audio.slice());
   const sha256 = octetsVersHex(digest);
   const nombreChunks = Math.max(1, Math.ceil(audio.length / TAILLE_MORCEAU_OCTETS));
@@ -111,7 +124,12 @@ export async function envoyerElementsEnAttente(): Promise<void> {
       // jamais bloquant pour les autres éléments de la liste. L'erreur
       // reste néanmoins visible dans "Mes éléments" (avant ce correctif,
       // un échec ici était totalement silencieux pour l'utilisateur).
-      const message = erreur instanceof Error ? erreur.message : "Erreur inconnue";
+      const message =
+        erreur instanceof EnregistrementVideError
+          ? "Enregistrement trop court, aucun audio valide - supprimable (bouton ci-dessous)."
+          : erreur instanceof Error
+            ? erreur.message
+            : "Erreur inconnue";
       await majErreurEnvoiElementLocal(element.clientId, message).catch(() => undefined);
     }
   }
