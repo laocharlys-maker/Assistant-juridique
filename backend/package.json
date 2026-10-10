@@ -1,6 +1,6 @@
 {
   "name": "aurore-backend",
-  "version": "1.0.22",
+  "version": "1.0.23",
   "description": "Backend Aurore - orchestration metier et IA pour le cabinet KOFFI & ASSOCIES",
   "private": true,
   "type": "commonjs",
@@ -45,6 +45,7 @@
     "pdf-parse": "^1.1.4",
     "pdf-to-png-converter": "^4.2.0",
     "pdfkit": "^0.19.1",
+    "qrcode": "^1.5.4",
     "sanitize-html": "^2.17.7",
     "selfsigned": "^5.5.0",
     "tesseract.js": "^5.1.1",
@@ -52,6 +53,7 @@
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
+    "@types/qrcode": "^1.5.6",
     "@types/compression": "^1.8.1",
     "@types/cookie-parser": "^1.4.7",
     "@types/express": "^4.17.21",

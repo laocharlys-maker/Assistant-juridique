@@ -280,8 +280,41 @@ model Cabinet {
   licenceModeVerification             String?   @map("licence_mode_verification")
   licenceDateExpiration               DateTime? @map("licence_date_expiration")
   empreinteMachineAutorisee           String?   @map("empreinte_machine_autorisee")
+  // Lot 10 (Aurore Mobile) - reglage cabinet simple, PAS une cle de
+  // MODULES_DISPONIBLES : decision explicite du titulaire du 2026-10-09,
+  // la synchronisation mobile depend uniquement de la licence du cabinet
+  // (deja verifiee par requireLicence sur tout /api/*), jamais d'un module
+  // payant separe. Desactive par defaut - aucun port supplementaire ouvert
+  // tant que ce reglage n'est pas active (voir mobileServer.ts).
+  mobileSyncActif                     Boolean   @default(false) @map("mobile_sync_actif")
+  // Interface reseau locale choisie pour le serveur mobile (ex: adresse IP
+  // d'une carte reseau precise) - null = toutes les interfaces non-loopback
+  // disponibles, jamais 0.0.0.0 par defaut (meme principe de prudence que
+  // le mode reseau du Lot 6).
+  mobileSyncInterface                 String?   @map("mobile_sync_interface")
+  // Distinct de BACKEND_PORT (3000) et LOCAL_SHELL_PORT (3001, voir
+  // src-tauri/src/main.rs) - jamais le meme port qu'un serveur deja actif.
+  mobileSyncPort                      Int       @default(3100) @map("mobile_sync_port")
+  // Paire de cles X25519 PERMANENTE du cabinet, generee une seule fois a la
+  // premiere activation du reglage ci-dessus (voir docs/lot10/01-protocole.md,
+  // section 2) - la cle publique circule en clair (QR d'appairage), la cle
+  // privee est chiffree au repos comme les tokens OAuth2 de
+  // ConnexionCalendrierExterne (voir security/prismaEncryption.ts).
+  mobileServerClePublique             String?   @map("mobile_server_cle_publique")
+  mobileServerClePrivee               String?   @map("mobile_server_cle_privee") // [chiffre-au-repos]
+  // Conservation de l'audio mobile (Prompt 2) - reserve au titulaire. Null
+  // = manuelle (valeur par defaut, jamais de suppression automatique),
+  // sinon nombre de jours apres passage au statut "traite" avant
+  // suppression automatique du fichier ET de la ligne MobileItem (voir
+  // jobs/purgeAudioMobile.ts). Ne s'applique jamais aux scans/notes, ni a
+  // un element pas encore traite.
+  mobileConservationAudioJours        Int?      @map("mobile_conservation_audio_jours")
   createdAt                           DateTime  @default(now()) @map("created_at")
 
+  mobileDevices MobileDevice[]
+  mobilePairingSecrets MobilePairingSecret[]
+  mobileAuditLogs MobileAuditLog[]
+  mobileItems   MobileItem[]
   users         User[]
   dossiers      Dossier[]
   clients       Client[]
@@ -433,6 +466,12 @@ model User {
   // Lot 12b : agendas externes connectes par CET utilisateur (OAuth2
   // individuel - jamais un compte cabinet partage).
   connexionsCalendrierExterne ConnexionCalendrierExterne[]
+
+  // Lot 10 : appareils mobiles appaires par CET utilisateur (toujours lie
+  // a celui qui a genere le QR, jamais un compte cabinet partage - meme
+  // principe que les agendas externes ci-dessus).
+  mobileDevices        MobileDevice[]
+  mobilePairingSecrets MobilePairingSecret[]
 
   // Lot 14 : temps enregistre par CET utilisateur (chronometre ou saisie
   // manuelle).
@@ -636,6 +675,9 @@ model Dossier {
   // apres coup - voir CourrierEntrant/CourrierSortant.dossierId).
   courriersEntrants CourrierEntrant[]
   courriersSortants CourrierSortant[]
+  // Lot 10 : elements captures depuis Aurore Mobile et rattaches a ce
+  // dossier (audio/scan/note - lien optionnel, comme les courriers ci-dessus).
+  mobileItems MobileItem[]
 
   @@unique([cabinetId, numeroDossier])
   @@index([clientId])
@@ -1635,4 +1677,167 @@ model JurisprudencePdf {
   createdAt    DateTime @default(now()) @map("created_at")
 
   @@map("jurisprudence_pdfs")
+}
+
+// ---------------------------------------------------------------------------
+// Lot 10 - Aurore Mobile (Prompt 1 : serveur de synchronisation et appairage)
+// Voir docs/lot10/01-protocole.md pour le protocole complet. Aucun service
+// cloud : le telephone parle uniquement au PC du cabinet, sur son reseau
+// local. Migration purement additive, aucun modele existant modifie.
+// ---------------------------------------------------------------------------
+
+enum StatutMobileDevice {
+  en_attente
+  autorise
+  revoque
+}
+
+// Un appareil est toujours lie a l'utilisateur qui a genere le QR
+// d'appairage (jamais choisi par le telephone lui-meme) - voir protocole
+// section 3.1.
+model MobileDevice {
+  id          String             @id @default(uuid())
+  cabinetId   String             @map("cabinet_id")
+  userId      String             @map("user_id")
+  nomDeclare  String             @map("nom_declare")
+  // Cle publique X25519 PERMANENTE du telephone (base64) - jamais secrete,
+  // sert a recalculer la cle partagee ECDH a chaque requete (voir protocole
+  // section 4) : aucun jeton porteur n'est genere ni stocke.
+  clePublique String             @map("cle_publique")
+  statut      StatutMobileDevice @default(en_attente)
+  // Anti-rejeu (protocole section 4) : derniere valeur de compteur acceptee
+  // pour cet appareil - toute requete avec un compteur <= cette valeur est
+  // rejetee.
+  dernierCompteur         Int?      @map("dernier_compteur")
+  createdAt               DateTime  @default(now()) @map("created_at")
+  autoriseAt               DateTime? @map("autorise_at")
+  derniereConnexionAt      DateTime? @map("derniere_connexion_at")
+  revoqueAt                DateTime? @map("revoque_at")
+
+  cabinet   Cabinet          @relation(fields: [cabinetId], references: [id])
+  user      User             @relation(fields: [userId], references: [id])
+  items     MobileItem[]
+  auditLogs MobileAuditLog[]
+
+  @@index([cabinetId])
+  @@index([userId])
+  @@map("mobile_devices")
+}
+
+// Secret d'appairage a usage unique (QR), expire en 5 minutes, stocke
+// HACHE (jamais en clair) - voir protocole section 3.1/3.2.
+model MobilePairingSecret {
+  id         String   @id @default(uuid())
+  cabinetId  String   @map("cabinet_id")
+  userId     String   @map("user_id")
+  secretHash String   @map("secret_hash")
+  expireAt   DateTime @map("expire_at")
+  utilise    Boolean  @default(false)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  cabinet Cabinet @relation(fields: [cabinetId], references: [id])
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@index([cabinetId])
+  @@map("mobile_pairing_secrets")
+}
+
+enum TypeMobileItem {
+  audio
+  scan
+  note
+}
+
+enum TypeScanMobile {
+  piece
+  decision
+  courrier
+  convocation
+  autre
+}
+
+// "recu" = chunks/commit termines cote serveur ; "a_traiter"/"traite" =
+// cycle de la Boite de reception mobile (Prompt 2, pas encore implemente
+// ici) - les trois existent deja pour que le Prompt 2 n'ait pas de
+// migration a refaire.
+enum StatutMobileItem {
+  recu
+  a_traiter
+  traite
+}
+
+model MobileItem {
+  id          String            @id @default(uuid())
+  cabinetId   String            @map("cabinet_id")
+  deviceId    String            @map("device_id")
+  // UUID genere par le telephone, unique PAR APPAREIL - sert a l'idempotence
+  // de l'envoi par morceaux (un renvoi du meme clientId apres coupure ne
+  // cree jamais de doublon, voir protocole et POST /api/m/items/:id/commit).
+  clientId    String            @map("client_id")
+  type        TypeMobileItem
+  dossierId   String?           @map("dossier_id")
+  typeScan    TypeScanMobile?   @map("type_scan")
+  statut      StatutMobileItem  @default(recu)
+  // Chemin RELATIF (jamais absolu) dans userDataDir()/mobile-items/ - voir
+  // services/mobileSync/stockageMobile.ts, meme principe que
+  // stockageDocuments.ts (chiffre AES-256-GCM, nom de fichier non previsible).
+  cheminFichier     String?   @map("chemin_fichier")
+  tailleOctets      Int?      @map("taille_octets")
+  sha256            String?
+  dureeSecondes     Int?      @map("duree_secondes")
+  creeLeSurAppareil DateTime? @map("cree_le_sur_appareil")
+  recuLe            DateTime  @default(now()) @map("recu_le")
+  prochaineAudience DateTime? @map("prochaine_audience")
+  noteTexte         String?   @map("note_texte") // [chiffre-au-repos]
+  createdAt         DateTime  @default(now()) @map("created_at")
+
+  cabinet   Cabinet        @relation(fields: [cabinetId], references: [id])
+  device    MobileDevice   @relation(fields: [deviceId], references: [id])
+  dossier   Dossier?       @relation(fields: [dossierId], references: [id])
+  marqueurs MobileMarker[]
+
+  @@unique([deviceId, clientId])
+  @@index([cabinetId])
+  @@index([dossierId])
+  @@map("mobile_items")
+}
+
+enum TypeMobileMarker {
+  prochaine_audience
+  decision
+  a_faire
+  point_important
+}
+
+model MobileMarker {
+  id           String           @id @default(uuid())
+  itemId       String           @map("item_id")
+  type         TypeMobileMarker
+  positionMs   Int              @map("position_ms")
+  dateAudience DateTime?        @map("date_audience")
+
+  item MobileItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@index([itemId])
+  @@map("mobile_markers")
+}
+
+// Table DEDIEE (decision explicite du 2026-10-09, voir protocole) plutot
+// qu'une extension d'AuditLog existant : AuditLog n'a ni cabinetId propre
+// ni notion d'evenement hors Action/CourrierEntrant/CourrierSortant.
+model MobileAuditLog {
+  id        String          @id @default(uuid())
+  cabinetId String          @map("cabinet_id")
+  deviceId  String?         @map("device_id")
+  etape     String
+  statut    StatutExecution
+  detail    String?
+  timestamp DateTime        @default(now())
+
+  cabinet Cabinet       @relation(fields: [cabinetId], references: [id])
+  device  MobileDevice? @relation(fields: [deviceId], references: [id])
+
+  @@index([cabinetId])
+  @@index([deviceId])
+  @@map("mobile_audit_logs")
 }

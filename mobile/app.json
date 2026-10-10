@@ -50,6 +50,14 @@
         {
           "faceIDPermission": "Aurore Mobile utilise la biométrie pour déverrouiller l'application."
         }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
       ]
     ],
     "extra": {

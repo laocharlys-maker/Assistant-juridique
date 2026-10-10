@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aurore — Boîte de réception mobile</title>
+  <link rel="icon" type="image/png" href="/favicon-256.png" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="page">
+    <div class="page-hero">
+      <div class="eyebrow">Cabinet</div>
+      <h1>Boîte de réception mobile</h1>
+      <p>Audio, scans et notes envoyés depuis Aurore Mobile. Un « audio de travail » est un aide-mémoire, pas une pièce du dossier.</p>
+    </div>
+
+    <div class="tabs" id="statut-tabs">
+      <button class="tab active" data-statut="a_traiter">À traiter</button>
+      <button class="tab" data-statut="traite">Traités</button>
+    </div>
+
+    <div id="error" class="error"></div>
+
+    <div class="card">
+      <div id="elements-list"><p class="muted">Chargement…</p></div>
+    </div>
+  </div>
+
+  <!-- Détail / traitement d'un élément - une seule modale, contenu adapté au type -->
+  <div class="modal-overlay" id="detail-modal" hidden>
+    <div class="modal-box" style="max-width:640px;">
+      <span class="badge" id="detail-badge"></span>
+      <h2 id="detail-titre"></h2>
+      <p class="muted" id="detail-meta"></p>
+
+      <div id="detail-audio" hidden>
+        <audio id="detail-audio-player" controls style="width:100%;"></audio>
+        <div id="detail-marqueurs" style="margin-top:10px; display:flex; gap:6px; flex-wrap:wrap;"></div>
+        <p class="muted" id="detail-prochaine-audience" hidden></p>
+        <button type="button" class="secondary btn-sm" id="detail-ajouter-calendrier-btn" hidden>Ajouter au calendrier ?</button>
+      </div>
+
+      <div id="detail-scan" hidden>
+        <iframe id="detail-scan-apercu" style="width:100%; height:320px; border:1px solid var(--border); border-radius:8px;"></iframe>
+        <label style="margin-top:10px;">Type de pièce</label>
+        <select id="detail-type-scan">
+          <option value="piece">Pièce</option>
+          <option value="decision">Décision</option>
+          <option value="courrier">Courrier</option>
+          <option value="convocation">Convocation</option>
+          <option value="autre">Autre</option>
+        </select>
+        <div id="detail-scan-courrier-fields" hidden>
+          <label>Objet du courrier</label>
+          <input id="detail-courrier-objet" />
+          <label>Expéditeur (optionnel)</label>
+          <input id="detail-courrier-expediteur" />
+        </div>
+      </div>
+
+      <div id="detail-note" hidden>
+        <p id="detail-note-texte" style="white-space:pre-wrap;"></p>
+      </div>
+
+      <div id="detail-dossier-field">
+        <label>Dossier (optionnel)</label>
+        <input id="detail-dossier-numero" list="mobile-dossiers-datalist" placeholder="Numéro de dossier" />
+        <datalist id="mobile-dossiers-datalist"></datalist>
+      </div>
+
+      <p class="error" id="detail-error"></p>
+
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:16px;">
+        <button type="button" class="secondary" id="detail-rattacher-btn">Rattacher au dossier</button>
+        <button type="button" class="secondary" id="detail-classer-document-btn" hidden>Classer dans le dossier</button>
+        <button type="button" class="secondary" id="detail-creer-courrier-btn" hidden>Créer le courrier</button>
+        <button type="button" class="secondary" id="detail-generer-cr-btn" hidden>Générer le compte-rendu</button>
+        <button type="button" class="ghost" id="detail-marquer-traite-btn">Marquer comme traité</button>
+        <button type="button" class="ghost" id="detail-fermer-btn">Fermer</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/layout.js"></script>
+  <script>
+    let currentStatut = "a_traiter";
+    let currentElement = null;
+    let dossiersParNumero = new Map();
+
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str ?? "";
+      return div.innerHTML;
+    }
+
+    const TYPE_LABELS = { audio: "🎙️ Audio de travail", scan: "📄 Scan", note: "📝 Note" };
+
+    async function chargerDossiersDatalist() {
+      try {
+        const { dossiers } = await apiFetch("/api/dossiers");
+        document.getElementById("mobile-dossiers-datalist").innerHTML = dossiers
+          .map((d) => `<option value="${escapeHtml(d.numeroDossier)}">${escapeHtml(d.nomAffaire)}</option>`)
+          .join("");
+        dossiers.forEach((d) => dossiersParNumero.set(d.numeroDossier, d));
+      } catch {
+        // Non bloquant.
+      }
+    }
+
+    async function chargerListe() {
+      const listEl = document.getElementById("elements-list");
+      listEl.innerHTML = '<p class="muted">Chargement…</p>';
+      try {
+        const elements = await apiFetch(`/api/mobile/elements?statut=${currentStatut}`);
+        if (elements.length === 0) {
+          listEl.innerHTML = '<p class="muted">Rien à afficher ici pour l\'instant.</p>';
+          return;
+        }
+        listEl.innerHTML = elements
+          .map((el) => {
+            const duree = el.dureeSecondes ? ` · ${Math.round(el.dureeSecondes / 60)} min` : "";
+            const dossierTexte = el.dossier ? `${escapeHtml(el.dossier.numeroDossier)} — ${escapeHtml(el.dossier.nomAffaire)}` : "à classer";
+            return `
+          <div class="dossier-item" data-element-id="${el.id}" style="cursor:pointer;">
+            <div>
+              <div><strong>${TYPE_LABELS[el.type] || el.type}</strong></div>
+              <div class="meta">${formatDateLongue(el.recuLe)}${duree} · ${escapeHtml(el.device.nomDeclare)} · ${dossierTexte}</div>
+            </div>
+          </div>`;
+          })
+          .join("");
+        listEl.querySelectorAll("[data-element-id]").forEach((row) => {
+          row.addEventListener("click", () => ouvrirDetail(row.dataset.elementId));
+        });
+      } catch (err) {
+        listEl.innerHTML = `<p class="error visible">${escapeHtml(err.message)}</p>`;
+      }
+    }
+
+    async function ouvrirDetail(id) {
+      hideError(document.getElementById("detail-error"));
+      try {
+        currentElement = await apiFetch(`/api/mobile/elements/${id}`);
+      } catch (err) {
+        alert(err.message);
+        return;
+      }
+      const el = currentElement;
+
+      document.getElementById("detail-badge").textContent = TYPE_LABELS[el.type] || el.type;
+      document.getElementById("detail-titre").textContent =
+        el.type === "audio" ? "Audio de travail" : el.type === "scan" ? "Scan" : "Note";
+      document.getElementById("detail-meta").textContent = `Reçu le ${formatDateLongue(el.recuLe)} depuis ${el.device.nomDeclare}`;
+      document.getElementById("detail-dossier-numero").value = el.dossier ? el.dossier.numeroDossier : "";
+
+      document.getElementById("detail-audio").hidden = el.type !== "audio";
+      document.getElementById("detail-scan").hidden = el.type !== "scan";
+      document.getElementById("detail-note").hidden = el.type !== "note";
+      document.getElementById("detail-classer-document-btn").hidden = el.type !== "scan";
+      document.getElementById("detail-generer-cr-btn").hidden = el.type !== "audio" || !el.dossier;
+
+      if (el.type === "audio") {
+        const player = document.getElementById("detail-audio-player");
+        player.src = `/api/mobile/elements/${el.id}/audio`;
+        const marqueursEl = document.getElementById("detail-marqueurs");
+        const LABELS_MARQUEUR = { prochaine_audience: "Prochaine audience", decision: "Décision", a_faire: "À faire", point_important: "Point important" };
+        marqueursEl.innerHTML = (el.marqueurs || [])
+          .map((m) => `<button type="button" class="ghost btn-sm" data-position-ms="${m.positionMs}">${LABELS_MARQUEUR[m.type] || m.type} — ${Math.floor(m.positionMs / 60000)}:${String(Math.floor((m.positionMs / 1000) % 60)).padStart(2, "0")}</button>`)
+          .join("");
+        marqueursEl.querySelectorAll("[data-position-ms]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            player.currentTime = Number(btn.dataset.positionMs) / 1000;
+            player.play();
+          });
+        });
+        const prochaineEl = document.getElementById("detail-prochaine-audience");
+        const ajouterBtn = document.getElementById("detail-ajouter-calendrier-btn");
+        if (el.prochaineAudience) {
+          prochaineEl.hidden = false;
+          prochaineEl.textContent = `Prochaine audience détectée : ${formatDateLongue(el.prochaineAudience)}`;
+          ajouterBtn.hidden = false;
+        } else {
+          prochaineEl.hidden = true;
+          ajouterBtn.hidden = true;
+        }
+      }
+
+      if (el.type === "scan") {
+        document.getElementById("detail-scan-apercu").src = `/api/mobile/elements/${el.id}/apercu`;
+        document.getElementById("detail-type-scan").value = el.typeScan || "piece";
+        document.getElementById("detail-scan-courrier-fields").hidden = (el.typeScan || "piece") !== "courrier";
+        document.getElementById("detail-creer-courrier-btn").hidden = (el.typeScan || "piece") !== "courrier";
+      }
+
+      if (el.type === "note") {
+        document.getElementById("detail-note-texte").textContent = el.noteTexte || "";
+      }
+
+      document.getElementById("detail-modal").hidden = false;
+    }
+
+    document.getElementById("detail-type-scan").addEventListener("change", (e) => {
+      const estCourrier = e.target.value === "courrier";
+      document.getElementById("detail-scan-courrier-fields").hidden = !estCourrier;
+      document.getElementById("detail-creer-courrier-btn").hidden = !estCourrier;
+    });
+
+    function dossierSaisi() {
+      const numero = document.getElementById("detail-dossier-numero").value.trim();
+      if (!numero) return null;
+      return dossiersParNumero.get(numero) || null;
+    }
+
+    document.getElementById("detail-rattacher-btn").addEventListener("click", async () => {
+      const dossier = dossierSaisi();
+      try {
+        currentElement = await apiFetch(`/api/mobile/elements/${currentElement.id}`, {
+          method: "PATCH",
+          body: { dossierId: dossier ? dossier.id : null, typeScan: document.getElementById("detail-type-scan") ? document.getElementById("detail-type-scan").value : undefined },
+        });
+        document.getElementById("detail-generer-cr-btn").hidden = currentElement.type !== "audio" || !currentElement.dossier;
+        showToast("Dossier mis à jour.");
+      } catch (err) {
+        showError(document.getElementById("detail-error"), err.message);
+      }
+    });
+
+    document.getElementById("detail-classer-document-btn").addEventListener("click", async () => {
+      try {
+        await apiFetch(`/api/mobile/elements/${currentElement.id}/document`, { method: "POST" });
+        document.getElementById("detail-modal").hidden = true;
+        chargerListe();
+      } catch (err) {
+        showError(document.getElementById("detail-error"), err.message);
+      }
+    });
+
+    document.getElementById("detail-creer-courrier-btn").addEventListener("click", async () => {
+      const objet = document.getElementById("detail-courrier-objet").value.trim();
+      if (!objet) {
+        showError(document.getElementById("detail-error"), "L'objet du courrier est obligatoire.");
+        return;
+      }
+      try {
+        await apiFetch(`/api/mobile/elements/${currentElement.id}/courrier`, {
+          method: "POST",
+          body: { objet, expediteur: document.getElementById("detail-courrier-expediteur").value.trim() || undefined },
+        });
+        document.getElementById("detail-modal").hidden = true;
+        chargerListe();
+      } catch (err) {
+        showError(document.getElementById("detail-error"), err.message);
+      }
+    });
+
+    document.getElementById("detail-generer-cr-btn").addEventListener("click", () => {
+      if (!currentElement.dossier) return;
+      irAPagina(`/nouvelle-action.html?dossierId=${currentElement.dossier.id}&type=notes`);
+    });
+
+    document.getElementById("detail-ajouter-calendrier-btn").addEventListener("click", async () => {
+      if (!confirm("Ajouter cette date au calendrier du cabinet ?")) return;
+      try {
+        await apiFetch(`/api/mobile/elements/${currentElement.id}/creer-evenement`, { method: "POST" });
+        showToast("Événement ajouté au calendrier.");
+      } catch (err) {
+        showError(document.getElementById("detail-error"), err.message);
+      }
+    });
+
+    document.getElementById("detail-marquer-traite-btn").addEventListener("click", async () => {
+      try {
+        await apiFetch(`/api/mobile/elements/${currentElement.id}`, { method: "PATCH", body: { statut: "traite" } });
+        document.getElementById("detail-modal").hidden = true;
+        chargerListe();
+      } catch (err) {
+        showError(document.getElementById("detail-error"), err.message);
+      }
+    });
+
+    document.getElementById("detail-fermer-btn").addEventListener("click", () => {
+      document.getElementById("detail-audio-player").pause();
+      document.getElementById("detail-modal").hidden = true;
+    });
+
+    document.querySelectorAll("#statut-tabs .tab").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll("#statut-tabs .tab").forEach((b) => b.classList.remove("active"));
+        btn.classList.add("active");
+        currentStatut = btn.dataset.statut;
+        chargerListe();
+      });
+    });
+
+    (async () => {
+      const me = await requireSession();
+      if (!me) return;
+      initLayout(me);
+      await chargerDossiersDatalist();
+      await chargerListe();
+    })();
+  </script>
+</body>
+</html>

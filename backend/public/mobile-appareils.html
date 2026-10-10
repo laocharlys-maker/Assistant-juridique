@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aurore — Appareils mobiles</title>
+  <link rel="icon" type="image/png" href="/favicon-256.png" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="page">
+    <div class="page-hero">
+      <div class="eyebrow">Cabinet</div>
+      <h1>Appareils mobiles</h1>
+      <p>Connecte un téléphone à Aurore sur le réseau Wi-Fi du cabinet — jamais via Internet, aucun service tiers.</p>
+    </div>
+
+    <div id="error" class="error"></div>
+
+    <div class="card" id="reglages-card" style="display:none;">
+      <h2>Réglages (titulaire)</h2>
+      <label style="display:flex; align-items:center; gap:8px;">
+        <input type="checkbox" id="reglage-actif" style="width:auto;" />
+        Activer la synchronisation mobile
+      </label>
+      <p class="muted" id="reglage-redemarrage" style="display:none;">Un redémarrage d'Aurore est nécessaire pour que ce changement prenne effet.</p>
+      <p class="error" id="reglage-parefeu" style="display:none;"></p>
+      <label>Port d'écoute</label>
+      <input type="number" id="reglage-port" min="1024" max="65535" style="width:140px;" />
+      <label>Conservation de l'audio une fois traité</label>
+      <select id="reglage-conservation">
+        <option value="">Manuelle (par défaut — jamais de suppression automatique)</option>
+        <option value="7">7 jours</option>
+        <option value="30">30 jours</option>
+        <option value="90">90 jours</option>
+      </select>
+      <button type="button" id="reglage-enregistrer-btn" style="margin-top:10px;">Enregistrer</button>
+      <span id="reglage-saved" class="muted" style="display:none; margin-left:10px;">Enregistré ✓</span>
+    </div>
+
+    <div class="card" id="qr-card" style="display:none;">
+      <h2>Connecter un nouveau téléphone</h2>
+      <p class="muted">Ouvre Aurore Mobile sur le téléphone, scanne ce code — valable 5 minutes.</p>
+      <button type="button" id="generer-qr-btn">Générer un QR d'appairage</button>
+      <div id="qr-resultat" style="display:none; margin-top:14px;">
+        <img id="qr-image" style="max-width:260px; display:block; margin-bottom:8px;" />
+        <p class="muted" id="qr-expiration"></p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Appareils</h2>
+      <div id="appareils-list"><p class="muted">Chargement…</p></div>
+    </div>
+  </div>
+  <script src="/js/api.js"></script>
+  <script src="/js/layout.js"></script>
+  <script>
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str ?? "";
+      return div.innerHTML;
+    }
+
+    const LABELS_STATUT = { en_attente: "En attente d'autorisation", autorise: "Autorisé", revoque: "Révoqué" };
+
+    async function chargerAppareils() {
+      const listEl = document.getElementById("appareils-list");
+      try {
+        const appareils = await apiFetch("/api/mobile/appareils");
+        if (appareils.length === 0) {
+          listEl.innerHTML = '<p class="muted">Aucun appareil connecté pour l\'instant.</p>';
+          return;
+        }
+        listEl.innerHTML = appareils
+          .map((a) => {
+            const actions = [];
+            if (a.statut === "en_attente") {
+              actions.push(`<button type="button" class="secondary btn-sm" data-autoriser="${a.id}">Autoriser</button>`);
+              actions.push(`<button type="button" class="danger btn-sm" data-refuser="${a.id}">Refuser</button>`);
+            } else if (a.statut === "autorise") {
+              actions.push(`<button type="button" class="danger btn-sm" data-revoquer="${a.id}">Révoquer</button>`);
+            }
+            const derniereConnexion = a.derniereConnexionAt ? ` · dernière connexion ${formatDateLongue(a.derniereConnexionAt)}` : "";
+            return `
+          <div class="dossier-item">
+            <div>
+              <div><strong>${escapeHtml(a.nomDeclare)}</strong> — ${escapeHtml(a.user.nom)}</div>
+              <div class="meta">${LABELS_STATUT[a.statut] || a.statut}${derniereConnexion}</div>
+            </div>
+            <div class="icon-action-row">${actions.join("")}</div>
+          </div>`;
+          })
+          .join("");
+
+        listEl.querySelectorAll("[data-autoriser]").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            await apiFetch(`/api/mobile/appareils/${btn.dataset.autoriser}/autoriser`, { method: "PATCH" });
+            chargerAppareils();
+          });
+        });
+        listEl.querySelectorAll("[data-refuser]").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            await apiFetch(`/api/mobile/appareils/${btn.dataset.refuser}/refuser`, { method: "PATCH" });
+            chargerAppareils();
+          });
+        });
+        listEl.querySelectorAll("[data-revoquer]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            confirmerSuppression({
+              titre: "Révoquer cet appareil ?",
+              message: "Il ne pourra plus envoyer ni recevoir aucune donnée. Un nouvel appairage (nouveau QR) sera nécessaire pour le reconnecter.",
+              boutonLabel: "Révoquer",
+              onConfirm: async () => {
+                await apiFetch(`/api/mobile/appareils/${btn.dataset.revoquer}/revoquer`, { method: "PATCH" });
+                chargerAppareils();
+              },
+            });
+          });
+        });
+      } catch (err) {
+        listEl.innerHTML = `<p class="error visible">${escapeHtml(err.message)}</p>`;
+      }
+    }
+
+    async function chargerReglages() {
+      try {
+        const reglages = await apiFetch("/api/mobile/reglages");
+        document.getElementById("reglages-card").style.display = "block";
+        document.getElementById("qr-card").style.display = reglages.mobileSyncActif ? "block" : "none";
+        document.getElementById("reglage-actif").checked = reglages.mobileSyncActif;
+        document.getElementById("reglage-port").value = reglages.mobileSyncPort;
+        document.getElementById("reglage-conservation").value = reglages.mobileConservationAudioJours || "";
+      } catch {
+        // 403 attendu pour un non-titulaire : les cartes reglages/QR restent masquees.
+      }
+    }
+
+    document.getElementById("reglage-enregistrer-btn").addEventListener("click", async () => {
+      const savedEl = document.getElementById("reglage-saved");
+      const parefeuEl = document.getElementById("reglage-parefeu");
+      savedEl.style.display = "none";
+      parefeuEl.style.display = "none";
+      try {
+        const conservation = document.getElementById("reglage-conservation").value;
+        const resultat = await apiFetch("/api/mobile/reglages", {
+          method: "PATCH",
+          body: {
+            actif: document.getElementById("reglage-actif").checked,
+            port: Number(document.getElementById("reglage-port").value) || undefined,
+            conservationAudioJours: conservation ? Number(conservation) : null,
+          },
+        });
+        savedEl.style.display = "inline";
+        document.getElementById("reglage-redemarrage").style.display = "block";
+        document.getElementById("qr-card").style.display = resultat.mobileSyncActif ? "block" : "none";
+        if (resultat.pareFeu && !resultat.pareFeu.ok) {
+          parefeuEl.textContent = resultat.pareFeu.message;
+          parefeuEl.style.display = "block";
+        }
+      } catch (err) {
+        showError(document.getElementById("error"), err.message);
+      }
+    });
+
+    document.getElementById("generer-qr-btn").addEventListener("click", async () => {
+      try {
+        const resultat = await apiFetch("/api/mobile/appareils/qr", { method: "POST" });
+        document.getElementById("qr-image").src = resultat.qrDataUrl;
+        document.getElementById("qr-expiration").textContent = `Valable jusqu'à ${formatDateLongue(resultat.expireAt)} (${new Date(resultat.expireAt).toLocaleTimeString("fr-FR")}).`;
+        document.getElementById("qr-resultat").style.display = "block";
+      } catch (err) {
+        showError(document.getElementById("error"), err.message);
+      }
+    });
+
+    (async () => {
+      const me = await requireSession();
+      if (!me) return;
+      initLayout(me);
+      await chargerReglages();
+      await chargerAppareils();
+    })();
+  </script>
+</body>
+</html>
