@@ -42,6 +42,10 @@ export default function EnregistrementScreen({ navigation, route }: Props) {
   const [nombreReperes, setNombreReperes] = useState(0);
   const [afficherDate, setAfficherDate] = useState(false);
   const dossierIdRef = useRef(route.params.dossierId);
+  // Valeur stable, jamais recalculee a chaque rafraichissement du chrono
+  // (300ms) - sinon le selecteur de date revient sans cesse a "maintenant"
+  // pendant que l'utilisateur essaie de choisir une autre date.
+  const [dateInitiale] = useState(() => new Date());
 
   useEffect(() => {
     const intervalle = setInterval(() => {
@@ -96,11 +100,11 @@ export default function EnregistrementScreen({ navigation, route }: Props) {
 
       {afficherDate && (
         <DateTimePicker
-          value={new Date()}
+          value={dateInitiale}
           mode="date"
-          onChange={(_evenement, date) => {
+          onChange={(evenement, date) => {
             setAfficherDate(false);
-            if (date) definirDateProchaineAudience(date.toISOString());
+            if (evenement.type === "set" && date) definirDateProchaineAudience(date.toISOString());
           }}
         />
       )}

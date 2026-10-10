@@ -77,9 +77,18 @@ async function traiterSegmentsEnAttente(): Promise<void> {
       if (!fichierClair.exists || (fichierClair.size ?? 0) === 0) continue;
       const octets = await fichierClair.bytes();
       const chiffre = await chiffrer(octets);
-      cheminSegmentChiffre(session.dossierChiffre, seg.numero).write(chiffre);
+      // Index sequentiel JS (nombre de segments deja valides), jamais le
+      // numero natif : celui-ci peut avoir des trous si un segment
+      // intermediaire echoue (ex. MediaRecorder.stop() rate sur un
+      // segment trop court apres une pause/reprise rapide) - utiliser le
+      // numero natif comme nom de fichier desalignerait la reconstitution
+      // (reconstituerAudioClair relit 0..nombreSegments-1 en continu),
+      // tronquant silencieusement l'audio final sans affecter les reperes
+      // (qui suivent le temps reel ecoule, independamment de ce stockage).
+      const indexSequentiel = session.segments.length;
+      cheminSegmentChiffre(session.dossierChiffre, indexSequentiel).write(chiffre);
       fichierClair.delete();
-      session.segments.push({ numero: seg.numero, dureeMs: seg.dureeMs });
+      session.segments.push({ numero: indexSequentiel, dureeMs: seg.dureeMs });
       session.dureeAccumuleeMs += seg.dureeMs;
     } catch {
       // Un segment illisible/corrompu est simplement perdu (quelques
