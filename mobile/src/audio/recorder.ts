@@ -95,8 +95,13 @@ export async function demarrerEnregistrement(): Promise<{ clientId: string }> {
   if (!permissionsAccordees) throw new PermissionMicrophoneRefuseeError();
 
   const clientId = Crypto.randomUUID();
-  const dossierChiffre = new Directory(Paths.document, DOSSIER_RACINE, clientId);
-  dossierChiffre.create();
+  // Le dossier racine ("document/audio-enc") doit exister AVANT de creer le
+  // sous-dossier du clientId - Directory.create() leve une erreur si le
+  // dossier parent n'existe pas encore (jamais recursif comme mkdir -p).
+  const dossierRacine = new Directory(Paths.document, DOSSIER_RACINE);
+  dossierRacine.create({ idempotent: true });
+  const dossierChiffre = new Directory(dossierRacine, clientId);
+  dossierChiffre.create({ idempotent: true });
   const dossierTravail = versCheminNatif(new Directory(Paths.cache, "audio-tmp", clientId).uri);
 
   session = {
