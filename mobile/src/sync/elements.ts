@@ -33,9 +33,29 @@ function base64Encode(bytes: Uint8Array): string {
   return resultat;
 }
 
+// Protege contre deux envois concurrents du meme element : l'ecran
+// ApresEnregistrement declenche l'envoi en arriere-plan SANS l'attendre
+// (pour ne jamais retarder la navigation), et l'ecran MesElements relance
+// aussi l'envoi des elements "en_attente" a l'ouverture - sans ce verrou,
+// les deux sequences de requetes authentifiees s'entrelacent et le
+// compteur anti-rejeu (voir middleware/mobileDeviceAuth.ts) rejette l'une
+// des deux, laissant l'item bloque au statut serveur "recu".
+const envoisEnCours = new Set<string>();
+
 /** Envoie un élément local déjà enregistré - idempotent côté serveur
- * (clientId), peut être rappelé sans risque après une coupure réseau. */
+ * (clientId), peut être rappelé sans risque après une coupure réseau,
+ * jamais en parallèle pour le même élément (voir envoisEnCours). */
 export async function envoyerElement(element: ElementLocal): Promise<void> {
+  if (envoisEnCours.has(element.clientId)) return;
+  envoisEnCours.add(element.clientId);
+  try {
+    await envoyerElementSansVerrou(element);
+  } finally {
+    envoisEnCours.delete(element.clientId);
+  }
+}
+
+async function envoyerElementSansVerrou(element: ElementLocal): Promise<void> {
   const audio = await reconstituerAudioClair(element.clientId, element.nombreSegments);
   const digest = await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA256, audio.slice());
   const sha256 = octetsVersHex(digest);
