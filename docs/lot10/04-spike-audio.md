@@ -119,3 +119,35 @@ retour, conformément à la consigne du prompt.
 - `minSdkVersion` du projet est 29 (Android 10). Le spike n'a pas été
   adapté pour des versions antérieures ; si un téléphone de test est plus
   ancien, il faudra le signaler.
+
+## Résultat du test réel (2026-10-10)
+
+**Tecno Spark 20 (HiOS)** : coupure systématique entre 14 et 15 minutes,
+écran verrouillé, **même après désactivation complète de l'optimisation de
+batterie** pour l'application (économiseur de batterie désactivé +
+restriction désactivée dans les réglages de l'app). Un seul essai a tenu
+jusqu'à la limite testée (15 min) sans coupure visible ; les autres se sont
+arrêtés avant, et un essai avec l'économiseur de batterie activé a
+également échoué.
+
+**Conclusion** : sur ce modèle, le service de premier plan seul ne suffit
+pas - HiOS (interface Tecno/Transsion) applique son propre gestionnaire
+d'arrière-plan, indépendant des réglages Android standards, et rien dans
+le code de l'application ne peut s'y soustraire à 100 %. C'est une limite
+réelle à documenter par marque/modèle (objectif du prompt : « ou limites
+documentées par marque »), pas un bug corrigible.
+
+**Clarification du besoin (utilisateur, 2026-10-10)** : l'usage visé par
+« Après audience » n'est pas l'enregistrement de l'audience elle-même
+(probablement interdit dans la plupart des cas), mais de courtes notes
+vocales personnelles de l'avocat après coup - donc des durées
+vraisemblablement bien inférieures à 14-15 minutes dans l'usage réel. La
+limite observée sur ce téléphone ne bloque donc pas forcément l'usage
+courant, même si l'objectif A reste de viser le plus de fiabilité possible
+sur la durée.
+
+**Décision utilisateur** : poursuivre les objectifs A à D du prompt 4
+malgré cette limite connue sur le Tecno Spark 20, plutôt que de bloquer le
+chantier sur un deuxième téléphone de test (non disponible dans l'immédiat).
+Le test sur une deuxième marque reste souhaitable plus tard, mais n'est
+plus une condition bloquante pour continuer.
