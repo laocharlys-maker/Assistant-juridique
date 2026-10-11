@@ -122,11 +122,18 @@
           .map((el) => {
             const duree = el.dureeSecondes ? ` · ${Math.round(el.dureeSecondes / 60)} min` : "";
             const dossierTexte = el.dossier ? `${escapeHtml(el.dossier.numeroDossier)} — ${escapeHtml(el.dossier.nomAffaire)}` : "à classer";
+            // Auteur = qui a enregistré (demande utilisateur du 2026-10-11),
+            // jamais seulement le nom de l'APPAREIL (ex. "Téléphone Android")
+            // qui ne dit rien de qui l'a fait. Heure = celle du telephone
+            // (creeLeSurAppareil), pas celle de reception serveur (recuLe)
+            // si elle est disponible - plus fidele a "quand ça a ete fait".
+            const auteur = el.device.user ? escapeHtml(el.device.user.nom) : escapeHtml(el.device.nomDeclare);
+            const heure = formatDateLongue(el.creeLeSurAppareil || el.recuLe);
             return `
           <div class="dossier-item" data-element-id="${el.id}" style="cursor:pointer;">
             <div>
               <div><strong>${TYPE_LABELS[el.type] || el.type}</strong></div>
-              <div class="meta">${formatDateLongue(el.recuLe)}${duree} · ${escapeHtml(el.device.nomDeclare)} · ${dossierTexte}</div>
+              <div class="meta">${heure}${duree} · ${auteur} · ${dossierTexte}</div>
             </div>
           </div>`;
           })
@@ -152,7 +159,9 @@
       document.getElementById("detail-badge").textContent = TYPE_LABELS[el.type] || el.type;
       document.getElementById("detail-titre").textContent =
         el.type === "audio" ? "Audio de travail" : el.type === "scan" ? "Scan" : "Note";
-      document.getElementById("detail-meta").textContent = `Reçu le ${formatDateLongue(el.recuLe)} depuis ${el.device.nomDeclare}`;
+      const auteurDetail = el.device.user ? el.device.user.nom : el.device.nomDeclare;
+      document.getElementById("detail-meta").textContent =
+        `Enregistré le ${formatDateLongue(el.creeLeSurAppareil || el.recuLe)} par ${auteurDetail}`;
       document.getElementById("detail-dossier-numero").value = el.dossier ? el.dossier.numeroDossier : "";
 
       document.getElementById("detail-audio").hidden = el.type !== "audio";

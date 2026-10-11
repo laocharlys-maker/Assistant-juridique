@@ -300,7 +300,11 @@ dossiersRouter.get("/api/dossiers/:id", requireAuth, async (req, res) => {
       mobileItems: {
         where: { statut: "a_traiter" },
         orderBy: { recuLe: "desc" },
-        include: { marqueurs: true },
+        // device.user.nom ajoute pour afficher l'auteur de l'audio (demande
+        // utilisateur du 2026-10-11), en plus de l'horodatage deja present
+        // (creeLeSurAppareil - fourni par le telephone, pas recuLe qui n'est
+        // que la date de reception serveur).
+        include: { marqueurs: true, device: { select: { user: { select: { nom: true } } } } },
       },
     },
   });

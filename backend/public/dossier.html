@@ -855,10 +855,15 @@
         )
         .join(" ");
 
+      // Auteur + heure d'enregistrement (fournie par le telephone,
+      // creeLeSurAppareil - pas recuLe qui n'est que la date de reception
+      // serveur) - demande utilisateur du 2026-10-11.
+      const auteur = item.device && item.device.user ? escapeHtml(item.device.user.nom) : "";
+      const heureEnregistrement = new Date(item.creeLeSurAppareil || item.recuLe).toLocaleString("fr-FR");
       return `
         <div class="action-item">
           <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
-            <span class="muted">🎙️ Audio mobile — ${item.dureeSecondes ? formatPositionAudio(item.dureeSecondes * 1000) : "?"} — reçu le ${new Date(item.recuLe).toLocaleString("fr-FR")}</span>
+            <span class="muted">🎙️ Audio mobile — ${item.dureeSecondes ? formatPositionAudio(item.dureeSecondes * 1000) : "?"} — ${auteur ? `${auteur}, ` : ""}le ${heureEnregistrement}</span>
             <a class="secondary" href="${lienCr}" style="display:inline-block; text-decoration:none; padding:6px 12px; border-radius:6px;">Générer un CR</a>
           </div>
           <audio controls preload="none" style="width:100%; margin-top:8px;" src="/api/mobile/elements/${item.id}/audio"></audio>

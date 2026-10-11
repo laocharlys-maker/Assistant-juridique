@@ -25,7 +25,11 @@ function estTitulaire(role: string | undefined): boolean {
 const TYPE_MIME_AUDIO = "audio/aac"; // cf. Prompt 4 (hors perimetre ici) - placeholder coherent, le type reel sera fixe par Aurore Mobile.
 
 const INCLUDE_LISTE = {
-  device: { select: { id: true, nomDeclare: true, userId: true } },
+  // user.nom ajoute pour afficher l'auteur de l'element (demande
+  // utilisateur du 2026-10-11) - jusqu'ici seul nomDeclare (nom de
+  // l'APPAREIL, ex. "Téléphone Android") était visible, jamais qui l'a
+  // enregistré.
+  device: { select: { id: true, nomDeclare: true, userId: true, user: { select: { nom: true } } } },
   dossier: { select: { id: true, numeroDossier: true, nomAffaire: true } },
   marqueurs: true,
 } as const;

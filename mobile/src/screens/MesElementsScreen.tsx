@@ -26,9 +26,21 @@ const LIBELLE_TYPE_SCAN: Record<NonNullable<ElementLocal["typeScan"]>, string> =
 
 /** Ligne d'en-tête affichée pour chaque élément - spécifique au type
  * (Prompt 5 : scan et note n'ont ni durée ni segments, contrairement à
- * l'audio du Prompt 4). */
+ * l'audio du Prompt 4). Pour l'audio, affiche aussi l'heure
+ * d'enregistrement (demande utilisateur du 2026-10-11) - `creeLe` est déjà
+ * l'horodatage du téléphone au moment de l'enregistrement, pas un
+ * horodatage serveur. */
 function libelleEntete(element: ElementLocal): string {
-  if (element.type === "audio") return `🎙️ ${Math.round((element.dureeSecondes ?? 0) / 60)} min`;
+  if (element.type === "audio") {
+    const duree = `🎙️ ${Math.round((element.dureeSecondes ?? 0) / 60)} min`;
+    const heure = new Date(element.creeLe).toLocaleString("fr-FR", {
+      day: "2-digit",
+      month: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    return `${duree} — ${heure}`;
+  }
   if (element.type === "scan") {
     const nombrePages = element.nombrePages ?? 0;
     const typeLabel = element.typeScan ? LIBELLE_TYPE_SCAN[element.typeScan] : "";
