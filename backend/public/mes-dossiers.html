@@ -40,9 +40,24 @@
   <script src="/js/api.js"></script>
   <script src="/js/layout.js"></script>
   <script>
-    let currentScope = "mine";
-    let currentVue = "dossiers";
+    // Lus depuis l'URL au chargement (ex: dossier.html revient ici via
+    // document.referrer) - sans ca, revenir en arriere depuis une fiche
+    // dossier ouverte depuis "Dossiers du cabinet" ou "Archives"
+    // rechargeait toujours cette page sur l'onglet par defaut.
+    const paramsInitiauxDossiers = new URLSearchParams(window.location.search);
+    let currentScope = paramsInitiauxDossiers.get("scope") || "mine";
+    let currentVue = paramsInitiauxDossiers.get("vue") || "dossiers";
     let currentDossiers = [];
+
+    // Reflete l'onglet actif dans l'URL (sans recharger la page) - c'est ce
+    // que document.referrer transportera si on ouvre une fiche dossier
+    // depuis ici puis qu'on clique "Retour".
+    function synchroniserUrlOngletsDossiers() {
+      const params = new URLSearchParams(window.location.search);
+      params.set("vue", currentVue);
+      params.set("scope", currentScope);
+      history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
+    }
 
     function escapeHtml(str) {
       const div = document.createElement("div");
@@ -138,6 +153,7 @@
         document.querySelectorAll("#scope-tabs .tab").forEach((btn) => {
           btn.addEventListener("click", () => {
             currentScope = btn.dataset.scope;
+            synchroniserUrlOngletsDossiers();
             loadListe();
           });
         });
@@ -147,9 +163,11 @@
       document.getElementById("dossiers-filtre-statut").addEventListener("change", applyFiltres);
 
       const archivesBtn = document.getElementById("voir-archives-btn");
+      archivesBtn.textContent = currentVue === "archives" ? "Voir les dossiers actifs" : "Voir les archives";
       archivesBtn.addEventListener("click", () => {
         currentVue = currentVue === "archives" ? "dossiers" : "archives";
         archivesBtn.textContent = currentVue === "archives" ? "Voir les dossiers actifs" : "Voir les archives";
+        synchroniserUrlOngletsDossiers();
         loadListe();
       });
 

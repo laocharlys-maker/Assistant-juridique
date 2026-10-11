@@ -202,6 +202,24 @@
       return ENVOI_CONFIG[typeAction] || DEFAULT_ENVOI_CONFIG;
     }
 
+    // "Retour" revient exactement a la page (et l'onglet, via les parametres
+    // d'URL qu'elle a ecrits dans son propre historique - voir
+    // mes-dossiers.html/dashboard.html, synchroniserUrlOngletsDossiers/
+    // synchroniserUrlOnglets) d'ou cette fiche a ete ouverte, plutot que
+    // systematiquement "Documents generes" quel que soit le point de depart
+    // ("Mes dossiers", l'onglet "Recherches", "Documents transcrits"...).
+    // Uniquement si le referrer est une page Aurore (jamais un referrer
+    // externe) - sinon le lien par defaut (/dashboard.html) est conserve.
+    try {
+      const referrer = new URL(document.referrer);
+      if (referrer.origin === window.location.origin) {
+        document.getElementById("back-link").href = document.referrer;
+      }
+    } catch {
+      // document.referrer absent/invalide (ouverture directe par URL) -
+      // conserve le lien par defaut.
+    }
+
     (async () => {
       me = await requireSession();
       if (!me) return;
