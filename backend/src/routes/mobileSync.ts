@@ -218,7 +218,16 @@ mobileSyncRouter.post("/api/m/items/:itemId/chunks/:numero", async (req, res) =>
   }
 
   const item = await prisma.mobileItem.findFirst({ where: { id: req.params.itemId, deviceId: device.id } });
-  if (!item) return res.status(404).json({ error: "Élément introuvable" });
+  if (!item) {
+    await logMobileAudit(
+      device.cabinetId,
+      "element_chunk_introuvable",
+      "erreur",
+      `itemId=${req.params.itemId},numero=${req.params.numero}`,
+      device.id
+    );
+    return res.status(404).json({ error: "Élément introuvable" });
+  }
   if (item.statut !== "recu" || item.cheminFichier) {
     // Deja assemble (commit() deja passe) - un renvoi de chunk apres coup
     // n'est jamais applique, pour ne jamais corrompre un fichier deja
@@ -250,7 +259,16 @@ mobileSyncRouter.post("/api/m/items/:itemId/commit", async (req, res) => {
   }
 
   const item = await prisma.mobileItem.findFirst({ where: { id: req.params.itemId, deviceId: device.id } });
-  if (!item) return res.status(404).json({ error: "Élément introuvable" });
+  if (!item) {
+    await logMobileAudit(
+      device.cabinetId,
+      "element_commit_introuvable",
+      "erreur",
+      `itemId=${req.params.itemId}`,
+      device.id
+    );
+    return res.status(404).json({ error: "Élément introuvable" });
+  }
   if (item.cheminFichier) {
     // Deja commit - idempotent : renvoie simplement le reçu existant,
     // jamais une erreur (le telephone peut renvoyer ce commit apres une
@@ -335,8 +353,14 @@ mobileSyncRouter.post("/api/m/items/statuts", async (req, res) => {
     return res.status(400).json({ error: "Requête invalide" });
   }
 
+  // Par l'UTILISATEUR (pas seulement l'appareil courant) : un reappairage
+  // (nouvelle installation, QR rescanne apres un nettoyage agressif par
+  // l'OS...) cree un nouveau MobileDevice - les elements envoyes avant ce
+  // reappairage resteraient sinon definitivement "en attente" cote
+  // telephone meme si Aurore Desktop les a deja traites, puisque leur
+  // deviceId pointe vers l'ancien appareil.
   const items = await prisma.mobileItem.findMany({
-    where: { deviceId: device.id, clientId: { in: parsed.data.clientIds } },
+    where: { device: { userId: device.userId }, clientId: { in: parsed.data.clientIds } },
     select: { clientId: true, statut: true },
   });
 

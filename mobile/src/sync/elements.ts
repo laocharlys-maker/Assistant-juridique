@@ -96,6 +96,13 @@ async function envoyerElementSansVerrou(element: ElementLocal): Promise<void> {
 
   await envoyerRequeteAuthentifiee(`/api/m/items/${itemId}/commit`, { nombreChunks, sha256 });
 
+  // L'element est considere envoye des le commit reussi (le fichier est
+  // bien recu et verifie cote serveur) - un echec sur l'envoi des reperes
+  // ci-dessous ne doit jamais faire regresser "Mes elements" a "en
+  // attente" pour un enregistrement deja bel et bien arrive a Aurore.
+  await majStatutElementLocal(element.clientId, "envoye");
+  await majErreurEnvoiElementLocal(element.clientId, null);
+
   if (element.marqueurs.length > 0) {
     await envoyerRequeteAuthentifiee(`/api/m/items/${itemId}/marqueurs`, {
       marqueurs: element.marqueurs.map((m) => ({
@@ -105,9 +112,6 @@ async function envoyerElementSansVerrou(element: ElementLocal): Promise<void> {
       })),
     });
   }
-
-  await majStatutElementLocal(element.clientId, "envoye");
-  await majErreurEnvoiElementLocal(element.clientId, null);
 }
 
 /** Envoie tous les éléments encore "en_attente" - appelée à l'ouverture de
