@@ -3,6 +3,7 @@ import { Directory, File, Paths } from "expo-file-system";
 import { PDFDocument } from "pdf-lib";
 import ImageWarp, { type PointPixel } from "../../modules/image-warp/src/ImageWarpModule";
 import { chiffrer, dechiffrer } from "../vault/vault";
+import { verifierEspaceDisponible } from "../storage/espace";
 import { enregistrerElementLocal, type ElementLocal, type StatutElementLocal, type TypeScanLocal } from "../storage/db";
 
 /**
@@ -35,6 +36,7 @@ export class ScanDejaEnCoursError extends Error {
 
 export function demarrerScan(): { clientId: string } {
   if (session) throw new ScanDejaEnCoursError();
+  verifierEspaceDisponible();
   const clientId = Crypto.randomUUID();
   const dossierTravail = new Directory(Paths.cache, "scan-tmp", clientId);
   dossierTravail.create({ idempotent: true });

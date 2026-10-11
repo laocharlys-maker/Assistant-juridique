@@ -19,7 +19,13 @@ export interface DossierCache {
   prochaineAudience: string | null;
 }
 
-export type StatutElementLocal = "en_attente" | "envoye" | "confirme";
+// Prompt 6, objectif A - machine d'etats complete : en_attente (jamais
+// encore tente) -> en_cours (envoi en train de se faire) -> envoye (commit
+// serveur reussi, en attente de confirmation) -> confirme (recu recu). Un
+// echec a n'importe quel moment avant "envoye" repasse par en_erreur
+// (jamais retour a en_attente - voir sync/elements.ts et sync/backoff.ts
+// pour les delais croissants avant nouvelle tentative).
+export type StatutElementLocal = "en_attente" | "en_cours" | "envoye" | "confirme" | "en_erreur";
 
 export interface MarqueurLocal {
   type: "prochaine_audience" | "decision" | "a_faire" | "point_important";
@@ -46,6 +52,14 @@ export interface ElementLocal {
   creeLe: string;
   noteTexte: string | null;
   derniereErreurEnvoi: string | null;
+  // Prompt 6, objectif C - reprise exacte et delais croissants :
+  // nombreChunksEnvoyes permet de reprendre un envoi interrompu a partir du
+  // morceau suivant plutot que de tout renvoyer depuis le debut ; permanent
+  // = echec definitif (ex. appareil revoque), jamais retente automatiquement.
+  nombreTentatives?: number;
+  prochaineTentativeAt?: string | null;
+  nombreChunksEnvoyes?: number;
+  echecPermanent?: boolean;
   // Audio (Prompt 4) :
   dureeSecondes?: number;
   nombreSegments?: number;
@@ -157,7 +171,11 @@ export async function listerElementsLocaux(): Promise<ElementLocal[]> {
   return elements;
 }
 
-export async function majStatutElementLocal(clientId: string, statut: StatutElementLocal): Promise<void> {
+/** Lit-modifie-ecrit un element existant - helper commun a toutes les
+ * petites mises a jour ponctuelles ci-dessous (statut, erreur, progression
+ * des morceaux...), jamais bloquant si l'element n'existe plus (ex. deja
+ * supprime entre deux etapes). */
+async function corrigerElementLocal(clientId: string, corriger: (element: ElementLocal) => void): Promise<void> {
   const base = await obtenirDb();
   const ligne = await base.getFirstAsync<{ donnees_chiffrees: string }>(
     "SELECT donnees_chiffrees FROM elements_locaux WHERE client_id = ?",
@@ -165,23 +183,53 @@ export async function majStatutElementLocal(clientId: string, statut: StatutElem
   );
   if (!ligne) return;
   const element = JSON.parse(await dechiffrerTexte(ligne.donnees_chiffrees)) as ElementLocal;
-  element.statut = statut;
+  corriger(element);
   await enregistrerElementLocal(element);
 }
 
+export async function majStatutElementLocal(clientId: string, statut: StatutElementLocal): Promise<void> {
+  await corrigerElementLocal(clientId, (element) => {
+    element.statut = statut;
+  });
+}
+
 /** Consigne la dernière erreur d'envoi - visible dans "Mes éléments" tant
- * que l'élément reste "en_attente", pour ne jamais laisser un échec
- * silencieux (contrairement au comportement avant ce correctif). */
+ * que l'élément reste "en_attente"/"en_erreur", pour ne jamais laisser un
+ * échec silencieux (contrairement au comportement avant ce correctif). */
 export async function majErreurEnvoiElementLocal(clientId: string, message: string | null): Promise<void> {
-  const base = await obtenirDb();
-  const ligne = await base.getFirstAsync<{ donnees_chiffrees: string }>(
-    "SELECT donnees_chiffrees FROM elements_locaux WHERE client_id = ?",
-    [clientId]
-  );
-  if (!ligne) return;
-  const element = JSON.parse(await dechiffrerTexte(ligne.donnees_chiffrees)) as ElementLocal;
-  element.derniereErreurEnvoi = message;
-  await enregistrerElementLocal(element);
+  await corrigerElementLocal(clientId, (element) => {
+    element.derniereErreurEnvoi = message;
+  });
+}
+
+/** Enregistre un échec d'envoi (Prompt 6, objectif C) - passe l'élément en
+ * "en_erreur" avec sa raison, incrémente le compteur de tentatives et
+ * calcule la prochaine tentative autorisée (délais croissants, voir
+ * sync/backoff.ts) - sauf `permanent` (ex. appareil révoqué), qui arrête
+ * définitivement les tentatives automatiques pour cet élément. */
+export async function majEchecEnvoiElementLocal(
+  clientId: string,
+  message: string,
+  prochaineTentativeAt: string | null,
+  permanent: boolean
+): Promise<void> {
+  await corrigerElementLocal(clientId, (element) => {
+    element.statut = "en_erreur";
+    element.derniereErreurEnvoi = message;
+    element.nombreTentatives = (element.nombreTentatives ?? 0) + 1;
+    element.prochaineTentativeAt = prochaineTentativeAt;
+    element.echecPermanent = permanent;
+  });
+}
+
+/** Progression de l'envoi par morceaux (Prompt 6, objectif C, "reprise
+ * exacte") - persisté après CHAQUE morceau envoyé avec succès, pour qu'une
+ * coupure (réseau, app tuée) reprenne au morceau suivant plutôt que de tout
+ * renvoyer depuis le début. */
+export async function majProgressionEnvoiElementLocal(clientId: string, nombreChunksEnvoyes: number): Promise<void> {
+  await corrigerElementLocal(clientId, (element) => {
+    element.nombreChunksEnvoyes = nombreChunksEnvoyes;
+  });
 }
 
 export async function supprimerElementLocal(clientId: string): Promise<void> {

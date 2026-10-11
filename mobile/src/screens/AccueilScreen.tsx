@@ -2,28 +2,35 @@ import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { testerConnexion } from "../pairing/appareil";
+import { verifierEtatConnexion, type EtatConnexion } from "../pairing/appareil";
 import { listerElementsLocaux } from "../storage/db";
+import { compterElementsEnAttente } from "../sync/elements";
 import type { RootStackParamList } from "../navigation/RootNavigator";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Accueil">;
+
+const LIBELLE_ETAT: Record<EtatConnexion, string> = {
+  connecte: "Connecté à Aurore",
+  introuvable: "Aurore introuvable sur ce réseau",
+  // Prompt 6, objectif E - message distinct et explicite, jamais confondu
+  // avec une simple coupure réseau (qui se résout d'elle-même).
+  revoque: "Appareil révoqué - demande un nouvel appairage au titulaire",
+};
 
 /**
  * Écran d'accueil (Prompts 3 et 4). Scanner reste visuellement inactif
  * (Prompt 5).
  */
 export default function AccueilScreen({ navigation }: Props) {
-  const [connecte, setConnecte] = useState<boolean | null>(null);
+  const [etat, setEtat] = useState<EtatConnexion | null>(null);
   const [enAttenteEnvoi, setEnAttenteEnvoi] = useState(0);
 
   const verifierConnexion = useCallback(async () => {
-    const ok = await testerConnexion();
-    setConnecte(ok);
+    setEtat(await verifierEtatConnexion());
   }, []);
 
   const compterEnAttente = useCallback(async () => {
-    const elements = await listerElementsLocaux();
-    setEnAttenteEnvoi(elements.filter((e) => e.statut !== "confirme").length);
+    setEnAttenteEnvoi(compterElementsEnAttente(await listerElementsLocaux()));
   }, []);
 
   useFocusEffect(
@@ -41,10 +48,8 @@ export default function AccueilScreen({ navigation }: Props) {
   return (
     <View style={styles.conteneur}>
       <View style={styles.enTete}>
-        <View style={[styles.pastille, { backgroundColor: connecte ? "#4ade80" : "#ef4444" }]} />
-        <Text style={styles.texteEtat}>
-          {connecte === null ? "Vérification…" : connecte ? "Connecté à Aurore" : "Aurore introuvable sur ce réseau"}
-        </Text>
+        <View style={[styles.pastille, { backgroundColor: etat === "connecte" ? "#4ade80" : "#ef4444" }]} />
+        <Text style={styles.texteEtat}>{etat === null ? "Vérification…" : LIBELLE_ETAT[etat]}</Text>
       </View>
 
       <Pressable style={styles.carteElements} onPress={() => navigation.navigate("MesElements")}>

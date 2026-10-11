@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, FlatList, RefreshControl, StyleSheet } from "react-native";
-import { envoyerRequeteAuthentifiee } from "../pairing/appareil";
-import { remplacerCacheDossiers, listerDossiersCache, dateDerniereMajDossiers, DossierCache } from "../storage/db";
+import { synchroniserDossiers } from "../sync/dossiers";
+import { listerDossiersCache, dateDerniereMajDossiers, DossierCache } from "../storage/db";
 
 /**
  * Liste des dossiers (Prompt 3, objectif F) - consultable hors ligne
@@ -23,15 +23,13 @@ export default function DossiersScreen() {
   const synchroniser = useCallback(async () => {
     setEnChargement(true);
     setErreurReseau(null);
-    try {
-      const recus = await envoyerRequeteAuthentifiee<DossierCache[]>("/api/m/dossiers", {});
-      await remplacerCacheDossiers(recus);
+    const ok = await synchroniserDossiers();
+    if (ok) {
       await chargerDepuisCache();
-    } catch {
+    } else {
       setErreurReseau("Aurore introuvable - affichage de la dernière liste connue.");
-    } finally {
-      setEnChargement(false);
     }
+    setEnChargement(false);
   }, [chargerDepuisCache]);
 
   useEffect(() => {

@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import SelecteurDossier from "../components/SelecteurDossier";
 import { demarrerEnregistrement, PermissionMicrophoneRefuseeError, reinitialiserSession } from "../audio/recorder";
+import { EspaceDisqueInsuffisantError } from "../storage/espace";
 import type { RootStackParamList } from "../navigation/RootNavigator";
 
 type Props = NativeStackScreenProps<RootStackParamList, "ApresAudience">;
@@ -28,6 +29,11 @@ export default function ApresAudienceScreen({ navigation }: Props) {
         Alert.alert(
           "Permission refusée",
           "Aurore Mobile a besoin du micro pour enregistrer. Autorise-le dans les réglages du téléphone."
+        );
+      } else if (erreur instanceof EspaceDisqueInsuffisantError) {
+        Alert.alert(
+          "Stockage presque plein",
+          "Libère de l'espace sur le téléphone avant de démarrer un enregistrement."
         );
       } else if (erreur instanceof Error && erreur.message === "ENREGISTREMENT_DEJA_EN_COURS") {
         // Une session precedente n'a pas ete correctement terminee (ecran

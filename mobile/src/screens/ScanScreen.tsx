@@ -10,6 +10,7 @@ import {
   deplacerPage,
   reinitialiserSessionScan,
 } from "../scan/scanner";
+import { EspaceDisqueInsuffisantError } from "../storage/espace";
 import type { RootStackParamList } from "../navigation/RootNavigator";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Scan">;
@@ -80,7 +81,13 @@ export default function ScanScreen({ navigation }: Props) {
   useEffect(() => {
     try {
       demarrerScan();
-    } catch {
+    } catch (erreur) {
+      if (erreur instanceof EspaceDisqueInsuffisantError) {
+        Alert.alert("Stockage presque plein", "Libère de l'espace sur le téléphone avant de scanner un document.", [
+          { text: "OK", onPress: () => navigation.goBack() },
+        ]);
+        return;
+      }
       // Une session precedente n'a pas ete terminee (ecran quitte de
       // force) - meme recuperation que l'enregistrement audio : on
       // repart propre plutot que de bloquer l'utilisateur.
@@ -90,7 +97,10 @@ export default function ScanScreen({ navigation }: Props) {
     // La session de scan (module scan/scanner.ts) survit volontairement a
     // la navigation vers ScannerEtClasserScreen (meme principe que la
     // session audio, qui survit a ApresEnregistrementScreen) - jamais
-    // nettoyee ici au demontage de cet ecran.
+    // nettoyee ici au demontage de cet ecran. Ne doit s'executer qu'au
+    // montage (navigation est stable, mais l'ajouter en dependance
+    // relancerait ce bloc a chaque re-render sinon).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function hauteurApercu(largeur: number, hauteur: number): number {

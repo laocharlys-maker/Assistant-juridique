@@ -21,7 +21,15 @@ const CLES_STORE = {
   clePublique: "aurore_mobile_cle_publique_v1",
   clePubliquePc: "aurore_mobile_cle_publique_pc_v1",
   deviceId: "aurore_mobile_device_id_v1",
+  // "adresse" = derniere adresse qui a fonctionne (toujours essayee en
+  // premier, voir chargerContexte/adressesTriees) ; "adressesConnues" =
+  // toutes les adresses jamais vues (celles du QR d'appairage + celles
+  // ajoutees manuellement dans Reglages) - Prompt 6 objectif B : l'IP du PC
+  // change regulierement sur un reseau Wifi domestique/cabinet, reessayer
+  // les autres adresses connues avant d'afficher "Aurore introuvable"
+  // evite une intervention manuelle a chaque changement.
   adresse: "aurore_mobile_adresse_pc_v1",
+  adressesConnues: "aurore_mobile_adresses_connues_v1",
   compteur: "aurore_mobile_compteur_requetes_v1",
 };
 
@@ -38,6 +46,13 @@ export class PcIntrouvableError extends Error {
 export class SecretInvalideError extends Error {
   constructor() {
     super("SECRET_INVALIDE");
+  }
+}
+/** Prompt 6, objectif E - appareil révoqué côté PC (403) : échec permanent,
+ * jamais retenté automatiquement (voir sync/elements.ts). */
+export class AppareilRevoqueError extends Error {
+  constructor() {
+    super("APPAREIL_REVOQUE");
   }
 }
 
@@ -111,6 +126,11 @@ export async function demanderAppairage(
       await stockerValeur(CLES_STORE.clePubliquePc, qr.clePubliquePC);
       await stockerValeur(CLES_STORE.deviceId, data.deviceId);
       await stockerValeur(CLES_STORE.adresse, adresse);
+      // Toutes les adresses du QR, pas seulement celle qui a repondu en
+      // premier - si l'IP qui a fonctionne aujourd'hui change demain, une
+      // des autres a peut-etre une IP fixe ou est restee stable (voir
+      // adressesTriees ci-dessous).
+      await stockerValeur(CLES_STORE.adressesConnues, JSON.stringify(qr.adresses));
       await stockerValeur(CLES_STORE.compteur, "0");
 
       return data;
@@ -132,9 +152,34 @@ export async function oublierAppairage(): Promise<void> {
 }
 
 /** Adresse modifiable à la main dans les réglages (l'IP du PC peut changer
- * sur le réseau - contrainte explicite du plan). */
+ * sur le réseau - contrainte explicite du plan) - ajoutée aux adresses
+ * connues plutôt que de remplacer la liste, pour ne pas perdre les autres
+ * si celle-ci ne fonctionne plus demain. */
 export async function definirAdressePc(adresse: string): Promise<void> {
   await stockerValeur(CLES_STORE.adresse, adresse);
+  const connues = await chargerAdressesConnues();
+  if (!connues.includes(adresse)) {
+    await stockerValeur(CLES_STORE.adressesConnues, JSON.stringify([adresse, ...connues]));
+  }
+}
+
+async function chargerAdressesConnues(): Promise<string[]> {
+  const brut = await lireValeur(CLES_STORE.adressesConnues);
+  if (!brut) return [];
+  try {
+    const liste = JSON.parse(brut);
+    return Array.isArray(liste) ? liste.filter((a): a is string => typeof a === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Adresses à essayer, dans l'ORDRE : la dernière qui a fonctionné
+ * d'abord (Prompt 6, objectif B), puis les autres adresses connues -
+ * jamais de balayage réseau plus large que cette liste connue. */
+async function adressesTriees(adressePrioritaire: string): Promise<string[]> {
+  const connues = await chargerAdressesConnues();
+  return [adressePrioritaire, ...connues.filter((a) => a !== adressePrioritaire)];
 }
 
 interface ContexteAppareil {
@@ -203,28 +248,54 @@ async function envoyerRequeteAuthentifieeSansVerrou<T>(chemin: string, payload: 
   const aad = construireAad(contexte.deviceId, compteur, horodatage);
   const plaintext = new TextEncoder().encode(JSON.stringify(payload ?? {}));
   const enveloppe = chiffrerEnveloppe(sk, plaintext, aad);
+  const corps = JSON.stringify({ deviceId: contexte.deviceId, compteur, horodatage, enveloppe });
 
-  const reponse = await fetch(`http://${contexte.adresse}${chemin}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ deviceId: contexte.deviceId, compteur, horodatage, enveloppe }),
-  });
+  // Prompt 6, objectif B : essaie la derniere adresse qui a fonctionne
+  // d'abord, puis les autres adresses connues (jamais de balayage reseau
+  // plus large) - une seule enveloppe chiffree construite ci-dessus, le
+  // meme corps est simplement poste a chaque adresse candidate jusqu'a ce
+  // qu'une reponde.
+  const adresses = await adressesTriees(contexte.adresse);
+  let derniereErreurReseau: unknown = null;
+  for (const adresse of adresses) {
+    let reponse: Response;
+    try {
+      reponse = await fetch(`http://${adresse}${chemin}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: corps,
+      });
+    } catch (error) {
+      derniereErreurReseau = error;
+      continue; // Adresse injoignable - essaie la suivante.
+    }
 
-  if (!reponse.ok) {
-    const corpsErreur = await reponse.json().catch(() => ({ error: `HTTP ${reponse.status}` }));
-    const detailsTexte = Array.isArray(corpsErreur.details)
-      ? ` (${corpsErreur.details.map((d: { path?: unknown[]; message?: string }) => `${(d.path || []).join(".")}: ${d.message}`).join(", ")})`
-      : "";
-    const erreur = new Error(`${corpsErreur.error || `HTTP ${reponse.status}`}${detailsTexte}`);
-    (erreur as Error & { status?: number }).status = reponse.status;
-    throw erreur;
+    // Une reponse HTTP (meme une erreur) prouve qu'on a bien atteint
+    // Aurore a cette adresse - on ne tente jamais une autre adresse apres
+    // ca, et on la retient comme nouvelle adresse prioritaire si elle a
+    // change (voir definirAdressePc/demanderAppairage pour l'ecriture
+    // initiale).
+    if (adresse !== contexte.adresse) await stockerValeur(CLES_STORE.adresse, adresse);
+
+    if (!reponse.ok) {
+      const corpsErreur = await reponse.json().catch(() => ({ error: `HTTP ${reponse.status}` }));
+      const detailsTexte = Array.isArray(corpsErreur.details)
+        ? ` (${corpsErreur.details.map((d: { path?: unknown[]; message?: string }) => `${(d.path || []).join(".")}: ${d.message}`).join(", ")})`
+        : "";
+      if (reponse.status === 403) throw new AppareilRevoqueError();
+      const erreur = new Error(`${corpsErreur.error || `HTTP ${reponse.status}`}${detailsTexte}`);
+      (erreur as Error & { status?: number }).status = reponse.status;
+      throw erreur;
+    }
+
+    // La reponse elle-meme n'est PAS chiffree par le serveur dans ce lot
+    // (donnees non sensibles : statut, liste de dossiers deja visibles par
+    // l'utilisateur authentifie du cote PC) - a revisiter si un futur lot
+    // transporte quelque chose de plus sensible en reponse.
+    return reponse.json() as Promise<T>;
   }
 
-  // La reponse elle-meme n'est PAS chiffree par le serveur dans ce lot
-  // (donnees non sensibles : statut, liste de dossiers deja visibles par
-  // l'utilisateur authentifie du cote PC) - a revisiter si un futur lot
-  // transporte quelque chose de plus sensible en reponse.
-  return reponse.json() as Promise<T>;
+  throw new PcIntrouvableError(derniereErreurReseau instanceof Error ? { cause: derniereErreurReseau } : undefined);
 }
 
 export async function testerConnexion(): Promise<boolean> {
@@ -233,6 +304,21 @@ export async function testerConnexion(): Promise<boolean> {
     return reponse.ok === true;
   } catch {
     return false;
+  }
+}
+
+export type EtatConnexion = "connecte" | "introuvable" | "revoque";
+
+/** Même ping que testerConnexion, mais distingue "Aurore introuvable sur
+ * ce réseau" d'un appareil révoqué (Prompt 6, objectif E) - l'accueil
+ * affiche un message clair et différent dans ce dernier cas, plutôt que le
+ * message réseau générique. */
+export async function verifierEtatConnexion(): Promise<EtatConnexion> {
+  try {
+    const reponse = await envoyerRequeteAuthentifiee<{ ok: boolean }>("/api/m/ping", {});
+    return reponse.ok === true ? "connecte" : "introuvable";
+  } catch (erreur) {
+    return erreur instanceof AppareilRevoqueError ? "revoque" : "introuvable";
   }
 }
 

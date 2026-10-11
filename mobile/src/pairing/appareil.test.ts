@@ -18,6 +18,7 @@ import {
   QrExpireError,
   SecretInvalideError,
   PcIntrouvableError,
+  AppareilRevoqueError,
 } from "./appareil";
 import {
   genererPaireClesTelephone,
@@ -175,7 +176,52 @@ describe("envoyerRequeteAuthentifiee", () => {
 
   it("propage le message d'erreur du serveur quand la réponse n'est pas ok", async () => {
     await appairer();
-    (global.fetch as jest.Mock).mockResolvedValueOnce({ ok: false, status: 403, json: async () => ({ error: "Appareil révoqué" }) });
-    await expect(envoyerRequeteAuthentifiee("/api/m/dossiers", {})).rejects.toThrow("Appareil révoqué");
+    (global.fetch as jest.Mock).mockResolvedValueOnce({ ok: false, status: 400, json: async () => ({ error: "Requête invalide" }) });
+    await expect(envoyerRequeteAuthentifiee("/api/m/dossiers", {})).rejects.toThrow("Requête invalide");
+  });
+
+  // Prompt 6, objectif E - un 403 (seule signification possible dans ce
+  // protocole : appareil en_attente ou revoque, voir exigerAppareilAutorise
+  // cote serveur) devient une erreur typee distincte, jamais le texte brut
+  // du serveur - sync/elements.ts s'appuie sur ce type pour arreter les
+  // tentatives automatiques plutot que de les relancer indefiniment.
+  it("convertit un 403 en AppareilRevoqueError", async () => {
+    await appairer();
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: false,
+      status: 403,
+      json: async () => ({ error: "Cet appareil n'est pas autorisé." }),
+    });
+    await expect(envoyerRequeteAuthentifiee("/api/m/dossiers", {})).rejects.toThrow(AppareilRevoqueError);
+  });
+
+  // Prompt 6, objectif B - adresses connues essayees dans l'ordre, la
+  // derniere qui a fonctionne retenue pour la prochaine fois.
+  it("passe a l'adresse suivante si la premiere est injoignable, et la retient", async () => {
+    await appairer(); // adresse retenue initialement : 192.168.1.10:3100 (premiere de QR_VALIDE)
+    (global.fetch as jest.Mock).mockClear();
+    (global.fetch as jest.Mock)
+      .mockRejectedValueOnce(new Error("injoignable"))
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ ok: true }) });
+
+    const resultat = await envoyerRequeteAuthentifiee("/api/m/ping", {});
+    expect(resultat).toEqual({ ok: true });
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+    expect((global.fetch as jest.Mock).mock.calls[0][0]).toContain("192.168.1.10:3100");
+    expect((global.fetch as jest.Mock).mock.calls[1][0]).toContain("192.168.1.11:3100");
+
+    // La requete suivante essaie directement .11 en premier (retenue comme
+    // derniere adresse qui a fonctionne) - plus besoin de retenter .10.
+    (global.fetch as jest.Mock).mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ ok: true }) });
+    await envoyerRequeteAuthentifiee("/api/m/ping", {});
+    expect((global.fetch as jest.Mock).mock.calls[2][0]).toContain("192.168.1.11:3100");
+  });
+
+  it("échoue avec PcIntrouvableError si aucune adresse connue ne répond (jamais de balayage réseau plus large)", async () => {
+    await appairer();
+    (global.fetch as jest.Mock).mockClear();
+    (global.fetch as jest.Mock).mockRejectedValue(new Error("injoignable"));
+    await expect(envoyerRequeteAuthentifiee("/api/m/ping", {})).rejects.toThrow(PcIntrouvableError);
+    expect(global.fetch).toHaveBeenCalledTimes(2); // les 2 adresses connues, jamais plus.
   });
 });

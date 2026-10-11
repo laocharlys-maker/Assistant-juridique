@@ -3,6 +3,7 @@ import { Directory, File, Paths } from "expo-file-system";
 import { PermissionsAndroid, Platform } from "react-native";
 import AudioRecorder from "../../modules/audio-recorder/src/AudioRecorderModule";
 import { chiffrer, dechiffrer } from "../vault/vault";
+import { verifierEspaceDisponible } from "../storage/espace";
 import {
   enregistrerElementLocal,
   type ElementLocal,
@@ -114,6 +115,7 @@ async function traiterSegmentsEnAttente(): Promise<void> {
 
 export async function demarrerEnregistrement(): Promise<{ clientId: string }> {
   if (session) throw new Error("ENREGISTREMENT_DEJA_EN_COURS");
+  verifierEspaceDisponible();
 
   const permissionsAccordees = await demanderPermissions();
   if (!permissionsAccordees) throw new PermissionMicrophoneRefuseeError();

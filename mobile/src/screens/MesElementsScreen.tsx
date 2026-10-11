@@ -6,12 +6,14 @@ import { File, Paths } from "expo-file-system";
 import { listerElementsLocaux, supprimerElementLocal, type ElementLocal } from "../storage/db";
 import { reconstituerAudioClair, supprimerSegmentsLocaux } from "../audio/recorder";
 import { supprimerScanLocal } from "../scan/scanner";
-import { envoyerElementsEnAttente, verifierConfirmations } from "../sync/elements";
+import { envoyerElementsEnAttente, verifierConfirmations, compterElementsEnAttente } from "../sync/elements";
 
 const LIBELLE_STATUT: Record<ElementLocal["statut"], string> = {
   en_attente: "En attente d’envoi",
+  en_cours: "Envoi en cours…",
   envoye: "Envoyé, en attente de confirmation",
   confirme: "Confirmé par Aurore",
+  en_erreur: "Échec d’envoi",
 };
 
 const LIBELLE_TYPE_SCAN: Record<NonNullable<ElementLocal["typeScan"]>, string> = {
@@ -98,15 +100,13 @@ export default function MesElementsScreen() {
 
   function peutSupprimer(element: ElementLocal): boolean {
     if (element.statut === "confirme") return true;
-    // Cas specifique a l'audio (Prompt 4) : un enregistrement trop court
-    // n'a jamais pu etre envoye, rien a perdre cote serveur. nombreSegments
-    // === 0 ne suffit pas seul : un element peut avoir des segments
-    // enregistres en base mais dont le fichier reel est introuvable (ex.
-    // ancien element cree avant le correctif de numerotation) - dans ce cas
-    // c'est le message d'erreur, pas le compteur, qui fait foi.
-    if (element.type === "audio") {
-      return element.nombreSegments === 0 || (element.derniereErreurEnvoi?.includes("trop court") ?? false);
-    }
+    // Prompt 6, objectif E : un echec PERMANENT (appareil revoque,
+    // enregistrement vide...) ne sera jamais envoye - rien a perdre cote
+    // serveur, l'utilisateur doit pouvoir s'en debarrasser. nombreSegments
+    // === 0 reste gardee pour les tres rares elements crees avant ce
+    // correctif (pas encore marques echecPermanent).
+    if (element.echecPermanent) return true;
+    if (element.type === "audio" && element.nombreSegments === 0) return true;
     return false;
   }
 
@@ -118,9 +118,7 @@ export default function MesElementsScreen() {
   function supprimer(element: ElementLocal) {
     if (!peutSupprimer(element)) return;
     const message =
-      element.statut === "confirme"
-        ? "Il a déjà été confirmé par Aurore."
-        : "Cet enregistrement est vide (trop court) et n'a jamais pu être envoyé.";
+      element.statut === "confirme" ? "Il a déjà été confirmé par Aurore." : "Il ne pourra jamais être envoyé à Aurore.";
     Alert.alert("Supprimer cet élément ?", message, [
       { text: "Annuler", style: "cancel" },
       {
@@ -135,8 +133,14 @@ export default function MesElementsScreen() {
     ]);
   }
 
+  const enAttente = compterElementsEnAttente(elements);
+
   return (
     <View style={styles.conteneur}>
+      {/* Prompt 6, objectif A - compteur visible (ici et sur l'accueil). */}
+      <Text style={styles.compteur}>
+        {enAttente} élément{enAttente === 1 ? "" : "s"} en attente
+      </Text>
       <FlatList
         data={elements}
         keyExtractor={(item) => item.clientId}
@@ -152,7 +156,7 @@ export default function MesElementsScreen() {
             <View style={styles.ligne}>
               <Text style={styles.duree}>{libelleEntete(item)}</Text>
               <Text style={styles.statut}>{LIBELLE_STATUT[item.statut]}</Text>
-              {item.statut === "en_attente" && item.derniereErreurEnvoi && (
+              {item.statut === "en_erreur" && item.derniereErreurEnvoi && (
                 <Text style={styles.erreurEnvoi}>Dernier échec d’envoi : {item.derniereErreurEnvoi}</Text>
               )}
               {item.noteTexte && <Text style={styles.note}>{item.noteTexte}</Text>}
@@ -192,6 +196,7 @@ export default function MesElementsScreen() {
 
 const styles = StyleSheet.create({
   conteneur: { flex: 1, backgroundColor: "#0b1220", padding: 16 },
+  compteur: { color: "#9aa5b1", fontSize: 13, marginBottom: 12 },
   vide: { color: "#5b6878", textAlign: "center", marginTop: 40 },
   ligne: { backgroundColor: "#141c2b", borderRadius: 10, padding: 14, marginBottom: 10 },
   duree: { color: "#fff", fontSize: 16, fontWeight: "600" },

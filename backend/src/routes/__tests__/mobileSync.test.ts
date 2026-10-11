@@ -363,3 +363,169 @@ describe("POST /api/m/items (idempotence)", () => {
     expect(prismaMock.mobileItem.create).not.toHaveBeenCalled();
   });
 });
+
+// Prompt 6, objectif C - script d'integration bout-en-bout : cree un item,
+// envoie ses morceaux, commit, et verifie les deux garanties du critere
+// d'acceptation ("coupure au milieu d'un envoi : reprise sans perte ni
+// doublon") directement contre les vraies routes Express (pas de mock de
+// la logique applicative elle-meme, seulement de Prisma/du stockage
+// disque - voir le haut de ce fichier).
+describe("flux complet morceaux + commit (Prompt 6, objectif C)", () => {
+  const deviceId = "7f8e5c4a-1234-4a5a-9a1a-abcdef123456";
+
+  function appareilAutorise(tel: ReturnType<typeof genererPaireClesX25519>) {
+    prismaMock.mobileDevice.findUnique.mockResolvedValue({
+      id: deviceId,
+      cabinetId: "cabinet-1",
+      userId: "user-1",
+      statut: "autorise",
+      clePublique: tel.clePubliqueBase64,
+      dernierCompteur: null,
+    });
+    prismaMock.mobileDevice.update.mockResolvedValue({});
+  }
+
+  it("cree l'item, accepte 2 morceaux puis le commit - reçu final cohérent", async () => {
+    const tel = genererPaireClesX25519();
+    appareilAutorise(tel);
+    prismaMock.mobileItem.findUnique.mockResolvedValue(null);
+    prismaMock.mobileItem.create.mockResolvedValue({ id: "item-flux-1" });
+    prismaMock.mobileItem.findFirst.mockResolvedValue({
+      id: "item-flux-1",
+      clientId: "66666666-6666-6666-6666-666666666666",
+      statut: "recu",
+      cheminFichier: null,
+    });
+
+    const { ecrireChunk, assemblerEtVerifier } = await import("../../services/mobileSync/stockageMobile");
+
+    let compteur = 0;
+    const creerItem = async () =>
+      api(
+        "/api/m/items",
+        construireRequeteAppareil(tel.clePriveeKeyObject, deviceId, ++compteur, {
+          clientId: "66666666-6666-6666-6666-666666666666",
+          type: "audio",
+          nombreChunksAttendu: 2,
+          sha256Attendu: "b".repeat(64),
+        })
+      );
+    const resCreation = await creerItem();
+    expect(resCreation.status).toBe(201);
+    const { itemId } = (await resCreation.json()) as { itemId: string };
+
+    for (const numero of [0, 1]) {
+      const res = await api(
+        `/api/m/items/${itemId}/chunks/${numero}`,
+        construireRequeteAppareil(tel.clePriveeKeyObject, deviceId, ++compteur, {
+          contenuBase64: Buffer.from(`morceau-${numero}`).toString("base64"),
+        })
+      );
+      expect(res.status).toBe(200);
+    }
+    expect(ecrireChunk).toHaveBeenCalledTimes(2);
+
+    const resCommit = await api(
+      `/api/m/items/${itemId}/commit`,
+      construireRequeteAppareil(tel.clePriveeKeyObject, deviceId, ++compteur, {
+        nombreChunks: 2,
+        sha256: "b".repeat(64),
+      })
+    );
+    expect(resCommit.status).toBe(200);
+    expect(await resCommit.json()).toEqual({ ok: true, itemId: "item-flux-1", dejaConfirme: false });
+    expect(assemblerEtVerifier).toHaveBeenCalledTimes(1);
+  });
+
+  it("un morceau renvoyé après coupure (même numéro) ne crée jamais de doublon - juste réécrit", async () => {
+    const tel = genererPaireClesX25519();
+    appareilAutorise(tel);
+    prismaMock.mobileItem.findFirst.mockResolvedValue({
+      id: "item-flux-2",
+      clientId: "77777777-7777-7777-7777-777777777777",
+      statut: "recu",
+      cheminFichier: null,
+    });
+    const { ecrireChunk } = await import("../../services/mobileSync/stockageMobile");
+
+    const corpsChunk = { contenuBase64: Buffer.from("morceau-0").toString("base64") };
+    const res1 = await api(
+      "/api/m/items/item-flux-2/chunks/0",
+      construireRequeteAppareil(tel.clePriveeKeyObject, deviceId, 1, corpsChunk)
+    );
+    // Coupure simulee : le telephone n'a jamais reçu cette reponse (peu
+    // importe ici), et renvoie le MEME morceau avec un compteur superieur
+    // (jamais le meme compteur - l'anti-rejeu l'interdirait, voir le test
+    // "409" plus haut dans ce fichier).
+    const res2 = await api(
+      "/api/m/items/item-flux-2/chunks/0",
+      construireRequeteAppareil(tel.clePriveeKeyObject, deviceId, 2, corpsChunk)
+    );
+
+    expect(res1.status).toBe(200);
+    expect(res2.status).toBe(200);
+    expect(ecrireChunk).toHaveBeenCalledTimes(2);
+    // Meme numero de morceau (0) les deux fois - ecrireChunk (voir
+    // services/mobileSync/stockageMobile.ts) ecrit toujours au MEME nom de
+    // fichier pour un numero donne, donc la deuxieme ecriture remplace la
+    // premiere plutot que de l'empiler - jamais de doublon sur disque.
+    const appelsEcrireChunk = vi.mocked(ecrireChunk).mock.calls;
+    expect(appelsEcrireChunk[0][2]).toBe(0);
+    expect(appelsEcrireChunk[1][2]).toBe(0);
+  });
+
+  it("un commit rejoué après succès est idempotent (dejaConfirme), jamais réassemblé deux fois", async () => {
+    const tel = genererPaireClesX25519();
+    appareilAutorise(tel);
+    const { assemblerEtVerifier } = await import("../../services/mobileSync/stockageMobile");
+
+    // Premier commit : l'item n'a pas encore de cheminFichier.
+    prismaMock.mobileItem.findFirst.mockResolvedValueOnce({
+      id: "item-flux-3",
+      clientId: "88888888-8888-8888-8888-888888888888",
+      cheminFichier: null,
+    });
+    const corpsCommit = { nombreChunks: 1, sha256: "c".repeat(64) };
+    const res1 = await api(
+      "/api/m/items/item-flux-3/commit",
+      construireRequeteAppareil(tel.clePriveeKeyObject, deviceId, 1, corpsCommit)
+    );
+    expect(res1.status).toBe(200);
+    expect(await res1.json()).toMatchObject({ dejaConfirme: false });
+
+    // Rejoue du MEME commit (ex. reponse perdue cote telephone) : l'item a
+    // maintenant un cheminFichier (deja assemble) - jamais reassemble,
+    // jamais d'erreur, juste le meme reçu.
+    prismaMock.mobileItem.findFirst.mockResolvedValueOnce({
+      id: "item-flux-3",
+      clientId: "88888888-8888-8888-8888-888888888888",
+      cheminFichier: "fichier-test.enc",
+    });
+    const res2 = await api(
+      "/api/m/items/item-flux-3/commit",
+      construireRequeteAppareil(tel.clePriveeKeyObject, deviceId, 2, corpsCommit)
+    );
+    expect(res2.status).toBe(200);
+    expect(await res2.json()).toEqual({ ok: true, itemId: "item-flux-3", dejaConfirme: true });
+    expect(assemblerEtVerifier).toHaveBeenCalledTimes(1); // pas 2.
+  });
+
+  it("refuse (409) un morceau envoyé après que l'item soit déjà finalisé", async () => {
+    const tel = genererPaireClesX25519();
+    appareilAutorise(tel);
+    prismaMock.mobileItem.findFirst.mockResolvedValue({
+      id: "item-flux-4",
+      clientId: "99999999-9999-9999-9999-999999999999",
+      statut: "a_traiter",
+      cheminFichier: "fichier-test.enc",
+    });
+
+    const res = await api(
+      "/api/m/items/item-flux-4/chunks/0",
+      construireRequeteAppareil(tel.clePriveeKeyObject, deviceId, 1, {
+        contenuBase64: Buffer.from("trop-tard").toString("base64"),
+      })
+    );
+    expect(res.status).toBe(409);
+  });
+});
