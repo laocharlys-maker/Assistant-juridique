@@ -48,19 +48,36 @@ const NAV_ITEMS = [
       { href: "/collaborateurs.html?filtre=collaborateur", label: "Collaborateurs" },
     ],
   },
-  // Reversion du 2026-09-14 : ouvert aux collaborateurs (module "facturation"
-  // deja requis via moduleKey ci-dessous) - seule la validation/emission
-  // d'une facture reste reservee a un avocat/titulaire cote serveur (voir
-  // routes/factures.ts, POST .../envoyer), jamais cote navigation.
-  { href: "/factures.html", label: "Facturation", roles: ["titulaire", "avocat", "collaborateur"], group: "Cabinet", icon: "invoice", moduleKey: "facturation" },
-  { href: "/factures-payees.html", label: "Factures payées", roles: ["titulaire", "avocat", "collaborateur"], group: "Cabinet", icon: "invoice", moduleKey: "facturation" },
-  { href: "/veille-juridique.html", label: "Veille juridique", roles: ["titulaire", "avocat"], group: "Cabinet", icon: "radar", moduleKey: "veille_juridique" },
-  { href: "/corbeille.html", label: "Corbeille", roles: ["titulaire", "avocat", "collaborateur"], group: "Cabinet", icon: "trash", moduleKey: "corbeille" },
   // Lot 10 (Aurore Mobile) - pas de moduleKey : depend uniquement de la
   // licence du cabinet, jamais d'un module payant separe (decision du
   // 2026-10-09, voir docs/lot10/01-protocole.md).
-  { href: "/mobile-boite-reception.html", label: "Boîte de réception mobile", roles: ["titulaire", "avocat", "collaborateur"], group: "Cabinet", icon: "phone" },
-  { href: "/mobile-appareils.html", label: "Appareils mobiles", roles: ["titulaire", "avocat", "collaborateur"], group: "Cabinet", icon: "phone" },
+  {
+    label: "Aurore Mobile",
+    roles: ["titulaire", "avocat", "collaborateur"],
+    group: "Cabinet",
+    icon: "phone",
+    children: [
+      { href: "/mobile-boite-reception.html", label: "Boîte de réception mobile" },
+      { href: "/mobile-appareils.html", label: "Appareils mobiles" },
+    ],
+  },
+  // Reversion du 2026-09-14 : ouvert aux collaborateurs (module "facturation"
+  // deja requis via moduleKey) - seule la validation/emission d'une facture
+  // reste reservee a un avocat/titulaire cote serveur (voir
+  // routes/factures.ts, POST .../envoyer), jamais cote navigation.
+  {
+    label: "Facturation",
+    roles: ["titulaire", "avocat", "collaborateur"],
+    group: "Cabinet",
+    icon: "invoice",
+    moduleKey: "facturation",
+    children: [
+      { href: "/factures.html", label: "Factures" },
+      { href: "/factures-payees.html", label: "Factures payées" },
+    ],
+  },
+  { href: "/veille-juridique.html", label: "Veille juridique", roles: ["titulaire", "avocat"], group: "Cabinet", icon: "radar", moduleKey: "veille_juridique" },
+  { href: "/corbeille.html", label: "Corbeille", roles: ["titulaire", "avocat", "collaborateur"], group: "Cabinet", icon: "trash", moduleKey: "corbeille" },
   { href: "/audit-logs.html", label: "Journal d'audit", roles: ["titulaire"], group: "Cabinet", icon: "audit" },
   { href: "/parametres.html", label: "Paramètres", roles: ["titulaire"], group: "Cabinet", icon: "settings" },
   { href: "/admin-tableau-de-bord.html", label: "Tableau de bord", roles: ["super_admin"], group: "Plateforme", icon: "dashboard" },
