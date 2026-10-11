@@ -266,7 +266,13 @@ export default function ScanScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   conteneur: { flex: 1, backgroundColor: "#0b1220", padding: 16 },
-  camera: { width: "100%", aspectRatio: 3 / 4, borderRadius: 16, overflow: "hidden" },
+  // Jamais de borderRadius/overflow:"hidden" directement sur la camera en
+  // direct - "decouper" visuellement une preview camera plante au niveau
+  // natif sur certains GPU (observe sur des appareils MediaTek/Transsion,
+  // dont le Tecno Spark 20 de test) : le rendu materiel de la camera ne
+  // supporte pas toujours ce clipping. Coins carres ici, cosmetique
+  // secondaire face a un plantage instantane de l'appli.
+  camera: { width: "100%", aspectRatio: 3 / 4 },
   texte: { color: "#fff", fontSize: 15, textAlign: "center", marginTop: 12 },
   bouton: { backgroundColor: "#3b82f6", paddingVertical: 14, borderRadius: 12, alignItems: "center", marginTop: 12 },
   boutonSecondaire: { backgroundColor: "#1a2332", flex: 1, marginRight: 8 },

@@ -136,7 +136,10 @@ export default function AppairageScreen({ onAppaire }: { onAppaire: () => void }
 
 const styles = StyleSheet.create({
   conteneur: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: "#0b1220" },
-  camera: { width: "100%", aspectRatio: 1, borderRadius: 16, overflow: "hidden" },
+  // Meme correctif que ScanScreen.tsx : jamais de clipping (borderRadius +
+  // overflow:"hidden") directement sur une camera en direct - risque de
+  // plantage natif sur certains GPU (ex. MediaTek/Transsion).
+  camera: { width: "100%", aspectRatio: 1 },
   texte: { color: "#fff", fontSize: 16, textAlign: "center", marginTop: 16 },
   texteSousCamera: { color: "#9aa5b1", fontSize: 14, textAlign: "center", marginTop: 16 },
   texteSucces: { color: "#4ade80", fontSize: 18, fontWeight: "600", marginTop: 12 },
