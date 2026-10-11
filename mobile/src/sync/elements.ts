@@ -1,13 +1,17 @@
 import * as Crypto from "expo-crypto";
 import { envoyerRequeteAuthentifiee } from "../pairing/appareil";
 import { reconstituerAudioClair } from "../audio/recorder";
+import { reconstituerPdfClair } from "../scan/scanner";
 import { listerElementsLocaux, majStatutElementLocal, majErreurEnvoiElementLocal, type ElementLocal } from "../storage/db";
 
 /**
- * Envoi des éléments locaux vers Aurore (Prompt 4, objectifs A et D) -
- * réutilise le protocole déjà en place côté serveur (création de l'item,
- * puis morceaux, puis commit - voir backend/src/routes/mobileSync.ts,
- * Prompt 1/2) : rien de nouveau à inventer ici côté transport.
+ * Envoi des éléments locaux vers Aurore (Prompt 4 objectifs A/D, Prompt 5
+ * objectifs A-C) - réutilise le protocole déjà en place côté serveur
+ * (création de l'item, puis morceaux, puis commit - voir
+ * backend/src/routes/mobileSync.ts, Prompt 1/2) pour les TROIS types
+ * (audio/scan/note) : rien de nouveau à inventer côté transport, seul le
+ * contenu binaire envoyé change selon le type (voir contenuElement
+ * ci-dessous).
  */
 
 const TAILLE_MORCEAU_OCTETS = 256 * 1024;
@@ -61,26 +65,47 @@ export class EnregistrementVideError extends Error {
   }
 }
 
+/** Contenu binaire a envoyer, selon le type - audio et scan relisent leur
+ * fichier chiffre local, une note n'a pas de fichier propre : son contenu
+ * EST le texte lui-meme (encode en UTF-8), pour passer par le meme cycle
+ * morceaux/commit que les deux autres types (voir routes/mobileSync.ts,
+ * creerItemSchema qui exige nombreChunksAttendu/sha256Attendu quel que soit
+ * le type) sans avoir a modifier le serveur. */
+async function contenuElement(element: ElementLocal): Promise<Uint8Array> {
+  switch (element.type) {
+    case "audio":
+      return reconstituerAudioClair(element.clientId, element.nombreSegments ?? 0);
+    case "scan":
+      return reconstituerPdfClair(element.clientId);
+    case "note":
+      return new TextEncoder().encode(element.noteTexte ?? "");
+  }
+}
+
 async function envoyerElementSansVerrou(element: ElementLocal): Promise<void> {
-  const audio = await reconstituerAudioClair(element.clientId, element.nombreSegments);
-  if (audio.length === 0) {
-    // Enregistrement trop court pour que le premier segment ait ete
-    // valide par Android (MediaRecorder.stop() echoue silencieusement sur
-    // un segment de quelques centaines de ms) - rien a envoyer, jamais la
-    // peine de contacter le serveur pour echouer a coup sur.
+  const contenu = await contenuElement(element);
+  if (contenu.length === 0) {
+    // Audio : enregistrement trop court pour que le premier segment ait
+    // ete valide par Android (MediaRecorder.stop() echoue silencieusement
+    // sur un segment de quelques centaines de ms). Scan/note : ne devrait
+    // jamais arriver (terminerScan/creerNoteLocale refusent deja un
+    // contenu vide a la creation) - traite pareil par securite plutot que
+    // de contacter le serveur pour echouer a coup sur.
     throw new EnregistrementVideError();
   }
-  const digest = await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA256, audio.slice());
+  const digest = await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA256, contenu.slice());
   const sha256 = octetsVersHex(digest);
-  const nombreChunks = Math.max(1, Math.ceil(audio.length / TAILLE_MORCEAU_OCTETS));
+  const nombreChunks = Math.max(1, Math.ceil(contenu.length / TAILLE_MORCEAU_OCTETS));
 
+  const marqueurs = element.marqueurs ?? [];
   const { itemId } = await envoyerRequeteAuthentifiee<{ itemId: string }>("/api/m/items", {
     clientId: element.clientId,
     type: element.type,
     dossierId: element.dossierId,
+    typeScan: element.typeScan ?? null,
     dureeSecondes: element.dureeSecondes,
     creeLeSurAppareil: element.creeLe,
-    prochaineAudience: element.marqueurs.find((m) => m.type === "prochaine_audience")?.dateAudience ?? null,
+    prochaineAudience: marqueurs.find((m) => m.type === "prochaine_audience")?.dateAudience ?? null,
     noteTexte: element.noteTexte,
     nombreChunksAttendu: nombreChunks,
     sha256Attendu: sha256,
@@ -88,7 +113,7 @@ async function envoyerElementSansVerrou(element: ElementLocal): Promise<void> {
 
   for (let numero = 0; numero < nombreChunks; numero++) {
     const debut = numero * TAILLE_MORCEAU_OCTETS;
-    const morceau = audio.subarray(debut, Math.min(debut + TAILLE_MORCEAU_OCTETS, audio.length));
+    const morceau = contenu.subarray(debut, Math.min(debut + TAILLE_MORCEAU_OCTETS, contenu.length));
     await envoyerRequeteAuthentifiee(`/api/m/items/${itemId}/chunks/${numero}`, {
       contenuBase64: base64Encode(morceau),
     });
@@ -103,9 +128,9 @@ async function envoyerElementSansVerrou(element: ElementLocal): Promise<void> {
   await majStatutElementLocal(element.clientId, "envoye");
   await majErreurEnvoiElementLocal(element.clientId, null);
 
-  if (element.marqueurs.length > 0) {
+  if (marqueurs.length > 0) {
     await envoyerRequeteAuthentifiee(`/api/m/items/${itemId}/marqueurs`, {
-      marqueurs: element.marqueurs.map((m) => ({
+      marqueurs: marqueurs.map((m) => ({
         type: m.type,
         positionMs: m.positionMs,
         dateAudience: m.dateAudience,

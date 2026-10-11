@@ -5,6 +5,7 @@ import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
 import { File, Paths } from "expo-file-system";
 import { listerElementsLocaux, supprimerElementLocal, type ElementLocal } from "../storage/db";
 import { reconstituerAudioClair, supprimerSegmentsLocaux } from "../audio/recorder";
+import { supprimerScanLocal } from "../scan/scanner";
 import { envoyerElementsEnAttente, verifierConfirmations } from "../sync/elements";
 
 const LIBELLE_STATUT: Record<ElementLocal["statut"], string> = {
@@ -12,6 +13,27 @@ const LIBELLE_STATUT: Record<ElementLocal["statut"], string> = {
   envoye: "Envoyé, en attente de confirmation",
   confirme: "Confirmé par Aurore",
 };
+
+const LIBELLE_TYPE_SCAN: Record<NonNullable<ElementLocal["typeScan"]>, string> = {
+  piece: "Pièce",
+  decision: "Décision",
+  courrier: "Courrier",
+  convocation: "Convocation",
+  autre: "Autre",
+};
+
+/** Ligne d'en-tête affichée pour chaque élément - spécifique au type
+ * (Prompt 5 : scan et note n'ont ni durée ni segments, contrairement à
+ * l'audio du Prompt 4). */
+function libelleEntete(element: ElementLocal): string {
+  if (element.type === "audio") return `🎙️ ${Math.round((element.dureeSecondes ?? 0) / 60)} min`;
+  if (element.type === "scan") {
+    const nombrePages = element.nombrePages ?? 0;
+    const typeLabel = element.typeScan ? LIBELLE_TYPE_SCAN[element.typeScan] : "";
+    return `📄 ${nombrePages} page${nombrePages > 1 ? "s" : ""}${typeLabel ? " — " + typeLabel : ""}`;
+  }
+  return "📝 Note";
+}
 
 function formaterSecondes(secondes: number): string {
   const s = Math.max(0, Math.floor(secondes));
@@ -50,6 +72,7 @@ export default function MesElementsScreen() {
   );
 
   async function basculerLecture(element: ElementLocal) {
+    if (element.type !== "audio") return;
     if (clientIdEnLecture === element.clientId) {
       if (statutLecture.playing) {
         player.pause();
@@ -60,7 +83,7 @@ export default function MesElementsScreen() {
     }
 
     try {
-      const audio = await reconstituerAudioClair(element.clientId, element.nombreSegments);
+      const audio = await reconstituerAudioClair(element.clientId, element.nombreSegments ?? 0);
       const fichierTemp = new File(Paths.cache, `ecoute-${element.clientId}.aac`);
       if (fichierTemp.exists) fichierTemp.delete();
       fichierTemp.create();
@@ -74,17 +97,22 @@ export default function MesElementsScreen() {
   }
 
   function peutSupprimer(element: ElementLocal): boolean {
-    // Confirme par Aurore (cas normal), OU vide (aucun audio valide -
-    // jamais envoyé, rien a perdre cote serveur, voir EnregistrementVideError).
-    // nombreSegments === 0 ne suffit pas seul : un element peut avoir des
-    // segments enregistres en base mais dont le fichier reel est introuvable
-    // (ex. ancien element cree avant le correctif de numerotation) - dans ce
-    // cas c'est le message d'erreur, pas le compteur, qui fait foi.
-    return (
-      element.statut === "confirme" ||
-      element.nombreSegments === 0 ||
-      (element.derniereErreurEnvoi?.includes("trop court") ?? false)
-    );
+    if (element.statut === "confirme") return true;
+    // Cas specifique a l'audio (Prompt 4) : un enregistrement trop court
+    // n'a jamais pu etre envoye, rien a perdre cote serveur. nombreSegments
+    // === 0 ne suffit pas seul : un element peut avoir des segments
+    // enregistres en base mais dont le fichier reel est introuvable (ex.
+    // ancien element cree avant le correctif de numerotation) - dans ce cas
+    // c'est le message d'erreur, pas le compteur, qui fait foi.
+    if (element.type === "audio") {
+      return element.nombreSegments === 0 || (element.derniereErreurEnvoi?.includes("trop court") ?? false);
+    }
+    return false;
+  }
+
+  function nettoyerFichiersLocaux(element: ElementLocal) {
+    if (element.type === "audio") supprimerSegmentsLocaux(element.clientId);
+    else if (element.type === "scan") supprimerScanLocal(element.clientId);
   }
 
   function supprimer(element: ElementLocal) {
@@ -99,7 +127,7 @@ export default function MesElementsScreen() {
         text: "Supprimer",
         style: "destructive",
         onPress: async () => {
-          supprimerSegmentsLocaux(element.clientId);
+          nettoyerFichiersLocaux(element);
           await supprimerElementLocal(element.clientId);
           await charger();
         },
@@ -122,7 +150,7 @@ export default function MesElementsScreen() {
 
           return (
             <View style={styles.ligne}>
-              <Text style={styles.duree}>{Math.round(item.dureeSecondes / 60)} min</Text>
+              <Text style={styles.duree}>{libelleEntete(item)}</Text>
               <Text style={styles.statut}>{LIBELLE_STATUT[item.statut]}</Text>
               {item.statut === "en_attente" && item.derniereErreurEnvoi && (
                 <Text style={styles.erreurEnvoi}>Dernier échec d’envoi : {item.derniereErreurEnvoi}</Text>
@@ -141,7 +169,7 @@ export default function MesElementsScreen() {
               )}
 
               <View style={styles.actions}>
-                {item.nombreSegments > 0 && (
+                {item.type === "audio" && (item.nombreSegments ?? 0) > 0 && (
                   <Pressable style={styles.boutonAction} onPress={() => basculerLecture(item)}>
                     <Text style={styles.boutonActionTexte}>
                       {enLecture && statutLecture.playing ? "⏸ Pause" : "▶ Réécouter"}

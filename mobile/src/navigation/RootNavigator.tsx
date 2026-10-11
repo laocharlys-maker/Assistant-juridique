@@ -9,6 +9,9 @@ import ApresAudienceScreen from "../screens/ApresAudienceScreen";
 import EnregistrementScreen from "../screens/EnregistrementScreen";
 import ApresEnregistrementScreen from "../screens/ApresEnregistrementScreen";
 import MesElementsScreen from "../screens/MesElementsScreen";
+import ScanScreen from "../screens/ScanScreen";
+import ScannerEtClasserScreen from "../screens/ScannerEtClasserScreen";
+import NoteTexteScreen from "../screens/NoteTexteScreen";
 
 export type RootStackParamList = {
   Appairage: undefined;
@@ -20,6 +23,9 @@ export type RootStackParamList = {
   Enregistrement: { dossierId: string | null };
   ApresEnregistrement: { clientId: string; dossierId: string | null };
   MesElements: undefined;
+  Scan: undefined;
+  ScannerEtClasser: undefined;
+  NoteTexte: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -44,6 +50,13 @@ export default function RootNavigator({ ecranInitial }: { ecranInitial: keyof Ro
       />
       <Stack.Screen name="ApresEnregistrement" component={ApresEnregistrementScreen} options={{ title: "Terminer" }} />
       <Stack.Screen name="MesElements" component={MesElementsScreen} options={{ title: "Mes éléments" }} />
+      <Stack.Screen name="Scan" component={ScanScreen} options={{ title: "Scanner un document" }} />
+      <Stack.Screen
+        name="ScannerEtClasser"
+        component={ScannerEtClasserScreen}
+        options={{ title: "Classer le scan", headerBackVisible: false }}
+      />
+      <Stack.Screen name="NoteTexte" component={NoteTexteScreen} options={{ title: "Note texte" }} />
     </Stack.Navigator>
   );
 }

@@ -59,11 +59,11 @@ export default function AccueilScreen({ navigation }: Props) {
       </Pressable>
 
       <View style={styles.rangeeBoutons}>
-        <Pressable style={styles.boutonInactif} disabled>
-          <Text style={styles.boutonInactifTexte}>📄 Scanner</Text>
+        <Pressable style={styles.boutonSecondaireCarre} onPress={() => navigation.navigate("Scan")}>
+          <Text style={styles.boutonSecondaireCarreTexte}>📄 Scanner</Text>
         </Pressable>
-        <Pressable style={styles.boutonInactif} disabled>
-          <Text style={styles.boutonInactifTexte}>📝 Note</Text>
+        <Pressable style={styles.boutonSecondaireCarre} onPress={() => navigation.navigate("NoteTexte")}>
+          <Text style={styles.boutonSecondaireCarreTexte}>📝 Note</Text>
         </Pressable>
       </View>
 
@@ -101,8 +101,8 @@ const styles = StyleSheet.create({
   },
   boutonPrincipalTexte: { color: "#fff", fontSize: 20, fontWeight: "700" },
   rangeeBoutons: { flexDirection: "row", gap: 12, marginBottom: 32 },
-  boutonInactif: { flex: 1, backgroundColor: "#1a2332", paddingVertical: 18, borderRadius: 12, alignItems: "center" },
-  boutonInactifTexte: { color: "#5b6878", fontSize: 15 },
+  boutonSecondaireCarre: { flex: 1, backgroundColor: "#1a2332", paddingVertical: 18, borderRadius: 12, alignItems: "center" },
+  boutonSecondaireCarreTexte: { color: "#fff", fontSize: 15 },
   boutonSecondaire: { paddingVertical: 14, alignItems: "center" },
   boutonSecondaireTexte: { color: "#9aa5b1", fontSize: 15 },
 });

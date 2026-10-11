@@ -208,7 +208,7 @@ describe("audio/recorder - file de segments", () => {
     expect(element.nombreSegments).toBe(2);
     expect(enregistrerElementLocal).toHaveBeenCalled();
 
-    const audio = await reconstituerAudioClair(element.clientId, element.nombreSegments);
+    const audio = await reconstituerAudioClair(element.clientId, element.nombreSegments ?? 0);
     expect(new TextDecoder().decode(audio)).toBe("AAABBB");
   });
 });

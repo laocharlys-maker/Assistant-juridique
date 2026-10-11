@@ -27,21 +27,32 @@ export interface MarqueurLocal {
   dateAudience: string | null;
 }
 
-/** Élément local (Prompt 4, objectifs A-D) - un enregistrement audio en
- * attente d'envoi, de confirmation ou de classement. `clientId` est l'id
- * stable généré par le téléphone, identique à celui envoyé au serveur
- * (idempotence, voir backend/src/routes/mobileSync.ts). */
+export type TypeScanLocal = "piece" | "decision" | "courrier" | "convocation" | "autre";
+
+/** Élément local (Prompt 4 objectifs A-D, Prompt 5 objectifs A-C) - un
+ * enregistrement audio, un scan ou une note en attente d'envoi, de
+ * confirmation ou de classement. `clientId` est l'id stable généré par le
+ * téléphone, identique à celui envoyé au serveur (idempotence, voir
+ * backend/src/routes/mobileSync.ts). Les champs spécifiques à un type
+ * (`dureeSecondes`/`nombreSegments`/`marqueurs` pour l'audio,
+ * `nombrePages`/`typeScan` pour un scan) restent optionnels pour les autres
+ * types plutôt que des interfaces séparées - même table/même cycle de
+ * statuts pour les trois, voir sync/elements.ts. */
 export interface ElementLocal {
   clientId: string;
-  type: "audio";
+  type: "audio" | "scan" | "note";
   statut: StatutElementLocal;
   dossierId: string | null;
-  dureeSecondes: number;
   creeLe: string;
-  nombreSegments: number;
-  marqueurs: MarqueurLocal[];
   noteTexte: string | null;
   derniereErreurEnvoi: string | null;
+  // Audio (Prompt 4) :
+  dureeSecondes?: number;
+  nombreSegments?: number;
+  marqueurs?: MarqueurLocal[];
+  // Scan (Prompt 5, objectif A/B) :
+  nombrePages?: number;
+  typeScan?: TypeScanLocal;
 }
 
 let db: SQLite.SQLiteDatabase | null = null;
@@ -118,6 +129,16 @@ export async function enregistrerElementLocal(element: ElementLocal): Promise<vo
     element.statut,
     chiffre,
   ]);
+}
+
+export async function obtenirElementLocal(clientId: string): Promise<ElementLocal | null> {
+  const base = await obtenirDb();
+  const ligne = await base.getFirstAsync<{ donnees_chiffrees: string }>(
+    "SELECT donnees_chiffrees FROM elements_locaux WHERE client_id = ?",
+    [clientId]
+  );
+  if (!ligne) return null;
+  return JSON.parse(await dechiffrerTexte(ligne.donnees_chiffrees)) as ElementLocal;
 }
 
 export async function listerElementsLocaux(): Promise<ElementLocal[]> {
