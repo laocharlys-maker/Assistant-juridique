@@ -295,10 +295,12 @@
           <div id="actions-list"></div>
           <div id="agenda-section"></div>
           <div id="courriers-section"></div>
+          <div id="mobile-items-section"></div>
           <div id="pieces-section"></div>
         `;
 
         renderCourriersSection(dossier);
+        renderMobileItemsSection(dossier);
 
         if (!currentDossierEstRecherche) {
           initTimerWidget(id, me);
@@ -792,6 +794,82 @@
         <div class="card">
           <h2 style="margin-top:0;">Courriers (${entrants.length + sortants.length})</h2>
           ${[...entrants.map(ligneEntrant), ...sortants.map(ligneSortant)].join("") || '<p class="muted">Aucun courrier rattaché à ce dossier.</p>'}
+        </div>`;
+    }
+
+    // Lot 10 (Aurore Mobile) : audios/notes/scans recus du telephone et
+    // rattaches a ce dossier, mais pas encore transformes en document/
+    // courrier/evenement (statut "traite", voir routes/dossiers.ts qui
+    // inclut maintenant dossier.mobileItems). Avant cette section, ces
+    // elements restaient invisibles depuis la fiche dossier - uniquement
+    // retrouvables dans la Boite de reception mobile.
+    const MARQUEUR_LABELS = {
+      prochaine_audience: "📅 Prochaine audience",
+      decision: "⚖️ Décision",
+      a_faire: "✅ À faire",
+      point_important: "⭐ Point important",
+    };
+
+    function formatPositionAudio(positionMs) {
+      const totalSecondes = Math.floor(positionMs / 1000);
+      const minutes = Math.floor(totalSecondes / 60);
+      const secondes = totalSecondes % 60;
+      return `${minutes}:${String(secondes).padStart(2, "0")}`;
+    }
+
+    function renderMobileItemAudio(item) {
+      // Seul repere a la fois structure et fiable sans transcription : la
+      // date de "prochaine audience" posee pendant l'enregistrement. Les
+      // champs textuels du compte-rendu (decision rendue, deroulement des
+      // debats...) restent a ecouter et rediger par l'avocat - aucune
+      // transcription automatique de l'audio dans ce lot (decision produit
+      // du 2026-10-11 : pas d'IA sur le contenu parle pour l'instant).
+      const repereAudience = item.marqueurs.find((m) => m.type === "prochaine_audience" && m.dateAudience);
+      const lienCr = `/nouvelle-action.html?dossierId=${item.dossierId}&type=notes${
+        repereAudience ? `&prochaineAudience=${encodeURIComponent(repereAudience.dateAudience)}` : ""
+      }`;
+      const reperes = item.marqueurs
+        .slice()
+        .sort((a, b) => a.positionMs - b.positionMs)
+        .map(
+          (m) =>
+            `<span class="tag" title="${formatPositionAudio(m.positionMs)}">${MARQUEUR_LABELS[m.type] || m.type} (${formatPositionAudio(m.positionMs)})</span>`
+        )
+        .join(" ");
+
+      return `
+        <div class="action-item">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
+            <span class="muted">🎙️ Audio mobile — ${item.dureeSecondes ? formatPositionAudio(item.dureeSecondes * 1000) : "?"} — reçu le ${new Date(item.recuLe).toLocaleString("fr-FR")}</span>
+            <a class="secondary" href="${lienCr}" style="display:inline-block; text-decoration:none; padding:6px 12px; border-radius:6px;">Générer un CR</a>
+          </div>
+          <audio controls preload="none" style="width:100%; margin-top:8px;" src="/api/mobile/elements/${item.id}/audio"></audio>
+          ${reperes ? `<div style="margin-top:8px;">${reperes}</div>` : ""}
+        </div>`;
+    }
+
+    function renderMobileItemAutre(item) {
+      const libelle = item.type === "scan" ? "📄 Scan" : "📝 Note";
+      return `
+        <a class="action-item" href="/mobile-boite-reception.html" style="display:block; text-decoration:none; color:inherit;">
+          <span class="muted">${libelle} — reçu le ${new Date(item.recuLe).toLocaleString("fr-FR")}</span>
+          <div class="muted" style="margin-top:4px;">À classer depuis la Boîte de réception mobile.</div>
+        </a>`;
+    }
+
+    function renderMobileItemsSection(dossier) {
+      const section = document.getElementById("mobile-items-section");
+      if (!section) return;
+      const items = dossier.mobileItems || [];
+      if (items.length === 0) {
+        section.innerHTML = "";
+        return;
+      }
+
+      section.innerHTML = `
+        <div class="card">
+          <h2 style="margin-top:0;">Éléments mobiles en attente (${items.length})</h2>
+          ${items.map((item) => (item.type === "audio" ? renderMobileItemAudio(item) : renderMobileItemAutre(item))).join("")}
         </div>`;
     }
 

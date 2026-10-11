@@ -292,6 +292,16 @@ dossiersRouter.get("/api/dossiers/:id", requireAuth, async (req, res) => {
         orderBy: { createdAt: "desc" },
         select: { id: true, numero: true, objet: true, destinataire: true, statut: true, createdAt: true },
       },
+      // Lot 10 (Aurore Mobile) : audios/notes/scans rattaches a ce dossier
+      // depuis la Boite de reception mobile mais pas encore transformes en
+      // document/courrier/evenement (statut "traite") - jusqu'ici invisibles
+      // depuis la fiche dossier elle-meme (uniquement retrouvables dans la
+      // Boite de reception mobile), voir docs/lot10/00-audit.md.
+      mobileItems: {
+        where: { statut: "a_traiter" },
+        orderBy: { recuLe: "desc" },
+        include: { marqueurs: true },
+      },
     },
   });
 
