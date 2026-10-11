@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -46,6 +46,15 @@ export default function EnregistrementScreen({ navigation, route }: Props) {
   // (300ms) - sinon le selecteur de date revient sans cesse a "maintenant"
   // pendant que l'utilisateur essaie de choisir une autre date.
   const [dateInitiale] = useState(() => new Date());
+  // Reference stable (useCallback, jamais recreee a chaque battement du
+  // chrono) - sur Android, le DateTimePicker rouvre sa boite de dialogue
+  // native chaque fois que sa prop onChange change de reference, ce qui
+  // annulait la selection en cours de l'utilisateur plusieurs fois par
+  // seconde et ramenait l'affichage a la date du jour.
+  const onChangeDate = useCallback((evenement: { type: string }, date?: Date) => {
+    setAfficherDate(false);
+    if (evenement.type === "set" && date) definirDateProchaineAudience(date.toISOString());
+  }, []);
 
   useEffect(() => {
     const intervalle = setInterval(() => {
@@ -99,14 +108,7 @@ export default function EnregistrementScreen({ navigation, route }: Props) {
       </View>
 
       {afficherDate && (
-        <DateTimePicker
-          value={dateInitiale}
-          mode="date"
-          onChange={(evenement, date) => {
-            setAfficherDate(false);
-            if (evenement.type === "set" && date) definirDateProchaineAudience(date.toISOString());
-          }}
-        />
+        <DateTimePicker value={dateInitiale} mode="date" onChange={onChangeDate} />
       )}
 
       <Pressable style={styles.boutonTerminer} onPress={terminer}>

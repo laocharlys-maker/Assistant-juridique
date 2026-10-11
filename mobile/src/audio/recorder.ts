@@ -97,6 +97,14 @@ async function traiterSegmentsEnAttente(): Promise<void> {
       fichierClair.delete();
       session.segments.push({ numero: indexSequentiel, dureeMs: seg.dureeMs });
       session.dureeAccumuleeMs += seg.dureeMs;
+      // Sans ce reset, "temps ecoule" (ci-dessous) continuait a compter
+      // depuis le TOUT DEBUT de l'enregistrement meme apres qu'un segment
+      // ait deja ete ajoute a dureeAccumuleeMs - chaque segment termine
+      // etait alors compte deux fois (une fois dans dureeAccumuleeMs, une
+      // fois dans le temps "en cours" qui n'avait jamais redemarre), d'ou
+      // le chrono qui doublait progressivement (visible pile a la premiere
+      // rotation de segment, ~60s).
+      session.debutSegmentCourantMs = Date.now();
     } catch {
       // Un segment illisible/corrompu est simplement perdu (quelques
       // dizaines de secondes au pire) - jamais bloquant pour la suite.
