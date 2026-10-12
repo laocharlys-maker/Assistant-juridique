@@ -6,6 +6,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Matrix
 import android.graphics.Paint
+import android.media.ExifInterface
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import java.io.File
@@ -38,8 +39,7 @@ class ImageWarpModule : Module() {
 
   private fun redresserImage(cheminSource: String, coins: List<Map<String, Double>>, cheminDestination: String): String {
     require(coins.size == 4) { "4 coins attendus (haut-gauche, haut-droit, bas-droit, bas-gauche)." }
-    val source = BitmapFactory.decodeFile(cheminSource)
-      ?: throw IllegalStateException("Image source illisible: $cheminSource")
+    val source = decoderPhotoOrienteeCorrectement(cheminSource)
 
     try {
       val points = coins.map { Pair(it["x"] ?: 0.0, it["y"] ?: 0.0) }
@@ -75,8 +75,12 @@ class ImageWarpModule : Module() {
         val peinture = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
         canvas.drawBitmap(source, matrice, peinture)
 
+        // 92 plutot que 85 - l'utilisateur a note une qualite "entamee" en
+        // plus de l'etirement (celui-ci corrige ci-dessus) ; un document a
+        // relire (attestation, piece...) merite un peu plus de nettete que
+        // ce qu'il faudrait pour une simple photo de loisir.
         File(cheminDestination).outputStream().use { sortie ->
-          resultat.compress(Bitmap.CompressFormat.JPEG, 85, sortie)
+          resultat.compress(Bitmap.CompressFormat.JPEG, 92, sortie)
         }
       } finally {
         resultat.recycle()
@@ -89,4 +93,37 @@ class ImageWarpModule : Module() {
 
   private fun distance(a: Pair<Double, Double>, b: Pair<Double, Double>): Double =
     hypot(a.first - b.first, a.second - b.second)
+
+  /**
+   * `BitmapFactory.decodeFile` ignore TOUJOURS la balise EXIF "Orientation"
+   * d'un JPEG - il decode les pixels bruts du capteur, pas l'image telle
+   * qu'affichee a l'ecran. Beaucoup d'appareils Android (dont visiblement
+   * celui de test) ecrivent le JPEG en orientation "paysage capteur" avec
+   * une balise de rotation, plutot que de pivoter les pixels eux-memes.
+   * Sans cette correction, les coins (calcules cote JS dans l'espace de
+   * coordonnees AFFICHE, donc deja correct) etaient appliques sur une image
+   * dans la MAUVAISE orientation - d'ou le rendu etire/deforme constate par
+   * l'utilisateur, pas juste une perte de qualite JPEG.
+   */
+  private fun decoderPhotoOrienteeCorrectement(cheminSource: String): Bitmap {
+    val brut = BitmapFactory.decodeFile(cheminSource)
+      ?: throw IllegalStateException("Image source illisible: $cheminSource")
+    val orientation = try {
+      ExifInterface(cheminSource).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
+    } catch (_: Exception) {
+      ExifInterface.ORIENTATION_NORMAL
+    }
+    val rotationDegres = when (orientation) {
+      ExifInterface.ORIENTATION_ROTATE_90 -> 90f
+      ExifInterface.ORIENTATION_ROTATE_180 -> 180f
+      ExifInterface.ORIENTATION_ROTATE_270 -> 270f
+      else -> 0f
+    }
+    if (rotationDegres == 0f) return brut
+
+    val matricePivot = Matrix().apply { postRotate(rotationDegres) }
+    val tourne = Bitmap.createBitmap(brut, 0, 0, brut.width, brut.height, matricePivot, true)
+    if (tourne !== brut) brut.recycle()
+    return tourne
+  }
 }
