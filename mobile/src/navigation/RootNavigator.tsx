@@ -38,7 +38,7 @@ export default function RootNavigator({ ecranInitial }: { ecranInitial: keyof Ro
       <Stack.Screen name="Appairage" options={{ title: "Connecter à Aurore", headerBackVisible: false }}>
         {({ navigation }) => <AppairageScreen onAppaire={() => navigation.replace("Accueil")} />}
       </Stack.Screen>
-      <Stack.Screen name="Accueil" component={AccueilScreen} options={{ title: "Aurore Mobile", headerBackVisible: false }} />
+      <Stack.Screen name="Accueil" component={AccueilScreen} options={{ headerShown: false }} />
       <Stack.Screen name="Dossiers" component={DossiersScreen} options={{ title: "Mes dossiers" }} />
       <Stack.Screen name="Reglages" component={ReglagesScreen} options={{ title: "Réglages" }} />
       <Stack.Screen name="SpikeAudio" component={SpikeAudioScreen} options={{ title: "Spike audio (test interne)" }} />

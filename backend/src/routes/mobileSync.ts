@@ -93,8 +93,14 @@ mobileSyncRouter.post("/api/m/appairage/statut/:deviceId", async (req, res) => {
   return res.json({ statut: req.mobileDevice!.statut });
 });
 
+// Nom + role renvoyes avec le ping (deja appele toutes les 15s par
+// l'accueil) - affichage "Bienvenue <nom>" cote telephone, et role pour
+// une eventuelle consultation de dossiers en lecture seule reservee aux
+// avocats (jamais aux collaborateurs), sans appel reseau supplementaire.
 mobileSyncRouter.post("/api/m/ping", async (req, res) => {
-  return res.json({ ok: true, cabinetId: req.mobileDevice!.cabinetId });
+  const device = req.mobileDevice!;
+  const user = await prisma.user.findUnique({ where: { id: device.userId }, select: { nom: true, role: true } });
+  return res.json({ ok: true, cabinetId: device.cabinetId, nomUtilisateur: user?.nom ?? null, role: user?.role ?? null });
 });
 
 // À partir d'ici, l'appareil doit être autorisé.

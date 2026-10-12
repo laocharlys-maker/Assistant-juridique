@@ -309,16 +309,35 @@ export async function testerConnexion(): Promise<boolean> {
 
 export type EtatConnexion = "connecte" | "introuvable" | "revoque";
 
+export interface InfosConnexion {
+  etat: EtatConnexion;
+  nomUtilisateur: string | null;
+  role: string | null;
+}
+
 /** Même ping que testerConnexion, mais distingue "Aurore introuvable sur
  * ce réseau" d'un appareil révoqué (Prompt 6, objectif E) - l'accueil
  * affiche un message clair et différent dans ce dernier cas, plutôt que le
- * message réseau générique. */
-export async function verifierEtatConnexion(): Promise<EtatConnexion> {
+ * message réseau générique. Renvoie aussi le nom/rôle du titulaire de
+ * l'appareil (déjà inclus dans la réponse du ping côté serveur) pour
+ * l'affichage "Bienvenue <nom>", sans appel réseau supplémentaire. */
+export async function verifierEtatConnexion(): Promise<InfosConnexion> {
   try {
-    const reponse = await envoyerRequeteAuthentifiee<{ ok: boolean }>("/api/m/ping", {});
-    return reponse.ok === true ? "connecte" : "introuvable";
+    const reponse = await envoyerRequeteAuthentifiee<{ ok: boolean; nomUtilisateur?: string | null; role?: string | null }>(
+      "/api/m/ping",
+      {}
+    );
+    return {
+      etat: reponse.ok === true ? "connecte" : "introuvable",
+      nomUtilisateur: reponse.nomUtilisateur ?? null,
+      role: reponse.role ?? null,
+    };
   } catch (erreur) {
-    return erreur instanceof AppareilRevoqueError ? "revoque" : "introuvable";
+    return {
+      etat: erreur instanceof AppareilRevoqueError ? "revoque" : "introuvable",
+      nomUtilisateur: null,
+      role: null,
+    };
   }
 }
 
