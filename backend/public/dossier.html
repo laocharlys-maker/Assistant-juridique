@@ -843,7 +843,9 @@
       // transcription automatique de l'audio dans ce lot (decision produit
       // du 2026-10-11 : pas d'IA sur le contenu parle pour l'instant).
       const repereAudience = item.marqueurs.find((m) => m.type === "prochaine_audience" && m.dateAudience);
-      const lienCr = `/nouvelle-action.html?dossierId=${item.dossierId}&type=notes${
+      // itemId transmis pour le double ecran audio+formulaire (voir
+      // nouvelle-action.html, initialiserPanneauAudio).
+      const lienCr = `/nouvelle-action.html?dossierId=${item.dossierId}&type=notes&itemId=${item.id}${
         repereAudience ? `&prochaineAudience=${encodeURIComponent(repereAudience.dateAudience)}` : ""
       }`;
       const reperes = item.marqueurs

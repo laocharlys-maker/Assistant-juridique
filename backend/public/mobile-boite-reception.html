@@ -268,7 +268,7 @@
       if (!currentElement.dossier) return;
       const repereAudience = (currentElement.marqueurs || []).find((m) => m.type === "prochaine_audience" && m.dateAudience);
       const suffixeDate = repereAudience ? `&prochaineAudience=${encodeURIComponent(repereAudience.dateAudience)}` : "";
-      irAPagina(`/nouvelle-action.html?dossierId=${currentElement.dossier.id}&type=notes${suffixeDate}`);
+      irAPagina(`/nouvelle-action.html?dossierId=${currentElement.dossier.id}&type=notes&itemId=${currentElement.id}${suffixeDate}`);
     });
 
     document.getElementById("detail-ajouter-calendrier-btn").addEventListener("click", async () => {

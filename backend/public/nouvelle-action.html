@@ -190,7 +190,21 @@
         <button type="button" class="secondary" id="reset-form-btn">Nouvelle génération</button>
       </div>
 
-      <div class="card">
+      <!-- Double écran audio + formulaire (arrivée depuis un audio mobile,
+           voir dossier.html/mobile-boite-reception.html, bouton "Générer un
+           CR" avec ?itemId=...) - écoute et redaction en meme temps plutot
+           que de naviguer entre deux pages. Reste cache (donc sans effet
+           sur la mise en page a une seule colonne) si aucun itemId n'est
+           fourni ou si l'element n'est pas un audio. -->
+      <div id="na-split-layout" style="display:flex; gap:20px; align-items:flex-start; flex-wrap:wrap;">
+        <div id="na-audio-panel" class="card" style="display:none; width:360px; flex-shrink:0; position:sticky; top:20px;">
+          <h2 style="margin-top:0;">🎙️ Audio</h2>
+          <p class="muted" id="na-audio-meta"></p>
+          <audio id="na-audio-player" controls preload="metadata" style="width:100%;"></audio>
+          <div id="na-audio-marqueurs" style="margin-top:12px; display:flex; flex-direction:column; gap:6px;"></div>
+        </div>
+
+        <div class="card" style="flex:1; min-width:0;">
       <form id="notes-form" class="action-form">
         <label>Numéro de dossier</label>
         <input name="numero_dossier" list="dossiers-datalist" required />
@@ -1299,6 +1313,7 @@
         <button type="submit">Traduire</button>
         <p class="muted" style="margin-top:8px;">Traduction fidèle, sans ajout ni interprétation. Les textes longs sont découpés puis recomposés automatiquement.</p>
       </form>
+        </div>
       </div>
     </div>
   </div>
@@ -1354,6 +1369,7 @@
       // appelee - le mecanisme entier restait inactif sur cette page.
       await loadDossiersForAutofill();
       preselectionnerDossierDepuisUrl();
+      initialiserPanneauAudio();
       try {
         naHuissiersDisponibles = await apiFetch("/api/huissiers");
       } catch {
@@ -1676,6 +1692,66 @@
           inputProchaineAudience.dispatchEvent(new Event("input", { bubbles: true }));
         }
       }
+    }
+
+    const MARQUEUR_LABELS_NA = {
+      prochaine_audience: "📅 Prochaine audience",
+      decision: "⚖️ Décision",
+      a_faire: "✅ À faire",
+      point_important: "⭐ Point important",
+    };
+
+    function formatPositionAudioNa(positionMs) {
+      const totalSecondes = Math.floor(positionMs / 1000);
+      const minutes = Math.floor(totalSecondes / 60);
+      const secondes = totalSecondes % 60;
+      return `${minutes}:${String(secondes).padStart(2, "0")}`;
+    }
+
+    /** Double écran audio + formulaire (voir dossier.html et
+     * mobile-boite-reception.html, bouton "Générer un CR" qui transmet
+     * maintenant ?itemId=...) - écoute et rédaction en même temps plutôt
+     * que de changer de page. Ne fait rien (reste en une seule colonne) si
+     * aucun itemId n'est fourni, ou si l'élément n'est pas un audio
+     * accessible (dossier non trouvé, accès révoqué entre-temps...). */
+    async function initialiserPanneauAudio() {
+      const params = new URLSearchParams(window.location.search);
+      const itemId = params.get("itemId");
+      if (!itemId) return;
+
+      let element;
+      try {
+        element = await apiFetch(`/api/mobile/elements/${itemId}`);
+      } catch {
+        return;
+      }
+      if (!element || element.type !== "audio") return;
+
+      const panneau = document.getElementById("na-audio-panel");
+      const player = document.getElementById("na-audio-player");
+      player.src = `/api/mobile/elements/${itemId}/audio`;
+
+      const auteur = element.device && element.device.user ? element.device.user.nom : element.device.nomDeclare;
+      document.getElementById("na-audio-meta").textContent =
+        `Enregistré le ${new Date(element.creeLeSurAppareil || element.recuLe).toLocaleString("fr-FR")} par ${auteur}`;
+
+      const marqueursEl = document.getElementById("na-audio-marqueurs");
+      marqueursEl.innerHTML = (element.marqueurs || [])
+        .slice()
+        .sort((a, b) => a.positionMs - b.positionMs)
+        .map(
+          (m) =>
+            `<button type="button" class="ghost btn-sm" data-seek-ms="${m.positionMs}" style="text-align:left;">${MARQUEUR_LABELS_NA[m.type] || m.type} — ${formatPositionAudioNa(m.positionMs)}</button>`
+        )
+        .join("");
+      marqueursEl.querySelectorAll("[data-seek-ms]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          player.currentTime = Number(btn.dataset.seekMs) / 1000;
+          player.play();
+        });
+      });
+
+      panneau.style.display = "block";
     }
 
     const forms = {
