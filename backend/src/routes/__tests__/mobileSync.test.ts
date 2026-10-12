@@ -299,6 +299,39 @@ describe("accès réservé aux appareils autorisés (POST /api/m/dossiers)", () 
     expect(res.status).toBe(403);
   });
 
+  // Prompt 7, objectif D - "la revocation coupe IMMEDIATEMENT l'acces" :
+  // pas seulement un cas statique (appareil deja revoque des le depart),
+  // mais la transition elle-meme entre deux requetes consecutives, sans
+  // aucun cache serveur du statut de l'appareil.
+  it("coupe l'accès dès la requête suivant une révocation, sans aucun délai ni cache", async () => {
+    const tel = genererPaireClesX25519();
+    const deviceId = "a1b2c3d4-0000-4000-8000-000000000001";
+    const appareilAutorise = {
+      id: deviceId,
+      cabinetId: "cabinet-1",
+      userId: "user-1",
+      statut: "autorise",
+      clePublique: tel.clePubliqueBase64,
+      dernierCompteur: null,
+    };
+    prismaMock.mobileDevice.findUnique.mockResolvedValueOnce(appareilAutorise);
+    prismaMock.mobileDevice.update.mockResolvedValue({});
+    const res1 = await api("/api/m/ping", construireRequeteAppareil(tel.clePriveeKeyObject, deviceId, 1, {}));
+    expect(res1.status).toBe(200);
+
+    // Revocation simulee entre les deux requetes (ce que
+    // PATCH /api/mobile/appareils/:id/revoquer fait reellement, voir
+    // routes/mobileAppareils.ts:128-133) - le mock Prisma renvoie
+    // maintenant le statut mis a jour, EXACTEMENT comme le ferait un vrai
+    // SELECT apres l'UPDATE.
+    prismaMock.mobileDevice.findUnique.mockResolvedValueOnce({ ...appareilAutorise, statut: "revoque" });
+    const res2 = await api(
+      "/api/m/dossiers",
+      construireRequeteAppareil(tel.clePriveeKeyObject, deviceId, 2, {})
+    );
+    expect(res2.status).toBe(403);
+  });
+
   it("renvoie les dossiers accessibles à l'utilisateur lié, avec la prochaine audience", async () => {
     const tel = genererPaireClesX25519();
     const deviceId = "a9adfa22-2cbf-4567-a5da-ce54450e5e49";
