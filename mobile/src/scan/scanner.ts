@@ -38,7 +38,16 @@ export function demarrerScan(): { clientId: string } {
   if (session) throw new ScanDejaEnCoursError();
   verifierEspaceDisponible();
   const clientId = Crypto.randomUUID();
-  const dossierTravail = new Directory(Paths.cache, "scan-tmp", clientId);
+  // Directory.create() n'est PAS recursif - le dossier parent doit deja
+  // exister avant de creer le sous-dossier du clientId, sinon ca plante
+  // (meme bug deja rencontre et corrige sur l'audio, voir
+  // demarrerEnregistrement dans audio/recorder.ts - oublie ici par
+  // inattention, confirme par un vrai crash sur appareil : "FileSystem
+  // Directory.create a ete rejete : le dossier existe deja ou n'a pas pu
+  // etre cree").
+  const dossierParent = new Directory(Paths.cache, "scan-tmp");
+  dossierParent.create({ idempotent: true });
+  const dossierTravail = new Directory(dossierParent, clientId);
   dossierTravail.create({ idempotent: true });
   session = { clientId, dossierTravail, pages: [] };
   return { clientId };
