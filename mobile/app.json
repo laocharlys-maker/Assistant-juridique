@@ -62,7 +62,8 @@
         }
       ],
       "@react-native-community/datetimepicker",
-      "expo-audio"
+      "expo-audio",
+      "expo-sharing"
     ],
     "extra": {
       "eas": {

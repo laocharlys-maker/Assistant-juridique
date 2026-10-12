@@ -1,0 +1,21 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!-- Sans cette declaration <queries>, Android 11+ masque la presence de
+       ces paquets a PackageManager.getPackageInfo() meme s'ils sont bien
+       installes (restriction de visibilite des paquets) - la detection
+       root par paquet connu (DeviceIntegrityModule.kt) serait alors
+       toujours silencieusement negative. -->
+  <queries>
+    <package android:name="com.topjohnwu.magisk" />
+    <package android:name="com.noshufou.android.su" />
+    <package android:name="com.noshufou.android.su.elite" />
+    <package android:name="eu.chainfire.supersu" />
+    <package android:name="com.koushikdutta.superuser" />
+    <package android:name="com.thirdparty.superuser" />
+    <package android:name="com.yellowes.su" />
+    <package android:name="com.kingroot.kinguser" />
+    <package android:name="com.kingo.root" />
+    <package android:name="com.smedialink.oneclickroot" />
+    <package android:name="com.zhiqupk.root.global" />
+    <package android:name="com.alephzain.framaroot" />
+  </queries>
+</manifest>

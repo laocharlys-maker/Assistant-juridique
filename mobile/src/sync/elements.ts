@@ -12,6 +12,7 @@ import {
   majProgressionEnvoiElementLocal,
   type ElementLocal,
 } from "../storage/db";
+import { consignerErreur } from "../logs/journal";
 
 /**
  * Envoi des éléments locaux vers Aurore (Prompt 4 objectifs A/D, Prompt 5
@@ -180,6 +181,10 @@ async function envoyerElementSansVerrou(element: ElementLocal): Promise<void> {
     const { message, permanent } = classerErreurEnvoi(erreur);
     const prochaineTentativeAt = permanent ? null : calculerProchaineTentativeAt(element.nombreTentatives ?? 0);
     await majEchecEnvoiElementLocal(element.clientId, message, prochaineTentativeAt, permanent).catch(() => undefined);
+    // Prompt 7, objectif B - journal local SANS contenu : le message deja
+    // classifie ci-dessus est generique par construction (type d'erreur,
+    // jamais le texte d'une note ni un extrait audio) - voir logs/journal.ts.
+    consignerErreur("envoi_element", `type=${element.type} ${message}`).catch(() => undefined);
     throw erreur;
   }
 }

@@ -9,6 +9,7 @@ import {
   PcIntrouvableError,
   SecretInvalideError,
 } from "../pairing/appareil";
+import DeviceIntegrity from "../../modules/device-integrity/src/DeviceIntegrityModule";
 
 type Etape = "scan" | "connexion" | "attente" | "autorise" | "refuse" | "erreur";
 
@@ -56,6 +57,27 @@ export default function AppairageScreen({ onAppaire }: { onAppaire: () => void }
   async function surScan({ data }: { data: string }) {
     if (dejaTraiteRef.current) return;
     dejaTraiteRef.current = true;
+
+    // Prompt 7, objectif A - detection de debridage (root) : refuse
+    // l'appairage AVANT meme de lire/envoyer le secret du QR (jamais
+    // consomme sur un appareil suspect) - voir docs/lot10/07-securite.md
+    // pour les limites honnetes de cette detection (contournable par un
+    // utilisateur determine).
+    let appareilSuspect = false;
+    try {
+      appareilSuspect = DeviceIntegrity.estAppareilProbablementDebride();
+    } catch {
+      // Module natif indisponible (ex. ancien build) - jamais bloquant,
+      // mais jamais traite comme "suspect" non plus faute d'info fiable.
+    }
+    if (appareilSuspect) {
+      setMessage(
+        "Cet appareil semble débridé (root). Pour la sécurité des données du cabinet, l'appairage est refusé sur ce téléphone."
+      );
+      setEtape("refuse");
+      return;
+    }
+
     setEtape("connexion");
     setMessage("Connexion à l'ordinateur du cabinet…");
 

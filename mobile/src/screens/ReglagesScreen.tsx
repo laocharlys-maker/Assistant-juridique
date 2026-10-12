@@ -4,6 +4,7 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { definirAdressePc, oublierAppairage } from "../pairing/appareil";
 import { lireDelaiVerrouillageMinutes, definirDelaiVerrouillageMinutes } from "../lock/lock";
 import { lireValeur } from "../vault/vault";
+import { exporterJournal, PartageIndisponibleError } from "../logs/journal";
 import type { RootStackParamList } from "../navigation/RootNavigator";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Reglages">;
@@ -35,6 +36,18 @@ export default function ReglagesScreen({ navigation }: Props) {
   async function changerDelai(minutes: number) {
     setDelaiMinutes(minutes);
     await definirDelaiVerrouillageMinutes(minutes);
+  }
+
+  async function exporterLeJournal() {
+    try {
+      await exporterJournal();
+    } catch (erreur) {
+      if (erreur instanceof PartageIndisponibleError) {
+        Alert.alert("Indisponible", "Le partage de fichiers n'est pas disponible sur cet appareil.");
+      } else {
+        Alert.alert("Erreur", "Impossible d'exporter le journal.");
+      }
+    }
   }
 
   function confirmerOubliAppairage() {
@@ -76,6 +89,15 @@ export default function ReglagesScreen({ navigation }: Props) {
           </Pressable>
         ))}
       </View>
+
+      <Text style={[styles.section, { marginTop: 32 }]}>Support</Text>
+      <Text style={styles.aide}>
+        En cas de problème, exporte ce journal et envoie-le au support AzoMedIA - il ne contient aucun contenu de
+        dossier, uniquement des messages d&apos;erreur techniques génériques.
+      </Text>
+      <Pressable style={[styles.bouton, { backgroundColor: "#374151" }]} onPress={exporterLeJournal}>
+        <Text style={styles.boutonTexte}>Exporter le journal</Text>
+      </Pressable>
 
       <Pressable style={[styles.bouton, styles.boutonDanger, { marginTop: 40 }]} onPress={confirmerOubliAppairage}>
         <Text style={styles.boutonTexte}>Déconnecter cet appareil</Text>
