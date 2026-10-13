@@ -319,9 +319,19 @@ export async function compterCourriers(cabinetId: string) {
  * maintenir separement. Documentee ici comme nouvelle brique (contrainte du
  * prompt : documenter clairement si aucun mecanisme existant n'est reutilise).
  */
+// Compte via affecteAId OU CourrierAffectation : affecteAId seul ne
+// refleterait que le PREMIER collaborateur d'une affectation multiple (voir
+// affecterCourrierEntrant) - un deuxieme/troisieme collaborateur ne verrait
+// alors jamais ce badge. Garder aussi affecteAId directement (pas seulement
+// la relation) couvre les affectations faites AVANT l'introduction de
+// CourrierAffectation, pour lesquelles aucune ligne retroactive n'existe.
 export async function compterCourriersAffectesA(cabinetId: string, userId: string): Promise<number> {
   return prisma.courrierEntrant.count({
-    where: { cabinetId, affecteAId: userId, statut: { in: ["affecte", "en_traitement"] } },
+    where: {
+      cabinetId,
+      statut: { in: ["affecte", "en_traitement"] },
+      OR: [{ affecteAId: userId }, { affectations: { some: { collaborateurId: userId } } }],
+    },
   });
 }
 
@@ -422,10 +432,16 @@ export async function mettreAJourCourrierSortant(
 export async function affecterCourrierEntrant(
   id: string,
   cabinetId: string,
-  collaborateurIds: string[],
+  collaborateurIdsBruts: string[],
   affecteParId: string,
   note?: string
 ) {
+  // Deduplique avant toute chose : un doublon ferait echouer createMany
+  // (contrainte unique sur le couple courrier/collaborateur) ou declencherait
+  // a tort UTILISATEUR_INTROUVABLE ci-dessous (le compte d'utilisateurs
+  // distincts trouves ne correspondrait plus au nombre d'ids demandes).
+  const collaborateurIds = [...new Set(collaborateurIdsBruts)];
+
   const courrier = await prisma.courrierEntrant.findFirst({ where: { id, cabinetId } });
   if (!courrier) throw new Error("COURRIER_INTROUVABLE");
   // Meme perimetre de roles que GET /api/courriers-entrants-affectables

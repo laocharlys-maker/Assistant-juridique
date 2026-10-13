@@ -1749,8 +1749,13 @@
     }
 
     async function renvoyerValidation(actionId) {
+      // Note optionnelle transmise dans la notification a l'avocat (voir
+      // routes/commentairesRevision.ts) - annuler le prompt (Echap/Annuler)
+      // renvoie null, distinct d'une chaine vide volontaire ; les deux sont
+      // traites comme "pas de note".
+      const note = prompt("Note pour l'avocat (optionnel, laisser vide si aucune) :") || undefined;
       try {
-        await apiFetch(`/api/actions/${actionId}/renvoyer-validation`, { method: "POST" });
+        await apiFetch(`/api/actions/${actionId}/renvoyer-validation`, { method: "POST", body: { note } });
         window.location.reload();
       } catch (err) {
         alert(err.message);
