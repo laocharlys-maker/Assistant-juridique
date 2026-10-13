@@ -343,6 +343,7 @@ model Cabinet {
   planningsConges   PlanningConges[]
   periodesPaie      PeriodePaie[]
   fichesPaie        FichePaie[]
+  etatsPaiement     EtatPaiement[]
 
   @@map("cabinets")
 }
@@ -677,6 +678,7 @@ model PeriodePaie {
   cabinet       Cabinet           @relation(fields: [cabinetId], references: [id])
   ajustements   AjustementMensuel[]
   fichesPaie    FichePaie[]
+  etatPaiement  EtatPaiement?
 
   @@unique([cabinetId, mois])
   @@map("periodes_paie")
@@ -725,6 +727,7 @@ model FichePaie {
   fichePersonnel FichePersonnel   @relation(fields: [fichePersonnelId], references: [id])
   validePar      User?            @relation(fields: [valideParId], references: [id])
   lignes         FichePaieLigne[]
+  lignePaiement  LignePaiement?
 
   @@unique([periodePaieId, fichePersonnelId, version])
   @@index([cabinetId])
@@ -750,6 +753,51 @@ model FichePaieLigne {
 
   @@index([fichePaieId])
   @@map("fiches_paie_lignes")
+}
+
+// Module RH Cabinet, RH-6 (voir docs/rh/) - recapitulatif des montants a
+// payer pour une periode, genere UNIQUEMENT a partir des fiches de paie
+// VALIDEES (spec section 5.5). Recalculable tant qu'en brouillon (une
+// nouvelle fiche validee entre temps est alors incluse) ; verrouille a la
+// validation, qui cloture aussi la PeriodePaie (plus aucune fiche
+// modifiable ensuite). Jamais de paiement reellement declenche - Aurore
+// n'est qu'un registre de statut (spec section 2, exclusion explicite).
+model EtatPaiement {
+  id            String @id @default(uuid())
+  cabinetId     String @map("cabinet_id")
+  periodePaieId String @unique @map("periode_paie_id")
+  // "brouillon" | "valide"
+  statut        String @default("brouillon")
+  totalBrut     Int    @default(0) @map("total_brut")
+  totalRetenues Int    @default(0) @map("total_retenues")
+  totalNet      Int    @default(0) @map("total_net")
+  genereLe      DateTime @default(now()) @map("genere_le")
+  genereParId   String   @map("genere_par_id")
+
+  cabinet     Cabinet         @relation(fields: [cabinetId], references: [id])
+  periodePaie PeriodePaie     @relation(fields: [periodePaieId], references: [id])
+  generePar   User            @relation(fields: [genereParId], references: [id])
+  lignes      LignePaiement[]
+
+  @@map("etats_paiement")
+}
+
+model LignePaiement {
+  id             String   @id @default(uuid())
+  etatPaiementId String   @map("etat_paiement_id")
+  fichePaieId    String   @unique @map("fiche_paie_id")
+  // "virement" | "especes" | "mobile_money" | null (non renseigne sur la fiche personnel)
+  modePaiement   String?  @map("mode_paiement")
+  // "a_payer" | "paye"
+  statutPaiement String   @default("a_payer") @map("statut_paiement")
+  datePaiement   DateTime? @map("date_paiement")
+  reference      String?
+
+  etatPaiement EtatPaiement @relation(fields: [etatPaiementId], references: [id], onDelete: Cascade)
+  fichePaie    FichePaie    @relation(fields: [fichePaieId], references: [id])
+
+  @@index([etatPaiementId])
+  @@map("lignes_paiement")
 }
 
 model User {
@@ -874,6 +922,7 @@ model User {
   demandesAbsenceDecidees   DemandeAbsence[]    @relation("DemandeAbsenceDecidePar")
   planningsCongesGeneres    PlanningConges[]
   fichesPaieValidees        FichePaie[]
+  etatsPaiementGeneres      EtatPaiement[]
   stageProlongationsDecidees StageProlongation[] @relation("StageProlongationDecidePar")
 
   // Lot 11 (Partie A) : documents actuellement verrouilles par CET

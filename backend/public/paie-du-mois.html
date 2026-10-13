@@ -23,6 +23,17 @@
     </div>
 
     <div id="fiches-list"><p class="muted">Choisis un mois.</p></div>
+
+    <div class="card" id="etat-paiement-card" style="margin-top:20px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <h2 style="margin:0;">État de paiement</h2>
+        <div style="display:flex; gap:10px;">
+          <button type="button" class="secondary" id="generer-etat-btn">Générer / régénérer</button>
+          <button type="button" id="valider-etat-btn" hidden>Valider (clôture la période)</button>
+        </div>
+      </div>
+      <div id="etat-paiement-affichage"><p class="muted">Aucun état généré pour ce mois.</p></div>
+    </div>
   </div>
 
   <div class="modal-overlay" id="ajustement-modal" hidden>
@@ -63,6 +74,23 @@
     </div>
   </div>
 
+  <div class="modal-overlay" id="payer-modal" hidden>
+    <div class="modal-box">
+      <h2>Marquer comme payé</h2>
+      <form id="payer-form">
+        <label>Date de paiement</label>
+        <input type="date" name="datePaiement" />
+        <label>Référence <span class="muted">(optionnel)</span></label>
+        <input name="reference" placeholder="ex : n° de virement" />
+        <p class="error" id="payer-error"></p>
+        <div style="display:flex; gap:10px; margin-top:14px;">
+          <button type="submit">Confirmer</button>
+          <button type="button" class="secondary" id="payer-annuler-btn">Annuler</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <script src="/js/api.js"></script>
   <script src="/js/layout.js"></script>
   <script>
@@ -86,6 +114,63 @@
       } catch {
         listEl.innerHTML = '<p class="muted">Aucune période ouverte pour ce mois - clique sur "Ouvrir / régénérer la période".</p>';
       }
+      await chargerEtatPaiement(mois);
+    }
+
+    let etatCourant = null;
+    let ligneAPayer = null;
+    const STATUT_PAIEMENT_LABELS = { a_payer: "À payer", paye: "Payé" };
+    const MODE_LABELS = { virement: "Virement", especes: "Espèces", mobile_money: "Mobile Money" };
+
+    async function chargerEtatPaiement(mois) {
+      const affichage = document.getElementById("etat-paiement-affichage");
+      try {
+        etatCourant = await apiFetch(`/api/periodes-paie/${mois}/etat-paiement`);
+      } catch {
+        etatCourant = null;
+        affichage.innerHTML = '<p class="muted">Aucun état généré pour ce mois.</p>';
+        document.getElementById("valider-etat-btn").hidden = true;
+        return;
+      }
+      renderEtatPaiement();
+    }
+
+    function renderEtatPaiement() {
+      const estValide = etatCourant.statut === "valide";
+      document.getElementById("valider-etat-btn").hidden = estValide;
+      document.getElementById("generer-etat-btn").disabled = estValide;
+
+      document.getElementById("etat-paiement-affichage").innerHTML = `
+        <p class="meta">Statut : <span class="tag">${estValide ? "Validé" : "Brouillon"}</span> —
+          Total net : ${etatCourant.totalNet.toLocaleString("fr-FR")} F CFA
+          — <a href="/api/etats-paiement/${etatCourant.id}/export.pdf">Export PDF</a>
+          · <a href="/api/etats-paiement/${etatCourant.id}/export.csv">Export CSV</a>
+        </p>
+        <table>
+          <tr><th style="text-align:left;">Employé</th><th>Net</th><th>Mode</th><th>Statut</th><th></th></tr>
+          ${etatCourant.lignes
+            .map((l) => {
+              const nom = `${l.fichePaie.fichePersonnel.nom}${l.fichePaie.fichePersonnel.prenoms ? " " + l.fichePaie.fichePersonnel.prenoms : ""}`;
+              return `
+            <tr>
+              <td>${nom}</td>
+              <td style="text-align:right;">${l.fichePaie.net.toLocaleString("fr-FR")} F CFA</td>
+              <td>${l.modePaiement ? MODE_LABELS[l.modePaiement] || l.modePaiement : "—"}</td>
+              <td style="text-align:center;"><span class="tag">${STATUT_PAIEMENT_LABELS[l.statutPaiement]}</span></td>
+              <td>${!estValide && l.statutPaiement === "a_payer" ? `<button type="button" class="btn-sm" data-payer="${l.id}">Marquer payé</button>` : ""}</td>
+            </tr>`;
+            })
+            .join("")}
+        </table>`;
+
+      document.querySelectorAll("[data-payer]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          ligneAPayer = btn.dataset.payer;
+          document.getElementById("payer-form").reset();
+          document.getElementById("payer-error").textContent = "";
+          document.getElementById("payer-modal").hidden = false;
+        });
+      });
     }
 
     function renderFiches(periode) {
@@ -195,6 +280,44 @@
           await apiFetch(`/api/fiches-paie/${ficheCible.fichePaieId}/annuler`, { method: "POST", body: { motif: fd.get("motif").trim() } });
           document.getElementById("annuler-modal").hidden = true;
           await chargerPeriode(ficheCible.mois);
+        } catch (err) {
+          errEl.textContent = err.message;
+        }
+      });
+
+      document.getElementById("generer-etat-btn").addEventListener("click", async () => {
+        try {
+          await apiFetch(`/api/periodes-paie/${moisInput.value}/etat-paiement`, { method: "POST" });
+          await chargerEtatPaiement(moisInput.value);
+        } catch (err) {
+          showError(document.getElementById("error"), err.message);
+        }
+      });
+      document.getElementById("valider-etat-btn").addEventListener("click", async () => {
+        if (!confirm("Valider l'état de paiement ? Cela clôture définitivement la période - plus aucune fiche ne sera modifiable.")) return;
+        try {
+          await apiFetch(`/api/etats-paiement/${etatCourant.id}/valider`, { method: "POST" });
+          await chargerEtatPaiement(moisInput.value);
+        } catch (err) {
+          showError(document.getElementById("error"), err.message);
+        }
+      });
+
+      document.getElementById("payer-annuler-btn").addEventListener("click", () => {
+        document.getElementById("payer-modal").hidden = true;
+      });
+      document.getElementById("payer-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const errEl = document.getElementById("payer-error");
+        errEl.textContent = "";
+        const fd = new FormData(e.target);
+        try {
+          await apiFetch(`/api/lignes-paiement/${ligneAPayer}`, {
+            method: "PATCH",
+            body: { statutPaiement: "paye", datePaiement: fd.get("datePaiement") || undefined, reference: fd.get("reference").trim() || undefined },
+          });
+          document.getElementById("payer-modal").hidden = true;
+          await chargerEtatPaiement(moisInput.value);
         } catch (err) {
           errEl.textContent = err.message;
         }
