@@ -67,6 +67,11 @@ const ENCRYPTED_FIELDS_BY_MODEL: Record<string, Record<string, "string" | "json"
     contactUrgence: "string",
     coordonneesPaiement: "string",
   },
+  // Module RH Cabinet (RH-3) : motif d'une demande d'absence (raison
+  // medicale, familiale...) - meme raisonnement que ci-dessus.
+  DemandeAbsence: {
+    motif: "string",
+  },
 };
 
 interface RelationInfo {

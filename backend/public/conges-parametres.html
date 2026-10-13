@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aurore — Paramètres des congés</title>
+  <link rel="icon" type="image/png" href="/favicon-256.png" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="page">
+    <div class="page-hero">
+      <div class="eyebrow">Cabinet</div>
+      <h1>Paramètres des congés</h1>
+      <p>Jours fériés et types d'absence du cabinet.</p>
+    </div>
+
+    <div id="error" class="error"></div>
+
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <h2 style="margin:0;">Jours fériés</h2>
+        <button type="button" id="ajouter-ferie-btn">+ Ajouter</button>
+      </div>
+      <div id="feries-list"><p class="muted">Chargement…</p></div>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-top:0;">Types d'absence</h2>
+      <div id="types-list"><p class="muted">Chargement…</p></div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="ferie-modal" hidden>
+    <div class="modal-box">
+      <h2>Ajouter un jour férié</h2>
+      <form id="ferie-form">
+        <label>Date</label>
+        <input type="date" name="date" required />
+        <label>Libellé</label>
+        <input name="libelle" required placeholder="ex : Fête de l'indépendance" />
+        <label style="display:flex; align-items:center; gap:8px; font-weight:400;">
+          <input type="checkbox" name="recurrentChaqueAnnee" style="width:auto;" /> Se répète chaque année (même jour/mois)
+        </label>
+        <p class="error" id="ferie-error"></p>
+        <div style="display:flex; gap:10px; margin-top:14px;">
+          <button type="submit">Ajouter</button>
+          <button type="button" class="secondary" id="ferie-annuler-btn">Annuler</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/layout.js"></script>
+  <script>
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str ?? "";
+      return div.innerHTML;
+    }
+
+    async function chargerFeries() {
+      const listEl = document.getElementById("feries-list");
+      const jours = await apiFetch("/api/jours-feries");
+      if (jours.length === 0) {
+        listEl.innerHTML = '<p class="muted">Aucun jour férié enregistré.</p>';
+        return;
+      }
+      listEl.innerHTML = jours
+        .map(
+          (j) => `
+        <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--border);">
+          <div>${new Date(j.date).toLocaleDateString("fr-FR")} — ${escapeHtml(j.libelle)}${j.recurrentChaqueAnnee ? ' <span class="tag">chaque année</span>' : ""}</div>
+          <button type="button" class="danger btn-sm" data-supprimer-ferie="${j.id}">Supprimer</button>
+        </div>`
+        )
+        .join("");
+      listEl.querySelectorAll("[data-supprimer-ferie]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          if (!confirm("Supprimer ce jour férié ?")) return;
+          try {
+            await apiFetch(`/api/jours-feries/${btn.dataset.supprimerFerie}`, { method: "DELETE" });
+            await chargerFeries();
+          } catch (err) {
+            showError(document.getElementById("error"), err.message);
+          }
+        });
+      });
+    }
+
+    async function chargerTypes() {
+      const listEl = document.getElementById("types-list");
+      const types = await apiFetch("/api/types-absence");
+      listEl.innerHTML = `<table>
+        <tr><th style="text-align:left;">Libellé</th><th>Décompte le solde</th><th>Rémunéré</th><th>Justificatif requis</th></tr>
+        ${types
+          .map(
+            (t) => `<tr>
+          <td>${escapeHtml(t.libelle)}</td>
+          <td style="text-align:center;">${t.decompteSolde ? "✔" : "—"}</td>
+          <td style="text-align:center;">${t.remunere ? "✔" : "—"}</td>
+          <td style="text-align:center;">${t.justificatifRequis ? "✔" : "—"}</td>
+        </tr>`
+          )
+          .join("")}
+      </table>
+      <p class="muted" style="margin-top:10px;">Les types d'absence par défaut sont créés automatiquement. Contacte le support pour une modification.</p>`;
+    }
+
+    (async () => {
+      const me = await requireSession();
+      if (!me) return;
+      initLayout(me);
+
+      const modal = document.getElementById("ferie-modal");
+      const form = document.getElementById("ferie-form");
+      const errEl = document.getElementById("ferie-error");
+
+      document.getElementById("ajouter-ferie-btn").addEventListener("click", () => {
+        form.reset();
+        errEl.textContent = "";
+        modal.hidden = false;
+      });
+      document.getElementById("ferie-annuler-btn").addEventListener("click", () => {
+        modal.hidden = true;
+      });
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        errEl.textContent = "";
+        const fd = new FormData(form);
+        try {
+          await apiFetch("/api/jours-feries", {
+            method: "POST",
+            body: { date: fd.get("date"), libelle: fd.get("libelle").trim(), recurrentChaqueAnnee: fd.get("recurrentChaqueAnnee") === "on" },
+          });
+          modal.hidden = true;
+          await chargerFeries();
+        } catch (err) {
+          errEl.textContent = err.message;
+        }
+      });
+
+      await Promise.all([chargerFeries(), chargerTypes()]);
+    })();
+  </script>
+</body>
+</html>

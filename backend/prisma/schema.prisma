@@ -309,6 +309,10 @@ model Cabinet {
   // jobs/purgeAudioMobile.ts). Ne s'applique jamais aux scans/notes, ni a
   // un element pas encore traite.
   mobileConservationAudioJours        Int?      @map("mobile_conservation_audio_jours")
+  // Module RH Cabinet, RH-3 - le samedi compte-t-il comme jour ouvre pour
+  // le calcul des conges ? Faux par defaut (semaine de 5 jours), voir
+  // services/conges.ts, calculerJoursOuvres().
+  rhSamediOuvre                       Boolean   @default(false) @map("rh_samedi_ouvre")
   createdAt                           DateTime  @default(now()) @map("created_at")
 
   mobileDevices MobileDevice[]
@@ -333,6 +337,9 @@ model Cabinet {
   notifications     Notification[]
   fichesPersonnel   FichePersonnel[]
   stages            Stage[]
+  typesAbsence      TypeAbsence[]
+  joursFeries       JourFerie[]
+  demandesAbsence   DemandeAbsence[]
 
   @@map("cabinets")
 }
@@ -397,6 +404,8 @@ model FichePersonnel {
   user      User?      @relation(fields: [userId], references: [id])
   auditLogs AuditLog[]
   stages    Stage[]
+  soldesConges    SoldeConges[]
+  demandesAbsence DemandeAbsence[]
 
   @@index([cabinetId])
   @@map("fiches_personnel")
@@ -467,6 +476,95 @@ model StageRappelEnvoye {
 
   @@unique([stageId, palier])
   @@map("stage_rappels_envoyes")
+}
+
+// Module RH Cabinet, RH-3 (voir docs/rh/) - types d'absence PARAMETRABLES
+// par le titulaire (contrairement a categorie/typeContrat de FichePersonnel,
+// ceux-la sont bien une vraie table, pas une chaine libre - la spec les
+// decrit comme modifiables, avec des valeurs par defaut creees a
+// l'activation, voir ensureTypesAbsenceParDefaut() dans
+// services/conges.ts).
+model TypeAbsence {
+  id                 String  @id @default(uuid())
+  cabinetId          String  @map("cabinet_id")
+  libelle            String
+  decompteSolde      Boolean @default(true) @map("decompte_solde")
+  remunere           Boolean @default(true)
+  justificatifRequis Boolean @default(false) @map("justificatif_requis")
+  actif              Boolean @default(true)
+
+  cabinet  Cabinet          @relation(fields: [cabinetId], references: [id])
+  demandes DemandeAbsence[]
+
+  @@index([cabinetId])
+  @@map("types_absence")
+}
+
+model JourFerie {
+  id                  String   @id @default(uuid())
+  cabinetId           String   @map("cabinet_id")
+  date                DateTime
+  libelle             String
+  recurrentChaqueAnnee Boolean @default(false) @map("recurrent_chaque_annee")
+
+  cabinet Cabinet @relation(fields: [cabinetId], references: [id])
+
+  @@index([cabinetId])
+  @@map("jours_feries")
+}
+
+// Jours PRIS = calcules depuis DemandeAbsence (statut approuvee, type
+// decompteSolde=true), jamais duplique ici - seuls droitJours/reportJours
+// sont des valeurs saisies. Float (pas Int) : une demi-journee compte pour
+// 0.5.
+model SoldeConges {
+  id              String @id @default(uuid())
+  fichePersonnelId String @map("fiche_personnel_id")
+  annee           Int
+  droitJours      Float  @default(0) @map("droit_jours")
+  reportJours     Float  @default(0) @map("report_jours")
+
+  fichePersonnel FichePersonnel @relation(fields: [fichePersonnelId], references: [id])
+
+  @@unique([fichePersonnelId, annee])
+  @@map("soldes_conges")
+}
+
+model DemandeAbsence {
+  id               String   @id @default(uuid())
+  cabinetId        String   @map("cabinet_id")
+  fichePersonnelId String   @map("fiche_personnel_id")
+  typeAbsenceId    String   @map("type_absence_id")
+
+  dateDebut         DateTime @map("date_debut")
+  dateFin           DateTime @map("date_fin")
+  demiJourneeDebut  Boolean  @default(false) @map("demi_journee_debut")
+  demiJourneeFin    Boolean  @default(false) @map("demi_journee_fin")
+  nbJoursOuvres     Float    @map("nb_jours_ouvres")
+  // "en_attente" | "approuvee" | "refusee" | "annulee"
+  statut            String   @default("en_attente")
+  // RH-4 (planning automatique) : rempli si cette demande provient d'une
+  // ligne de planning valide - pas de relation Prisma pour l'instant
+  // (PlanningCongesLigne n'existe pas encore), simple reference textuelle.
+  planningLigneId   String?  @map("planning_ligne_id")
+  decideParId       String?  @map("decide_par_id")
+  dateDecision      DateTime? @map("date_decision")
+  commentaireDecision String? @map("commentaire_decision")
+  // Chiffre au repos (encryptionAtRest.ts) - motif potentiellement sensible
+  // (raison medicale, familiale...), jamais en clair en base.
+  motif             String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  cabinet        Cabinet         @relation(fields: [cabinetId], references: [id])
+  fichePersonnel FichePersonnel  @relation(fields: [fichePersonnelId], references: [id])
+  typeAbsence    TypeAbsence     @relation(fields: [typeAbsenceId], references: [id])
+  decidePar      User?           @relation("DemandeAbsenceDecidePar", fields: [decideParId], references: [id])
+
+  @@index([cabinetId])
+  @@index([fichePersonnelId])
+  @@index([statut])
+  @@map("demandes_absence")
 }
 
 model User {
@@ -587,6 +685,7 @@ model User {
   // (notifications J-30/J-15/J-7/J-0), et prolongations qu'il/elle a
   // decidees.
   stagesResponsable         Stage[]             @relation("StageResponsable")
+  demandesAbsenceDecidees   DemandeAbsence[]    @relation("DemandeAbsenceDecidePar")
   stageProlongationsDecidees StageProlongation[] @relation("StageProlongationDecidePar")
 
   // Lot 11 (Partie A) : documents actuellement verrouilles par CET

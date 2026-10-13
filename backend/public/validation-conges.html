@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aurore — Validation des congés</title>
+  <link rel="icon" type="image/png" href="/favicon-256.png" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="page">
+    <div class="page-hero">
+      <div class="eyebrow">Cabinet</div>
+      <h1>Validation des congés</h1>
+      <p>Demandes d'absence en attente de décision.</p>
+    </div>
+
+    <div id="error" class="error"></div>
+    <div id="demandes-list"><p class="muted">Chargement…</p></div>
+  </div>
+
+  <div class="modal-overlay" id="decision-modal" hidden>
+    <div class="modal-box">
+      <h2 id="decision-titre">Décision</h2>
+      <form id="decision-form">
+        <label>Commentaire <span class="muted">(optionnel)</span></label>
+        <textarea name="commentaire" rows="3"></textarea>
+        <p class="error" id="decision-error"></p>
+        <div style="display:flex; gap:10px; margin-top:14px;">
+          <button type="submit" id="decision-confirmer-btn">Confirmer</button>
+          <button type="button" class="secondary" id="decision-annuler-btn">Annuler</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/layout.js"></script>
+  <script>
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str ?? "";
+      return div.innerHTML;
+    }
+
+    let demandeEnCours = null;
+    let decisionEnCours = null;
+
+    async function chargerDemandes() {
+      const listEl = document.getElementById("demandes-list");
+      try {
+        const demandes = await apiFetch("/api/demandes-absence?statut=en_attente");
+        if (demandes.length === 0) {
+          listEl.innerHTML = '<p class="muted">Aucune demande en attente.</p>';
+          return;
+        }
+        listEl.innerHTML = demandes
+          .map((d) => {
+            const nom = `${d.fichePersonnel.nom}${d.fichePersonnel.prenoms ? " " + d.fichePersonnel.prenoms : ""}`;
+            return `
+          <div class="card" style="margin-bottom:12px;">
+            <strong>${escapeHtml(nom)}</strong> — ${escapeHtml(d.typeAbsence.libelle)}
+            <div class="meta">${new Date(d.dateDebut).toLocaleDateString("fr-FR")} → ${new Date(d.dateFin).toLocaleDateString("fr-FR")} (${d.nbJoursOuvres} j)</div>
+            ${d.motif ? `<div class="meta">Motif : ${escapeHtml(d.motif)}</div>` : ""}
+            <div style="display:flex; gap:10px; margin-top:10px;">
+              <button type="button" data-approuver="${d.id}">Approuver</button>
+              <button type="button" class="danger" data-refuser="${d.id}">Refuser</button>
+            </div>
+          </div>`;
+          })
+          .join("");
+
+        listEl.querySelectorAll("[data-approuver]").forEach((btn) => {
+          btn.addEventListener("click", () => ouvrirDecision(btn.dataset.approuver, "approuvee"));
+        });
+        listEl.querySelectorAll("[data-refuser]").forEach((btn) => {
+          btn.addEventListener("click", () => ouvrirDecision(btn.dataset.refuser, "refusee"));
+        });
+      } catch (err) {
+        listEl.innerHTML = `<p class="error visible">${escapeHtml(err.message)}</p>`;
+      }
+    }
+
+    function ouvrirDecision(id, decision) {
+      demandeEnCours = id;
+      decisionEnCours = decision;
+      document.getElementById("decision-titre").textContent = decision === "approuvee" ? "Approuver la demande" : "Refuser la demande";
+      document.getElementById("decision-form").reset();
+      document.getElementById("decision-error").textContent = "";
+      document.getElementById("decision-modal").hidden = false;
+    }
+
+    (async () => {
+      const me = await requireSession();
+      if (!me) return;
+      initLayout(me);
+
+      document.getElementById("decision-annuler-btn").addEventListener("click", () => {
+        document.getElementById("decision-modal").hidden = true;
+      });
+      document.getElementById("decision-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const errEl = document.getElementById("decision-error");
+        errEl.textContent = "";
+        const fd = new FormData(e.target);
+        try {
+          await apiFetch(`/api/demandes-absence/${demandeEnCours}/decision`, {
+            method: "PATCH",
+            body: { decision: decisionEnCours, commentaire: fd.get("commentaire").trim() || undefined },
+          });
+          document.getElementById("decision-modal").hidden = true;
+          await chargerDemandes();
+        } catch (err) {
+          errEl.textContent = err.message;
+        }
+      });
+
+      chargerDemandes();
+    })();
+  </script>
+</body>
+</html>

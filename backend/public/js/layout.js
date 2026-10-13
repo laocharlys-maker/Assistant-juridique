@@ -87,6 +87,13 @@ const NAV_ITEMS = [
   // avocat/collaborateur ne voit que ceux dont il/elle est responsable,
   // voir routes/stages.ts).
   { href: "/stages.html", label: "Stages", roles: ["titulaire", "avocat", "collaborateur"], group: "Cabinet", icon: "clock", moduleKey: "rh" },
+  // RH-3 - "Mes conges" (tous), "Validation conges"/"Parametres conges"
+  // (titulaire uniquement, pas de delegation possible sans Lot 9), "Absences
+  // de l'equipe" (tous, jamais de motif - voir routes/conges.ts).
+  { href: "/mes-conges.html", label: "Mes congés", roles: ["titulaire", "avocat", "collaborateur"], group: "Cabinet", icon: "calendar", moduleKey: "rh" },
+  { href: "/absences-equipe.html", label: "Absences de l'équipe", roles: ["titulaire", "avocat", "collaborateur"], group: "Cabinet", icon: "team", moduleKey: "rh" },
+  { href: "/validation-conges.html", label: "Validation congés", roles: ["titulaire"], group: "Cabinet", icon: "audit", moduleKey: "rh" },
+  { href: "/conges-parametres.html", label: "Paramètres congés", roles: ["titulaire"], group: "Cabinet", icon: "settings", moduleKey: "rh" },
   { href: "/audit-logs.html", label: "Journal d'audit", roles: ["titulaire"], group: "Cabinet", icon: "audit" },
   { href: "/parametres.html", label: "Paramètres", roles: ["titulaire"], group: "Cabinet", icon: "settings" },
   { href: "/admin-tableau-de-bord.html", label: "Tableau de bord", roles: ["super_admin"], group: "Plateforme", icon: "dashboard" },

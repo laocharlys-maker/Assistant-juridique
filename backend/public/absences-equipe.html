@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aurore — Absences de l'équipe</title>
+  <link rel="icon" type="image/png" href="/favicon-256.png" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="page">
+    <div class="page-hero">
+      <div class="eyebrow">Cabinet</div>
+      <h1>Absences de l'équipe</h1>
+      <p>Qui est absent dans les 30 prochains jours — jamais le motif, ici seulement "Absent".</p>
+    </div>
+
+    <div id="error" class="error"></div>
+    <div id="absences-list"><p class="muted">Chargement…</p></div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/layout.js"></script>
+  <script>
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str ?? "";
+      return div.innerHTML;
+    }
+
+    (async () => {
+      const me = await requireSession();
+      if (!me) return;
+      initLayout(me);
+
+      const listEl = document.getElementById("absences-list");
+      try {
+        const debut = new Date().toISOString().slice(0, 10);
+        const fin = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10);
+        const absences = await apiFetch(`/api/conges/calendrier-equipe?debut=${debut}&fin=${fin}`);
+        if (absences.length === 0) {
+          listEl.innerHTML = '<p class="muted">Personne d\'absent sur cette période.</p>';
+          return;
+        }
+        listEl.innerHTML = absences
+          .map(
+            (a) => `
+          <div class="dossier-item">
+            <div>
+              <div><strong>${escapeHtml(a.nom)}</strong> <span class="tag">${escapeHtml(a.libelle)}</span></div>
+              <div class="meta">Du ${new Date(a.dateDebut).toLocaleDateString("fr-FR")} au ${new Date(a.dateFin).toLocaleDateString("fr-FR")}</div>
+            </div>
+          </div>`
+          )
+          .join("");
+      } catch (err) {
+        listEl.innerHTML = `<p class="error visible">${escapeHtml(err.message)}</p>`;
+      }
+    })();
+  </script>
+</body>
+</html>
