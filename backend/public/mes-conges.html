@@ -31,6 +31,16 @@
         </div>
         <div id="demandes-list"><p class="muted">Chargement…</p></div>
       </div>
+
+      <div class="card">
+        <h2 style="margin-top:0;">Mes souhaits de congés <span id="souhaits-annee"></span></h2>
+        <p class="muted">Jusqu'à 3 souhaits classés — le titulaire essaiera d'abord le n°1, puis le n°2, puis le n°3, lors de la génération du planning annuel.</p>
+        <form id="souhaits-form">
+          <div id="souhaits-champs"></div>
+          <p class="error" id="souhaits-error"></p>
+          <button type="submit">Enregistrer mes souhaits</button>
+        </form>
+      </div>
     </div>
   </div>
 
@@ -85,6 +95,23 @@
           <tr><th style="text-align:left; padding:4px 12px 4px 0; color:var(--muted);">Pris</th><td>${solde.joursPris} j</td></tr>
           <tr><th style="text-align:left; padding:4px 12px 4px 0; color:var(--muted); font-weight:700;">Solde restant</th><td><strong>${solde.soldeRestant} j</strong></td></tr>
         </table>`;
+    }
+
+    async function chargerSouhaits() {
+      const annee = new Date().getFullYear() + 1;
+      const souhaits = await apiFetch(`/api/personnel/${maFicheId}/souhaits-conges?annee=${annee}`);
+      const parRang = new Map(souhaits.map((s) => [s.rang, s]));
+      document.getElementById("souhaits-champs").innerHTML = [1, 2, 3]
+        .map((rang) => {
+          const s = parRang.get(rang);
+          return `
+        <label>Souhait n°${rang}</label>
+        <div style="display:flex; gap:10px;">
+          <input type="date" name="souhait${rang}Debut" value="${s ? s.dateDebut.slice(0, 10) : ""}" />
+          <input type="date" name="souhait${rang}Fin" value="${s ? s.dateFin.slice(0, 10) : ""}" />
+        </div>`;
+        })
+        .join("");
     }
 
     async function chargerDemandes() {
@@ -142,6 +169,7 @@
 
       await chargerSolde();
       await chargerDemandes();
+      await chargerSouhaits();
 
       const modal = document.getElementById("demande-modal");
       const form = document.getElementById("demande-form");
@@ -181,6 +209,29 @@
           await chargerDemandes();
         } catch (err) {
           errEl.textContent = err.message;
+        }
+      });
+
+      const annonceSouhaits = new Date().getFullYear() + 1;
+      document.getElementById("souhaits-annee").textContent = annonceSouhaits;
+      document.getElementById("souhaits-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const errElSouhaits = document.getElementById("souhaits-error");
+        errElSouhaits.textContent = "";
+        const souhaits = [];
+        for (let rang = 1; rang <= 3; rang++) {
+          const debut = document.querySelector(`[name="souhait${rang}Debut"]`).value;
+          const fin = document.querySelector(`[name="souhait${rang}Fin"]`).value;
+          if (debut && fin) souhaits.push({ rang, dateDebut: debut, dateFin: fin });
+        }
+        try {
+          await apiFetch(`/api/personnel/${maFicheId}/souhaits-conges`, {
+            method: "POST",
+            body: { annee: annonceSouhaits, souhaits },
+          });
+          showToast("Souhaits enregistrés.");
+        } catch (err) {
+          errElSouhaits.textContent = err.message;
         }
       });
     })();

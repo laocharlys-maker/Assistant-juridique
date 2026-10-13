@@ -280,6 +280,14 @@
                 <span class="badge badge-${dossier.statutTag}">${STATUT_TAG_LABELS[dossier.statutTag] || dossier.statutTag}</span>
                 <h1>${escapeHtml(dossier.numeroDossier)} — ${escapeHtml(dossier.nomAffaire)}</h1>
                 <p class="muted">Client : ${escapeHtml(dossier.nomClient)} · Juridiction : ${escapeHtml(dossier.nomJuridiction || "non précisée")}${dossier.nomChambre ? " (" + escapeHtml(dossier.nomChambre) + ")" : ""} · créé par ${escapeHtml(dossier.creePar.nom)}</p>
+                ${
+                  !currentDossierEstRecherche && (me.role === "titulaire" || me.role === "avocat")
+                    ? `<p class="muted">Avocat responsable (module RH - évite un congé le jour d'une audience) :
+                        <select id="avocat-responsable-select" style="width:auto; display:inline-block; margin:0 0 0 6px;"><option value="">— Non défini —</option></select></p>`
+                    : dossier.avocatResponsable
+                      ? `<p class="muted">Avocat responsable : ${escapeHtml(dossier.avocatResponsable.nom)}</p>`
+                      : ""
+                }
                 ${dossier.archivedAt ? `<p class="muted">Archivé automatiquement le ${formatDateLongue(dossier.archivedAt)} — toujours consultable, réactivable via "Rouvrir le dossier".</p>` : ""}
                 ${
                   currentDossierEstRecherche
@@ -324,6 +332,28 @@
           initTimerWidget(id, me);
           loadAgendaDossier(id);
           loadPiecesDossier(id);
+        }
+
+        const avocatResponsableSelect = document.getElementById("avocat-responsable-select");
+        if (avocatResponsableSelect) {
+          apiFetch("/api/users/annuaire")
+            .then((annuaire) => {
+              const avocats = annuaire.filter((u) => u.role === "avocat" || u.role === "titulaire");
+              avocatResponsableSelect.innerHTML =
+                '<option value="">— Non défini —</option>' +
+                avocats.map((a) => `<option value="${a.id}" ${dossier.avocatResponsable && dossier.avocatResponsable.id === a.id ? "selected" : ""}>${escapeHtml(a.nom)}</option>`).join("");
+            })
+            .catch(() => undefined);
+          avocatResponsableSelect.addEventListener("change", async () => {
+            try {
+              await apiFetch(`/api/dossiers/${id}/avocat-responsable`, {
+                method: "PATCH",
+                body: { avocatResponsableId: avocatResponsableSelect.value || null },
+              });
+            } catch (err) {
+              alert(err.message);
+            }
+          });
         }
 
         const clotureBtn = document.getElementById("toggle-cloture-btn");

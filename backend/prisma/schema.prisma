@@ -340,6 +340,7 @@ model Cabinet {
   typesAbsence      TypeAbsence[]
   joursFeries       JourFerie[]
   demandesAbsence   DemandeAbsence[]
+  planningsConges   PlanningConges[]
 
   @@map("cabinets")
 }
@@ -406,6 +407,8 @@ model FichePersonnel {
   stages    Stage[]
   soldesConges    SoldeConges[]
   demandesAbsence DemandeAbsence[]
+  souhaitsConges  SouhaitConges[]
+  planningCongesLignes PlanningCongesLigne[]
 
   @@index([cabinetId])
   @@map("fiches_personnel")
@@ -543,9 +546,8 @@ model DemandeAbsence {
   nbJoursOuvres     Float    @map("nb_jours_ouvres")
   // "en_attente" | "approuvee" | "refusee" | "annulee"
   statut            String   @default("en_attente")
-  // RH-4 (planning automatique) : rempli si cette demande provient d'une
-  // ligne de planning valide - pas de relation Prisma pour l'instant
-  // (PlanningCongesLigne n'existe pas encore), simple reference textuelle.
+  // RH-4 (planning automatique) : rempli si cette demande provient de la
+  // validation d'une ligne de planning.
   planningLigneId   String?  @map("planning_ligne_id")
   decideParId       String?  @map("decide_par_id")
   dateDecision      DateTime? @map("date_decision")
@@ -560,11 +562,69 @@ model DemandeAbsence {
   fichePersonnel FichePersonnel  @relation(fields: [fichePersonnelId], references: [id])
   typeAbsence    TypeAbsence     @relation(fields: [typeAbsenceId], references: [id])
   decidePar      User?           @relation("DemandeAbsenceDecidePar", fields: [decideParId], references: [id])
+  planningLigne  PlanningCongesLigne? @relation(fields: [planningLigneId], references: [id])
 
   @@index([cabinetId])
   @@index([fichePersonnelId])
   @@index([statut])
   @@map("demandes_absence")
+}
+
+// Module RH Cabinet, RH-4 (voir docs/rh/) - 1 a 3 souhaits classes par
+// employe et par annee, tels quels (l'algorithme essaie rang 1 puis 2 puis
+// 3 - voir services/planningConges.ts).
+model SouhaitConges {
+  id               String   @id @default(uuid())
+  fichePersonnelId String   @map("fiche_personnel_id")
+  annee            Int
+  rang             Int
+  dateDebut        DateTime @map("date_debut")
+  dateFin          DateTime @map("date_fin")
+
+  fichePersonnel FichePersonnel @relation(fields: [fichePersonnelId], references: [id])
+
+  @@unique([fichePersonnelId, annee, rang])
+  @@map("souhaits_conges")
+}
+
+model PlanningConges {
+  id        String @id @default(uuid())
+  cabinetId String @map("cabinet_id")
+  annee     Int
+  // "brouillon" | "valide" | "archive"
+  statut    String @default("brouillon")
+  // { effectifMin: number, periodesBloquees: [{debut, fin}] } - saisi par le
+  // titulaire avant generation, voir routes/planningConges.ts.
+  parametres Json
+  genereLe   DateTime @default(now()) @map("genere_le")
+  genereParId String  @map("genere_par_id")
+
+  cabinet   Cabinet              @relation(fields: [cabinetId], references: [id])
+  generePar User                 @relation(fields: [genereParId], references: [id])
+  lignes    PlanningCongesLigne[]
+
+  @@unique([cabinetId, annee])
+  @@map("plannings_conges")
+}
+
+model PlanningCongesLigne {
+  id               String   @id @default(uuid())
+  planningId       String   @map("planning_id")
+  fichePersonnelId String   @map("fiche_personnel_id")
+  dateDebut        DateTime @map("date_debut")
+  dateFin          DateTime @map("date_fin")
+  nbJoursOuvres    Float    @map("nb_jours_ouvres")
+  // "souhait_1" | "souhait_2" | "souhait_3" | "ajuste_auto" | "manuel" |
+  // "non_place" (ligne presente mais sans date valide - signale au titulaire)
+  origine          String
+  raison           String?
+
+  planning       PlanningConges   @relation(fields: [planningId], references: [id], onDelete: Cascade)
+  fichePersonnel FichePersonnel   @relation(fields: [fichePersonnelId], references: [id])
+  demandes       DemandeAbsence[]
+
+  @@index([planningId])
+  @@map("plannings_conges_lignes")
 }
 
 model User {
@@ -646,6 +706,7 @@ model User {
   responsable         User?          @relation("ResponsableCollaborateurs", fields: [responsableId], references: [id])
   collaborateurs      User[]         @relation("ResponsableCollaborateurs")
   dossiersCrees       Dossier[]      @relation("DossierCreatedBy")
+  dossiersResponsable Dossier[]      @relation("DossierAvocatResponsable")
   actionsCreees       Action[]       @relation("ActionCreatedBy")
   // Corbeille (2026-10-07) : qui a envoye chaque element en corbeille.
   dossiersSupprimes   Dossier[]      @relation("DossierSupprimePar")
@@ -686,6 +747,7 @@ model User {
   // decidees.
   stagesResponsable         Stage[]             @relation("StageResponsable")
   demandesAbsenceDecidees   DemandeAbsence[]    @relation("DemandeAbsenceDecidePar")
+  planningsCongesGeneres    PlanningConges[]
   stageProlongationsDecidees StageProlongation[] @relation("StageProlongationDecidePar")
 
   // Lot 11 (Partie A) : documents actuellement verrouilles par CET
@@ -868,6 +930,13 @@ model Dossier {
   id             String    @id @default(uuid())
   cabinetId      String    @map("cabinet_id")
   clientId       String?   @map("client_id")
+  // Module RH Cabinet, RH-4 (voir docs/rh/00-audit.md, decision du
+  // 13/10/2026) : AVANT ce champ, aucun moyen fiable de savoir "quel avocat
+  // a une audience tel jour" (createdBy est juste le createur, pas
+  // forcement un avocat). Nullable : optionnel, jamais retroactivement
+  // rempli - sert uniquement a eviter un conflit audience/conge dans le
+  // planning automatique (services/planningConges.ts), aucun autre usage.
+  avocatResponsableId String? @map("avocat_responsable_id")
   numeroDossier  String    @map("numero_dossier")
   nomAffaire     String    @map("nom_affaire")
   nomClient      String    @map("nom_client")
@@ -897,10 +966,11 @@ model Dossier {
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
 
-  cabinet       Cabinet        @relation(fields: [cabinetId], references: [id])
-  client        Client?        @relation(fields: [clientId], references: [id])
-  creePar       User           @relation("DossierCreatedBy", fields: [createdBy], references: [id])
-  supprimePar   User?          @relation("DossierSupprimePar", fields: [supprimeParId], references: [id])
+  cabinet         Cabinet @relation(fields: [cabinetId], references: [id])
+  client          Client? @relation(fields: [clientId], references: [id])
+  creePar         User    @relation("DossierCreatedBy", fields: [createdBy], references: [id])
+  supprimePar     User?   @relation("DossierSupprimePar", fields: [supprimeParId], references: [id])
+  avocatResponsable User? @relation("DossierAvocatResponsable", fields: [avocatResponsableId], references: [id])
   actions       Action[]
   delaiCalculs  DelaiCalcul[]
   factures      Facture[]
