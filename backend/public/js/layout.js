@@ -345,23 +345,43 @@ async function initNotificationsCloche(me) {
     }
   }
 
+  // Diffusion ("notification de groupe") - ouverte a tout membre
+  // authentifie, y compris collaborateur (choix explicite, voir
+  // routes/notifications.ts).
+  function headerPanelHtml() {
+    return `
+      <div class="notif-panel-header">
+        <h3>Notifications</h3>
+        <button type="button" class="ghost btn-sm" id="notif-diffuser-btn" style="padding:4px 10px; margin:0;">Diffuser</button>
+      </div>`;
+  }
+
+  function cablerBoutonDiffuser() {
+    document.getElementById("notif-diffuser-btn")?.addEventListener("click", () => {
+      panel.hidden = true;
+      ouvrirModalDiffusion();
+    });
+  }
+
   async function ouvrirPanel() {
-    panel.innerHTML = '<p class="notif-panel-vide">Chargement…</p>';
+    panel.innerHTML = headerPanelHtml() + '<p class="notif-panel-vide">Chargement…</p>';
     panel.hidden = false;
     let notifications;
     try {
       notifications = await apiFetch("/api/notifications?limit=20");
     } catch {
-      panel.innerHTML = '<p class="notif-panel-vide">Notifications indisponibles.</p>';
+      panel.innerHTML = headerPanelHtml() + '<p class="notif-panel-vide">Notifications indisponibles.</p>';
+      cablerBoutonDiffuser();
       return;
     }
     if (notifications.length === 0) {
-      panel.innerHTML = '<p class="notif-panel-vide">Aucune notification.</p>';
+      panel.innerHTML = headerPanelHtml() + '<p class="notif-panel-vide">Aucune notification.</p>';
+      cablerBoutonDiffuser();
       return;
     }
-    panel.innerHTML = `
-      <div class="notif-panel-header"><h3>Notifications</h3></div>
-      ${notifications
+    panel.innerHTML =
+      headerPanelHtml() +
+      notifications
         .map(
           (n) => `
         <a class="notif-item${n.lu ? "" : " non-lue"}" href="${n.lienUrl || "#"}" data-notif-id="${n.id}">
@@ -370,8 +390,8 @@ async function initNotificationsCloche(me) {
           <div class="notif-item-date">${formatDateRelativeNotif(n.createdAt)}</div>
         </a>`
         )
-        .join("")}
-    `;
+        .join("");
+    cablerBoutonDiffuser();
     panel.querySelectorAll("[data-notif-id]").forEach((lien) => {
       lien.addEventListener("click", async () => {
         try {
@@ -381,6 +401,88 @@ async function initNotificationsCloche(me) {
         }
         rafraichirCompteur();
       });
+    });
+  }
+
+  async function ouvrirModalDiffusion() {
+    let membres;
+    try {
+      membres = await apiFetch("/api/users/annuaire");
+    } catch (err) {
+      alert("Impossible de charger la liste des membres du cabinet.");
+      return;
+    }
+
+    const ROLE_LABEL = { titulaire: "Titulaire", avocat: "Avocat", collaborateur: "Collaborateur" };
+    const overlay = document.createElement("div");
+    overlay.className = "modal-overlay";
+    overlay.id = "diffusion-overlay";
+    overlay.innerHTML = `
+      <div class="modal-box">
+        <h2>Diffuser une information</h2>
+        <p class="error" id="diffusion-error"></p>
+        <form id="diffusion-form">
+          <label>Titre</label>
+          <input name="titre" required maxlength="200" placeholder="ex : Fermeture du cabinet vendredi" />
+          <label>Message</label>
+          <textarea name="message" rows="4" required maxlength="5000"></textarea>
+          <label>Destinataires</label>
+          <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px;">
+            <button type="button" class="ghost btn-sm" data-diffusion-quick="tous" style="padding:4px 10px; margin:0;">Tout le cabinet</button>
+            <button type="button" class="ghost btn-sm" data-diffusion-quick="avocat" style="padding:4px 10px; margin:0;">Tous les avocats</button>
+            <button type="button" class="ghost btn-sm" data-diffusion-quick="collaborateur" style="padding:4px 10px; margin:0;">Tous les collaborateurs</button>
+            <button type="button" class="ghost btn-sm" data-diffusion-quick="aucun" style="padding:4px 10px; margin:0;">Tout désélectionner</button>
+          </div>
+          <div style="max-height:220px; overflow-y:auto; border:1px solid var(--border); border-radius:8px; padding:10px;">
+            ${membres
+              .map(
+                (m) => `
+              <label style="display:flex; align-items:center; gap:8px; font-weight:400; margin-bottom:6px;">
+                <input type="checkbox" name="destinataireIds" value="${m.id}" data-diffusion-role="${m.role}" />
+                ${escapeHtmlHeaderChrono(m.nom)} <span class="muted">— ${ROLE_LABEL[m.role] || m.role}</span>
+              </label>`
+              )
+              .join("")}
+          </div>
+          <div style="display:flex; gap:10px; margin-top:14px;">
+            <button type="submit">Envoyer</button>
+            <button type="button" class="secondary" id="diffusion-annuler-btn">Annuler</button>
+          </div>
+        </form>
+      </div>`;
+    document.body.appendChild(overlay);
+
+    overlay.querySelector("#diffusion-annuler-btn").addEventListener("click", () => overlay.remove());
+
+    overlay.querySelectorAll("[data-diffusion-quick]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const cible = btn.dataset.diffusionQuick;
+        overlay.querySelectorAll('[name="destinataireIds"]').forEach((cb) => {
+          cb.checked = cible === "tous" ? true : cible === "aucun" ? false : cb.dataset.diffusionRole === cible;
+        });
+      });
+    });
+
+    overlay.querySelector("#diffusion-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const errEl = overlay.querySelector("#diffusion-error");
+      errEl.textContent = "";
+      const fd = new FormData(e.target);
+      const destinataireIds = fd.getAll("destinataireIds");
+      if (destinataireIds.length === 0) {
+        errEl.textContent = "Choisis au moins un destinataire.";
+        return;
+      }
+      try {
+        await apiFetch("/api/notifications/diffusion", {
+          method: "POST",
+          body: { titre: fd.get("titre").trim(), message: fd.get("message").trim(), destinataireIds },
+        });
+        overlay.remove();
+        rafraichirCompteur();
+      } catch (err) {
+        errEl.textContent = err.message;
+      }
     });
   }
 

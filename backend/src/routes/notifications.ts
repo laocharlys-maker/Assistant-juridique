@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
+import { creerNotificationsMultiples } from "../services/notifications";
 
 export const notificationsRouter = Router();
 
@@ -49,4 +50,46 @@ notificationsRouter.post("/api/notifications/tout-lire", requireAuth, async (req
     data: { lu: true, luAt: new Date() },
   });
   return res.json({ ok: true });
+});
+
+const diffusionSchema = z.object({
+  titre: z.string().trim().min(1, "Le titre est requis.").max(200),
+  message: z.string().trim().min(1, "Le message est requis.").max(5000),
+  destinataireIds: z.array(z.string().uuid()).min(1, "Choisis au moins un destinataire."),
+});
+
+// Diffusion d'une information a plusieurs membres du cabinet a la fois -
+// ouvert a TOUT membre authentifie (titulaire, avocat ou collaborateur),
+// choix explicite de l'utilisateur. Reutilise le centre de notifications
+// existant (un meme titre/message, une ligne Notification par
+// destinataire) plutot qu'un nouveau mecanisme : le ciblage par role (ou
+// individuel) est resolu cote client (voir public/js/layout.js), ici on
+// valide juste que chaque id correspond bien a un membre actif de CE
+// cabinet.
+notificationsRouter.post("/api/notifications/diffusion", requireAuth, async (req, res) => {
+  const parsed = diffusionSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Requête invalide", details: parsed.error.issues });
+  }
+
+  const destinataires = await prisma.user.findMany({
+    where: { id: { in: parsed.data.destinataireIds }, cabinetId: req.auth!.cabinetId, actif: true },
+    select: { id: true },
+  });
+  if (destinataires.length === 0) {
+    return res.status(400).json({ error: "Aucun destinataire valide dans ce cabinet." });
+  }
+
+  await creerNotificationsMultiples(
+    destinataires.map((d) => d.id),
+    {
+      cabinetId: req.auth!.cabinetId,
+      type: "diffusion",
+      titre: parsed.data.titre,
+      message: parsed.data.message,
+      creeParId: req.auth!.userId,
+    }
+  );
+
+  return res.status(201).json({ ok: true, nombreDestinataires: destinataires.length });
 });
