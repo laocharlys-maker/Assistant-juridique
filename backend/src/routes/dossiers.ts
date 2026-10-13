@@ -230,6 +230,48 @@ dossiersRouter.get("/api/documents", requireAuth, requireModule("documents_gener
   return res.json({ scope, vue, documents: documentsAvecTag });
 });
 
+const creerDossierSchema = z.object({
+  numeroDossier: z.string().trim().min(1, "Le numéro de dossier est requis."),
+  nomAffaire: z.string().trim().min(1, "Le nom de l'affaire est requis."),
+  nomClient: z.string().trim().min(1, "Le nom du client est requis."),
+  nomJuridiction: z.string().trim().optional(),
+  nomChambre: z.string().trim().optional(),
+});
+
+// Creation directe d'un dossier (bouton "Creer un dossier" sur Mes
+// dossiers) - distinct de findOrCreateDossier (webActions.ts), qui resout
+// silencieusement un dossier existant pour les flux "Nouvelle action". Ici
+// un numero deja utilise dans ce cabinet est une vraie erreur (409) : on ne
+// veut jamais qu'un clic sur "Creer" rattache par surprise a un dossier
+// existant.
+dossiersRouter.post("/api/dossiers", requireAuth, async (req, res) => {
+  const { auth } = req;
+  const parsed = creerDossierSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Requête invalide", details: parsed.error.issues });
+  }
+
+  try {
+    const dossier = await prisma.dossier.create({
+      data: {
+        cabinetId: auth!.cabinetId,
+        numeroDossier: parsed.data.numeroDossier,
+        nomAffaire: parsed.data.nomAffaire,
+        nomClient: parsed.data.nomClient,
+        nomJuridiction: parsed.data.nomJuridiction || null,
+        nomChambre: parsed.data.nomChambre || null,
+        createdBy: auth!.userId,
+      },
+    });
+    return res.status(201).json({ dossier });
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      return res.status(409).json({ error: "Un dossier avec ce numéro existe déjà dans le cabinet." });
+    }
+    throw err;
+  }
+});
+
 dossiersRouter.get("/api/dossiers/:id", requireAuth, async (req, res) => {
   const { auth } = req;
 

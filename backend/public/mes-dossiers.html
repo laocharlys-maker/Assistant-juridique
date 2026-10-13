@@ -29,6 +29,7 @@
         <option value="echeance_proche">Échéance proche</option>
       </select>
       <button type="button" class="ghost" id="voir-archives-btn">Voir les archives</button>
+      <button type="button" id="creer-dossier-btn">+ Créer un dossier</button>
     </div>
 
     <div id="error" class="error"></div>
@@ -37,6 +38,30 @@
       <div id="dossiers-list"><p class="muted">Chargement…</p></div>
     </div>
   </div>
+
+  <div class="modal-overlay" id="creer-dossier-modal" hidden>
+    <div class="modal-box">
+      <h2>Créer un dossier</h2>
+      <form id="creer-dossier-form">
+        <label>Numéro de dossier</label>
+        <input name="numeroDossier" required placeholder="ex : 12/2026" />
+        <label>Nom de l'affaire</label>
+        <input name="nomAffaire" required placeholder="ex : Succession Kokou" />
+        <label>Nom du client</label>
+        <input name="nomClient" required placeholder="ex : Jean Kokou" />
+        <label>Juridiction <span class="muted">(optionnel)</span></label>
+        <input name="nomJuridiction" placeholder="ex : Tribunal de Cotonou" />
+        <label>Chambre <span class="muted">(optionnel)</span></label>
+        <input name="nomChambre" />
+        <p class="error" id="creer-dossier-error"></p>
+        <div style="display:flex; gap:10px; margin-top:14px;">
+          <button type="submit">Créer le dossier</button>
+          <button type="button" class="ghost" id="creer-dossier-annuler-btn">Annuler</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <script src="/js/api.js"></script>
   <script src="/js/layout.js"></script>
   <script>
@@ -169,6 +194,40 @@
         archivesBtn.textContent = currentVue === "archives" ? "Voir les dossiers actifs" : "Voir les archives";
         synchroniserUrlOngletsDossiers();
         loadListe();
+      });
+
+      const creerModal = document.getElementById("creer-dossier-modal");
+      const creerForm = document.getElementById("creer-dossier-form");
+      const creerErrorEl = document.getElementById("creer-dossier-error");
+
+      document.getElementById("creer-dossier-btn").addEventListener("click", () => {
+        creerForm.reset();
+        creerErrorEl.textContent = "";
+        creerModal.hidden = false;
+      });
+      document.getElementById("creer-dossier-annuler-btn").addEventListener("click", () => {
+        creerModal.hidden = true;
+      });
+      creerForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        creerErrorEl.textContent = "";
+        const fd = new FormData(creerForm);
+        const body = {
+          numeroDossier: fd.get("numeroDossier").trim(),
+          nomAffaire: fd.get("nomAffaire").trim(),
+          nomClient: fd.get("nomClient").trim(),
+          nomJuridiction: fd.get("nomJuridiction").trim() || undefined,
+          nomChambre: fd.get("nomChambre").trim() || undefined,
+        };
+        try {
+          const { dossier } = await apiFetch("/api/dossiers", { method: "POST", body });
+          // Direct vers la fiche dossier : c'est la ou "Ajouter une piece"
+          // (glisser-deposer / choisir un fichier) existe deja - inutile de
+          // dupliquer cet upload ici.
+          window.location.href = `/dossier.html?id=${dossier.id}`;
+        } catch (err) {
+          creerErrorEl.textContent = err.message;
+        }
       });
 
       loadListe();
