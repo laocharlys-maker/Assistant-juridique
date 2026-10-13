@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aurore — Fiche employé</title>
+  <link rel="icon" type="image/png" href="/favicon-256.png" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="page">
+    <div class="page-hero">
+      <div class="eyebrow">Personnel</div>
+      <h1 id="fiche-nom">Chargement…</h1>
+      <p id="fiche-sous-titre"></p>
+    </div>
+
+    <div id="error" class="error"></div>
+
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <h2 style="margin:0;">Informations</h2>
+        <button type="button" class="secondary" id="modifier-btn" hidden>Modifier</button>
+      </div>
+      <div id="infos-affichage"></div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modifier-modal" hidden>
+    <div class="modal-box">
+      <h2>Modifier la fiche</h2>
+      <form id="modifier-form">
+        <label>Nom</label>
+        <input name="nom" required />
+        <label>Prénoms <span class="muted">(optionnel)</span></label>
+        <input name="prenoms" />
+        <label>Catégorie</label>
+        <select name="categorie" required>
+          <option value="avocat">Avocat</option>
+          <option value="collaborateur">Collaborateur</option>
+          <option value="stagiaire">Stagiaire</option>
+          <option value="secretariat">Secrétariat</option>
+          <option value="comptable">Comptable</option>
+          <option value="autre">Autre</option>
+        </select>
+        <label>Fonction <span class="muted">(optionnel)</span></label>
+        <input name="fonction" />
+        <label>Type de contrat</label>
+        <select name="typeContrat" required>
+          <option value="cdi">CDI</option>
+          <option value="cdd">CDD</option>
+          <option value="stage">Stage</option>
+          <option value="liberal">Libéral</option>
+          <option value="autre">Autre</option>
+        </select>
+        <label>Date d'entrée</label>
+        <input type="date" name="dateEntree" required />
+        <label>Téléphone <span class="muted">(optionnel)</span></label>
+        <input name="telephone" />
+        <label>Email <span class="muted">(optionnel)</span></label>
+        <input type="email" name="email" />
+        <label>Statut</label>
+        <select name="statut">
+          <option value="actif">Actif</option>
+          <option value="sorti">Sorti</option>
+        </select>
+        <label>Date de sortie <span class="muted">(si sorti)</span></label>
+        <input type="date" name="dateSortie" />
+        <p class="error" id="modifier-error"></p>
+        <div style="display:flex; gap:10px; margin-top:14px;">
+          <button type="submit">Enregistrer</button>
+          <button type="button" class="secondary" id="modifier-annuler-btn">Annuler</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/layout.js"></script>
+  <script>
+    const CATEGORIE_LABELS = {
+      avocat: "Avocat", collaborateur: "Collaborateur", stagiaire: "Stagiaire",
+      secretariat: "Secrétariat", comptable: "Comptable", autre: "Autre",
+    };
+    const CONTRAT_LABELS = { cdi: "CDI", cdd: "CDD", stage: "Stage", liberal: "Libéral", autre: "Autre" };
+
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get("id");
+    let fiche = null;
+
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str ?? "";
+      return div.innerHTML;
+    }
+    function ligneDate(iso) {
+      return iso ? new Date(iso).toLocaleDateString("fr-FR") : null;
+    }
+
+    async function charger() {
+      try {
+        fiche = await apiFetch(`/api/personnel/${id}`);
+      } catch (err) {
+        showError(document.getElementById("error"), err.message);
+        return;
+      }
+      document.getElementById("fiche-nom").textContent = `${fiche.nom}${fiche.prenoms ? " " + fiche.prenoms : ""}`;
+      document.getElementById("fiche-sous-titre").textContent =
+        `${CATEGORIE_LABELS[fiche.categorie] || fiche.categorie}${fiche.fonction ? " — " + fiche.fonction : ""}${fiche.statut === "sorti" ? " (sorti)" : ""}`;
+
+      const lignes = [
+        ["Type de contrat", CONTRAT_LABELS[fiche.typeContrat] || fiche.typeContrat],
+        ["Date d'entrée", ligneDate(fiche.dateEntree)],
+        ["Date de sortie", ligneDate(fiche.dateSortie)],
+        ["Téléphone", fiche.telephone],
+        ["Email", fiche.email],
+        ["Compte Aurore", fiche.user ? `${fiche.user.nom} (${fiche.user.email})` : "Aucun — employé sans accès à Aurore"],
+      ];
+      document.getElementById("infos-affichage").innerHTML = `<table>${lignes
+        .map(([label, valeur]) => `<tr><th style="text-align:left; padding:4px 12px 4px 0; vertical-align:top; color:var(--muted);">${label}</th><td>${valeur ? escapeHtml(String(valeur)) : '<span class="muted">— non renseigné —</span>'}</td></tr>`)
+        .join("")}</table>`;
+    }
+
+    (async () => {
+      const me = await requireSession();
+      if (!me) return;
+      initLayout(me);
+
+      if (!id) {
+        showError(document.getElementById("error"), "Fiche introuvable.");
+        return;
+      }
+
+      const estTitulaire = me.role === "titulaire";
+      const modifierBtn = document.getElementById("modifier-btn");
+      modifierBtn.hidden = !estTitulaire;
+
+      const modal = document.getElementById("modifier-modal");
+      const form = document.getElementById("modifier-form");
+      const errEl = document.getElementById("modifier-error");
+
+      modifierBtn.addEventListener("click", () => {
+        form.nom.value = fiche.nom;
+        form.prenoms.value = fiche.prenoms || "";
+        form.categorie.value = fiche.categorie;
+        form.fonction.value = fiche.fonction || "";
+        form.typeContrat.value = fiche.typeContrat;
+        form.dateEntree.value = fiche.dateEntree ? fiche.dateEntree.slice(0, 10) : "";
+        form.telephone.value = fiche.telephone || "";
+        form.email.value = fiche.email || "";
+        form.statut.value = fiche.statut;
+        form.dateSortie.value = fiche.dateSortie ? fiche.dateSortie.slice(0, 10) : "";
+        errEl.textContent = "";
+        modal.hidden = false;
+      });
+      document.getElementById("modifier-annuler-btn").addEventListener("click", () => {
+        modal.hidden = true;
+      });
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        errEl.textContent = "";
+        const fd = new FormData(form);
+        const body = {
+          nom: fd.get("nom").trim(),
+          prenoms: fd.get("prenoms").trim() || undefined,
+          categorie: fd.get("categorie"),
+          fonction: fd.get("fonction").trim() || undefined,
+          typeContrat: fd.get("typeContrat"),
+          dateEntree: fd.get("dateEntree"),
+          telephone: fd.get("telephone").trim() || undefined,
+          email: fd.get("email").trim() || undefined,
+          statut: fd.get("statut"),
+          dateSortie: fd.get("dateSortie") || null,
+        };
+        try {
+          await apiFetch(`/api/personnel/${id}`, { method: "PATCH", body });
+          modal.hidden = true;
+          await charger();
+        } catch (err) {
+          errEl.textContent = err.message;
+        }
+      });
+
+      charger();
+    })();
+  </script>
+</body>
+</html>

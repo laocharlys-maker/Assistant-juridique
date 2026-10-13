@@ -134,6 +134,30 @@ CREATE TABLE "huissiers" (
 );
 
 -- CreateTable
+CREATE TABLE "fiches_personnel" (
+    "id" TEXT NOT NULL,
+    "cabinet_id" TEXT NOT NULL,
+    "user_id" TEXT,
+    "nom" TEXT NOT NULL,
+    "prenoms" TEXT,
+    "categorie" TEXT NOT NULL,
+    "fonction" TEXT,
+    "type_contrat" TEXT NOT NULL,
+    "date_entree" TIMESTAMP(3) NOT NULL,
+    "date_sortie" TIMESTAMP(3),
+    "statut" TEXT NOT NULL DEFAULT 'actif',
+    "telephone" TEXT,
+    "email" TEXT,
+    "contact_urgence" TEXT,
+    "mode_paiement" TEXT,
+    "coordonnees_paiement" TEXT,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "fiches_personnel_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "users" (
     "id" TEXT NOT NULL,
     "cabinet_id" TEXT NOT NULL,
@@ -609,6 +633,7 @@ CREATE TABLE "audit_logs" (
     "action_id" TEXT,
     "courrier_entrant_id" TEXT,
     "courrier_sortant_id" TEXT,
+    "fiche_personnel_id" TEXT,
     "etape" TEXT NOT NULL,
     "statut" "StatutExecution" NOT NULL,
     "detail" TEXT,
@@ -801,6 +826,12 @@ CREATE TABLE "mobile_audit_logs" (
 CREATE INDEX "huissiers_cabinet_id_idx" ON "huissiers"("cabinet_id");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "fiches_personnel_user_id_key" ON "fiches_personnel"("user_id");
+
+-- CreateIndex
+CREATE INDEX "fiches_personnel_cabinet_id_idx" ON "fiches_personnel"("cabinet_id");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
 
 -- CreateIndex
@@ -951,6 +982,9 @@ CREATE INDEX "audit_logs_courrier_entrant_id_idx" ON "audit_logs"("courrier_entr
 CREATE INDEX "audit_logs_courrier_sortant_id_idx" ON "audit_logs"("courrier_sortant_id");
 
 -- CreateIndex
+CREATE INDEX "audit_logs_fiche_personnel_id_idx" ON "audit_logs"("fiche_personnel_id");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "sequences_courrier_cabinet_id_annee_sens_key" ON "sequences_courrier"("cabinet_id", "annee", "sens");
 
 -- CreateIndex
@@ -1012,6 +1046,12 @@ CREATE INDEX "mobile_audit_logs_device_id_idx" ON "mobile_audit_logs"("device_id
 
 -- AddForeignKey
 ALTER TABLE "huissiers" ADD CONSTRAINT "huissiers_cabinet_id_fkey" FOREIGN KEY ("cabinet_id") REFERENCES "cabinets"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "fiches_personnel" ADD CONSTRAINT "fiches_personnel_cabinet_id_fkey" FOREIGN KEY ("cabinet_id") REFERENCES "cabinets"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "fiches_personnel" ADD CONSTRAINT "fiches_personnel_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "users" ADD CONSTRAINT "users_cabinet_id_fkey" FOREIGN KEY ("cabinet_id") REFERENCES "cabinets"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -1225,6 +1265,9 @@ ALTER TABLE "audit_logs" ADD CONSTRAINT "audit_logs_courrier_entrant_id_fkey" FO
 
 -- AddForeignKey
 ALTER TABLE "audit_logs" ADD CONSTRAINT "audit_logs_courrier_sortant_id_fkey" FOREIGN KEY ("courrier_sortant_id") REFERENCES "courriers_sortants"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "audit_logs" ADD CONSTRAINT "audit_logs_fiche_personnel_id_fkey" FOREIGN KEY ("fiche_personnel_id") REFERENCES "fiches_personnel"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "sequences_courrier" ADD CONSTRAINT "sequences_courrier_cabinet_id_fkey" FOREIGN KEY ("cabinet_id") REFERENCES "cabinets"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

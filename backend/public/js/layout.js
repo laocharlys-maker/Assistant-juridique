@@ -78,6 +78,11 @@ const NAV_ITEMS = [
   },
   { href: "/veille-juridique.html", label: "Veille juridique", roles: ["titulaire", "avocat"], group: "Cabinet", icon: "radar", moduleKey: "veille_juridique" },
   { href: "/corbeille.html", label: "Corbeille", roles: ["titulaire", "avocat", "collaborateur"], group: "Cabinet", icon: "trash", moduleKey: "corbeille" },
+  // Module RH Cabinet (RH-1, voir docs/rh/) - visible a tous les roles
+  // couverts par la cle "rh" : un titulaire voit la liste complete, un
+  // avocat/collaborateur voit uniquement sa propre fiche (filtre cote
+  // serveur, voir routes/personnel.ts).
+  { href: "/personnel.html", label: "Personnel", roles: ["titulaire", "avocat", "collaborateur"], group: "Cabinet", icon: "team", moduleKey: "rh" },
   { href: "/audit-logs.html", label: "Journal d'audit", roles: ["titulaire"], group: "Cabinet", icon: "audit" },
   { href: "/parametres.html", label: "Paramètres", roles: ["titulaire"], group: "Cabinet", icon: "settings" },
   { href: "/admin-tableau-de-bord.html", label: "Tableau de bord", roles: ["super_admin"], group: "Plateforme", icon: "dashboard" },

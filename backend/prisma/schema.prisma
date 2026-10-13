@@ -331,6 +331,7 @@ model Cabinet {
   courriersEntrants CourrierEntrant[]
   courriersSortants CourrierSortant[]
   notifications     Notification[]
+  fichesPersonnel   FichePersonnel[]
 
   @@map("cabinets")
 }
@@ -350,6 +351,53 @@ model Huissier {
 
   @@index([cabinetId])
   @@map("huissiers")
+}
+
+// Module RH Cabinet, RH-1 (voir docs/rh/) - personnel du cabinet, AVEC ou
+// SANS compte Aurore. userId nullable+unique : si l'employe recoit un
+// compte plus tard, on renseigne ce champ sur la fiche existante, jamais
+// une nouvelle fiche (voir routes/personnel.ts). categorie/typeContrat/
+// statut restent des chaines libres (comme Dossier.statut ailleurs dans ce
+// schema), pas des enums Prisma - l'ensemble des valeurs proposees en V1
+// est documente cote route (zod), pas ici, pour pouvoir l'etendre sans
+// migration si un cabinet a besoin d'une categorie de plus.
+model FichePersonnel {
+  id        String  @id @default(uuid())
+  cabinetId String  @map("cabinet_id")
+  userId    String? @unique @map("user_id")
+
+  nom      String
+  prenoms  String?
+  // "avocat" | "collaborateur" | "stagiaire" | "secretariat" | "comptable" | "autre"
+  categorie String
+  fonction  String?
+  // "cdi" | "cdd" | "stage" | "liberal" | "autre"
+  typeContrat String @map("type_contrat")
+
+  dateEntree DateTime  @map("date_entree")
+  dateSortie DateTime? @map("date_sortie")
+  // "actif" | "sorti"
+  statut String @default("actif")
+
+  telephone String?
+  email     String?
+  // Chiffres au repos (encryptionAtRest.ts, voir prismaEncryption.ts) -
+  // donnees personnelles sensibles, jamais en clair en base.
+  contactUrgence String? @map("contact_urgence")
+
+  // "virement" | "especes" | "mobile_money"
+  modePaiement        String? @map("mode_paiement")
+  coordonneesPaiement String? @map("coordonnees_paiement")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  cabinet   Cabinet    @relation(fields: [cabinetId], references: [id])
+  user      User?      @relation(fields: [userId], references: [id])
+  auditLogs AuditLog[]
+
+  @@index([cabinetId])
+  @@map("fiches_personnel")
 }
 
 model User {
@@ -461,6 +509,10 @@ model User {
   // collaborateur affecte, et en tant qu'avocat/titulaire ayant affecte.
   courrierAffectationsRecues CourrierAffectation[] @relation("CourrierAffectationCollaborateur")
   courrierAffectationsFaites CourrierAffectation[] @relation("CourrierAffectationAffectePar")
+
+  // Module RH Cabinet - fiche personnel liee a CE compte, si l'employe en a
+  // un (voir model FichePersonnel.userId, nullable).
+  fichePersonnel FichePersonnel?
 
   // Lot 11 (Partie A) : documents actuellement verrouilles par CET
   // utilisateur (edition en cours), et versions qu'il/elle a enregistrees.
@@ -1536,6 +1588,12 @@ model AuditLog {
   actionId          String?         @map("action_id")
   courrierEntrantId String?         @map("courrier_entrant_id")
   courrierSortantId String?         @map("courrier_sortant_id")
+  // Module RH Cabinet - lien optionnel vers une fiche personnel, meme
+  // convention que les deux champs courrier ci-dessus (exactement un lien
+  // renseigne parmi les quatre, jamais le contenu metier - voir
+  // services/audit.ts, logAuditPersonnel). Jamais de montant ni de contenu
+  // sensible dans "detail" pour ces lignes.
+  fichePersonnelId String?         @map("fiche_personnel_id")
   etape             String
   statut            StatutExecution
   detail            String?
@@ -1544,10 +1602,12 @@ model AuditLog {
   action          Action?          @relation(fields: [actionId], references: [id])
   courrierEntrant CourrierEntrant? @relation(fields: [courrierEntrantId], references: [id])
   courrierSortant CourrierSortant? @relation(fields: [courrierSortantId], references: [id])
+  fichePersonnel  FichePersonnel?  @relation(fields: [fichePersonnelId], references: [id])
 
   @@index([actionId])
   @@index([courrierEntrantId])
   @@index([courrierSortantId])
+  @@index([fichePersonnelId])
   @@map("audit_logs")
 }
 

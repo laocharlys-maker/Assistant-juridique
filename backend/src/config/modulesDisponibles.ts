@@ -43,6 +43,13 @@ export const MODULES_DISPONIBLES = [
   // au niveau role (voir layout.js, NAV_ITEMS) ; cette cle permet a l'avocat
   // d'ouvrir l'ecran, en plus, a un collaborateur precis.
   "corbeille",
+  // Module RH Cabinet (RH-1 et suivants, voir docs/rh/). "rh" couvre le
+  // personnel, les stages et les conges ; "rh_paie" (vendable separement)
+  // couvre les elements de salaire, fiches de paie et etats de paiement -
+  // volontairement distinct pour qu'un titulaire puisse ouvrir l'un sans
+  // l'autre (ex: une secretaire qui gere la paie sans voir les conges).
+  "rh",
+  "rh_paie",
 ] as const;
 
 export type ModuleDisponible = (typeof MODULES_DISPONIBLES)[number];
