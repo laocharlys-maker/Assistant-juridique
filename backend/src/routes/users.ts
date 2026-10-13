@@ -6,6 +6,7 @@ import { requireAuth } from "../middleware/requireAuth";
 import { requireAdmin, requireAvocat } from "../middleware/roles";
 import { hashPassword } from "../services/auth";
 import { MODULES_DISPONIBLES } from "./admin";
+import { enregistrerActivite } from "../services/journalActivite";
 
 export const usersRouter = Router();
 
@@ -116,6 +117,7 @@ usersRouter.post("/api/users", requireAuth, requireAvocat, async (req, res) => {
       responsableId: req.auth!.userId,
     },
   });
+  await enregistrerActivite({ cabinetId: req.auth!.cabinetId, userId: req.auth!.userId, type: "utilisateur_cree", cible: `${user.nom} (collaborateur)` });
 
   return res.status(201).json({
     id: user.id,
@@ -155,6 +157,7 @@ usersRouter.post("/api/users/avocats", requireAuth, requireAdmin, async (req, re
       role: "avocat",
     },
   });
+  await enregistrerActivite({ cabinetId: req.auth!.cabinetId, userId: req.auth!.userId, type: "utilisateur_cree", cible: `${user.nom} (avocat)` });
 
   return res.status(201).json({
     id: user.id,
@@ -464,6 +467,12 @@ usersRouter.patch("/api/users/:id/actif", requireAuth, requireAdmin, async (req,
     where: { id: target.id },
     data: { actif: parsed.data.actif },
   });
+  await enregistrerActivite({
+    cabinetId: req.auth!.cabinetId,
+    userId: req.auth!.userId,
+    type: parsed.data.actif ? "utilisateur_reactive" : "utilisateur_desactive",
+    cible: target.nom,
+  });
   return res.json({ ok: true });
 });
 
@@ -491,6 +500,7 @@ usersRouter.patch("/api/users/:id/promouvoir-admin", requireAuth, requireAdmin, 
     where: { id: target.id },
     data: { role: "titulaire", responsableId: null },
   });
+  await enregistrerActivite({ cabinetId: req.auth!.cabinetId, userId: req.auth!.userId, type: "utilisateur_promu_admin", cible: target.nom });
   return res.json({ ok: true });
 });
 
@@ -554,6 +564,7 @@ usersRouter.delete("/api/users/:id", requireAuth, requireAdmin, async (req, res)
     });
   }
 
+  await enregistrerActivite({ cabinetId: req.auth!.cabinetId, userId: req.auth!.userId, type: "utilisateur_supprime", cible: collaborateur.nom });
   return res.json({ ok: true });
 });
 

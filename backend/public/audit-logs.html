@@ -12,12 +12,100 @@
     <div class="page-hero">
       <div class="eyebrow">Cabinet</div>
       <h1>Journal d'audit</h1>
-      <p>Historique technique des actions du cabinet (extraction IA, génération du document). Les entrées de plus de 24 mois sont purgées automatiquement.</p>
+      <p>Qui s'est connecté, ce qui a été fait dans le cabinet, et le détail technique de la génération de documents. Les entrées de plus de 24 mois sont purgées automatiquement.</p>
     </div>
 
     <div id="error" class="error"></div>
 
-    <div class="card">
+    <div class="tabs" id="journal-tabs">
+      <button class="tab active" data-tab="activite">Actions du cabinet</button>
+      <button class="tab" data-tab="connexions">Connexions</button>
+      <button class="tab" data-tab="mobile">Aurore Mobile</button>
+      <button class="tab" data-tab="documents">Documents (technique)</button>
+    </div>
+
+    <!-- Onglet "Actions du cabinet" -->
+    <div class="card" id="panel-activite">
+      <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-bottom:12px;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <label style="margin:0; font-weight:400;">Type d'action :</label>
+          <select id="activite-filter-type" style="width:auto;">
+            <option value="">Toutes</option>
+          </select>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <label style="margin:0; font-weight:400;">Période :</label>
+          <select id="activite-filter-periode" style="width:auto;">
+            <option value="">Tout</option>
+            <option value="1">Dernier mois</option>
+            <option value="2">2 derniers mois</option>
+            <option value="3">3 derniers mois</option>
+            <option value="6">6 derniers mois</option>
+            <option value="12">12 derniers mois</option>
+          </select>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <label style="margin:0; font-weight:400;">Membre :</label>
+          <select id="activite-filter-membre" style="width:auto;">
+            <option value="">Tous les membres</option>
+          </select>
+        </div>
+      </div>
+      <div id="activite-list"><p class="muted">Chargement…</p></div>
+    </div>
+
+    <!-- Onglet "Connexions" -->
+    <div class="card" id="panel-connexions" style="display:none;">
+      <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-bottom:12px;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <label style="margin:0; font-weight:400;">Période :</label>
+          <select id="connexions-filter-periode" style="width:auto;">
+            <option value="">Tout</option>
+            <option value="1">Dernier mois</option>
+            <option value="2">2 derniers mois</option>
+            <option value="3">3 derniers mois</option>
+            <option value="6">6 derniers mois</option>
+            <option value="12">12 derniers mois</option>
+          </select>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <label style="margin:0; font-weight:400;">Membre :</label>
+          <select id="connexions-filter-membre" style="width:auto;">
+            <option value="">Tous les membres</option>
+          </select>
+        </div>
+      </div>
+      <div id="connexions-list"><p class="muted">Chargement…</p></div>
+    </div>
+
+    <!-- Onglet "Aurore Mobile" -->
+    <div class="card" id="panel-mobile" style="display:none;">
+      <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-bottom:12px;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <label style="margin:0; font-weight:400;">Statut :</label>
+          <select id="mobile-filter-statut" style="width:auto;">
+            <option value="">Tout</option>
+            <option value="erreur">Erreurs uniquement</option>
+            <option value="succes">Succès uniquement</option>
+          </select>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <label style="margin:0; font-weight:400;">Période :</label>
+          <select id="mobile-filter-periode" style="width:auto;">
+            <option value="">Tout</option>
+            <option value="1">Dernier mois</option>
+            <option value="2">2 derniers mois</option>
+            <option value="3">3 derniers mois</option>
+            <option value="6">6 derniers mois</option>
+            <option value="12">12 derniers mois</option>
+          </select>
+        </div>
+      </div>
+      <div id="mobile-list"><p class="muted">Chargement…</p></div>
+    </div>
+
+    <!-- Onglet "Documents (technique)" -->
+    <div class="card" id="panel-documents" style="display:none;">
       <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-bottom:12px;">
         <div style="display:flex; align-items:center; gap:8px;">
           <label style="margin:0; font-weight:400;">Statut :</label>
@@ -49,8 +137,8 @@
     </div>
 
     <div class="card">
-      <h2>Alléger le journal</h2>
-      <p class="muted">Supprime définitivement les entrées les plus anciennes pour alléger la liste. L'historique récent n'est jamais touché.</p>
+      <h2>Alléger le journal technique</h2>
+      <p class="muted">Supprime définitivement les entrées les plus anciennes du journal technique (documents générés) pour alléger la liste. L'historique récent n'est jamais touché. Les connexions, actions du cabinet et le journal mobile sont purgés automatiquement après 24 mois, sans réglage manuel.</p>
       <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
         <label style="margin:0; font-weight:400;">Supprimer les entrées de plus de :</label>
         <select id="purge-periode" style="width:auto;">
@@ -77,6 +165,164 @@
       return new Date(iso).toLocaleString("fr-FR");
     }
 
+    // Duree lisible entre deux horodatages (ex: "2h 14min", "48min") -
+    // utilisee pour la duree de connexion ci-dessous.
+    function formatDuree(debutIso, finIso) {
+      const ms = new Date(finIso).getTime() - new Date(debutIso).getTime();
+      if (!Number.isFinite(ms) || ms < 0) return "-";
+      const minutesTotal = Math.round(ms / 60000);
+      const heures = Math.floor(minutesTotal / 60);
+      const minutes = minutesTotal % 60;
+      if (heures === 0) return `${minutes} min`;
+      return `${heures} h ${minutes} min`;
+    }
+
+    const TYPE_ACTIVITE_LABELS = {
+      connexion: "Connexion",
+      deconnexion: "Déconnexion",
+      dossier_cree: "Dossier créé",
+      dossier_cloture: "Dossier clôturé",
+      dossier_reouvert: "Dossier rouvert",
+      dossier_resultat_modifie: "Issue du dossier modifiée",
+      dossier_supprime: "Dossier supprimé",
+      dossier_restaure: "Dossier restauré",
+      client_cree: "Client créé",
+      client_modifie: "Client modifié",
+      client_supprime: "Client supprimé",
+      facture_creee: "Facture créée",
+      facture_envoyee: "Facture envoyée",
+      facture_payee: "Facture marquée payée",
+      utilisateur_cree: "Compte créé",
+      utilisateur_desactive: "Compte désactivé",
+      utilisateur_reactive: "Compte réactivé",
+      utilisateur_promu_admin: "Promu administrateur",
+      utilisateur_supprime: "Compte supprimé",
+    };
+
+    // --- Onglets ---
+    function activerOnglet(nom) {
+      document.querySelectorAll("#journal-tabs .tab").forEach((btn) => btn.classList.toggle("active", btn.dataset.tab === nom));
+      ["activite", "connexions", "mobile", "documents"].forEach((n) => {
+        document.getElementById(`panel-${n}`).style.display = n === nom ? "block" : "none";
+      });
+      if (nom === "activite") loadActivite();
+      else if (nom === "connexions") loadConnexions();
+      else if (nom === "mobile") loadMobile();
+      else if (nom === "documents") loadLogs();
+    }
+
+    // --- Onglet "Actions du cabinet" ---
+    async function loadActivite() {
+      const listEl = document.getElementById("activite-list");
+      const type = document.getElementById("activite-filter-type").value;
+      const periode = document.getElementById("activite-filter-periode").value;
+      const membre = document.getElementById("activite-filter-membre").value;
+      listEl.innerHTML = '<p class="muted">Chargement…</p>';
+      try {
+        const params = new URLSearchParams();
+        if (type) params.set("type", type);
+        if (periode) params.set("depuisMois", periode);
+        if (membre) params.set("userId", membre);
+        const qs = params.toString() ? `?${params.toString()}` : "";
+        const activites = await apiFetch(`/api/audit-logs/activite${qs}`);
+        if (activites.length === 0) {
+          listEl.innerHTML = '<p class="muted">Aucune entrée.</p>';
+          return;
+        }
+        listEl.innerHTML = activites
+          .map(
+            (a) => `
+            <div class="dossier-item">
+              <div>
+                <strong>${escapeHtml(TYPE_ACTIVITE_LABELS[a.type] || a.type)}</strong>
+                <div class="meta">
+                  ${formatDate(a.createdAt)} · ${escapeHtml(a.userNom || "système")}${a.cible ? ` · ${escapeHtml(a.cible)}` : ""}
+                  ${a.detail ? `<br />${escapeHtml(a.detail)}` : ""}
+                </div>
+              </div>
+            </div>`
+          )
+          .join("");
+      } catch (err) {
+        listEl.innerHTML = `<p class="error visible">${escapeHtml(err.message)}</p>`;
+      }
+    }
+
+    // --- Onglet "Connexions" ---
+    async function loadConnexions() {
+      const listEl = document.getElementById("connexions-list");
+      const periode = document.getElementById("connexions-filter-periode").value;
+      const membre = document.getElementById("connexions-filter-membre").value;
+      listEl.innerHTML = '<p class="muted">Chargement…</p>';
+      try {
+        const params = new URLSearchParams();
+        if (periode) params.set("depuisMois", periode);
+        if (membre) params.set("userId", membre);
+        const qs = params.toString() ? `?${params.toString()}` : "";
+        const connexions = await apiFetch(`/api/audit-logs/connexions${qs}`);
+        if (connexions.length === 0) {
+          listEl.innerHTML = '<p class="muted">Aucune entrée.</p>';
+          return;
+        }
+        listEl.innerHTML = connexions
+          .map((c) => {
+            const enCours = !c.deconnecteLe;
+            const fin = c.deconnecteLe || c.derniereActiviteLe;
+            return `
+            <div class="dossier-item">
+              <div>
+                <strong>${escapeHtml(c.userNom)}</strong>
+                <span class="meta" style="margin-left:6px;">(${escapeHtml(c.userRole || "")})</span>
+                ${enCours ? '<span class="badge badge-a_jour" style="margin-left:8px;">En cours / non fermée proprement</span>' : ""}
+                <div class="meta">
+                  Connecté le ${formatDate(c.connecteLe)} · durée ${formatDuree(c.connecteLe, fin)}${c.adresseIp ? ` · IP ${escapeHtml(c.adresseIp)}` : ""}
+                </div>
+              </div>
+            </div>`;
+          })
+          .join("");
+      } catch (err) {
+        listEl.innerHTML = `<p class="error visible">${escapeHtml(err.message)}</p>`;
+      }
+    }
+
+    // --- Onglet "Aurore Mobile" ---
+    async function loadMobile() {
+      const listEl = document.getElementById("mobile-list");
+      const statut = document.getElementById("mobile-filter-statut").value;
+      const periode = document.getElementById("mobile-filter-periode").value;
+      listEl.innerHTML = '<p class="muted">Chargement…</p>';
+      try {
+        const params = new URLSearchParams();
+        if (statut) params.set("statut", statut);
+        if (periode) params.set("depuisMois", periode);
+        const qs = params.toString() ? `?${params.toString()}` : "";
+        const logs = await apiFetch(`/api/audit-logs/mobile${qs}`);
+        if (logs.length === 0) {
+          listEl.innerHTML = '<p class="muted">Aucune entrée.</p>';
+          return;
+        }
+        listEl.innerHTML = logs
+          .map(
+            (l) => `
+            <div class="dossier-item">
+              <div>
+                <strong>${escapeHtml(l.etape)}</strong>
+                <span style="color:${l.statut === "erreur" ? "var(--danger)" : "var(--success)"}; font-weight:600; margin-left:8px;">${l.statut === "erreur" ? "Erreur" : "Succès"}</span>
+                <div class="meta">
+                  ${formatDate(l.timestamp)}${l.appareilNom ? ` · ${escapeHtml(l.appareilNom)}` : ""}${l.appareilProprietaire ? ` (${escapeHtml(l.appareilProprietaire)})` : ""}
+                  ${l.detail ? `<br />${escapeHtml(l.detail)}` : ""}
+                </div>
+              </div>
+            </div>`
+          )
+          .join("");
+      } catch (err) {
+        listEl.innerHTML = `<p class="error visible">${escapeHtml(err.message)}</p>`;
+      }
+    }
+
+    // --- Onglet "Documents (technique)" ---
     async function loadLogs() {
       const listEl = document.getElementById("logs-list");
       const statut = document.getElementById("filter-statut").value;
@@ -125,14 +371,33 @@
       }
       try {
         const membres = await apiFetch("/api/users/annuaire");
-        document.getElementById("filter-genere-par").innerHTML =
-          '<option value="">Tous les membres</option>' +
-          membres.map((u) => `<option value="${u.id}">${escapeHtml(u.nom)}</option>`).join("");
+        const optionsMembres = '<option value="">Tous les membres</option>' + membres.map((u) => `<option value="${u.id}">${escapeHtml(u.nom)}</option>`).join("");
+        document.getElementById("filter-genere-par").innerHTML = optionsMembres;
+        document.getElementById("activite-filter-membre").innerHTML = optionsMembres;
+        document.getElementById("connexions-filter-membre").innerHTML = optionsMembres;
       } catch {
-        // Non bloquant : le filtre reste sur "Tous les membres".
+        // Non bloquant : les filtres restent sur "Tous les membres".
       }
-      loadLogs();
+      document.getElementById("activite-filter-type").innerHTML =
+        '<option value="">Toutes</option>' +
+        Object.entries(TYPE_ACTIVITE_LABELS).map(([valeur, label]) => `<option value="${valeur}">${escapeHtml(label)}</option>`).join("");
+
+      document.querySelectorAll("#journal-tabs .tab").forEach((btn) => {
+        btn.addEventListener("click", () => activerOnglet(btn.dataset.tab));
+      });
+
+      loadActivite();
     })();
+
+    document.getElementById("activite-filter-type").addEventListener("change", loadActivite);
+    document.getElementById("activite-filter-periode").addEventListener("change", loadActivite);
+    document.getElementById("activite-filter-membre").addEventListener("change", loadActivite);
+
+    document.getElementById("connexions-filter-periode").addEventListener("change", loadConnexions);
+    document.getElementById("connexions-filter-membre").addEventListener("change", loadConnexions);
+
+    document.getElementById("mobile-filter-statut").addEventListener("change", loadMobile);
+    document.getElementById("mobile-filter-periode").addEventListener("change", loadMobile);
 
     document.getElementById("filter-statut").addEventListener("change", loadLogs);
     document.getElementById("filter-periode").addEventListener("change", loadLogs);
@@ -142,7 +407,7 @@
       const mois = document.getElementById("purge-periode").value;
       const label = document.getElementById("purge-periode").selectedOptions[0].textContent;
       confirmerSuppression({
-        message: `Supprimer définitivement toutes les entrées du journal de plus de <strong>${escapeHtml(label)}</strong> ? Cette action est irréversible.`,
+        message: `Supprimer définitivement toutes les entrées du journal technique (documents générés) de plus de <strong>${escapeHtml(label)}</strong> ? Cette action est irréversible.`,
         onConfirm: async () => {
           const res = await apiFetch(`/api/audit-logs?plusVieuxQueMois=${mois}`, { method: "DELETE" });
           loadLogs();

@@ -2,12 +2,14 @@ import { Router } from "express";
 import crypto from "node:crypto";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
-import { verifyPassword, hashPassword, signAuthToken } from "../services/auth";
+import { verifyPassword, hashPassword, signAuthToken, verifyAuthToken } from "../services/auth";
 import { requireAuth } from "../middleware/requireAuth";
 import { loginLimiter } from "../middleware/rateLimit";
 import { env } from "../config/env";
 import { sendEmail } from "../services/mailer";
 import { resolveCabinetEmailIdentite } from "../services/cabinetContact";
+import { ouvrirConnexion, fermerConnexion } from "../services/journalConnexion";
+import { enregistrerActivite } from "../services/journalActivite";
 
 export const authRouter = Router();
 
@@ -82,6 +84,9 @@ authRouter.post("/api/auth/premier-lancement", loginLimiter, async (req, res) =>
 
   console.log(`[auth] premier lancement : cabinet "${cabinet.nom}" créé avec le titulaire ${titulaire.email}.`);
 
+  await ouvrirConnexion(cabinet.id, titulaire.id, req);
+  await enregistrerActivite({ cabinetId: cabinet.id, userId: titulaire.id, type: "connexion", detail: "Premier lancement (création du cabinet)" });
+
   // Connecte directement (meme comportement qu'un login reussi) - evite un
   // aller-retour inutile vers l'ecran de connexion juste apres la creation.
   const token = signAuthToken({ userId: titulaire.id, cabinetId: cabinet.id, role: titulaire.role });
@@ -135,6 +140,9 @@ authRouter.post("/api/auth/login", loginLimiter, async (req, res) => {
 
   await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
 
+  await ouvrirConnexion(user.cabinetId, user.id, req);
+  await enregistrerActivite({ cabinetId: user.cabinetId, userId: user.id, type: "connexion" });
+
   const token = signAuthToken({ userId: user.id, cabinetId: user.cabinetId, role: user.role });
 
   res.cookie("aurore_session", token, {
@@ -147,7 +155,20 @@ authRouter.post("/api/auth/login", loginLimiter, async (req, res) => {
   return res.json({ id: user.id, nom: user.nom, email: user.email, role: user.role });
 });
 
-authRouter.post("/api/auth/logout", (_req, res) => {
+authRouter.post("/api/auth/logout", async (req, res) => {
+  // Pas de requireAuth sur cette route (doit rester utilisable meme avec un
+  // jeton deja invalide/expire) - on decode donc le cookie "a la main",
+  // sans jamais faire echouer la deconnexion si ce decodage echoue.
+  const token = req.cookies?.aurore_session;
+  if (token) {
+    try {
+      const payload = verifyAuthToken(token);
+      await fermerConnexion(payload.userId);
+      await enregistrerActivite({ cabinetId: payload.cabinetId, userId: payload.userId, type: "deconnexion" });
+    } catch {
+      // Jeton deja invalide/expire - rien a journaliser.
+    }
+  }
   res.clearCookie("aurore_session");
   return res.json({ ok: true });
 });

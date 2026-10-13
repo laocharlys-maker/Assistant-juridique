@@ -246,6 +246,7 @@ CREATE TABLE "dossiers" (
     "statut" TEXT NOT NULL DEFAULT 'actif',
     "est_recherche" BOOLEAN NOT NULL DEFAULT false,
     "date_cloture" TIMESTAMP(3),
+    "resultat_cloture" TEXT,
     "archived_at" TIMESTAMP(3),
     "supprime_le" TIMESTAMP(3),
     "supprime_par_id" TEXT,
@@ -618,6 +619,33 @@ CREATE TABLE "audit_logs" (
 );
 
 -- CreateTable
+CREATE TABLE "journal_connexions" (
+    "id" TEXT NOT NULL,
+    "cabinet_id" TEXT NOT NULL,
+    "user_id" TEXT NOT NULL,
+    "connecte_le" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "derniere_activite_le" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "deconnecte_le" TIMESTAMP(3),
+    "adresse_ip" TEXT,
+    "user_agent" TEXT,
+
+    CONSTRAINT "journal_connexions_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "journal_activites" (
+    "id" TEXT NOT NULL,
+    "cabinet_id" TEXT NOT NULL,
+    "user_id" TEXT,
+    "type" TEXT NOT NULL,
+    "cible" TEXT,
+    "detail" TEXT,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "journal_activites_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "sequences_courrier" (
     "id" TEXT NOT NULL,
     "cabinet_id" TEXT NOT NULL,
@@ -951,6 +979,18 @@ CREATE INDEX "audit_logs_courrier_entrant_id_idx" ON "audit_logs"("courrier_entr
 CREATE INDEX "audit_logs_courrier_sortant_id_idx" ON "audit_logs"("courrier_sortant_id");
 
 -- CreateIndex
+CREATE INDEX "journal_connexions_cabinet_id_connecte_le_idx" ON "journal_connexions"("cabinet_id", "connecte_le");
+
+-- CreateIndex
+CREATE INDEX "journal_connexions_user_id_idx" ON "journal_connexions"("user_id");
+
+-- CreateIndex
+CREATE INDEX "journal_activites_cabinet_id_created_at_idx" ON "journal_activites"("cabinet_id", "created_at");
+
+-- CreateIndex
+CREATE INDEX "journal_activites_user_id_idx" ON "journal_activites"("user_id");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "sequences_courrier_cabinet_id_annee_sens_key" ON "sequences_courrier"("cabinet_id", "annee", "sens");
 
 -- CreateIndex
@@ -1225,6 +1265,18 @@ ALTER TABLE "audit_logs" ADD CONSTRAINT "audit_logs_courrier_entrant_id_fkey" FO
 
 -- AddForeignKey
 ALTER TABLE "audit_logs" ADD CONSTRAINT "audit_logs_courrier_sortant_id_fkey" FOREIGN KEY ("courrier_sortant_id") REFERENCES "courriers_sortants"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "journal_connexions" ADD CONSTRAINT "journal_connexions_cabinet_id_fkey" FOREIGN KEY ("cabinet_id") REFERENCES "cabinets"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "journal_connexions" ADD CONSTRAINT "journal_connexions_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "journal_activites" ADD CONSTRAINT "journal_activites_cabinet_id_fkey" FOREIGN KEY ("cabinet_id") REFERENCES "cabinets"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "journal_activites" ADD CONSTRAINT "journal_activites_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "sequences_courrier" ADD CONSTRAINT "sequences_courrier_cabinet_id_fkey" FOREIGN KEY ("cabinet_id") REFERENCES "cabinets"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

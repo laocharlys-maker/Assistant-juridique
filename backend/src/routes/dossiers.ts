@@ -5,6 +5,7 @@ import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
 import { requireModule, requireAvocat } from "../middleware/roles";
 import { getAccessibleAvocatIds } from "../services/access";
+import { enregistrerActivite } from "../services/journalActivite";
 
 export const dossiersRouter = Router();
 
@@ -117,7 +118,7 @@ dossiersRouter.get("/api/dossiers", requireAuth, async (req, res) => {
       ...(accessibleAvocatIds ? { createdBy: { in: accessibleAvocatIds } } : {}),
     },
     orderBy: { updatedAt: "desc" },
-    include: { _count: { select: { actions: true } }, creePar: { select: { nom: true } } },
+    include: { _count: { select: { actions: true } }, creePar: { select: { id: true, nom: true } } },
   });
 
   const tags = await computeStatutTags(dossiers.map((d) => d.id));
@@ -263,6 +264,12 @@ dossiersRouter.post("/api/dossiers", requireAuth, async (req, res) => {
         createdBy: auth!.userId,
       },
     });
+    await enregistrerActivite({
+      cabinetId: auth!.cabinetId,
+      userId: auth!.userId,
+      type: "dossier_cree",
+      cible: `${dossier.numeroDossier} — ${dossier.nomAffaire}`,
+    });
     return res.status(201).json({ dossier });
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
@@ -394,6 +401,10 @@ dossiersRouter.get("/api/dossiers/:id/dernier-document", requireAuth, async (req
 
 const updateStatutSchema = z.object({
   statut: z.enum(["actif", "cloture"]),
+  // Facultatif : tous les dossiers n'ont pas une issue binaire (conseil,
+  // transaction amiable...). Permet aussi de corriger/renseigner l'issue
+  // d'un dossier deja cloture sans le rouvrir (meme statut renvoye).
+  resultatCloture: z.enum(["gagne", "perdu"]).optional().nullable(),
 });
 
 dossiersRouter.patch("/api/dossiers/:id", requireAuth, async (req, res) => {
@@ -428,9 +439,35 @@ dossiersRouter.patch("/api/dossiers/:id", requireAuth, async (req, res) => {
     where: { id: dossier.id },
     data:
       parsed.data.statut === "cloture"
-        ? { statut: "cloture", dateCloture: new Date() }
-        : { statut: "actif", dateCloture: null, archivedAt: null },
+        ? {
+            statut: "cloture",
+            // Ne pas ecraser la date d'origine si le dossier est deja
+            // cloture (ex: appel pour renseigner/corriger seulement
+            // resultatCloture apres coup, sans vouloir decaler le point de
+            // depart du delai d'archivage).
+            dateCloture: dossier.statut === "cloture" ? dossier.dateCloture : new Date(),
+            resultatCloture: parsed.data.resultatCloture !== undefined ? parsed.data.resultatCloture : dossier.resultatCloture,
+          }
+        : { statut: "actif", dateCloture: null, archivedAt: null, resultatCloture: null },
   });
+
+  if (dossier.statut !== parsed.data.statut) {
+    await enregistrerActivite({
+      cabinetId: auth!.cabinetId,
+      userId: auth!.userId,
+      type: parsed.data.statut === "cloture" ? "dossier_cloture" : "dossier_reouvert",
+      cible: `${dossier.numeroDossier} — ${dossier.nomAffaire}`,
+    });
+  } else if (parsed.data.statut === "cloture" && parsed.data.resultatCloture !== undefined) {
+    await enregistrerActivite({
+      cabinetId: auth!.cabinetId,
+      userId: auth!.userId,
+      type: "dossier_resultat_modifie",
+      cible: `${dossier.numeroDossier} — ${dossier.nomAffaire}`,
+      detail: parsed.data.resultatCloture || "non précisé",
+    });
+  }
+
   return res.json({ ok: true });
 });
 
@@ -461,6 +498,12 @@ dossiersRouter.delete("/api/dossiers/:id", requireAuth, requireAvocat, async (re
     where: { id: dossier.id },
     data: { supprimeLe: new Date(), supprimeParId: auth!.userId },
   });
+  await enregistrerActivite({
+    cabinetId: auth!.cabinetId,
+    userId: auth!.userId,
+    type: "dossier_supprime",
+    cible: `${dossier.numeroDossier} — ${dossier.nomAffaire}`,
+  });
   return res.json({ ok: true });
 });
 
@@ -477,6 +520,12 @@ dossiersRouter.post("/api/dossiers/:id/restaurer", requireAuth, requireAvocat, a
   await prisma.dossier.update({
     where: { id: dossier.id },
     data: { supprimeLe: null, supprimeParId: null },
+  });
+  await enregistrerActivite({
+    cabinetId: auth!.cabinetId,
+    userId: auth!.userId,
+    type: "dossier_restaure",
+    cible: `${dossier.numeroDossier} — ${dossier.nomAffaire}`,
   });
   return res.json({ ok: true });
 });

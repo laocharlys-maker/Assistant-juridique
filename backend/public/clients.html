@@ -86,6 +86,12 @@
 
     <div class="card">
       <h2>Liste des clients</h2>
+      <label for="clients-filtre-type">Afficher</label>
+      <select id="clients-filtre-type" style="width:auto; margin-bottom:12px;">
+        <option value="tous">Tous les clients</option>
+        <option value="physique">Personnes physiques</option>
+        <option value="morale">Personnes morales (entreprises)</option>
+      </select>
       <div id="clients-list"><p class="muted">Chargement…</p></div>
     </div>
   </div>
@@ -208,49 +214,63 @@
     let clientsCache = [];
 
     async function loadClients() {
-      const listEl = document.getElementById("clients-list");
       try {
-        const clients = await apiFetch("/api/clients");
-        clientsCache = clients;
-        if (clients.length === 0) {
-          listEl.innerHTML = '<p class="muted">Aucun client enregistré pour l\'instant.</p>';
-          return;
-        }
-        listEl.innerHTML = clients
-          .map((c) => {
-            const actions = [];
-            if (c.email) {
-              actions.push(
-                `<button type="button" class="icon-action" data-tooltip="Envoyer un email" data-open-email="${c.id}" data-nom="${escapeHtml(c.nom)}" data-email="${escapeHtml(c.email)}">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/></svg>
-                </button>`
-              );
-            }
-            return `
-          <div class="dossier-item">
-            <div>
-              <strong><a href="#" data-open-detail="${c.id}" style="color:inherit; text-decoration:underline; text-decoration-style:dotted;">${escapeHtml(c.nom)}</a></strong>
-              <div class="meta">${escapeHtml(c.email || "pas d'email")} · ${escapeHtml(c.telephone || "pas de téléphone")} · ${c._count.dossiers} dossier(s)</div>
-            </div>
-            ${actions.length > 0 ? `<div class="icon-action-row">${actions.join("")}</div>` : ""}
-          </div>`;
-          })
-          .join("");
-
-        listEl.querySelectorAll("[data-open-email]").forEach((btn) => {
-          btn.addEventListener("click", () => {
-            openEmailModal(btn.dataset.openEmail, btn.dataset.nom, btn.dataset.email);
-          });
-        });
-        listEl.querySelectorAll("[data-open-detail]").forEach((link) => {
-          link.addEventListener("click", (e) => {
-            e.preventDefault();
-            openDetailModal(link.dataset.openDetail);
-          });
-        });
+        clientsCache = await apiFetch("/api/clients");
+        renderClients();
       } catch (err) {
-        listEl.innerHTML = `<p class="error visible">${escapeHtml(err.message)}</p>`;
+        document.getElementById("clients-list").innerHTML = `<p class="error visible">${escapeHtml(err.message)}</p>`;
       }
+    }
+
+    function renderClients() {
+      const listEl = document.getElementById("clients-list");
+      const filtreType = document.getElementById("clients-filtre-type").value;
+      const clients = filtreType === "tous" ? clientsCache : clientsCache.filter((c) => (c.typePersonne || "physique") === filtreType);
+
+      if (clients.length === 0) {
+        listEl.innerHTML = clientsCache.length === 0
+          ? '<p class="muted">Aucun client enregistré pour l\'instant.</p>'
+          : '<p class="muted">Aucun client ne correspond à ce filtre.</p>';
+        return;
+      }
+      listEl.innerHTML = clients
+        .map((c) => {
+          const actions = [];
+          if (c.email) {
+            actions.push(
+              `<button type="button" class="icon-action" data-tooltip="Envoyer un email" data-open-email="${c.id}" data-nom="${escapeHtml(c.nom)}" data-email="${escapeHtml(c.email)}">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/></svg>
+              </button>`
+            );
+          }
+          const estMorale = (c.typePersonne || "physique") === "morale";
+          const badgeStyle =
+            "display:inline-block; font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.03em; border-radius:10px; padding:2px 8px; margin-left:8px; " +
+            (estMorale ? "background:#eef2ff; color:#3730a3;" : "background:#f0fdf4; color:#166534;");
+          const badge = `<span style="${badgeStyle}">${estMorale ? "Personne morale" : "Personne physique"}</span>`;
+          return `
+        <div class="dossier-item">
+          <div>
+            <strong><a href="#" data-open-detail="${c.id}" style="color:inherit; text-decoration:underline; text-decoration-style:dotted;">${escapeHtml(c.nom)}</a></strong>
+            ${badge}
+            <div class="meta">${escapeHtml(c.email || "pas d'email")} · ${escapeHtml(c.telephone || "pas de téléphone")} · ${c._count.dossiers} dossier(s)</div>
+          </div>
+          ${actions.length > 0 ? `<div class="icon-action-row">${actions.join("")}</div>` : ""}
+        </div>`;
+        })
+        .join("");
+
+      listEl.querySelectorAll("[data-open-email]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          openEmailModal(btn.dataset.openEmail, btn.dataset.nom, btn.dataset.email);
+        });
+      });
+      listEl.querySelectorAll("[data-open-detail]").forEach((link) => {
+        link.addEventListener("click", (e) => {
+          e.preventDefault();
+          openDetailModal(link.dataset.openDetail);
+        });
+      });
     }
 
     function openEmailModal(clientId, nom, email) {
@@ -360,6 +380,8 @@
       document.getElementById("detail-view").style.display = "none";
       document.getElementById("detail-edit").style.display = "block";
     }
+
+    document.getElementById("clients-filtre-type").addEventListener("change", renderClients);
 
     document.getElementById("create-typePersonne").addEventListener("change", (e) => {
       applyTypePersonneLabels("create", e.target.value);

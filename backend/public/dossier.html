@@ -278,8 +278,15 @@
             <div class="dossier-header-row">
               <div class="dossier-header-info">
                 <span class="badge badge-${dossier.statutTag}">${STATUT_TAG_LABELS[dossier.statutTag] || dossier.statutTag}</span>
+                ${
+                  dossier.resultatCloture === "gagne"
+                    ? ' <span class="badge badge-gagne">Gagné</span>'
+                    : dossier.resultatCloture === "perdu"
+                      ? ' <span class="badge badge-perdu">Perdu</span>'
+                      : ""
+                }
                 <h1>${escapeHtml(dossier.numeroDossier)} — ${escapeHtml(dossier.nomAffaire)}</h1>
-                <p class="muted">Client : ${escapeHtml(dossier.nomClient)} · Juridiction : ${escapeHtml(dossier.nomJuridiction || "non précisée")}${dossier.nomChambre ? " (" + escapeHtml(dossier.nomChambre) + ")" : ""} · créé par ${escapeHtml(dossier.creePar.nom)}</p>
+                <p class="muted">Client : ${escapeHtml(dossier.nomClient)} · Juridiction : ${escapeHtml(dossier.nomJuridiction || "non précisée")}${dossier.nomChambre ? " (" + escapeHtml(dossier.nomChambre) + ")" : ""} · créé par ${escapeHtml(dossier.creePar.nom)} le ${formatDateLongue(dossier.createdAt)}</p>
                 ${dossier.archivedAt ? `<p class="muted">Archivé automatiquement le ${formatDateLongue(dossier.archivedAt)} — toujours consultable, réactivable via "Rouvrir le dossier".</p>` : ""}
                 ${
                   currentDossierEstRecherche
@@ -290,6 +297,11 @@
                           ? `<button type="button" class="secondary" id="toggle-cloture-btn" data-statut="${dossier.statut}">
                               ${dossier.statut === "cloture" ? "Rouvrir le dossier" : "Clôturer le dossier"}
                             </button>`
+                          : ""
+                      }
+                      ${
+                        me.role !== "collaborateur" && dossier.statut === "cloture"
+                          ? `<button type="button" class="ghost" id="modifier-resultat-btn">Modifier l'issue (gagné/perdu)</button>`
                           : ""
                       }
                       ${
@@ -326,18 +338,35 @@
           loadPiecesDossier(id);
         }
 
+        async function appliquerCloture(resultatCloture) {
+          try {
+            await apiFetch(`/api/dossiers/${id}`, { method: "PATCH", body: { statut: "cloture", resultatCloture } });
+            window.location.reload();
+          } catch (err) {
+            alert(err.message);
+          }
+        }
+
         const clotureBtn = document.getElementById("toggle-cloture-btn");
         if (clotureBtn) {
           clotureBtn.addEventListener("click", async (e) => {
             const statutActuel = e.target.dataset.statut;
-            const nouveauStatut = statutActuel === "cloture" ? "actif" : "cloture";
-            try {
-              await apiFetch(`/api/dossiers/${id}`, { method: "PATCH", body: { statut: nouveauStatut } });
-              window.location.reload();
-            } catch (err) {
-              alert(err.message);
+            if (statutActuel === "cloture") {
+              try {
+                await apiFetch(`/api/dossiers/${id}`, { method: "PATCH", body: { statut: "actif" } });
+                window.location.reload();
+              } catch (err) {
+                alert(err.message);
+              }
+              return;
             }
+            demanderResultatCloture(appliquerCloture);
           });
+        }
+
+        const modifierResultatBtn = document.getElementById("modifier-resultat-btn");
+        if (modifierResultatBtn) {
+          modifierResultatBtn.addEventListener("click", () => demanderResultatCloture(appliquerCloture));
         }
 
         const supprimerDossierBtn = document.getElementById("supprimer-dossier-btn");
@@ -713,6 +742,37 @@
       echeance_proche: "échéance proche",
       cloture: "clôturé",
     };
+
+    // Demande l'issue du dossier (gagné/perdu/non précisé) - pour le suivi
+    // statistique des performances du cabinet (demande utilisateur du
+    // 2026-10-13). Facultatif : "Ne pas préciser" procede quand meme (callback
+    // appele avec null), alors que "Annuler" abandonne entierement l'action en
+    // cours (cloture ou modification de l'issue) - callback jamais appele.
+    function demanderResultatCloture(callback) {
+      const overlay = document.createElement("div");
+      overlay.className = "modal-overlay";
+      overlay.innerHTML = `
+        <div class="modal-box">
+          <h2>Issue du dossier</h2>
+          <p class="muted">Pour le suivi statistique des performances du cabinet — facultatif.</p>
+          <div style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;">
+            <button type="button" class="secondary" data-resultat="gagne">Gagné</button>
+            <button type="button" class="secondary" data-resultat="perdu">Perdu</button>
+            <button type="button" class="ghost" data-resultat="">Ne pas préciser</button>
+          </div>
+          <div style="margin-top:14px;">
+            <button type="button" class="ghost" id="resultat-cloture-annuler-btn">Annuler</button>
+          </div>
+        </div>`;
+      document.body.appendChild(overlay);
+      overlay.querySelectorAll("[data-resultat]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          overlay.remove();
+          callback(btn.dataset.resultat || null);
+        });
+      });
+      overlay.querySelector("#resultat-cloture-annuler-btn").addEventListener("click", () => overlay.remove());
+    }
 
     // Lot 15 - onglet "Pièces" : liste + upload par glisser-déposer +
     // aperçu inline (PDF/images) + téléchargement/suppression. Le fichier

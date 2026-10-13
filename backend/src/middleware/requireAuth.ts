@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { verifyAuthToken, AuthTokenPayload } from "../services/auth";
 import { prisma } from "../lib/prisma";
+import { toucherConnexion } from "../services/journalConnexion";
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
@@ -59,5 +60,8 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   }
 
   req.auth = payload;
+  // Fire-and-forget (throttle en memoire, voir journalConnexion.ts) -
+  // jamais attendue, ne doit jamais ralentir la requete.
+  toucherConnexion(payload.userId);
   next();
 }

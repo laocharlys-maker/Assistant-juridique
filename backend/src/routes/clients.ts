@@ -5,6 +5,7 @@ import { requireAuth } from "../middleware/requireAuth";
 import { requireAvocat } from "../middleware/roles";
 import { sendEmail } from "../services/mailer";
 import { resolveCabinetEmailIdentite } from "../services/cabinetContact";
+import { enregistrerActivite } from "../services/journalActivite";
 
 export const clientsRouter = Router();
 
@@ -75,6 +76,7 @@ clientsRouter.post("/api/clients", requireAuth, async (req, res) => {
       ...clientDataFromParsed(parsed.data),
     },
   });
+  await enregistrerActivite({ cabinetId: req.auth!.cabinetId, userId: req.auth!.userId, type: "client_cree", cible: client.nom });
 
   return res.status(201).json(client);
 });
@@ -98,6 +100,7 @@ clientsRouter.patch("/api/clients/:id", requireAuth, async (req, res) => {
     where: { id: existing.id },
     data: clientDataFromParsed(parsed.data),
   });
+  await enregistrerActivite({ cabinetId: req.auth!.cabinetId, userId: req.auth!.userId, type: "client_modifie", cible: client.nom });
 
   return res.json(client);
 });
@@ -140,6 +143,7 @@ clientsRouter.delete("/api/clients/:id", requireAuth, requireAvocat, async (req,
     where: { id: client.id },
     data: { supprimeLe: new Date(), supprimeParId: req.auth!.userId },
   });
+  await enregistrerActivite({ cabinetId: req.auth!.cabinetId, userId: req.auth!.userId, type: "client_supprime", cible: client.nom });
   return res.json({ ok: true });
 });
 

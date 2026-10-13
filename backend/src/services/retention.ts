@@ -18,6 +18,20 @@ export async function purgerLogsAudit(): Promise<number> {
   return result.count;
 }
 
+// Journal des connexions, journal d'activite (2026-10-13) et journal
+// mobile (Lot 10) : meme duree de conservation que le journal technique
+// ci-dessus, pour une politique de retention uniforme sur tout le "Journal
+// d'audit" (voir public/audit-logs.html).
+export async function purgerJournauxActivite(): Promise<number> {
+  const seuil = moisAvant(DUREE_RETENTION_AUDIT_LOGS_MOIS);
+  const [connexions, activites, mobile] = await Promise.all([
+    prisma.journalConnexion.deleteMany({ where: { connecteLe: { lt: seuil } } }),
+    prisma.journalActivite.deleteMany({ where: { createdAt: { lt: seuil } } }),
+    prisma.mobileAuditLog.deleteMany({ where: { timestamp: { lt: seuil } } }),
+  ]);
+  return connexions.count + activites.count + mobile.count;
+}
+
 // Fiches de recherche (jurisprudence, recherche juridique, resume PDF,
 // veille, traduction) : ce ne sont pas de vrais dossiers clients, pas
 // d'obligation de conservation - suppression si inactives depuis longtemps.
@@ -67,12 +81,13 @@ export async function archiverDossiersClotures(): Promise<number> {
 }
 
 export async function runRetentionJobs(): Promise<void> {
-  const [logsSupprimes, fichesSupprimees, dossiersArchives] = await Promise.all([
+  const [logsSupprimes, journauxSupprimes, fichesSupprimees, dossiersArchives] = await Promise.all([
     purgerLogsAudit(),
+    purgerJournauxActivite(),
     purgerFichesRecherchesInactives(),
     archiverDossiersClotures(),
   ]);
   console.log(
-    `Retention : ${logsSupprimes} log(s) d'audit purgé(s), ${fichesSupprimees} fiche(s) recherche supprimée(s), ${dossiersArchives} dossier(s) archivé(s).`
+    `Retention : ${logsSupprimes} log(s) d'audit purgé(s), ${journauxSupprimes} entrée(s) de journal (connexions/activité/mobile) purgée(s), ${fichesSupprimees} fiche(s) recherche supprimée(s), ${dossiersArchives} dossier(s) archivé(s).`
   );
 }

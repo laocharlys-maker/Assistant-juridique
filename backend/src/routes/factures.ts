@@ -9,6 +9,7 @@ import { sendEmail } from "../services/mailer";
 import { resolveCabinetEmailIdentite } from "../services/cabinetContact";
 import { calculerMontant, formatDuree } from "../services/feuillesTemps";
 import { stockerFactureNormalisee, lireFactureNormalisee, supprimerFactureNormalisee } from "../services/factureNormaliseePdf";
+import { enregistrerActivite } from "../services/journalActivite";
 
 export const facturesRouter = Router();
 
@@ -97,6 +98,7 @@ facturesRouter.post("/api/factures", requireAuth, async (req, res) => {
       creePar: { select: { nom: true } },
     },
   });
+  await enregistrerActivite({ cabinetId: req.auth!.cabinetId, userId: req.auth!.userId, type: "facture_creee", cible: facture.numero });
 
   return res.status(201).json(facture);
 });
@@ -536,6 +538,15 @@ facturesRouter.patch("/api/factures/:id", requireAuth, async (req, res) => {
     },
   });
 
+  if (facture.statut !== parsed.data.statut && (parsed.data.statut === "envoyee" || parsed.data.statut === "payee")) {
+    await enregistrerActivite({
+      cabinetId: req.auth!.cabinetId,
+      userId: req.auth!.userId,
+      type: parsed.data.statut === "payee" ? "facture_payee" : "facture_envoyee",
+      cible: facture.numero,
+    });
+  }
+
   return res.json(updated);
 });
 
@@ -630,6 +641,7 @@ facturesRouter.post("/api/factures/:id/envoyer", requireAuth, requireAvocat, asy
     where: { id: facture.id },
     data: { statut: "envoyee", destinataireEmail: parsed.data.email, envoyeAt: new Date() },
   });
+  await enregistrerActivite({ cabinetId: req.auth!.cabinetId, userId: req.auth!.userId, type: "facture_envoyee", cible: facture.numero });
 
   return res.json(updated);
 });

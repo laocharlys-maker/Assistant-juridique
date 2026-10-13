@@ -331,6 +331,12 @@ model Cabinet {
   courriersEntrants CourrierEntrant[]
   courriersSortants CourrierSortant[]
   notifications     Notification[]
+  // Journal d'activite (2026-10-13) : connexions et actions metier
+  // (dossiers/clients/factures/comptes), distinct du journal technique
+  // existant (AuditLog, lie a Action/CourrierEntrant/CourrierSortant) -
+  // voir JournalConnexion/JournalActivite ci-dessous.
+  journalConnexions JournalConnexion[]
+  journalActivites  JournalActivite[]
 
   @@map("cabinets")
 }
@@ -509,6 +515,11 @@ model User {
   courriersEntrantsAffectes     CourrierEntrant[] @relation("CourrierEntrantAffecteA")
   courriersSortantsRediges      CourrierSortant[] @relation("CourrierSortantRedigePar")
 
+  // Journal d'activite (2026-10-13) : connexions et actions metier de CET
+  // utilisateur - voir JournalConnexion/JournalActivite plus bas.
+  journalConnexions JournalConnexion[]
+  journalActivites  JournalActivite[]
+
   @@index([cabinetId])
   @@map("users")
 }
@@ -655,6 +666,12 @@ model Dossier {
   // Date de passage a "cloture" - sert de point de depart au delai
   // d'archivage automatique. Remise a null si le dossier est rouvert.
   dateCloture    DateTime? @map("date_cloture")
+  // Issue du dossier pour le suivi statistique des performances du cabinet
+  // (demande utilisateur du 2026-10-13) - "gagne" | "perdu", renseigne au
+  // plus tot a la cloture (facultatif : tous les dossiers n'ont pas une
+  // issue binaire, ex. conseil, transaction amiable). Remis a null si le
+  // dossier est rouvert, meme logique que dateCloture ci-dessus.
+  resultatCloture String? @map("resultat_cloture")
   // Rempli automatiquement une fois le delai d'archivage ecoule depuis
   // dateCloture. N'entraine jamais de suppression : juste masque de la
   // liste "Dossiers" par defaut, toujours consultable via "Archives".
@@ -1549,6 +1566,69 @@ model AuditLog {
   @@index([courrierEntrantId])
   @@index([courrierSortantId])
   @@map("audit_logs")
+}
+
+// Journal des connexions (2026-10-13) - une ligne par connexion (login),
+// pour repondre a "qui s'est connecte, quand, pendant combien de temps".
+// Pas de table de sessions serveur avant ceci (JWT stateless, cookie 7
+// jours) - ce modele est purement declaratif pour l'audit, jamais utilise
+// pour valider une requete (voir middleware/requireAuth.ts, qui ne verifie
+// QUE le JWT). derniereActiviteLe est rafraichie au fil des requetes
+// authentifiees (via toucherConnexion(), throttle de quelques minutes pour
+// eviter un UPDATE a chaque requete) et sert de "duree" quand deconnecteLe
+// est absent (fermeture jamais passee par /api/auth/logout - fermeture du
+// navigateur/de l'app, crash...).
+model JournalConnexion {
+  id                 String    @id @default(uuid())
+  cabinetId          String    @map("cabinet_id")
+  userId             String    @map("user_id")
+  connecteLe         DateTime  @default(now()) @map("connecte_le")
+  derniereActiviteLe DateTime  @default(now()) @map("derniere_activite_le")
+  deconnecteLe       DateTime? @map("deconnecte_le")
+  adresseIp          String?   @map("adresse_ip")
+  userAgent          String?   @map("user_agent")
+
+  cabinet Cabinet @relation(fields: [cabinetId], references: [id])
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@index([cabinetId, connecteLe])
+  @@index([userId])
+  @@map("journal_connexions")
+}
+
+// Journal d'activite (2026-10-13) - actions metier posees dans le cabinet
+// (dossiers, clients, factures, comptes), distinct du journal technique
+// AuditLog ci-dessus (pipeline de generation de documents) et du journal
+// mobile (MobileAuditLog, deja existant pour les evenements Aurore Mobile -
+// appairage, elements recus/supprimes...) : les trois sont presentes
+// ensemble (onglets) dans l'ecran "Journal d'audit", voir routes/auditLogs.ts.
+// `type` en chaine libre (meme convention que partout dans le projet,
+// jamais un enum Prisma) pour pouvoir en ajouter sans migration - valeurs
+// actuelles : "connexion" | "deconnexion" | "dossier_cree" |
+// "dossier_cloture" | "dossier_reouvert" | "dossier_supprime" |
+// "dossier_restaure" | "client_cree" | "client_modifie" |
+// "client_supprime" | "facture_creee" | "facture_envoyee" |
+// "facture_payee" | "utilisateur_cree" | "utilisateur_desactive" |
+// "utilisateur_reactive" | "utilisateur_promu_admin" |
+// "utilisateur_supprime". `cible` est une description libre courte (ex:
+// "Dossier 12/2026 — Succession Kokou") - jamais de contenu chiffre au
+// repos (coordonnees, montants...), meme contrainte que les autres
+// journaux du projet.
+model JournalActivite {
+  id        String   @id @default(uuid())
+  cabinetId String   @map("cabinet_id")
+  userId    String?  @map("user_id")
+  type      String
+  cible     String?
+  detail    String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  cabinet Cabinet @relation(fields: [cabinetId], references: [id])
+  user    User?   @relation(fields: [userId], references: [id])
+
+  @@index([cabinetId, createdAt])
+  @@index([userId])
+  @@map("journal_activites")
 }
 
 // Lot 20 - compteur de numerotation sequentielle, un enregistrement par

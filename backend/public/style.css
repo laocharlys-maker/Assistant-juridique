@@ -760,6 +760,8 @@ header.app-topbar {
 .badge-a_jour { background: var(--success-tint); color: var(--success); }
 .badge-echeance_proche { background: var(--danger-tint); color: var(--danger); }
 .badge-cloture { background: var(--hairline); color: var(--muted); }
+.badge-gagne { background: var(--success-tint); color: var(--success); }
+.badge-perdu { background: var(--danger-tint); color: var(--danger); }
 .badge-brouillon { background: var(--hairline); color: var(--muted); }
 .badge-envoyee { background: var(--accent-tint); color: var(--accent-hover); }
 .badge-payee { background: var(--success-tint); color: var(--success); }

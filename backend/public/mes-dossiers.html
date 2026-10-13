@@ -27,6 +27,14 @@
         <option value="actif">Actifs</option>
         <option value="cloture">Clôturés</option>
         <option value="echeance_proche">Échéance proche</option>
+        <option value="gagne">Clôturés — gagnés</option>
+        <option value="perdu">Clôturés — perdus</option>
+      </select>
+      <select id="dossiers-filtre-createur" style="width:auto; margin-bottom:0;">
+        <option value="tous">Tous les créateurs</option>
+      </select>
+      <select id="dossiers-filtre-mois" style="width:auto; margin-bottom:0;">
+        <option value="tous">Tous les mois</option>
       </select>
       <button type="button" class="ghost" id="voir-archives-btn">Voir les archives</button>
       <button type="button" id="creer-dossier-btn">+ Créer un dossier</button>
@@ -102,10 +110,43 @@
           btn.classList.toggle("active", btn.dataset.scope === appliedScope);
         });
         currentDossiers = dossiers;
+        populerFiltresDynamiques();
         applyFiltres();
       } catch (err) {
         listEl.innerHTML = `<p class="error visible">${escapeHtml(err.message)}</p>`;
       }
+    }
+
+    // Options "Créé par" et "Mois de création" calculees a partir de la
+    // liste chargee (pas d'appel reseau dedie) - memes conventions que les
+    // filtres statut/recherche ci-dessous, deja entierement cote client.
+    function populerFiltresDynamiques() {
+      const createurSelect = document.getElementById("dossiers-filtre-createur");
+      const valeurCreateurActuelle = createurSelect.value;
+      const createurs = new Map();
+      currentDossiers.forEach((d) => {
+        if (d.creePar && d.createdBy) createurs.set(d.createdBy, d.creePar.nom);
+      });
+      const optionsCreateur = [...createurs.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+      createurSelect.innerHTML =
+        '<option value="tous">Tous les créateurs</option>' +
+        optionsCreateur.map(([id, nom]) => `<option value="${id}">${escapeHtml(nom)}</option>`).join("");
+      if (createurs.has(valeurCreateurActuelle)) createurSelect.value = valeurCreateurActuelle;
+
+      const moisSelect = document.getElementById("dossiers-filtre-mois");
+      const valeurMoisActuelle = moisSelect.value;
+      const mois = new Set(currentDossiers.map((d) => (d.createdAt || "").slice(0, 7)).filter(Boolean));
+      const moisTries = [...mois].sort().reverse();
+      moisSelect.innerHTML =
+        '<option value="tous">Tous les mois</option>' +
+        moisTries.map((m) => `<option value="${m}">${formatMoisAnnee(m)}</option>`).join("");
+      if (mois.has(valeurMoisActuelle)) moisSelect.value = valeurMoisActuelle;
+    }
+
+    function formatMoisAnnee(moisIso) {
+      const [annee, mois] = moisIso.split("-");
+      const noms = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
+      return `${noms[Number(mois) - 1] || mois} ${annee}`;
     }
 
     // Classement : du plus recemment actif au plus ancien (deja trie ainsi
@@ -129,12 +170,18 @@
             d.statutTag === "echeance_proche"
               ? ' <span class="badge badge-echeance_proche">Échéance proche</span>'
               : "";
+          const badgeResultat =
+            d.resultatCloture === "gagne"
+              ? ' <span class="badge badge-gagne">Gagné</span>'
+              : d.resultatCloture === "perdu"
+                ? ' <span class="badge badge-perdu">Perdu</span>'
+                : "";
           const nbDocuments = d._count?.actions ?? 0;
-          const meta = `${escapeHtml(d.nomClient)} · ${nbDocuments} document${nbDocuments === 1 ? "" : "s"} · créé par ${escapeHtml(d.creePar.nom)} · mis à jour le ${formatDateLongue(d.updatedAt)}`;
+          const meta = `${escapeHtml(d.nomClient)} · ${nbDocuments} document${nbDocuments === 1 ? "" : "s"} · créé par ${escapeHtml(d.creePar.nom)} le ${formatDateLongue(d.createdAt)} · mis à jour le ${formatDateLongue(d.updatedAt)}`;
           return `
         <div class="dossier-item">
           <div>
-            <div><a href="/dossier.html?id=${d.id}"><strong>${escapeHtml(d.numeroDossier)} — ${escapeHtml(d.nomAffaire)}</strong></a>${badgeCloture}${badgeEcheance}</div>
+            <div><a href="/dossier.html?id=${d.id}"><strong>${escapeHtml(d.numeroDossier)} — ${escapeHtml(d.nomAffaire)}</strong></a>${badgeCloture}${badgeResultat}${badgeEcheance}</div>
             <div class="meta">${meta}</div>
           </div>
         </div>`;
@@ -145,6 +192,8 @@
     function applyFiltres() {
       const terme = document.getElementById("dossiers-search").value.trim().toLowerCase();
       const statutFiltre = document.getElementById("dossiers-filtre-statut").value;
+      const createurFiltre = document.getElementById("dossiers-filtre-createur").value;
+      const moisFiltre = document.getElementById("dossiers-filtre-mois").value;
 
       let filtres = currentDossiers;
       if (statutFiltre === "echeance_proche") {
@@ -153,6 +202,15 @@
         filtres = filtres.filter((d) => d.statut === "cloture");
       } else if (statutFiltre === "actif") {
         filtres = filtres.filter((d) => d.statut !== "cloture");
+      } else if (statutFiltre === "gagne" || statutFiltre === "perdu") {
+        filtres = filtres.filter((d) => d.resultatCloture === statutFiltre);
+      }
+
+      if (createurFiltre !== "tous") {
+        filtres = filtres.filter((d) => d.createdBy === createurFiltre);
+      }
+      if (moisFiltre !== "tous") {
+        filtres = filtres.filter((d) => (d.createdAt || "").slice(0, 7) === moisFiltre);
       }
 
       if (terme) {
@@ -186,6 +244,8 @@
 
       document.getElementById("dossiers-search").addEventListener("input", applyFiltres);
       document.getElementById("dossiers-filtre-statut").addEventListener("change", applyFiltres);
+      document.getElementById("dossiers-filtre-createur").addEventListener("change", applyFiltres);
+      document.getElementById("dossiers-filtre-mois").addEventListener("change", applyFiltres);
 
       const archivesBtn = document.getElementById("voir-archives-btn");
       archivesBtn.textContent = currentVue === "archives" ? "Voir les dossiers actifs" : "Voir les archives";
