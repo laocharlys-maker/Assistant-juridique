@@ -6,6 +6,33 @@ function formatDateLongue(date) {
   return d.toLocaleDateString("fr-FR", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
 }
 
+// Format court unique JJ-MM-AAAA (demande utilisateur du 2026-10-13) -
+// jamais JJ/MM/AAAA (toLocaleDateString par defaut) ni AAAA-MM-JJ (ISO) a
+// l'affichage, pour que toutes les dates courtes de l'app se lisent de la
+// meme facon. A utiliser partout ou une date courte (pas formatDateLongue)
+// est affichee - voir public/planning-conges.html pour un exemple.
+function formatDateCourte(date) {
+  const d = date instanceof Date ? date : new Date(date);
+  if (Number.isNaN(d.getTime())) return "-";
+  const jj = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const aaaa = d.getFullYear();
+  return `${jj}-${mm}-${aaaa}`;
+}
+
+// Inverse de formatDateCourte : parse "JJ-MM-AAAA" saisi par l'utilisateur
+// vers une chaine ISO "AAAA-MM-JJ" (ce que l'API attend partout). Renvoie
+// null si le format est invalide, pour que l'appelant puisse redemander
+// plutot que d'envoyer une date fausse.
+function parseDateCourte(saisie) {
+  const m = /^(\d{2})-(\d{2})-(\d{4})$/.exec((saisie || "").trim());
+  if (!m) return null;
+  const [, jj, mm, aaaa] = m;
+  const d = new Date(`${aaaa}-${mm}-${jj}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return null;
+  return `${aaaa}-${mm}-${jj}`;
+}
+
 const NAV_ICONS = {
   dashboard: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/>',
   docs: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6"/><path d="M9 17h6"/>',
@@ -77,31 +104,23 @@ const NAV_ITEMS = [
     ],
   },
   { href: "/veille-juridique.html", label: "Veille juridique", roles: ["titulaire", "avocat"], group: "Cabinet", icon: "radar", moduleKey: "veille_juridique" },
+  // Module RH Cabinet (RH-1 a RH-7, voir docs/rh/) - regroupe sous "Gestion
+  // du Personnel" (demande utilisateur du 2026-10-13), AVANT "Corbeille"
+  // ci-dessous. Visible a tous les roles couverts par la cle "rh"/"rh_paie" :
+  // un titulaire voit la liste complete, un avocat/collaborateur voit
+  // uniquement "Congés" et "Mes fiches de paie" (perimetre reel verifie
+  // cote serveur - sa propre fiche/ses propres demandes/ses fiches VALIDEES
+  // uniquement).
+  { href: "/personnel.html", label: "Personnel", roles: ["titulaire", "avocat", "collaborateur"], group: "Gestion du Personnel", icon: "team", moduleKey: "rh" },
+  { href: "/stages.html", label: "Stages", roles: ["titulaire", "avocat", "collaborateur"], group: "Gestion du Personnel", icon: "clock", moduleKey: "rh" },
+  { href: "/mes-conges.html", label: "Congés", roles: ["titulaire", "avocat", "collaborateur"], group: "Gestion du Personnel", icon: "calendar", moduleKey: "rh" },
+  { href: "/absences-equipe.html", label: "Absences de l'équipe", roles: ["titulaire", "avocat", "collaborateur"], group: "Gestion du Personnel", icon: "team", moduleKey: "rh" },
+  { href: "/validation-conges.html", label: "Validation congés", roles: ["titulaire"], group: "Gestion du Personnel", icon: "audit", moduleKey: "rh" },
+  { href: "/conges-parametres.html", label: "Paramètres congés", roles: ["titulaire"], group: "Gestion du Personnel", icon: "settings", moduleKey: "rh" },
+  { href: "/planning-conges.html", label: "Planning congés", roles: ["titulaire"], group: "Gestion du Personnel", icon: "calendar", moduleKey: "rh" },
+  { href: "/paie-du-mois.html", label: "Paie du mois", roles: ["titulaire"], group: "Gestion du Personnel", icon: "invoice", moduleKey: "rh_paie" },
+  { href: "/mes-fiches-paie.html", label: "Mes fiches de paie", roles: ["titulaire", "avocat", "collaborateur"], group: "Gestion du Personnel", icon: "invoice", moduleKey: "rh_paie" },
   { href: "/corbeille.html", label: "Corbeille", roles: ["titulaire", "avocat", "collaborateur"], group: "Cabinet", icon: "trash", moduleKey: "corbeille" },
-  // Module RH Cabinet (RH-1, voir docs/rh/) - visible a tous les roles
-  // couverts par la cle "rh" : un titulaire voit la liste complete, un
-  // avocat/collaborateur voit uniquement sa propre fiche (filtre cote
-  // serveur, voir routes/personnel.ts).
-  { href: "/personnel.html", label: "Personnel", roles: ["titulaire", "avocat", "collaborateur"], group: "Cabinet", icon: "team", moduleKey: "rh" },
-  // RH-2 - visible a tous (un titulaire voit tous les stages, un
-  // avocat/collaborateur ne voit que ceux dont il/elle est responsable,
-  // voir routes/stages.ts).
-  { href: "/stages.html", label: "Stages", roles: ["titulaire", "avocat", "collaborateur"], group: "Cabinet", icon: "clock", moduleKey: "rh" },
-  // RH-3 - "Mes conges" (tous), "Validation conges"/"Parametres conges"
-  // (titulaire uniquement, pas de delegation possible sans Lot 9), "Absences
-  // de l'equipe" (tous, jamais de motif - voir routes/conges.ts).
-  { href: "/mes-conges.html", label: "Mes congés", roles: ["titulaire", "avocat", "collaborateur"], group: "Cabinet", icon: "calendar", moduleKey: "rh" },
-  { href: "/absences-equipe.html", label: "Absences de l'équipe", roles: ["titulaire", "avocat", "collaborateur"], group: "Cabinet", icon: "team", moduleKey: "rh" },
-  { href: "/validation-conges.html", label: "Validation congés", roles: ["titulaire"], group: "Cabinet", icon: "audit", moduleKey: "rh" },
-  { href: "/conges-parametres.html", label: "Paramètres congés", roles: ["titulaire"], group: "Cabinet", icon: "settings", moduleKey: "rh" },
-  // RH-4 - planning automatique, titulaire uniquement.
-  { href: "/planning-conges.html", label: "Planning congés", roles: ["titulaire"], group: "Cabinet", icon: "calendar", moduleKey: "rh" },
-  // RH-5 - module "rh_paie" distinct de "rh" (vendable separement, voir
-  // docs/rh/). Paie du mois : titulaire uniquement. Mes fiches de paie :
-  // tous (perimetre reel verifie cote serveur - uniquement SES fiches
-  // VALIDEES, voir routes/paie.ts).
-  { href: "/paie-du-mois.html", label: "Paie du mois", roles: ["titulaire"], group: "Cabinet", icon: "invoice", moduleKey: "rh_paie" },
-  { href: "/mes-fiches-paie.html", label: "Mes fiches de paie", roles: ["titulaire", "avocat", "collaborateur"], group: "Cabinet", icon: "invoice", moduleKey: "rh_paie" },
   { href: "/audit-logs.html", label: "Journal d'audit", roles: ["titulaire"], group: "Cabinet", icon: "audit" },
   { href: "/parametres.html", label: "Paramètres", roles: ["titulaire"], group: "Cabinet", icon: "settings" },
   { href: "/admin-tableau-de-bord.html", label: "Tableau de bord", roles: ["super_admin"], group: "Plateforme", icon: "dashboard" },
@@ -415,7 +434,7 @@ async function initNotificationsCloche(me) {
         <a class="notif-item${n.lu ? "" : " non-lue"}" href="${n.lienUrl || "#"}" data-notif-id="${n.id}">
           <div class="notif-item-titre">${escapeHtmlHeaderChrono(n.titre)}</div>
           ${n.message ? `<div class="notif-item-message">${escapeHtmlHeaderChrono(n.message)}</div>` : ""}
-          <div class="notif-item-date">${formatDateRelativeNotif(n.createdAt)}</div>
+          <div class="notif-item-date">${n.creeParNom ? `${escapeHtmlHeaderChrono(n.creeParNom)} · ` : ""}${formatDateRelativeNotif(n.createdAt)}</div>
         </a>`
         )
         .join("");

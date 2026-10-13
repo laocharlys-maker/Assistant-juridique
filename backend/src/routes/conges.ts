@@ -4,8 +4,9 @@ import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
 import { requireModule } from "../middleware/roles";
 import { logAuditPersonnel } from "../services/audit";
-import { creerNotification } from "../services/notifications";
+import { creerNotification, creerNotificationsMultiples } from "../services/notifications";
 import { ensureTypesAbsenceParDefaut, calculerJoursOuvres, joursPris } from "../services/conges";
+import { formatDateCourteFr } from "../utils/dateFormat";
 
 export const congesRouter = Router();
 
@@ -215,6 +216,26 @@ congesRouter.post("/api/personnel/:id/demandes-absence", async (req, res) => {
   });
 
   await logAuditPersonnel(fiche.id, "demande_absence_creee", "succes", `Créée par ${req.auth!.userId}`);
+
+  // Notifie le/les titulaire(s) du cabinet (seuls a gerer les congés/absences,
+  // voir GET /api/demandes-absence ci-dessous - pas de delegation possible
+  // sans Lot 9) - demande utilisateur du 2026-10-13.
+  const titulaires = await prisma.user.findMany({
+    where: { cabinetId: req.auth!.cabinetId, role: "titulaire", actif: true },
+    select: { id: true },
+  });
+  await creerNotificationsMultiples(
+    titulaires.map((t) => t.id),
+    {
+      cabinetId: req.auth!.cabinetId,
+      type: "demande_absence_creee",
+      titre: `Nouvelle demande de congé — ${fiche.nom}${fiche.prenoms ? " " + fiche.prenoms : ""}`,
+      message: `${typeAbsence.libelle}, du ${formatDateCourteFr(dateDebut)} au ${formatDateCourteFr(dateFin)} (${nbJoursOuvres} j).`,
+      lienUrl: "/validation-conges.html",
+      creeParId: req.auth!.userId,
+    }
+  );
+
   return res.status(201).json(demande);
 });
 

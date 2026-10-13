@@ -9,6 +9,7 @@
 </head>
 <body>
   <div class="page">
+    <p><a href="/tableau-de-bord.html" id="back-link">&larr; Retour</a></p>
     <div class="page-hero">
       <div class="eyebrow">Cabinet</div>
       <h1>Personnel</h1>
@@ -136,10 +137,13 @@
         .join("");
     }
 
+let comptesDisponiblesCache = [];
+
     async function chargerComptesDisponibles() {
       const select = document.querySelector('#ajouter-personnel-form [name="userId"]');
       try {
         const comptes = await apiFetch("/api/personnel/comptes-disponibles");
+        comptesDisponiblesCache = comptes;
         select.innerHTML =
           '<option value="">— Aucun compte (employé sans accès à Aurore) —</option>' +
           comptes.map((c) => `<option value="${c.id}">${escapeHtml(c.nom)} (${escapeHtml(c.email)})</option>`).join("");
@@ -148,10 +152,38 @@
       }
     }
 
+    // Choisir un compte Avocat/Collaborateur existant pre-remplit la fiche
+    // (nom, email, categorie d'apres le role) - demande utilisateur du
+    // 2026-10-13 : eviter de ressaisir des informations deja connues
+    // d'Aurore. Reste entierement modifiable ensuite (ex: nom marital
+    // different, prenoms a ajouter).
+    function remplirDepuisCompte(userId) {
+      const form = document.getElementById("ajouter-personnel-form");
+      const compte = comptesDisponiblesCache.find((c) => c.id === userId);
+      if (!compte) return;
+      form.querySelector('[name="nom"]').value = compte.nom;
+      form.querySelector('[name="email"]').value = compte.email;
+      if (compte.role === "avocat" || compte.role === "collaborateur") {
+        form.querySelector('[name="categorie"]').value = compte.role;
+      }
+    }
+
     (async () => {
       const me = await requireSession();
       if (!me) return;
       initLayout(me);
+      // "Retour" revient a la page d'ou cette fiche a ete ouverte (si c'est
+      // bien une page Aurore), sinon conserve le lien par defaut - meme
+      // pattern que public/dossier.html.
+      try {
+        const referrer = new URL(document.referrer);
+        if (referrer.origin === window.location.origin) {
+          document.getElementById("back-link").href = document.referrer;
+        }
+      } catch {
+        // document.referrer absent/invalide (ouverture directe par URL) -
+        // conserve le lien par defaut.
+      }
 
       const estTitulaire = me.role === "titulaire";
       document.getElementById("ajouter-personnel-btn").hidden = !estTitulaire;
@@ -169,6 +201,9 @@
         errEl.textContent = "";
         await chargerComptesDisponibles();
         modal.hidden = false;
+      });
+      form.querySelector('[name="userId"]').addEventListener("change", (e) => {
+        remplirDepuisCompte(e.target.value);
       });
       document.getElementById("ajouter-personnel-annuler-btn").addEventListener("click", () => {
         modal.hidden = true;

@@ -9,6 +9,7 @@
 </head>
 <body>
   <div class="page">
+    <p><a href="/tableau-de-bord.html" id="back-link">&larr; Retour</a></p>
     <div class="page-hero">
       <div class="eyebrow">Cabinet</div>
       <h1>Planning de congés</h1>
@@ -95,7 +96,7 @@
         <div style="padding:10px 0; border-bottom:1px solid var(--border);">
           <strong>${escapeHtml(nom)}</strong>
           <span class="tag">${ORIGINE_LABELS[l.origine] || l.origine}</span>
-          <div class="meta">${new Date(l.dateDebut).toLocaleDateString("fr-FR")} → ${new Date(l.dateFin).toLocaleDateString("fr-FR")} (${l.nbJoursOuvres} j)</div>
+          <div class="meta">${formatDateCourte(l.dateDebut)} → ${formatDateCourte(l.dateFin)} (${l.nbJoursOuvres} j)</div>
           ${l.raison ? `<div class="meta" title="${escapeHtml(l.raison)}">${escapeHtml(l.raison)}</div>` : ""}
           ${
             planning.statut === "brouillon"
@@ -108,10 +109,14 @@
 
       document.getElementById("lignes-list").querySelectorAll("[data-ajuster]").forEach((btn) => {
         btn.addEventListener("click", async () => {
-          const debut = prompt("Nouvelle date de début (AAAA-MM-JJ) :", btn.dataset.debut);
-          if (!debut) return;
-          const fin = prompt("Nouvelle date de fin (AAAA-MM-JJ) :", btn.dataset.fin);
-          if (!fin) return;
+          const debutSaisi = prompt("Nouvelle date de début (JJ-MM-AAAA) :", formatDateCourte(btn.dataset.debut));
+          if (!debutSaisi) return;
+          const debut = parseDateCourte(debutSaisi);
+          if (!debut) return showError(document.getElementById("error"), "Date de début invalide - format attendu JJ-MM-AAAA.");
+          const finSaisie = prompt("Nouvelle date de fin (JJ-MM-AAAA) :", formatDateCourte(btn.dataset.fin));
+          if (!finSaisie) return;
+          const fin = parseDateCourte(finSaisie);
+          if (!fin) return showError(document.getElementById("error"), "Date de fin invalide - format attendu JJ-MM-AAAA.");
           try {
             await apiFetch(`/api/planning-conges/lignes/${btn.dataset.ajuster}`, { method: "PATCH", body: { dateDebut: debut, dateFin: fin } });
             await chargerPlanning(planning.annee);
@@ -135,6 +140,18 @@
       const me = await requireSession();
       if (!me) return;
       initLayout(me);
+      // "Retour" revient a la page d'ou cette fiche a ete ouverte (si c'est
+      // bien une page Aurore), sinon conserve le lien par defaut - meme
+      // pattern que public/dossier.html.
+      try {
+        const referrer = new URL(document.referrer);
+        if (referrer.origin === window.location.origin) {
+          document.getElementById("back-link").href = document.referrer;
+        }
+      } catch {
+        // document.referrer absent/invalide (ouverture directe par URL) -
+        // conserve le lien par defaut.
+      }
 
       const anneeDefaut = new Date().getFullYear() + 1;
       document.getElementById("annee-input").value = anneeDefaut;

@@ -9,6 +9,7 @@
 </head>
 <body>
   <div class="page">
+    <p><a href="/personnel.html" id="back-link">&larr; Retour</a></p>
     <div class="page-hero">
       <div class="eyebrow">Personnel</div>
       <h1 id="fiche-nom">Chargement…</h1>
@@ -270,6 +271,18 @@
       const me = await requireSession();
       if (!me) return;
       initLayout(me);
+      // "Retour" revient a la page d'ou cette fiche a ete ouverte (si c'est
+      // bien une page Aurore), sinon conserve le lien par defaut - meme
+      // pattern que public/dossier.html.
+      try {
+        const referrer = new URL(document.referrer);
+        if (referrer.origin === window.location.origin) {
+          document.getElementById("back-link").href = document.referrer;
+        }
+      } catch {
+        // document.referrer absent/invalide (ouverture directe par URL) -
+        // conserve le lien par defaut.
+      }
 
       if (!id) {
         showError(document.getElementById("error"), "Fiche introuvable.");

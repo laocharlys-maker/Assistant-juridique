@@ -19,8 +19,12 @@ notificationsRouter.get("/api/notifications", requireAuth, async (req, res) => {
     where: { destinataireId: req.auth!.userId },
     orderBy: { createdAt: "desc" },
     take: parsed.data.limit ?? 20,
+    include: { creePar: { select: { nom: true } } },
   });
-  return res.json(notifications);
+  // Auteur affiche au destinataire (demande utilisateur du 2026-10-13) -
+  // "creeParNom" plutot que l'objet relation complet, pour que le frontend
+  // n'ait rien de plus a deballer.
+  return res.json(notifications.map((n) => ({ ...n, creeParNom: n.creePar?.nom ?? null, creePar: undefined })));
 });
 
 notificationsRouter.get("/api/notifications/compteur", requireAuth, async (req, res) => {
