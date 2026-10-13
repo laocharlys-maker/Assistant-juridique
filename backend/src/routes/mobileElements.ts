@@ -62,6 +62,49 @@ mobileElementsRouter.get("/api/mobile/elements", async (req, res) => {
   return res.json(elements);
 });
 
+// Nettoyage groupe par periode (demande utilisateur du 2026-10-13) - jamais
+// les elements "a_traiter" (toujours "traite" uniquement, meme regle que la
+// suppression individuelle ci-dessous), jamais ceux d'un AUTRE utilisateur
+// pour un non-titulaire. Declaree AVANT "/:id" ci-dessous (route litterale
+// avant route parametree - voir convention du projet, routes/personnel.ts).
+const nettoyerSchema = z.object({
+  depuis: z.string().optional(),
+  jusqua: z.string().optional(),
+});
+
+mobileElementsRouter.post("/api/mobile/elements/nettoyer", async (req, res) => {
+  const parsed = nettoyerSchema.safeParse(req.query);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Requête invalide" });
+  }
+  if (!parsed.data.depuis && !parsed.data.jusqua) {
+    return res.status(400).json({ error: "Précise au moins une borne de date." });
+  }
+
+  const items = await prisma.mobileItem.findMany({
+    where: {
+      cabinetId: req.auth!.cabinetId,
+      statut: "traite",
+      ...(estTitulaire(req.auth!.role) ? {} : { device: { userId: req.auth!.userId } }),
+      recuLe: {
+        ...(parsed.data.depuis ? { gte: new Date(parsed.data.depuis) } : {}),
+        ...(parsed.data.jusqua ? { lte: new Date(`${parsed.data.jusqua}T23:59:59.999`) } : {}),
+      },
+    },
+    select: { id: true, deviceId: true, cheminFichier: true },
+  });
+
+  for (const item of items) {
+    if (item.cheminFichier) {
+      await supprimerFichierMobile(item.deviceId, item.cheminFichier).catch(() => undefined);
+    }
+  }
+  await prisma.mobileItem.deleteMany({ where: { id: { in: items.map((i) => i.id) } } });
+  await logMobileAudit(req.auth!.cabinetId, "nettoyage_periode", "succes", `${items.length} élément(s)`);
+
+  return res.json({ ok: true, supprimes: items.length });
+});
+
 async function chargerElementAccessible(req: { params: { id: string }; auth?: { cabinetId: string; userId: string; role: string } }) {
   const element = await prisma.mobileItem.findFirst({
     where: { id: req.params.id, cabinetId: req.auth!.cabinetId },

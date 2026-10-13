@@ -104,22 +104,37 @@ const NAV_ITEMS = [
     ],
   },
   { href: "/veille-juridique.html", label: "Veille juridique", roles: ["titulaire", "avocat"], group: "Cabinet", icon: "radar", moduleKey: "veille_juridique" },
-  // Module RH Cabinet (RH-1 a RH-7, voir docs/rh/) - regroupe sous "Gestion
-  // du Personnel" (demande utilisateur du 2026-10-13), AVANT "Corbeille"
-  // ci-dessous. Visible a tous les roles couverts par la cle "rh"/"rh_paie" :
-  // un titulaire voit la liste complete, un avocat/collaborateur voit
-  // uniquement "Congés" et "Mes fiches de paie" (perimetre reel verifie
-  // cote serveur - sa propre fiche/ses propres demandes/ses fiches VALIDEES
-  // uniquement).
-  { href: "/personnel.html", label: "Personnel", roles: ["titulaire", "avocat", "collaborateur"], group: "Gestion du Personnel", icon: "team", moduleKey: "rh" },
-  { href: "/stages.html", label: "Stages", roles: ["titulaire", "avocat", "collaborateur"], group: "Gestion du Personnel", icon: "clock", moduleKey: "rh" },
-  { href: "/mes-conges.html", label: "Congés", roles: ["titulaire", "avocat", "collaborateur"], group: "Gestion du Personnel", icon: "calendar", moduleKey: "rh" },
-  { href: "/absences-equipe.html", label: "Absences de l'équipe", roles: ["titulaire", "avocat", "collaborateur"], group: "Gestion du Personnel", icon: "team", moduleKey: "rh" },
-  { href: "/validation-conges.html", label: "Validation congés", roles: ["titulaire"], group: "Gestion du Personnel", icon: "audit", moduleKey: "rh" },
-  { href: "/conges-parametres.html", label: "Paramètres congés", roles: ["titulaire"], group: "Gestion du Personnel", icon: "settings", moduleKey: "rh" },
-  { href: "/planning-conges.html", label: "Planning congés", roles: ["titulaire"], group: "Gestion du Personnel", icon: "calendar", moduleKey: "rh" },
-  { href: "/paie-du-mois.html", label: "Paie du mois", roles: ["titulaire"], group: "Gestion du Personnel", icon: "invoice", moduleKey: "rh_paie" },
-  { href: "/mes-fiches-paie.html", label: "Mes fiches de paie", roles: ["titulaire", "avocat", "collaborateur"], group: "Gestion du Personnel", icon: "invoice", moduleKey: "rh_paie" },
+  // Module RH Cabinet (RH-1 a RH-7, voir docs/rh/) - un seul menu deroulant
+  // "Gestion du Personnel" (demande utilisateur du 2026-10-13), AVANT
+  // "Corbeille" ci-dessous, meme mecanisme "children" que "Équipe"/"Aurore
+  // Mobile"/"Facturation" ci-dessus. roles/moduleKey est ICI porte par
+  // CHAQUE enfant (pas par le parent) car ils different a l'interieur du
+  // groupe : un titulaire voit les 9 ecrans, un avocat/collaborateur
+  // seulement "Personnel"/"Stages"/"Congés"/"Absences de l'équipe"/"Mes
+  // fiches de paie" (perimetre reel re-verifie cote serveur dans tous les
+  // cas - sa propre fiche/ses propres demandes/ses fiches VALIDEES
+  // uniquement), et "Paie du mois"/"Mes fiches de paie" dependent du module
+  // "rh_paie" (vendable separement de "rh") plutot que "rh". roles au niveau
+  // du parent = union de tous les enfants, pour que le filtrage fin se fasse
+  // uniquement a l'affichage des enfants (voir initLayout, rendu des
+  // "children").
+  {
+    label: "Gestion du Personnel",
+    roles: ["titulaire", "avocat", "collaborateur"],
+    group: "Cabinet",
+    icon: "team",
+    children: [
+      { href: "/personnel.html", label: "Personnel", roles: ["titulaire", "avocat", "collaborateur"], moduleKey: "rh" },
+      { href: "/stages.html", label: "Stages", roles: ["titulaire", "avocat", "collaborateur"], moduleKey: "rh" },
+      { href: "/mes-conges.html", label: "Congés", roles: ["titulaire", "avocat", "collaborateur"], moduleKey: "rh" },
+      { href: "/absences-equipe.html", label: "Absences de l'équipe", roles: ["titulaire", "avocat", "collaborateur"], moduleKey: "rh" },
+      { href: "/validation-conges.html", label: "Validation congés", roles: ["titulaire"], moduleKey: "rh" },
+      { href: "/conges-parametres.html", label: "Paramètres congés", roles: ["titulaire"], moduleKey: "rh" },
+      { href: "/planning-conges.html", label: "Planning congés", roles: ["titulaire"], moduleKey: "rh" },
+      { href: "/paie-du-mois.html", label: "Paie du mois", roles: ["titulaire"], moduleKey: "rh_paie" },
+      { href: "/mes-fiches-paie.html", label: "Mes fiches de paie", roles: ["titulaire", "avocat", "collaborateur"], moduleKey: "rh_paie" },
+    ],
+  },
   { href: "/corbeille.html", label: "Corbeille", roles: ["titulaire", "avocat", "collaborateur"], group: "Cabinet", icon: "trash", moduleKey: "corbeille" },
   { href: "/audit-logs.html", label: "Journal d'audit", roles: ["titulaire"], group: "Cabinet", icon: "audit" },
   { href: "/parametres.html", label: "Paramètres", roles: ["titulaire"], group: "Cabinet", icon: "settings" },
@@ -179,10 +194,21 @@ function initLayout(me) {
       lastGroup = item.group;
     }
     if (item.children) {
-      const childActive = item.children.some((c) => path === c.href.split("?")[0]);
+      // Chaque enfant peut porter son propre roles/moduleKey (ex: "Gestion
+      // du Personnel" ci-dessus, ou un enfant different selon le role) -
+      // absent = herite des reglages du parent, meme logique que le
+      // filtrage des items de premier niveau ci-dessus. Un parent sans
+      // AUCUN enfant visible ne s'affiche pas du tout.
+      const childrenVisibles = item.children.filter(
+        (c) =>
+          (c.roles || item.roles).includes(me.role) &&
+          (!(c.moduleKey || item.moduleKey) || !modulesDesactives.includes(c.moduleKey || item.moduleKey))
+      );
+      if (childrenVisibles.length === 0) return;
+      const childActive = childrenVisibles.some((c) => path === c.href.split("?")[0]);
       navHtml += `<button type="button" class="nav-parent${childActive ? " active" : ""}" data-nav-parent="${idx}" aria-expanded="${childActive}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${NAV_ICONS[item.icon] || ""}</svg><span>${item.label}</span><svg class="nav-caret" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>`;
       navHtml += `<div class="nav-children${childActive ? " open" : ""}" data-nav-children="${idx}">`;
-      item.children.forEach((c) => {
+      childrenVisibles.forEach((c) => {
         const isActive = c.href.includes("?") ? fullPath === c.href : path === c.href;
         navHtml += `<a href="${c.href}"${isActive ? ' class="active"' : ""}>${c.label}</a>`;
       });

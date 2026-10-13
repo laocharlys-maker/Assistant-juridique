@@ -573,7 +573,7 @@ button.btn-sm { padding: 7px 14px; font-size: 0.82rem; margin-top: 0; }
   max-height: 0;
   overflow: hidden;
 }
-.nav-children.open { max-height: 200px; }
+.nav-children.open { max-height: 420px; }
 .nav-children a {
   display: block;
   color: var(--sidebar-text);
