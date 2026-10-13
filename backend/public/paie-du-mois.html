@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aurore — Paie du mois</title>
+  <link rel="icon" type="image/png" href="/favicon-256.png" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="page">
+    <div class="page-hero">
+      <div class="eyebrow">Cabinet</div>
+      <h1>Paie du mois</h1>
+      <p>Document interne généré par Aurore, à faire valider par votre comptable.</p>
+    </div>
+
+    <div id="error" class="error"></div>
+
+    <div style="display:flex; gap:10px; align-items:center; margin-bottom:14px;">
+      <input type="month" id="mois-input" />
+      <button type="button" id="ouvrir-periode-btn">Ouvrir / régénérer la période</button>
+    </div>
+
+    <div id="fiches-list"><p class="muted">Choisis un mois.</p></div>
+  </div>
+
+  <div class="modal-overlay" id="ajustement-modal" hidden>
+    <div class="modal-box">
+      <h2>Ajustement du mois</h2>
+      <form id="ajustement-form">
+        <label>Sens</label>
+        <select name="sens" required>
+          <option value="gain">Gain (prime exceptionnelle...)</option>
+          <option value="retenue">Retenue (ponctuelle)</option>
+        </select>
+        <label>Libellé</label>
+        <input name="libelle" required />
+        <label>Montant (F CFA)</label>
+        <input type="number" name="montant" min="1" required />
+        <p class="error" id="ajustement-error"></p>
+        <div style="display:flex; gap:10px; margin-top:14px;">
+          <button type="submit">Ajouter</button>
+          <button type="button" class="secondary" id="ajustement-annuler-btn">Annuler</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="annuler-modal" hidden>
+    <div class="modal-box">
+      <h2>Annuler la fiche validée</h2>
+      <p class="muted">Une nouvelle version brouillon sera créée pour correction. L'ancienne reste archivée.</p>
+      <form id="annuler-form">
+        <label>Motif</label>
+        <textarea name="motif" rows="3" required></textarea>
+        <p class="error" id="annuler-error"></p>
+        <div style="display:flex; gap:10px; margin-top:14px;">
+          <button type="submit" class="danger">Annuler cette fiche</button>
+          <button type="button" class="secondary" id="annuler-annuler-btn">Fermer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/layout.js"></script>
+  <script>
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str ?? "";
+      return div.innerHTML;
+    }
+    function formatMontant(montant) {
+      return `${montant.toLocaleString("fr-FR")} F CFA`;
+    }
+
+    let ficheCible = null;
+    const STATUT_LABELS = { brouillon: "Brouillon", validee: "Validée", annulee: "Annulée" };
+
+    async function chargerPeriode(mois) {
+      const listEl = document.getElementById("fiches-list");
+      try {
+        const periode = await apiFetch(`/api/periodes-paie/${mois}`);
+        renderFiches(periode);
+      } catch {
+        listEl.innerHTML = '<p class="muted">Aucune période ouverte pour ce mois - clique sur "Ouvrir / régénérer la période".</p>';
+      }
+    }
+
+    function renderFiches(periode) {
+      const fiches = periode.fiches.filter((f) => f.statut !== "annulee");
+      document.getElementById("fiches-list").innerHTML = `
+        <div class="card">
+          <table>
+            <tr><th style="text-align:left;">Employé</th><th>Brut</th><th>Retenues</th><th>Net</th><th>Statut</th><th></th></tr>
+            ${fiches
+              .map((f) => {
+                const nom = `${f.fichePersonnel.nom}${f.fichePersonnel.prenoms ? " " + f.fichePersonnel.prenoms : ""}`;
+                return `
+              <tr>
+                <td>${escapeHtml(nom)}</td>
+                <td style="text-align:right;">${formatMontant(f.brut)}</td>
+                <td style="text-align:right;">${formatMontant(f.totalRetenues)}</td>
+                <td style="text-align:right;"><strong>${formatMontant(f.net)}</strong></td>
+                <td style="text-align:center;"><span class="tag">${STATUT_LABELS[f.statut] || f.statut}</span></td>
+                <td style="white-space:nowrap;">
+                  ${f.statut === "brouillon" ? `<button type="button" class="secondary btn-sm" data-ajustement="${f.fichePersonnelId}">+ Ajustement</button> <button type="button" class="btn-sm" data-valider="${f.id}">Valider</button>` : ""}
+                  ${f.statut === "validee" ? `<a class="secondary btn-sm" href="/api/fiches-paie/${f.id}/pdf" style="text-decoration:none; display:inline-block;">PDF</a> <button type="button" class="danger btn-sm" data-annuler="${f.id}">Annuler</button>` : ""}
+                </td>
+              </tr>`;
+              })
+              .join("")}
+          </table>
+        </div>`;
+
+      document.querySelectorAll("[data-ajustement]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          ficheCible = { fichePersonnelId: btn.dataset.ajustement, mois: periode.mois };
+          document.getElementById("ajustement-form").reset();
+          document.getElementById("ajustement-error").textContent = "";
+          document.getElementById("ajustement-modal").hidden = false;
+        });
+      });
+      document.querySelectorAll("[data-valider]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          if (!confirm("Valider cette fiche ? Elle deviendra définitive (PDF généré, plus aucune modification possible sauf annulation).")) return;
+          try {
+            await apiFetch(`/api/fiches-paie/${btn.dataset.valider}/valider`, { method: "POST" });
+            await chargerPeriode(periode.mois);
+          } catch (err) {
+            showError(document.getElementById("error"), err.message);
+          }
+        });
+      });
+      document.querySelectorAll("[data-annuler]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          ficheCible = { fichePaieId: btn.dataset.annuler, mois: periode.mois };
+          document.getElementById("annuler-form").reset();
+          document.getElementById("annuler-error").textContent = "";
+          document.getElementById("annuler-modal").hidden = false;
+        });
+      });
+    }
+
+    (async () => {
+      const me = await requireSession();
+      if (!me) return;
+      initLayout(me);
+
+      const moisInput = document.getElementById("mois-input");
+      const moisDefaut = new Date().toISOString().slice(0, 7);
+      moisInput.value = moisDefaut;
+      await chargerPeriode(moisDefaut);
+      moisInput.addEventListener("change", () => chargerPeriode(moisInput.value));
+
+      document.getElementById("ouvrir-periode-btn").addEventListener("click", async () => {
+        try {
+          await apiFetch("/api/periodes-paie", { method: "POST", body: { mois: moisInput.value } });
+          await chargerPeriode(moisInput.value);
+        } catch (err) {
+          showError(document.getElementById("error"), err.message);
+        }
+      });
+
+      document.getElementById("ajustement-annuler-btn").addEventListener("click", () => {
+        document.getElementById("ajustement-modal").hidden = true;
+      });
+      document.getElementById("ajustement-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const errEl = document.getElementById("ajustement-error");
+        errEl.textContent = "";
+        const fd = new FormData(e.target);
+        try {
+          await apiFetch(`/api/periodes-paie/${ficheCible.mois}/ajustements`, {
+            method: "POST",
+            body: { fichePersonnelId: ficheCible.fichePersonnelId, sens: fd.get("sens"), libelle: fd.get("libelle").trim(), montant: Number(fd.get("montant")) },
+          });
+          document.getElementById("ajustement-modal").hidden = true;
+          await chargerPeriode(ficheCible.mois);
+        } catch (err) {
+          errEl.textContent = err.message;
+        }
+      });
+
+      document.getElementById("annuler-annuler-btn").addEventListener("click", () => {
+        document.getElementById("annuler-modal").hidden = true;
+      });
+      document.getElementById("annuler-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const errEl = document.getElementById("annuler-error");
+        errEl.textContent = "";
+        const fd = new FormData(e.target);
+        try {
+          await apiFetch(`/api/fiches-paie/${ficheCible.fichePaieId}/annuler`, { method: "POST", body: { motif: fd.get("motif").trim() } });
+          document.getElementById("annuler-modal").hidden = true;
+          await chargerPeriode(ficheCible.mois);
+        } catch (err) {
+          errEl.textContent = err.message;
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

@@ -341,6 +341,8 @@ model Cabinet {
   joursFeries       JourFerie[]
   demandesAbsence   DemandeAbsence[]
   planningsConges   PlanningConges[]
+  periodesPaie      PeriodePaie[]
+  fichesPaie        FichePaie[]
 
   @@map("cabinets")
 }
@@ -409,6 +411,9 @@ model FichePersonnel {
   demandesAbsence DemandeAbsence[]
   souhaitsConges  SouhaitConges[]
   planningCongesLignes PlanningCongesLigne[]
+  elementsSalaire      ElementSalaire[]
+  ajustementsMensuels  AjustementMensuel[]
+  fichesPaie           FichePaie[]
 
   @@index([cabinetId])
   @@map("fiches_personnel")
@@ -627,6 +632,126 @@ model PlanningCongesLigne {
   @@map("plannings_conges_lignes")
 }
 
+// Module RH Cabinet, RH-5 (voir docs/rh/) - elements de salaire FIXES,
+// recurrents chaque mois (pas les variables du mois, voir
+// AjustementMensuel ci-dessous). Decision du 13/10/2026 (docs/rh/00-audit.md,
+// question 3) : montants en CLAIR en base (Int FCFA, pas de chiffrement) -
+// permet des totaux fiables en SQL ; seuls les coordonnees de paiement et
+// les PDF de fiche de paie sont chiffres.
+model ElementSalaire {
+  id               String  @id @default(uuid())
+  fichePersonnelId String  @map("fiche_personnel_id")
+  // "gain" | "retenue"
+  sens             String
+  libelle          String
+  // "montant_fixe" | "pourcentage"
+  modeCalcul       String  @map("mode_calcul")
+  // Montant en FCFA (entier) si modeCalcul=montant_fixe, ou pourcentage
+  // (ex: 5 pour 5%) si modeCalcul=pourcentage.
+  valeur           Int
+  // "salaire_base" | "brut" - uniquement si modeCalcul=pourcentage (spec
+  // section 11, point 1 : les deux bases possibles, au choix par ligne).
+  baseCalcul       String? @map("base_calcul")
+  dateDebut        DateTime @default(now()) @map("date_debut")
+  dateFin          DateTime? @map("date_fin")
+  actif            Boolean @default(true)
+  // Un seul element par fiche peut porter ce marqueur - le "Salaire de
+  // base" sert de reference pour les pourcentages bases sur salaire_base
+  // ET pour la retenue d'absence non remuneree (services/paie.ts).
+  estSalaireBase   Boolean @default(false) @map("est_salaire_base")
+
+  fichePersonnel FichePersonnel @relation(fields: [fichePersonnelId], references: [id])
+
+  @@index([fichePersonnelId])
+  @@map("elements_salaire")
+}
+
+model PeriodePaie {
+  id        String @id @default(uuid())
+  cabinetId String @map("cabinet_id")
+  // "AAAA-MM"
+  mois      String
+  // "ouverte" | "cloturee"
+  statut    String @default("ouverte")
+
+  cabinet       Cabinet           @relation(fields: [cabinetId], references: [id])
+  ajustements   AjustementMensuel[]
+  fichesPaie    FichePaie[]
+
+  @@unique([cabinetId, mois])
+  @@map("periodes_paie")
+}
+
+model AjustementMensuel {
+  id            String @id @default(uuid())
+  periodePaieId String @map("periode_paie_id")
+  fichePersonnelId String @map("fiche_personnel_id")
+  // "gain" | "retenue"
+  sens          String
+  libelle       String
+  montant       Int
+
+  periodePaie    PeriodePaie    @relation(fields: [periodePaieId], references: [id], onDelete: Cascade)
+  fichePersonnel FichePersonnel @relation(fields: [fichePersonnelId], references: [id])
+
+  @@index([periodePaieId])
+  @@index([fichePersonnelId])
+  @@map("ajustements_mensuels")
+}
+
+model FichePaie {
+  id            String @id @default(uuid())
+  cabinetId     String @map("cabinet_id")
+  periodePaieId String @map("periode_paie_id")
+  fichePersonnelId String @map("fiche_personnel_id")
+  numero        String?
+  // "brouillon" | "validee" | "annulee"
+  statut        String @default("brouillon")
+  version       Int    @default(1)
+  brut          Int    @default(0)
+  totalRetenues Int    @default(0) @map("total_retenues")
+  net           Int    @default(0)
+  // Nom de fichier aleatoire (UUID) genere a la validation, non previsible -
+  // aucune information en lui-meme (meme convention que
+  // DocumentDossier.nomFichier, jamais chiffre au niveau du champ). Le
+  // contenu du PDF, lui, est chiffre sur disque (stockageDocuments.ts).
+  cheminPdf     String? @map("chemin_pdf")
+  valideLe      DateTime? @map("valide_le")
+  valideParId   String?   @map("valide_par_id")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  cabinet        Cabinet          @relation(fields: [cabinetId], references: [id])
+  periodePaie    PeriodePaie      @relation(fields: [periodePaieId], references: [id])
+  fichePersonnel FichePersonnel   @relation(fields: [fichePersonnelId], references: [id])
+  validePar      User?            @relation(fields: [valideParId], references: [id])
+  lignes         FichePaieLigne[]
+
+  @@unique([periodePaieId, fichePersonnelId, version])
+  @@index([cabinetId])
+  @@index([fichePersonnelId])
+  @@map("fiches_paie")
+}
+
+// FIGEES a la validation (spec section 4) : une fiche validee ne change
+// jamais, meme si ElementSalaire change ensuite pour cet employe - ces
+// lignes restent la verite historique de ce qui a ete effectivement paye.
+model FichePaieLigne {
+  id          String  @id @default(uuid())
+  fichePaieId String  @map("fiche_paie_id")
+  ordre       Int
+  // "gain" | "retenue"
+  sens        String
+  libelle     String
+  base        Int?
+  taux        Int?
+  montant     Int
+
+  fichePaie FichePaie @relation(fields: [fichePaieId], references: [id], onDelete: Cascade)
+
+  @@index([fichePaieId])
+  @@map("fiches_paie_lignes")
+}
+
 model User {
   id                     String    @id @default(uuid())
   cabinetId              String    @map("cabinet_id")
@@ -748,6 +873,7 @@ model User {
   stagesResponsable         Stage[]             @relation("StageResponsable")
   demandesAbsenceDecidees   DemandeAbsence[]    @relation("DemandeAbsenceDecidePar")
   planningsCongesGeneres    PlanningConges[]
+  fichesPaieValidees        FichePaie[]
   stageProlongationsDecidees StageProlongation[] @relation("StageProlongationDecidePar")
 
   // Lot 11 (Partie A) : documents actuellement verrouilles par CET

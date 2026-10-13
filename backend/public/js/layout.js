@@ -96,6 +96,12 @@ const NAV_ITEMS = [
   { href: "/conges-parametres.html", label: "Paramètres congés", roles: ["titulaire"], group: "Cabinet", icon: "settings", moduleKey: "rh" },
   // RH-4 - planning automatique, titulaire uniquement.
   { href: "/planning-conges.html", label: "Planning congés", roles: ["titulaire"], group: "Cabinet", icon: "calendar", moduleKey: "rh" },
+  // RH-5 - module "rh_paie" distinct de "rh" (vendable separement, voir
+  // docs/rh/). Paie du mois : titulaire uniquement. Mes fiches de paie :
+  // tous (perimetre reel verifie cote serveur - uniquement SES fiches
+  // VALIDEES, voir routes/paie.ts).
+  { href: "/paie-du-mois.html", label: "Paie du mois", roles: ["titulaire"], group: "Cabinet", icon: "invoice", moduleKey: "rh_paie" },
+  { href: "/mes-fiches-paie.html", label: "Mes fiches de paie", roles: ["titulaire", "avocat", "collaborateur"], group: "Cabinet", icon: "invoice", moduleKey: "rh_paie" },
   { href: "/audit-logs.html", label: "Journal d'audit", roles: ["titulaire"], group: "Cabinet", icon: "audit" },
   { href: "/parametres.html", label: "Paramètres", roles: ["titulaire"], group: "Cabinet", icon: "settings" },
   { href: "/admin-tableau-de-bord.html", label: "Tableau de bord", roles: ["super_admin"], group: "Plateforme", icon: "dashboard" },

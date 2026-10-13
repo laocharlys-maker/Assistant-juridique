@@ -32,6 +32,14 @@
       </div>
       <div id="stage-affichage"></div>
     </div>
+
+    <div class="card" id="salaire-card" hidden>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <h2 style="margin:0;">Éléments de salaire</h2>
+        <button type="button" class="secondary" id="ajouter-element-btn" hidden>+ Ajouter un élément</button>
+      </div>
+      <div id="salaire-affichage"></div>
+    </div>
   </div>
 
   <div class="modal-overlay" id="ajouter-stage-modal" hidden>
@@ -50,6 +58,43 @@
         <div style="display:flex; gap:10px; margin-top:14px;">
           <button type="submit">Ajouter</button>
           <button type="button" class="secondary" id="ajouter-stage-annuler-btn">Annuler</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="ajouter-element-modal" hidden>
+    <div class="modal-box">
+      <h2>Ajouter un élément de salaire</h2>
+      <form id="ajouter-element-form">
+        <label>Sens</label>
+        <select name="sens" required>
+          <option value="gain">Gain</option>
+          <option value="retenue">Retenue</option>
+        </select>
+        <label>Libellé</label>
+        <input name="libelle" required placeholder="ex : Salaire de base, Prime de transport..." />
+        <label>Mode de calcul</label>
+        <select name="modeCalcul" required>
+          <option value="montant_fixe">Montant fixe (F CFA)</option>
+          <option value="pourcentage">Pourcentage</option>
+        </select>
+        <label>Valeur</label>
+        <input type="number" name="valeur" required />
+        <div id="base-calcul-champ" hidden>
+          <label>Base du pourcentage</label>
+          <select name="baseCalcul">
+            <option value="salaire_base">Salaire de base</option>
+            <option value="brut">Brut (gains fixes + variables)</option>
+          </select>
+        </div>
+        <label style="display:flex; align-items:center; gap:8px; font-weight:400;">
+          <input type="checkbox" name="estSalaireBase" style="width:auto;" /> C'est le salaire de base (un seul par employé)
+        </label>
+        <p class="error" id="ajouter-element-error"></p>
+        <div style="display:flex; gap:10px; margin-top:14px;">
+          <button type="submit">Ajouter</button>
+          <button type="button" class="secondary" id="ajouter-element-annuler-btn">Annuler</button>
         </div>
       </form>
     </div>
@@ -176,6 +221,51 @@
         : '<p class="muted">Aucun stage enregistré.</p>';
     }
 
+    const MODE_CALCUL_LABELS = { montant_fixe: "Montant fixe", pourcentage: "Pourcentage" };
+    const BASE_CALCUL_LABELS = { salaire_base: "salaire de base", brut: "brut" };
+
+    function formatMontantFCFA(montant) {
+      return `${montant.toLocaleString("fr-FR")} F CFA`;
+    }
+
+    async function chargerElementsSalaire() {
+      const card = document.getElementById("salaire-card");
+      let elements;
+      try {
+        elements = await apiFetch(`/api/personnel/${id}/elements-salaire`);
+      } catch {
+        card.hidden = true;
+        return;
+      }
+      card.hidden = false;
+      document.getElementById("salaire-affichage").innerHTML = elements.length
+        ? elements
+            .map((e) => {
+              const valeur = e.modeCalcul === "pourcentage" ? `${e.valeur}% du ${BASE_CALCUL_LABELS[e.baseCalcul] || e.baseCalcul}` : formatMontantFCFA(e.valeur);
+              return `
+          <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--border);">
+            <div>
+              <strong>${escapeHtml(e.libelle)}</strong> <span class="tag">${e.sens === "gain" ? "Gain" : "Retenue"}</span>${e.estSalaireBase ? ' <span class="tag">Salaire de base</span>' : ""}${!e.actif ? ' <span class="tag">Inactif</span>' : ""}
+              <div class="meta">${MODE_CALCUL_LABELS[e.modeCalcul]} — ${valeur}</div>
+            </div>
+            ${e.actif ? `<button type="button" class="secondary btn-sm" data-desactiver="${e.id}">Désactiver</button>` : ""}
+          </div>`;
+            })
+            .join("")
+        : '<p class="muted">Aucun élément de salaire. Commence par ajouter le "Salaire de base".</p>';
+
+      document.querySelectorAll("[data-desactiver]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          try {
+            await apiFetch(`/api/elements-salaire/${btn.dataset.desactiver}`, { method: "PATCH", body: { actif: false } });
+            await chargerElementsSalaire();
+          } catch (err) {
+            showError(document.getElementById("error"), err.message);
+          }
+        });
+      });
+    }
+
     (async () => {
       const me = await requireSession();
       if (!me) return;
@@ -280,7 +370,48 @@
         }
       });
 
-      charger().then(chargerStages);
+      const ajouterElementBtn = document.getElementById("ajouter-element-btn");
+      ajouterElementBtn.hidden = !estTitulaire;
+      const elementModal = document.getElementById("ajouter-element-modal");
+      const elementForm = document.getElementById("ajouter-element-form");
+      const elementErrEl = document.getElementById("ajouter-element-error");
+
+      elementForm.modeCalcul.addEventListener("change", () => {
+        document.getElementById("base-calcul-champ").hidden = elementForm.modeCalcul.value !== "pourcentage";
+      });
+      ajouterElementBtn.addEventListener("click", () => {
+        elementForm.reset();
+        document.getElementById("base-calcul-champ").hidden = true;
+        elementErrEl.textContent = "";
+        elementModal.hidden = false;
+      });
+      document.getElementById("ajouter-element-annuler-btn").addEventListener("click", () => {
+        elementModal.hidden = true;
+      });
+      elementForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        elementErrEl.textContent = "";
+        const fd = new FormData(elementForm);
+        try {
+          await apiFetch(`/api/personnel/${id}/elements-salaire`, {
+            method: "POST",
+            body: {
+              sens: fd.get("sens"),
+              libelle: fd.get("libelle").trim(),
+              modeCalcul: fd.get("modeCalcul"),
+              valeur: Number(fd.get("valeur")),
+              baseCalcul: fd.get("modeCalcul") === "pourcentage" ? fd.get("baseCalcul") : undefined,
+              estSalaireBase: fd.get("estSalaireBase") === "on",
+            },
+          });
+          elementModal.hidden = true;
+          await chargerElementsSalaire();
+        } catch (err) {
+          elementErrEl.textContent = err.message;
+        }
+      });
+
+      charger().then(chargerStages).then(chargerElementsSalaire);
     })();
   </script>
 </body>
