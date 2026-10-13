@@ -124,12 +124,19 @@
   async function avancerStatut() {
     const prochain = PROCHAIN_STATUT_ENTRANT[courrier.statut];
     if (!prochain) return;
+    if (prochain === "traite") {
+      // Le passage a "Traite" notifie qui a affecte ce courrier - propose
+      // une note optionnelle avant de confirmer, plutot qu'une transition
+      // silencieuse comme les autres statuts.
+      document.getElementById("note-traitement-modal").hidden = false;
+      return;
+    }
     await changerStatutEntrant(prochain);
   }
 
-  async function changerStatutEntrant(statut) {
+  async function changerStatutEntrant(statut, note) {
     try {
-      await apiFetch(`${base}/${id}/statut`, { method: "POST", body: { statut } });
+      await apiFetch(`${base}/${id}/statut`, { method: "POST", body: { statut, note } });
       await charger();
     } catch (err) {
       showError(errorEl, err.message);
@@ -148,7 +155,8 @@
       lignes.push(["Reçu le", new Date(courrier.dateReception).toLocaleString("fr-FR")]);
       lignes.push(["Mode de réception", courrier.modeReception ? MODE_LABELS[courrier.modeReception] : null]);
       lignes.push(["Réceptionné par", courrier.receptionnePar?.nom]);
-      lignes.push(["Affecté à", courrier.affecteA?.nom]);
+      const affectes = (courrier.affectations || []).map((a) => a.collaborateur?.nom).filter(Boolean);
+      lignes.push(["Affecté à", affectes.length ? affectes.join(", ") : courrier.affecteA?.nom]);
     } else {
       lignes.push(["Nature", courrier.nature ? NATURE_LABELS[courrier.nature] : null]);
       lignes.push(["Destinataire", courrier.destinataire]);
@@ -161,9 +169,16 @@
     lignes.push(["Dossier", courrier.dossier ? `${courrier.dossier.numeroDossier} — ${courrier.dossier.nomAffaire}` : null]);
     lignes.push(["Observations", courrier.observations]);
 
-    el.innerHTML = `<table>${lignes
-      .map(([label, valeur]) => `<tr><th style="text-align:left; padding:4px 12px 4px 0; vertical-align:top; color:var(--muted);">${label}</th><td>${valeur ? escapeHtml(String(valeur)) : '<span class="muted">— non renseigné —</span>'}</td></tr>`)
-      .join("")}</table>`;
+    const notesAffectation = (courrier.affectations || []).filter((a) => a.note);
+    el.innerHTML =
+      `<table>${lignes
+        .map(([label, valeur]) => `<tr><th style="text-align:left; padding:4px 12px 4px 0; vertical-align:top; color:var(--muted);">${label}</th><td>${valeur ? escapeHtml(String(valeur)) : '<span class="muted">— non renseigné —</span>'}</td></tr>`)
+        .join("")}</table>` +
+      (notesAffectation.length
+        ? `<div style="margin-top:10px;">${notesAffectation
+            .map((a) => `<p class="muted" style="margin:4px 0;"><strong>${escapeHtml(a.collaborateur?.nom || "")}</strong> — ${escapeHtml(a.note)}</p>`)
+            .join("")}</div>`
+        : "");
   }
 
   async function chargerReferentiels() {
@@ -349,10 +364,19 @@
 
   async function ouvrirModalAffecter() {
     const modal = document.getElementById("affecter-modal");
-    const select = modal.querySelector('[name="affecteAId"]');
+    const liste = document.getElementById("affecter-collaborateurs-liste");
+    const dejaAffectes = new Set((courrier.affectations || []).map((a) => a.collaborateurId));
     try {
       const utilisateurs = await apiFetch("/api/courriers-entrants-affectables");
-      select.innerHTML = utilisateurs.map((u) => `<option value="${u.id}" ${courrier.affecteAId === u.id ? "selected" : ""}>${escapeHtml(u.nom)}</option>`).join("");
+      liste.innerHTML = utilisateurs
+        .map(
+          (u) => `
+        <label style="display:flex; align-items:center; gap:8px; font-weight:400; margin-bottom:6px;">
+          <input type="checkbox" name="collaborateurIds" value="${u.id}" ${dejaAffectes.has(u.id) ? "checked" : ""} />
+          ${escapeHtml(u.nom)}
+        </label>`
+        )
+        .join("");
     } catch (err) {
       showError(errorEl, err.message);
       return;
@@ -365,13 +389,33 @@
     const fd = new FormData(e.target);
     const errEl = document.getElementById("affecter-error");
     errEl.textContent = "";
+    const collaborateurIds = fd.getAll("collaborateurIds");
+    if (collaborateurIds.length === 0) {
+      errEl.textContent = "Sélectionne au moins un collaborateur.";
+      return;
+    }
     try {
-      await apiFetch(`${base}/${id}/affecter`, { method: "POST", body: { affecteAId: fd.get("affecteAId") } });
+      await apiFetch(`${base}/${id}/affecter`, {
+        method: "POST",
+        body: { collaborateurIds, note: fd.get("note")?.trim() || undefined },
+      });
       document.getElementById("affecter-modal").hidden = true;
       await charger();
     } catch (err) {
       errEl.textContent = err.message;
     }
+  });
+
+  // --- Note de traitement (uniquement au passage "Traité", pas sur les
+  // autres transitions de statut - c'est ce moment precis qui notifie qui a
+  // affecte le courrier, voir changerStatutCourrierEntrant). ---
+
+  document.getElementById("note-traitement-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    document.getElementById("note-traitement-modal").hidden = true;
+    await changerStatutEntrant("traite", fd.get("note")?.trim() || undefined);
+    e.target.reset();
   });
 
   // --- Creer/lier une action - webActions.ts et nouvelle-action.html

@@ -996,6 +996,60 @@ header.app-topbar {
   transform: translateX(-50%) translateY(0);
 }
 
+/* ---------- Cloche de notifications (header) ---------- */
+.notif-cloche-wrap { position: relative; }
+.notif-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 3px 5px;
+  border-radius: 999px;
+  min-width: 16px;
+  text-align: center;
+}
+.notif-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 340px;
+  max-width: 90vw;
+  max-height: 420px;
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-md);
+  z-index: 100;
+}
+.notif-panel[hidden] { display: none; }
+.notif-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.notif-panel-header h3 { margin: 0; font-size: 14px; }
+.notif-item {
+  display: block;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  text-decoration: none;
+  color: inherit;
+}
+.notif-item:last-child { border-bottom: none; }
+.notif-item:hover { background: var(--accent-tint); }
+.notif-item.non-lue { background: var(--accent-tint); }
+.notif-item-titre { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
+.notif-item-message { font-size: 12px; color: var(--muted); margin-bottom: 2px; }
+.notif-item-date { font-size: 11px; color: var(--muted); }
+.notif-panel-vide { padding: 24px 14px; text-align: center; color: var(--muted); font-size: 13px; }
+
 /* ---------- Fenetre modale (ex: composer un email a un client) ---------- */
 .modal-overlay {
   position: fixed;

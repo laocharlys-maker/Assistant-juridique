@@ -82,11 +82,30 @@
       <h2>Affecter ce courrier</h2>
       <p class="error" id="affecter-error"></p>
       <form id="affecter-form">
-        <label>Affecter à</label>
-        <select name="affecteAId" required></select>
+        <label>Affecter à (un ou plusieurs)</label>
+        <div id="affecter-collaborateurs-liste"></div>
+        <label>Note / instruction <span class="muted">(optionnel)</span></label>
+        <textarea name="note" rows="3" placeholder="ex : à traiter avant vendredi, voir avec le client au préalable"></textarea>
         <div style="display:flex; gap:10px; margin-top:14px;">
           <button type="submit">Affecter</button>
           <button type="button" class="secondary" data-fermer-modal="affecter-modal">Annuler</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Note de traitement - uniquement au passage "Traite" (voir
+       avancerStatut dans courrier-fiche.js) : c'est ce moment precis qui
+       notifie qui a affecte le courrier. -->
+  <div class="modal-overlay" id="note-traitement-modal" hidden>
+    <div class="modal-box">
+      <h2>Marquer comme traité</h2>
+      <form id="note-traitement-form">
+        <label>Note <span class="muted">(optionnel)</span></label>
+        <textarea name="note" rows="3" placeholder="ex : réponse envoyée par email, voir pièce jointe"></textarea>
+        <div style="display:flex; gap:10px; margin-top:14px;">
+          <button type="submit">Confirmer</button>
+          <button type="button" class="secondary" data-fermer-modal="note-traitement-modal">Annuler</button>
         </div>
       </form>
     </div>

@@ -6,6 +6,7 @@ import { requireModule } from "../middleware/roles";
 import { logAuditStep } from "../services/audit";
 import { sendEmail } from "../services/mailer";
 import { resolveCabinetEmailIdentite } from "../services/cabinetContact";
+import { creerNotification, creerNotificationsMultiples } from "../services/notifications";
 
 export const commentairesRevisionRouter = Router();
 
@@ -93,6 +94,16 @@ commentairesRevisionRouter.post(
           console.error(`[commentaires-revision] échec de l'envoi de la notification de révision à ${auteurDocument.email} :`, mailResult.error);
         }
       }
+
+      await creerNotification({
+        cabinetId: req.auth!.cabinetId,
+        destinataireId: action.createdBy,
+        type: "revision_demandee",
+        titre: `Révision demandée sur "${action.nomDocument || action.typeAction}"`,
+        message: parsed.data.contenu,
+        lienUrl: `/dossier.html?id=${action.dossierId}`,
+        creeParId: req.auth!.userId,
+      });
     }
 
     return res.status(201).json(commentaire);
@@ -188,11 +199,20 @@ commentairesRevisionRouter.patch(
 // tant qu'il reste des remarques ouvertes (le collaborateur doit toutes les
 // traiter avant de renvoyer, plutot qu'un renvoi automatique des la
 // premiere remarque resolue).
+const renvoyerValidationSchema = z.object({
+  note: z.string().trim().max(2000).optional(),
+});
+
 commentairesRevisionRouter.post(
   "/api/actions/:id/renvoyer-validation",
   requireAuth,
   requireModule("revision"),
   async (req, res) => {
+    const parsed = renvoyerValidationSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Requête invalide", details: parsed.error.issues });
+    }
+
     const action = await findActionDuCabinet(req.params.id, req.auth!.cabinetId);
     if (!action) {
       return res.status(404).json({ error: "Action introuvable" });
@@ -209,7 +229,34 @@ commentairesRevisionRouter.post(
     }
 
     await prisma.action.update({ where: { id: action.id }, data: { statut: "en_attente_validation" } });
-    await logAuditStep(action.id, "renvoi_validation", "succes", `Renvoyé pour validation par ${req.auth!.userId}`);
+    await logAuditStep(
+      action.id,
+      "renvoi_validation",
+      "succes",
+      `Renvoyé pour validation par ${req.auth!.userId}${parsed.data.note ? ` - Note : ${parsed.data.note}` : ""}`
+    );
+
+    // Notifie chaque avocat ayant laisse au moins une remarque sur cette
+    // action (plusieurs lignes distinctes possibles dans CommentaireRevision
+    // - naturellement multi-destinataires si plusieurs avocats sont
+    // intervenus, sans changement de schema).
+    const auteurs = await prisma.commentaireRevision.findMany({
+      where: { actionId: action.id },
+      distinct: ["auteurId"],
+      select: { auteurId: true },
+    });
+    const heure = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+    await creerNotificationsMultiples(
+      auteurs.map((a) => a.auteurId),
+      {
+        cabinetId: req.auth!.cabinetId,
+        type: "revision_terminee",
+        titre: `Révision terminée sur "${action.nomDocument || action.typeAction}" à ${heure}`,
+        message: parsed.data.note,
+        lienUrl: `/dossier.html?id=${action.dossierId}`,
+        creeParId: req.auth!.userId,
+      }
+    );
 
     return res.json({ ok: true });
   }

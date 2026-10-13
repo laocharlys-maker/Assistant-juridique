@@ -330,6 +330,7 @@ model Cabinet {
   sequencesCourrier SequenceCourrier[]
   courriersEntrants CourrierEntrant[]
   courriersSortants CourrierSortant[]
+  notifications     Notification[]
 
   @@map("cabinets")
 }
@@ -450,6 +451,16 @@ model User {
   // l'auteur - voir README-LOT10.md).
   commentairesRevisionEcrits  CommentaireRevision[] @relation("CommentaireRevisionAuteur")
   commentairesRevisionResolus CommentaireRevision[] @relation("CommentaireRevisionResoluPar")
+
+  // Centre de notifications (revision + courrier pour l'instant,
+  // reutilisable par d'autres ecrans plus tard) - voir services/notifications.ts.
+  notificationsRecues Notification[] @relation("NotificationDestinataire")
+  notificationsCreees Notification[] @relation("NotificationCreePar")
+
+  // Lot (notifications) : affectations de courriers entrants - en tant que
+  // collaborateur affecte, et en tant qu'avocat/titulaire ayant affecte.
+  courrierAffectationsRecues CourrierAffectation[] @relation("CourrierAffectationCollaborateur")
+  courrierAffectationsFaites CourrierAffectation[] @relation("CourrierAffectationAffectePar")
 
   // Lot 11 (Partie A) : documents actuellement verrouilles par CET
   // utilisateur (edition en cours), et versions qu'il/elle a enregistrees.
@@ -1460,6 +1471,58 @@ model CommentaireRevision {
   @@map("commentaires_revision")
 }
 
+// Centre de notifications internes (bannette, pas email) - generique pour
+// etre reutilisable par d'autres ecrans plus tard, declenche pour l'instant
+// par la revision (commentairesRevision.ts) et le courrier (courriers.ts)
+// dans les deux sens : assignation -> destinataire, puis fin de tache ->
+// qui a assigne. "type" reste une chaine libre (comme Dossier.statut ou
+// DocumentDossier.source ailleurs dans ce schema), jamais un enum, pour
+// pouvoir ajouter un type sans migration.
+model Notification {
+  id             String    @id @default(uuid())
+  cabinetId      String    @map("cabinet_id")
+  destinataireId String    @map("destinataire_id")
+  type           String
+  titre          String
+  message        String?
+  lienUrl        String?   @map("lien_url")
+  lu             Boolean   @default(false)
+  luAt           DateTime? @map("lu_at")
+  creeParId      String?   @map("cree_par_id")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  cabinet      Cabinet @relation(fields: [cabinetId], references: [id])
+  destinataire User    @relation("NotificationDestinataire", fields: [destinataireId], references: [id])
+  creePar      User?   @relation("NotificationCreePar", fields: [creeParId], references: [id])
+
+  @@index([destinataireId, lu])
+  @@map("notifications")
+}
+
+// Affectation d'un courrier entrant a un collaborateur - PLUSIEURS lignes
+// possibles pour un meme courrier (plusieurs collaborateurs simultanement,
+// chacun notifie individuellement - voir routes/courriers.ts). Remplacee
+// entierement (delete puis recreate) a chaque nouvelle affectation, pour
+// qu'une reaffectation ne laisse jamais une ancienne note/affectation
+// perimee. CourrierEntrant.affecteAId/affecteAt restent l'"affectation
+// principale" (premier de la liste), inchanges pour ne pas casser les
+// filtres/vues existants.
+model CourrierAffectation {
+  courrierEntrantId String   @map("courrier_entrant_id")
+  collaborateurId   String   @map("collaborateur_id")
+  affecteParId      String   @map("affecte_par_id")
+  note              String?
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  courrierEntrant CourrierEntrant @relation(fields: [courrierEntrantId], references: [id], onDelete: Cascade)
+  collaborateur   User            @relation("CourrierAffectationCollaborateur", fields: [collaborateurId], references: [id])
+  affectePar      User            @relation("CourrierAffectationAffectePar", fields: [affecteParId], references: [id])
+
+  @@id([courrierEntrantId, collaborateurId])
+  @@index([collaborateurId])
+  @@map("courrier_affectations")
+}
+
 // Lot 20 : etendu pour couvrir les evenements courrier (transitions de
 // statut, affectation, delai cree, reponse generee, classement) EN PLUS des
 // etapes d'Action deja journalisees ici depuis le debut - jamais un journal
@@ -1580,6 +1643,13 @@ model CourrierEntrant {
   // Courriers SORTANTS envoyes en reponse a CELUI-CI (chainage bidirectionnel
   // visible depuis les deux fiches - voir CourrierSortant.reponseA).
   reponses       CourrierSortant[]     @relation("ReponseA")
+  // Affectation multiple (plusieurs collaborateurs sur un meme courrier) -
+  // affecteAId/affecteAt ci-dessus restent l'"affectation principale"
+  // (premier collaborateur affecte), conserves pour ne pas casser les
+  // filtres/vues/compteurs existants ; cette relation porte la liste
+  // complete + qui a affecte + une note eventuelle (voir
+  // services/notifications.ts et routes/courriers.ts).
+  affectations   CourrierAffectation[]
 
   @@unique([cabinetId, numero])
   @@index([cabinetId, statut])

@@ -173,6 +173,13 @@ function initLayout(me) {
       <span id="header-chrono" class="header-chrono" hidden></span>
     </div>
     <div class="topbar-right">
+      <div class="notif-cloche-wrap">
+        <button type="button" id="notif-cloche-btn" class="icon-btn" aria-label="Notifications" title="Notifications">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+          <span id="notif-badge" class="notif-badge" hidden></span>
+        </button>
+        <div id="notif-panel" class="notif-panel" hidden></div>
+      </div>
       <button type="button" id="theme-toggle-btn" class="icon-btn" aria-label="Changer de thème" title="Mode clair / sombre">
         <svg id="theme-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${
           isDark
@@ -248,6 +255,15 @@ function initLayout(me) {
   // de page.
   initHeaderChrono(me);
 
+  // Centre de notifications (cloche, header) - revision + courrier pour
+  // l'instant (voir routes/notifications.ts), EN PLUS des pop-ups/emails
+  // existants ci-dessous, jamais a leur place. Seul endroit du fichier qui
+  // re-interroge le serveur periodiquement (pas juste au chargement de
+  // page) : un badge de notifications doit refleter un evenement survenu
+  // PENDANT que la page reste ouverte, contrairement aux pop-ups "une fois
+  // par jour" qui ne regardent qu'au chargement.
+  initNotificationsCloche(me);
+
   // Correctif : au prochain lancement, si un chronomètre est resté EN
   // PAUSE (pause manuelle jamais reprise, ou appli fermée pendant qu'il
   // tournait), le signale une fois par session pour proposer de reprendre
@@ -290,6 +306,101 @@ function escapeHtmlHeaderChrono(str) {
   const div = document.createElement("div");
   div.textContent = str ?? "";
   return div.innerHTML;
+}
+
+// Date relative courte ("à l'instant", "il y a 5 min"...) pour les
+// notifications - pas de dependance externe, juste de quoi rester lisible
+// sans ouvrir une librairie entiere pour ca.
+function formatDateRelativeNotif(iso) {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const minutes = Math.floor(diffMs / 60000);
+  if (minutes < 1) return "à l'instant";
+  if (minutes < 60) return `il y a ${minutes} min`;
+  const heures = Math.floor(minutes / 60);
+  if (heures < 24) return `il y a ${heures} h`;
+  const jours = Math.floor(heures / 24);
+  return `il y a ${jours} j`;
+}
+
+let notifPollIntervalId = null;
+
+async function initNotificationsCloche(me) {
+  const btn = document.getElementById("notif-cloche-btn");
+  const badge = document.getElementById("notif-badge");
+  const panel = document.getElementById("notif-panel");
+  if (!btn || !badge || !panel) return;
+
+  async function rafraichirCompteur() {
+    try {
+      const { nonLues } = await apiFetch("/api/notifications/compteur");
+      if (nonLues > 0) {
+        badge.hidden = false;
+        badge.textContent = nonLues > 99 ? "99+" : String(nonLues);
+      } else {
+        badge.hidden = true;
+      }
+    } catch {
+      // Jamais bloquant - une erreur reseau ponctuelle ne doit pas faire
+      // disparaitre la cloche ni planter le reste du header.
+    }
+  }
+
+  async function ouvrirPanel() {
+    panel.innerHTML = '<p class="notif-panel-vide">Chargement…</p>';
+    panel.hidden = false;
+    let notifications;
+    try {
+      notifications = await apiFetch("/api/notifications?limit=20");
+    } catch {
+      panel.innerHTML = '<p class="notif-panel-vide">Notifications indisponibles.</p>';
+      return;
+    }
+    if (notifications.length === 0) {
+      panel.innerHTML = '<p class="notif-panel-vide">Aucune notification.</p>';
+      return;
+    }
+    panel.innerHTML = `
+      <div class="notif-panel-header"><h3>Notifications</h3></div>
+      ${notifications
+        .map(
+          (n) => `
+        <a class="notif-item${n.lu ? "" : " non-lue"}" href="${n.lienUrl || "#"}" data-notif-id="${n.id}">
+          <div class="notif-item-titre">${escapeHtmlHeaderChrono(n.titre)}</div>
+          ${n.message ? `<div class="notif-item-message">${escapeHtmlHeaderChrono(n.message)}</div>` : ""}
+          <div class="notif-item-date">${formatDateRelativeNotif(n.createdAt)}</div>
+        </a>`
+        )
+        .join("")}
+    `;
+    panel.querySelectorAll("[data-notif-id]").forEach((lien) => {
+      lien.addEventListener("click", async () => {
+        try {
+          await apiFetch(`/api/notifications/${lien.dataset.notifId}/lu`, { method: "PATCH" });
+        } catch {
+          // Jamais bloquant pour la navigation vers lienUrl ci-dessous.
+        }
+        rafraichirCompteur();
+      });
+    });
+  }
+
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (panel.hidden) {
+      ouvrirPanel();
+    } else {
+      panel.hidden = true;
+    }
+  });
+  document.addEventListener("click", (e) => {
+    if (!panel.hidden && !panel.contains(e.target) && e.target !== btn) {
+      panel.hidden = true;
+    }
+  });
+
+  rafraichirCompteur();
+  if (notifPollIntervalId) clearInterval(notifPollIntervalId);
+  notifPollIntervalId = setInterval(rafraichirCompteur, 60000);
 }
 
 let headerChronoIntervalId = null;

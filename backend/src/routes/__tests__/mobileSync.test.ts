@@ -190,11 +190,12 @@ describe("authentification par enveloppe (POST /api/m/ping)", () => {
       dernierCompteur: null,
     });
     prismaMock.mobileDevice.update.mockResolvedValue({});
+    prismaMock.user.findUnique.mockResolvedValue({ nom: "Jean Kokou", role: "avocat" });
 
     const res = await api("/api/m/ping", construireRequeteAppareil(tel.clePriveeKeyObject, deviceId, 1, {}));
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body).toEqual({ ok: true, cabinetId: "cabinet-1" });
+    expect(body).toEqual({ ok: true, cabinetId: "cabinet-1", nomUtilisateur: "Jean Kokou", role: "avocat" });
   });
 
   it("rejette (401) une enveloppe chiffrée avec la mauvaise clé privée (imposteur)", async () => {

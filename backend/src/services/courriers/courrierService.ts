@@ -8,6 +8,7 @@ import { computeDeadline } from "../delais";
 import { syncEvenementDepuisDelaiCalcul } from "../evenementSync";
 import { sendEmail } from "../mailer";
 import { resolveCabinetEmailIdentite } from "../cabinetContact";
+import { creerNotificationsMultiples } from "../notifications";
 
 /**
  * Lot 20 - coeur metier du registre courrier. Reutilise integralement les
@@ -19,6 +20,10 @@ import { resolveCabinetEmailIdentite } from "../cabinetContact";
 const INCLUDE_ENTRANT_DETAIL = {
   receptionnePar: { select: { id: true, nom: true } },
   affecteA: { select: { id: true, nom: true } },
+  affectations: {
+    include: { collaborateur: { select: { id: true, nom: true } }, affectePar: { select: { id: true, nom: true } } },
+    orderBy: { createdAt: "asc" },
+  },
   client: { select: { id: true, nom: true } },
   dossier: { select: { id: true, nomAffaire: true, numeroDossier: true } },
   documents: { select: { id: true, nomOriginal: true, typeMime: true, tailleOctets: true, createdAt: true } },
@@ -403,44 +408,89 @@ export async function mettreAJourCourrierSortant(
 // Statuts / affectation / classement
 // ---------------------------------------------------------------------------
 
-export async function affecterCourrierEntrant(id: string, cabinetId: string, affecteAId: string) {
+/**
+ * Affecte un courrier a un ou plusieurs collaborateurs a la fois (chacun
+ * recoit sa propre notification/email - voir schema.prisma,
+ * model CourrierAffectation). Remplace entierement l'affectation
+ * precedente : les anciennes lignes CourrierAffectation de ce courrier sont
+ * supprimees puis recreees, pour qu'une reaffectation ne laisse jamais une
+ * note perimee associee a quelqu'un qui n'est plus affecte.
+ * CourrierEntrant.affecteAId/affecteAt restent mis a jour sur le PREMIER
+ * collaborateur de la liste (affectation "principale") pour ne rien casser
+ * dans les filtres/vues/compteurs existants.
+ */
+export async function affecterCourrierEntrant(
+  id: string,
+  cabinetId: string,
+  collaborateurIds: string[],
+  affecteParId: string,
+  note?: string
+) {
   const courrier = await prisma.courrierEntrant.findFirst({ where: { id, cabinetId } });
   if (!courrier) throw new Error("COURRIER_INTROUVABLE");
   // Meme perimetre de roles que GET /api/courriers-entrants-affectables
   // (jamais un compte super_admin/plateforme, meme si techniquement rattache
   // a ce cabinetId - voir routes/admin.ts, CABINET_PLATEFORME_ID).
-  const utilisateur = await prisma.user.findFirst({
-    where: { id: affecteAId, cabinetId, actif: true, role: { in: ["titulaire", "avocat", "collaborateur"] } },
+  const utilisateurs = await prisma.user.findMany({
+    where: { id: { in: collaborateurIds }, cabinetId, actif: true, role: { in: ["titulaire", "avocat", "collaborateur"] } },
   });
-  if (!utilisateur) throw new Error("UTILISATEUR_INTROUVABLE");
+  if (utilisateurs.length !== collaborateurIds.length) throw new Error("UTILISATEUR_INTROUVABLE");
 
-  const misAJour = await prisma.courrierEntrant.update({
-    where: { id },
-    data: {
-      affecteAId,
-      affecteAt: new Date(),
-      statut: courrier.statut === "recu" || courrier.statut === "a_affecter" ? "affecte" : courrier.statut,
-    },
-  });
+  const [misAJour] = await prisma.$transaction([
+    prisma.courrierEntrant.update({
+      where: { id },
+      data: {
+        affecteAId: collaborateurIds[0],
+        affecteAt: new Date(),
+        statut: courrier.statut === "recu" || courrier.statut === "a_affecter" ? "affecte" : courrier.statut,
+      },
+    }),
+    prisma.courrierAffectation.deleteMany({ where: { courrierEntrantId: id } }),
+    prisma.courrierAffectation.createMany({
+      data: collaborateurIds.map((collaborateurId) => ({
+        courrierEntrantId: id,
+        collaborateurId,
+        affecteParId,
+        note: note || null,
+      })),
+    }),
+  ]);
 
-  await logAuditCourrier({ courrierEntrantId: id }, "affectation", "succes", `Affecté à ${utilisateur.nom}`);
+  const noms = utilisateurs.map((u) => u.nom).join(", ");
+  await logAuditCourrier(
+    { courrierEntrantId: id },
+    "affectation",
+    "succes",
+    `Affecté à ${noms}${note ? ` - Note : ${note}` : ""}`
+  );
 
-  // Notification a l'utilisateur affecte - EN PLUS du badge in-app deja
+  // Notification a chaque utilisateur affecte - EN PLUS du badge in-app deja
   // affiche a sa prochaine connexion (voir compterCourriersAffectesA et
   // GET /api/courriers-entrants/notifications), jamais a sa place : un email
   // atteint quelqu'un qui n'est pas connecte a Aurore au moment de
   // l'affectation.
   const { cabinetNom, replyToEmail } = await resolveCabinetEmailIdentite(cabinetId);
-  const mailResult = await sendEmail({
-    destinataireEmail: utilisateur.email,
-    cabinetNom,
-    replyToEmail,
-    subject: `${cabinetNom} - Un courrier vous a été affecté`,
-    text: `Le courrier "${courrier.objet}" (${courrier.numero}) t'a été affecté.\n\nConnecte-toi à Aurore pour le consulter.`,
-  });
-  if (!mailResult.ok) {
-    console.error(`[courriers] échec de l'envoi de la notification d'affectation à ${utilisateur.email} :`, mailResult.error);
+  for (const utilisateur of utilisateurs) {
+    const mailResult = await sendEmail({
+      destinataireEmail: utilisateur.email,
+      cabinetNom,
+      replyToEmail,
+      subject: `${cabinetNom} - Un courrier vous a été affecté`,
+      text: `Le courrier "${courrier.objet}" (${courrier.numero}) t'a été affecté.${note ? `\n\nNote : ${note}` : ""}\n\nConnecte-toi à Aurore pour le consulter.`,
+    });
+    if (!mailResult.ok) {
+      console.error(`[courriers] échec de l'envoi de la notification d'affectation à ${utilisateur.email} :`, mailResult.error);
+    }
   }
+
+  await creerNotificationsMultiples(collaborateurIds, {
+    cabinetId,
+    type: "courrier_affecte",
+    titre: `Courrier affecté : "${courrier.objet}" (${courrier.numero})`,
+    message: note,
+    lienUrl: `/courrier-fiche.html?type=entrant&id=${id}`,
+    creeParId: affecteParId,
+  });
 
   return misAJour;
 }
@@ -457,7 +507,8 @@ const TRANSITIONS_ENTRANT: Record<StatutCourrierEntrant, StatutCourrierEntrant[]
 export async function changerStatutCourrierEntrant(
   id: string,
   cabinetId: string,
-  nouveauStatut: StatutCourrierEntrant
+  nouveauStatut: StatutCourrierEntrant,
+  options?: { note?: string; changeParId?: string }
 ) {
   const courrier = await prisma.courrierEntrant.findFirst({ where: { id, cabinetId } });
   if (!courrier) throw new Error("COURRIER_INTROUVABLE");
@@ -473,7 +524,40 @@ export async function changerStatutCourrierEntrant(
     },
   });
 
-  await logAuditCourrier({ courrierEntrantId: id }, "changement_statut", "succes", `${courrier.statut} → ${nouveauStatut}`);
+  const note = options?.note;
+  await logAuditCourrier(
+    { courrierEntrantId: id },
+    "changement_statut",
+    "succes",
+    `${courrier.statut} → ${nouveauStatut}${note ? ` - Note : ${note}` : ""}`
+  );
+
+  // Traitement termine : notifie qui a affecte ce courrier (plusieurs
+  // avocats distincts possibles si des affectations successives ont ete
+  // faites par des personnes differentes - dedupliques).
+  if (nouveauStatut === "traite") {
+    const affectations = await prisma.courrierAffectation.findMany({
+      where: { courrierEntrantId: id },
+      distinct: ["affecteParId"],
+      select: { affecteParId: true },
+    });
+    const collaborateur = options?.changeParId
+      ? await prisma.user.findUnique({ where: { id: options.changeParId }, select: { nom: true } })
+      : null;
+    const heure = new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+    await creerNotificationsMultiples(
+      affectations.map((a) => a.affecteParId),
+      {
+        cabinetId,
+        type: "courrier_traite",
+        titre: `${collaborateur?.nom || "Le courrier"} ${collaborateur ? "a terminé le traitement de" : "traité :"} "${courrier.objet}" à ${heure}`,
+        message: note,
+        lienUrl: `/courrier-fiche.html?type=entrant&id=${id}`,
+        creeParId: options?.changeParId,
+      }
+    );
+  }
+
   return misAJour;
 }
 

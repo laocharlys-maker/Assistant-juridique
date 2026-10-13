@@ -146,7 +146,10 @@ courriersRouter.patch("/api/courriers-entrants/:id", requireAuth, async (req, re
   }
 });
 
-const affecterSchema = z.object({ affecteAId: z.string().uuid() });
+const affecterSchema = z.object({
+  collaborateurIds: z.array(z.string().uuid()).min(1),
+  note: z.string().trim().max(2000).optional(),
+});
 
 courriersRouter.post("/api/courriers-entrants/:id/affecter", requireAuth, async (req, res) => {
   const parsed = affecterSchema.safeParse(req.body);
@@ -154,7 +157,13 @@ courriersRouter.post("/api/courriers-entrants/:id/affecter", requireAuth, async 
     return res.status(400).json({ error: "Formulaire invalide", details: parsed.error.issues });
   }
   try {
-    const courrier = await courrierService.affecterCourrierEntrant(req.params.id, req.auth!.cabinetId, parsed.data.affecteAId);
+    const courrier = await courrierService.affecterCourrierEntrant(
+      req.params.id,
+      req.auth!.cabinetId,
+      parsed.data.collaborateurIds,
+      req.auth!.userId,
+      parsed.data.note
+    );
     return res.json(courrier);
   } catch (error) {
     const { statut, error: message } = messageErreur(error);
@@ -162,7 +171,10 @@ courriersRouter.post("/api/courriers-entrants/:id/affecter", requireAuth, async 
   }
 });
 
-const changerStatutSchema = z.object({ statut: z.nativeEnum(StatutCourrierEntrant) });
+const changerStatutSchema = z.object({
+  statut: z.nativeEnum(StatutCourrierEntrant),
+  note: z.string().trim().max(2000).optional(),
+});
 
 courriersRouter.post("/api/courriers-entrants/:id/statut", requireAuth, async (req, res) => {
   const parsed = changerStatutSchema.safeParse(req.body);
@@ -170,7 +182,10 @@ courriersRouter.post("/api/courriers-entrants/:id/statut", requireAuth, async (r
     return res.status(400).json({ error: "Formulaire invalide", details: parsed.error.issues });
   }
   try {
-    const courrier = await courrierService.changerStatutCourrierEntrant(req.params.id, req.auth!.cabinetId, parsed.data.statut);
+    const courrier = await courrierService.changerStatutCourrierEntrant(req.params.id, req.auth!.cabinetId, parsed.data.statut, {
+      note: parsed.data.note,
+      changeParId: req.auth!.userId,
+    });
     return res.json(courrier);
   } catch (error) {
     const { statut, error: message } = messageErreur(error);

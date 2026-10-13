@@ -147,7 +147,7 @@ describe.skipIf(!pgAvailable)("e2e : registre de gestion des courriers (Lot 20)"
 
     const affectation = await api(titulaireCookie, `/api/courriers-entrants/${courrier.id}/affecter`, {
       method: "POST",
-      body: JSON.stringify({ affecteAId: titulaireId }),
+      body: JSON.stringify({ collaborateurIds: [titulaireId] }),
     });
     expect(affectation.status).toBe(200);
     expect((await affectation.json()).statut).toBe("affecte");
@@ -311,7 +311,7 @@ describe.skipIf(!pgAvailable)("e2e : registre de gestion des courriers (Lot 20)"
 
     const affectation = await api(titulaireCookie, `/api/courriers-entrants/${courrier.id}/affecter`, {
       method: "POST",
-      body: JSON.stringify({ affecteAId: collaborateurId }),
+      body: JSON.stringify({ collaborateurIds: [collaborateurId] }),
     });
     expect(affectation.status).toBe(200);
 
