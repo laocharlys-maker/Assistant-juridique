@@ -1043,6 +1043,7 @@ header.app-topbar {
   border-bottom: 1px solid var(--border);
   text-decoration: none;
   color: inherit;
+  cursor: pointer;
 }
 .notif-item:last-child { border-bottom: none; }
 .notif-item:hover { background: var(--accent-tint); }

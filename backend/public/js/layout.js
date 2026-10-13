@@ -431,24 +431,82 @@ async function initNotificationsCloche(me) {
       notifications
         .map(
           (n) => `
-        <a class="notif-item${n.lu ? "" : " non-lue"}" href="${n.lienUrl || "#"}" data-notif-id="${n.id}">
+        <div class="notif-item${n.lu ? "" : " non-lue"}" role="button" tabindex="0" data-notif-id="${n.id}">
           <div class="notif-item-titre">${escapeHtmlHeaderChrono(n.titre)}</div>
           ${n.message ? `<div class="notif-item-message">${escapeHtmlHeaderChrono(n.message)}</div>` : ""}
           <div class="notif-item-date">${n.creeParNom ? `${escapeHtmlHeaderChrono(n.creeParNom)} · ` : ""}${formatDateRelativeNotif(n.createdAt)}</div>
-        </a>`
+        </div>`
         )
         .join("");
     cablerBoutonDiffuser();
-    panel.querySelectorAll("[data-notif-id]").forEach((lien) => {
-      lien.addEventListener("click", async () => {
-        try {
-          await apiFetch(`/api/notifications/${lien.dataset.notifId}/lu`, { method: "PATCH" });
-        } catch {
-          // Jamais bloquant pour la navigation vers lienUrl ci-dessous.
+    panel.querySelectorAll("[data-notif-id]").forEach((item) => {
+      const notif = notifications.find((n) => n.id === item.dataset.notifId);
+      item.addEventListener("click", async () => {
+        panel.hidden = true;
+        if (!notif.lu) {
+          try {
+            await apiFetch(`/api/notifications/${notif.id}/lu`, { method: "PATCH" });
+            notif.lu = true;
+          } catch {
+            // Jamais bloquant pour l'ouverture de la modale ci-dessous.
+          }
+          rafraichirCompteur();
         }
-        rafraichirCompteur();
+        ouvrirModalLectureNotif(notif);
       });
     });
+  }
+
+  // Lecture aisee + reponse rapide (demande utilisateur du 2026-10-13) -
+  // clic sur une notification ouvre cette modale plutot que de naviguer
+  // directement : "Voir" (si lienUrl) navigue explicitement, "Répondre"
+  // (si l'auteur est connu) cree une nouvelle notification vers lui/elle.
+  function ouvrirModalLectureNotif(n) {
+    const overlay = document.createElement("div");
+    overlay.className = "modal-overlay";
+    overlay.innerHTML = `
+      <div class="modal-box">
+        <h2>${escapeHtmlHeaderChrono(n.titre)}</h2>
+        <p class="muted">${n.creeParNom ? `${escapeHtmlHeaderChrono(n.creeParNom)} · ` : ""}${formatDateLongue(n.createdAt)}</p>
+        ${n.message ? `<p>${escapeHtmlHeaderChrono(n.message)}</p>` : '<p class="muted">Aucun message supplémentaire.</p>'}
+        ${n.creeParId ? `
+          <label>Répondre</label>
+          <textarea id="notif-reponse-texte" rows="3" maxlength="2000" placeholder="Écrire une réponse…"></textarea>
+          <p class="error" id="notif-reponse-error"></p>
+        ` : ""}
+        <div style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;">
+          ${n.creeParId ? '<button type="button" id="notif-reponse-btn">Répondre</button>' : ""}
+          ${n.lienUrl ? `<a class="secondary" href="${n.lienUrl}" style="display:inline-block; text-decoration:none; padding:6px 12px; border-radius:6px;">Voir</a>` : ""}
+          <button type="button" class="ghost" id="notif-lecture-fermer-btn" style="margin-left:auto;">Fermer</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+
+    overlay.querySelector("#notif-lecture-fermer-btn").addEventListener("click", () => overlay.remove());
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) overlay.remove();
+    });
+
+    const reponseBtn = overlay.querySelector("#notif-reponse-btn");
+    if (reponseBtn) {
+      reponseBtn.addEventListener("click", async () => {
+        const texte = overlay.querySelector("#notif-reponse-texte").value.trim();
+        const errEl = overlay.querySelector("#notif-reponse-error");
+        if (!texte) {
+          errEl.textContent = "Écris un message avant d'envoyer.";
+          return;
+        }
+        reponseBtn.disabled = true;
+        try {
+          await apiFetch(`/api/notifications/${n.id}/repondre`, { method: "POST", body: { message: texte } });
+          overlay.remove();
+          showToast("Réponse envoyée.");
+        } catch (err) {
+          reponseBtn.disabled = false;
+          errEl.textContent = err.message || "Échec de l'envoi.";
+        }
+      });
+    }
   }
 
   async function ouvrirModalDiffusion() {

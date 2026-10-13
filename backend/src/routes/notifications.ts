@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
-import { creerNotificationsMultiples } from "../services/notifications";
+import { creerNotification, creerNotificationsMultiples } from "../services/notifications";
 
 export const notificationsRouter = Router();
 
@@ -46,6 +46,47 @@ notificationsRouter.patch("/api/notifications/:id/lu", requireAuth, async (req, 
     data: { lu: true, luAt: new Date() },
   });
   return res.json(updated);
+});
+
+const repondreSchema = z.object({
+  message: z.string().trim().min(1, "Le message est requis.").max(2000),
+});
+
+// Reponse rapide a une notification (2026-10-13) - une simple nouvelle
+// Notification adressee a l'auteur d'origine (type "reponse"), jamais une
+// vraie structure de fil de discussion : pas de champ supplementaire, pas
+// de migration. Impossible si l'auteur d'origine est inconnu (notification
+// generee par un automatisme - ex: rappel de stage, cron) : rien a quoi
+// repondre dans ce cas.
+notificationsRouter.post("/api/notifications/:id/repondre", requireAuth, async (req, res) => {
+  const parsed = repondreSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Message invalide", details: parsed.error.issues });
+  }
+
+  const notification = await prisma.notification.findFirst({
+    where: { id: req.params.id, destinataireId: req.auth!.userId },
+  });
+  if (!notification) {
+    return res.status(404).json({ error: "Notification introuvable" });
+  }
+  if (!notification.creeParId) {
+    return res.status(400).json({ error: "Cette notification n'a pas d'auteur connu - impossible d'y répondre." });
+  }
+
+  const moi = await prisma.user.findUniqueOrThrow({ where: { id: req.auth!.userId }, select: { nom: true } });
+
+  await creerNotification({
+    cabinetId: req.auth!.cabinetId,
+    destinataireId: notification.creeParId,
+    type: "reponse",
+    titre: `Réponse de ${moi.nom}`,
+    message: parsed.data.message,
+    lienUrl: notification.lienUrl,
+    creeParId: req.auth!.userId,
+  });
+
+  return res.status(201).json({ ok: true });
 });
 
 notificationsRouter.post("/api/notifications/tout-lire", requireAuth, async (req, res) => {
