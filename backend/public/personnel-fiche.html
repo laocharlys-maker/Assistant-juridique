@@ -1,0 +1,418 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aurore — Fiche employé</title>
+  <link rel="icon" type="image/png" href="/favicon-256.png" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="page">
+    <div class="page-hero">
+      <div class="eyebrow">Personnel</div>
+      <h1 id="fiche-nom">Chargement…</h1>
+      <p id="fiche-sous-titre"></p>
+    </div>
+
+    <div id="error" class="error"></div>
+
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <h2 style="margin:0;">Informations</h2>
+        <button type="button" class="secondary" id="modifier-btn" hidden>Modifier</button>
+      </div>
+      <div id="infos-affichage"></div>
+    </div>
+
+    <div class="card" id="stage-card" hidden>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <h2 style="margin:0;">Stage</h2>
+        <button type="button" class="secondary" id="ajouter-stage-btn" hidden>+ Ajouter un stage</button>
+      </div>
+      <div id="stage-affichage"></div>
+    </div>
+
+    <div class="card" id="salaire-card" hidden>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <h2 style="margin:0;">Éléments de salaire</h2>
+        <button type="button" class="secondary" id="ajouter-element-btn" hidden>+ Ajouter un élément</button>
+      </div>
+      <div id="salaire-affichage"></div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="ajouter-stage-modal" hidden>
+    <div class="modal-box">
+      <h2>Ajouter un stage</h2>
+      <form id="ajouter-stage-form">
+        <label>Responsable</label>
+        <select name="responsableId" required></select>
+        <label>Date de début</label>
+        <input type="date" name="dateDebut" required />
+        <label>Date de fin prévue</label>
+        <input type="date" name="dateFinPrevue" required />
+        <label>Objet <span class="muted">(optionnel)</span></label>
+        <input name="objet" placeholder="ex : stage de fin d'études" />
+        <p class="error" id="ajouter-stage-error"></p>
+        <div style="display:flex; gap:10px; margin-top:14px;">
+          <button type="submit">Ajouter</button>
+          <button type="button" class="secondary" id="ajouter-stage-annuler-btn">Annuler</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="ajouter-element-modal" hidden>
+    <div class="modal-box">
+      <h2>Ajouter un élément de salaire</h2>
+      <form id="ajouter-element-form">
+        <label>Sens</label>
+        <select name="sens" required>
+          <option value="gain">Gain</option>
+          <option value="retenue">Retenue</option>
+        </select>
+        <label>Libellé</label>
+        <input name="libelle" required placeholder="ex : Salaire de base, Prime de transport..." />
+        <label>Mode de calcul</label>
+        <select name="modeCalcul" required>
+          <option value="montant_fixe">Montant fixe (F CFA)</option>
+          <option value="pourcentage">Pourcentage</option>
+        </select>
+        <label>Valeur</label>
+        <input type="number" name="valeur" required />
+        <div id="base-calcul-champ" hidden>
+          <label>Base du pourcentage</label>
+          <select name="baseCalcul">
+            <option value="salaire_base">Salaire de base</option>
+            <option value="brut">Brut (gains fixes + variables)</option>
+          </select>
+        </div>
+        <label style="display:flex; align-items:center; gap:8px; font-weight:400;">
+          <input type="checkbox" name="estSalaireBase" style="width:auto;" /> C'est le salaire de base (un seul par employé)
+        </label>
+        <p class="error" id="ajouter-element-error"></p>
+        <div style="display:flex; gap:10px; margin-top:14px;">
+          <button type="submit">Ajouter</button>
+          <button type="button" class="secondary" id="ajouter-element-annuler-btn">Annuler</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modifier-modal" hidden>
+    <div class="modal-box">
+      <h2>Modifier la fiche</h2>
+      <form id="modifier-form">
+        <label>Nom</label>
+        <input name="nom" required />
+        <label>Prénoms <span class="muted">(optionnel)</span></label>
+        <input name="prenoms" />
+        <label>Catégorie</label>
+        <select name="categorie" required>
+          <option value="avocat">Avocat</option>
+          <option value="collaborateur">Collaborateur</option>
+          <option value="stagiaire">Stagiaire</option>
+          <option value="secretariat">Secrétariat</option>
+          <option value="comptable">Comptable</option>
+          <option value="autre">Autre</option>
+        </select>
+        <label>Fonction <span class="muted">(optionnel)</span></label>
+        <input name="fonction" />
+        <label>Type de contrat</label>
+        <select name="typeContrat" required>
+          <option value="cdi">CDI</option>
+          <option value="cdd">CDD</option>
+          <option value="stage">Stage</option>
+          <option value="liberal">Libéral</option>
+          <option value="autre">Autre</option>
+        </select>
+        <label>Date d'entrée</label>
+        <input type="date" name="dateEntree" required />
+        <label>Téléphone <span class="muted">(optionnel)</span></label>
+        <input name="telephone" />
+        <label>Email <span class="muted">(optionnel)</span></label>
+        <input type="email" name="email" />
+        <label>Statut</label>
+        <select name="statut">
+          <option value="actif">Actif</option>
+          <option value="sorti">Sorti</option>
+        </select>
+        <label>Date de sortie <span class="muted">(si sorti)</span></label>
+        <input type="date" name="dateSortie" />
+        <p class="error" id="modifier-error"></p>
+        <div style="display:flex; gap:10px; margin-top:14px;">
+          <button type="submit">Enregistrer</button>
+          <button type="button" class="secondary" id="modifier-annuler-btn">Annuler</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/layout.js"></script>
+  <script>
+    const CATEGORIE_LABELS = {
+      avocat: "Avocat", collaborateur: "Collaborateur", stagiaire: "Stagiaire",
+      secretariat: "Secrétariat", comptable: "Comptable", autre: "Autre",
+    };
+    const CONTRAT_LABELS = { cdi: "CDI", cdd: "CDD", stage: "Stage", liberal: "Libéral", autre: "Autre" };
+
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get("id");
+    let fiche = null;
+
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str ?? "";
+      return div.innerHTML;
+    }
+    function ligneDate(iso) {
+      return iso ? new Date(iso).toLocaleDateString("fr-FR") : null;
+    }
+
+    async function charger() {
+      try {
+        fiche = await apiFetch(`/api/personnel/${id}`);
+      } catch (err) {
+        showError(document.getElementById("error"), err.message);
+        return;
+      }
+      document.getElementById("fiche-nom").textContent = `${fiche.nom}${fiche.prenoms ? " " + fiche.prenoms : ""}`;
+      document.getElementById("fiche-sous-titre").textContent =
+        `${CATEGORIE_LABELS[fiche.categorie] || fiche.categorie}${fiche.fonction ? " — " + fiche.fonction : ""}${fiche.statut === "sorti" ? " (sorti)" : ""}`;
+
+      const lignes = [
+        ["Type de contrat", CONTRAT_LABELS[fiche.typeContrat] || fiche.typeContrat],
+        ["Date d'entrée", ligneDate(fiche.dateEntree)],
+        ["Date de sortie", ligneDate(fiche.dateSortie)],
+        ["Téléphone", fiche.telephone],
+        ["Email", fiche.email],
+        ["Compte Aurore", fiche.user ? `${fiche.user.nom} (${fiche.user.email})` : "Aucun — employé sans accès à Aurore"],
+      ];
+      document.getElementById("infos-affichage").innerHTML = `<table>${lignes
+        .map(([label, valeur]) => `<tr><th style="text-align:left; padding:4px 12px 4px 0; vertical-align:top; color:var(--muted);">${label}</th><td>${valeur ? escapeHtml(String(valeur)) : '<span class="muted">— non renseigné —</span>'}</td></tr>`)
+        .join("")}</table>`;
+    }
+
+    const STATUT_STAGE_LABELS = { en_cours: "En cours", termine: "Terminé", interrompu: "Interrompu" };
+
+    async function chargerStages() {
+      const card = document.getElementById("stage-card");
+      let stages;
+      try {
+        stages = await apiFetch(`/api/personnel/${id}/stages`);
+      } catch {
+        card.hidden = true;
+        return;
+      }
+      card.hidden = stages.length === 0 && !document.getElementById("ajouter-stage-btn").dataset.titulaire;
+      document.getElementById("stage-affichage").innerHTML = stages.length
+        ? stages
+            .map(
+              (s) => `
+          <div style="padding:10px 0; border-bottom:1px solid var(--border);">
+            <strong>${new Date(s.dateDebut).toLocaleDateString("fr-FR")} → ${new Date(s.dateFinPrevue).toLocaleDateString("fr-FR")}</strong>
+            <span class="tag">${STATUT_STAGE_LABELS[s.statut] || s.statut}</span>
+            <div class="meta">Responsable : ${escapeHtml(s.responsable.nom)}${s.objet ? " · " + escapeHtml(s.objet) : ""}</div>
+          </div>`
+            )
+            .join("")
+        : '<p class="muted">Aucun stage enregistré.</p>';
+    }
+
+    const MODE_CALCUL_LABELS = { montant_fixe: "Montant fixe", pourcentage: "Pourcentage" };
+    const BASE_CALCUL_LABELS = { salaire_base: "salaire de base", brut: "brut" };
+
+    function formatMontantFCFA(montant) {
+      return `${montant.toLocaleString("fr-FR")} F CFA`;
+    }
+
+    async function chargerElementsSalaire() {
+      const card = document.getElementById("salaire-card");
+      let elements;
+      try {
+        elements = await apiFetch(`/api/personnel/${id}/elements-salaire`);
+      } catch {
+        card.hidden = true;
+        return;
+      }
+      card.hidden = false;
+      document.getElementById("salaire-affichage").innerHTML = elements.length
+        ? elements
+            .map((e) => {
+              const valeur = e.modeCalcul === "pourcentage" ? `${e.valeur}% du ${BASE_CALCUL_LABELS[e.baseCalcul] || e.baseCalcul}` : formatMontantFCFA(e.valeur);
+              return `
+          <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--border);">
+            <div>
+              <strong>${escapeHtml(e.libelle)}</strong> <span class="tag">${e.sens === "gain" ? "Gain" : "Retenue"}</span>${e.estSalaireBase ? ' <span class="tag">Salaire de base</span>' : ""}${!e.actif ? ' <span class="tag">Inactif</span>' : ""}
+              <div class="meta">${MODE_CALCUL_LABELS[e.modeCalcul]} — ${valeur}</div>
+            </div>
+            ${e.actif ? `<button type="button" class="secondary btn-sm" data-desactiver="${e.id}">Désactiver</button>` : ""}
+          </div>`;
+            })
+            .join("")
+        : '<p class="muted">Aucun élément de salaire. Commence par ajouter le "Salaire de base".</p>';
+
+      document.querySelectorAll("[data-desactiver]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          try {
+            await apiFetch(`/api/elements-salaire/${btn.dataset.desactiver}`, { method: "PATCH", body: { actif: false } });
+            await chargerElementsSalaire();
+          } catch (err) {
+            showError(document.getElementById("error"), err.message);
+          }
+        });
+      });
+    }
+
+    (async () => {
+      const me = await requireSession();
+      if (!me) return;
+      initLayout(me);
+
+      if (!id) {
+        showError(document.getElementById("error"), "Fiche introuvable.");
+        return;
+      }
+
+      const estTitulaire = me.role === "titulaire";
+      const modifierBtn = document.getElementById("modifier-btn");
+      modifierBtn.hidden = !estTitulaire;
+
+      const ajouterStageBtn = document.getElementById("ajouter-stage-btn");
+      ajouterStageBtn.hidden = !estTitulaire;
+      if (estTitulaire) ajouterStageBtn.dataset.titulaire = "1";
+      const stageModal = document.getElementById("ajouter-stage-modal");
+      const stageForm = document.getElementById("ajouter-stage-form");
+      const stageErrEl = document.getElementById("ajouter-stage-error");
+
+      ajouterStageBtn.addEventListener("click", async () => {
+        stageForm.reset();
+        stageErrEl.textContent = "";
+        try {
+          const annuaire = await apiFetch("/api/users/annuaire");
+          stageForm.responsableId.innerHTML = annuaire
+            .map((u) => `<option value="${u.id}">${escapeHtml(u.nom)}</option>`)
+            .join("");
+        } catch (err) {
+          stageErrEl.textContent = err.message;
+        }
+        stageModal.hidden = false;
+      });
+      document.getElementById("ajouter-stage-annuler-btn").addEventListener("click", () => {
+        stageModal.hidden = true;
+      });
+      stageForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        stageErrEl.textContent = "";
+        const fd = new FormData(stageForm);
+        try {
+          await apiFetch(`/api/personnel/${id}/stages`, {
+            method: "POST",
+            body: {
+              responsableId: fd.get("responsableId"),
+              dateDebut: fd.get("dateDebut"),
+              dateFinPrevue: fd.get("dateFinPrevue"),
+              objet: fd.get("objet").trim() || undefined,
+            },
+          });
+          stageModal.hidden = true;
+          await chargerStages();
+        } catch (err) {
+          stageErrEl.textContent = err.message;
+        }
+      });
+
+      const modal = document.getElementById("modifier-modal");
+      const form = document.getElementById("modifier-form");
+      const errEl = document.getElementById("modifier-error");
+
+      modifierBtn.addEventListener("click", () => {
+        form.nom.value = fiche.nom;
+        form.prenoms.value = fiche.prenoms || "";
+        form.categorie.value = fiche.categorie;
+        form.fonction.value = fiche.fonction || "";
+        form.typeContrat.value = fiche.typeContrat;
+        form.dateEntree.value = fiche.dateEntree ? fiche.dateEntree.slice(0, 10) : "";
+        form.telephone.value = fiche.telephone || "";
+        form.email.value = fiche.email || "";
+        form.statut.value = fiche.statut;
+        form.dateSortie.value = fiche.dateSortie ? fiche.dateSortie.slice(0, 10) : "";
+        errEl.textContent = "";
+        modal.hidden = false;
+      });
+      document.getElementById("modifier-annuler-btn").addEventListener("click", () => {
+        modal.hidden = true;
+      });
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        errEl.textContent = "";
+        const fd = new FormData(form);
+        const body = {
+          nom: fd.get("nom").trim(),
+          prenoms: fd.get("prenoms").trim() || undefined,
+          categorie: fd.get("categorie"),
+          fonction: fd.get("fonction").trim() || undefined,
+          typeContrat: fd.get("typeContrat"),
+          dateEntree: fd.get("dateEntree"),
+          telephone: fd.get("telephone").trim() || undefined,
+          email: fd.get("email").trim() || undefined,
+          statut: fd.get("statut"),
+          dateSortie: fd.get("dateSortie") || null,
+        };
+        try {
+          await apiFetch(`/api/personnel/${id}`, { method: "PATCH", body });
+          modal.hidden = true;
+          await charger();
+        } catch (err) {
+          errEl.textContent = err.message;
+        }
+      });
+
+      const ajouterElementBtn = document.getElementById("ajouter-element-btn");
+      ajouterElementBtn.hidden = !estTitulaire;
+      const elementModal = document.getElementById("ajouter-element-modal");
+      const elementForm = document.getElementById("ajouter-element-form");
+      const elementErrEl = document.getElementById("ajouter-element-error");
+
+      elementForm.modeCalcul.addEventListener("change", () => {
+        document.getElementById("base-calcul-champ").hidden = elementForm.modeCalcul.value !== "pourcentage";
+      });
+      ajouterElementBtn.addEventListener("click", () => {
+        elementForm.reset();
+        document.getElementById("base-calcul-champ").hidden = true;
+        elementErrEl.textContent = "";
+        elementModal.hidden = false;
+      });
+      document.getElementById("ajouter-element-annuler-btn").addEventListener("click", () => {
+        elementModal.hidden = true;
+      });
+      elementForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        elementErrEl.textContent = "";
+        const fd = new FormData(elementForm);
+        try {
+          await apiFetch(`/api/personnel/${id}/elements-salaire`, {
+            method: "POST",
+            body: {
+              sens: fd.get("sens"),
+              libelle: fd.get("libelle").trim(),
+              modeCalcul: fd.get("modeCalcul"),
+              valeur: Number(fd.get("valeur")),
+              baseCalcul: fd.get("modeCalcul") === "pourcentage" ? fd.get("baseCalcul") : undefined,
+              estSalaireBase: fd.get("estSalaireBase") === "on",
+            },
+          });
+          elementModal.hidden = true;
+          await chargerElementsSalaire();
+        } catch (err) {
+          elementErrEl.textContent = err.message;
+        }
+      });
+
+      charger().then(chargerStages).then(chargerElementsSalaire);
+    })();
+  </script>
+</body>
+</html>

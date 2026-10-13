@@ -32,3 +32,22 @@ export async function logAuditCourrier(
     data: { ...lien, etape, statut, detail },
   });
 }
+
+/**
+ * Module RH Cabinet (RH-1) - meme mecanisme que logAuditCourrier ci-dessus,
+ * pour tracer l'acces/la creation/la modification d'une fiche personnel.
+ * "detail" ne doit JAMAIS contenir de montant, de motif d'absence ni de
+ * coordonnee de paiement (contrainte de la spec RH, section 8) - convention
+ * manuelle a respecter par chaque appelant, comme partout ailleurs dans ce
+ * fichier (aucun garde-fou automatique au niveau du service).
+ */
+export async function logAuditPersonnel(
+  fichePersonnelId: string,
+  etape: string,
+  statut: StatutExecution,
+  detail?: string
+): Promise<void> {
+  await prisma.auditLog.create({
+    data: { fichePersonnelId, etape, statut, detail },
+  });
+}

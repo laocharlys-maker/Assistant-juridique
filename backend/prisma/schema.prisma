@@ -309,6 +309,10 @@ model Cabinet {
   // jobs/purgeAudioMobile.ts). Ne s'applique jamais aux scans/notes, ni a
   // un element pas encore traite.
   mobileConservationAudioJours        Int?      @map("mobile_conservation_audio_jours")
+  // Module RH Cabinet, RH-3 - le samedi compte-t-il comme jour ouvre pour
+  // le calcul des conges ? Faux par defaut (semaine de 5 jours), voir
+  // services/conges.ts, calculerJoursOuvres().
+  rhSamediOuvre                       Boolean   @default(false) @map("rh_samedi_ouvre")
   createdAt                           DateTime  @default(now()) @map("created_at")
 
   mobileDevices MobileDevice[]
@@ -337,6 +341,16 @@ model Cabinet {
   // voir JournalConnexion/JournalActivite ci-dessous.
   journalConnexions JournalConnexion[]
   journalActivites  JournalActivite[]
+  // Module RH Cabinet (RH-1 a RH-6).
+  fichesPersonnel   FichePersonnel[]
+  stages            Stage[]
+  typesAbsence      TypeAbsence[]
+  joursFeries       JourFerie[]
+  demandesAbsence   DemandeAbsence[]
+  planningsConges   PlanningConges[]
+  periodesPaie      PeriodePaie[]
+  fichesPaie        FichePaie[]
+  etatsPaiement     EtatPaiement[]
 
   @@map("cabinets")
 }
@@ -356,6 +370,441 @@ model Huissier {
 
   @@index([cabinetId])
   @@map("huissiers")
+}
+
+// Module RH Cabinet, RH-1 (voir docs/rh/) - personnel du cabinet, AVEC ou
+// SANS compte Aurore. userId nullable+unique : si l'employe recoit un
+// compte plus tard, on renseigne ce champ sur la fiche existante, jamais
+// une nouvelle fiche (voir routes/personnel.ts). categorie/typeContrat/
+// statut restent des chaines libres (comme Dossier.statut ailleurs dans ce
+// schema), pas des enums Prisma - l'ensemble des valeurs proposees en V1
+// est documente cote route (zod), pas ici, pour pouvoir l'etendre sans
+// migration si un cabinet a besoin d'une categorie de plus.
+model FichePersonnel {
+  id        String  @id @default(uuid())
+  cabinetId String  @map("cabinet_id")
+  userId    String? @unique @map("user_id")
+
+  nom      String
+  prenoms  String?
+  // "avocat" | "collaborateur" | "stagiaire" | "secretariat" | "comptable" | "autre"
+  categorie String
+  fonction  String?
+  // "cdi" | "cdd" | "stage" | "liberal" | "autre"
+  typeContrat String @map("type_contrat")
+
+  dateEntree DateTime  @map("date_entree")
+  dateSortie DateTime? @map("date_sortie")
+  // "actif" | "sorti"
+  statut String @default("actif")
+
+  telephone String?
+  email     String?
+  // Chiffres au repos (encryptionAtRest.ts, voir prismaEncryption.ts) -
+  // donnees personnelles sensibles, jamais en clair en base.
+  contactUrgence String? @map("contact_urgence")
+
+  // "virement" | "especes" | "mobile_money"
+  modePaiement        String? @map("mode_paiement")
+  coordonneesPaiement String? @map("coordonnees_paiement")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  cabinet   Cabinet    @relation(fields: [cabinetId], references: [id])
+  user      User?      @relation(fields: [userId], references: [id])
+  auditLogs AuditLog[]
+  stages    Stage[]
+  soldesConges    SoldeConges[]
+  demandesAbsence DemandeAbsence[]
+  souhaitsConges  SouhaitConges[]
+  planningCongesLignes PlanningCongesLigne[]
+  elementsSalaire      ElementSalaire[]
+  ajustementsMensuels  AjustementMensuel[]
+  fichesPaie           FichePaie[]
+
+  @@index([cabinetId])
+  @@map("fiches_personnel")
+}
+
+// Module RH Cabinet, RH-2 (voir docs/rh/) - suivi de stage. Plusieurs Stage
+// possibles pour UNE MEME FichePersonnel (un stagiaire peut revenir une
+// annee suivante) - pas de relation unique. responsableId pointe TOUJOURS
+// vers un User (compte Aurore obligatoire pour pouvoir recevoir une
+// notification - voir routes/stages.ts, contrainte explicite de la spec
+// section 4 : "doit avoir un compte pour etre notifie").
+model Stage {
+  id               String  @id @default(uuid())
+  cabinetId        String  @map("cabinet_id")
+  fichePersonnelId String  @map("fiche_personnel_id")
+  responsableId    String  @map("responsable_id")
+
+  dateDebut     DateTime  @map("date_debut")
+  dateFinPrevue DateTime  @map("date_fin_prevue")
+  // "en_cours" | "termine" | "interrompu" | "prolonge"
+  statut String @default("en_cours")
+  objet  String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  cabinet        Cabinet             @relation(fields: [cabinetId], references: [id])
+  fichePersonnel FichePersonnel      @relation(fields: [fichePersonnelId], references: [id])
+  responsable    User                @relation("StageResponsable", fields: [responsableId], references: [id])
+  prolongations  StageProlongation[]
+  rappelsEnvoyes StageRappelEnvoye[]
+
+  @@index([cabinetId])
+  @@index([fichePersonnelId])
+  @@index([responsableId])
+  @@map("stages")
+}
+
+model StageProlongation {
+  id              String   @id @default(uuid())
+  stageId         String   @map("stage_id")
+  ancienneDateFin DateTime @map("ancienne_date_fin")
+  nouvelleDateFin DateTime @map("nouvelle_date_fin")
+  motif           String?
+  decideParId     String   @map("decide_par_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  stage     Stage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  decidePar User  @relation("StageProlongationDecidePar", fields: [decideParId], references: [id])
+
+  @@index([stageId])
+  @@map("stage_prolongations")
+}
+
+// Decision du 13/10/2026 (docs/rh/00-audit.md) : UN ENREGISTREMENT PAR
+// ECHEANCE plutot qu'un horodatage unique par stage - chaque palier
+// (j30/j15/j7/j0, ou une date precise "en_retard_AAAA-MM-JJ" pour l'alerte
+// repetee tant que le stage n'est pas cloture) est verifie et marque
+// independamment, pour qu'un decalage de calcul ne puisse jamais faire
+// sauter silencieusement un rappel. Voir jobs/stageRappels.ts.
+model StageRappelEnvoye {
+  id        String   @id @default(uuid())
+  stageId   String   @map("stage_id")
+  palier    String
+  envoyeLe  DateTime @default(now()) @map("envoye_le")
+
+  stage Stage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+
+  @@unique([stageId, palier])
+  @@map("stage_rappels_envoyes")
+}
+
+// Module RH Cabinet, RH-3 (voir docs/rh/) - types d'absence PARAMETRABLES
+// par le titulaire (contrairement a categorie/typeContrat de FichePersonnel,
+// ceux-la sont bien une vraie table, pas une chaine libre - la spec les
+// decrit comme modifiables, avec des valeurs par defaut creees a
+// l'activation, voir ensureTypesAbsenceParDefaut() dans
+// services/conges.ts).
+model TypeAbsence {
+  id                 String  @id @default(uuid())
+  cabinetId          String  @map("cabinet_id")
+  libelle            String
+  decompteSolde      Boolean @default(true) @map("decompte_solde")
+  remunere           Boolean @default(true)
+  justificatifRequis Boolean @default(false) @map("justificatif_requis")
+  actif              Boolean @default(true)
+
+  cabinet  Cabinet          @relation(fields: [cabinetId], references: [id])
+  demandes DemandeAbsence[]
+
+  @@index([cabinetId])
+  @@map("types_absence")
+}
+
+model JourFerie {
+  id                  String   @id @default(uuid())
+  cabinetId           String   @map("cabinet_id")
+  date                DateTime
+  libelle             String
+  recurrentChaqueAnnee Boolean @default(false) @map("recurrent_chaque_annee")
+
+  cabinet Cabinet @relation(fields: [cabinetId], references: [id])
+
+  @@index([cabinetId])
+  @@map("jours_feries")
+}
+
+// Jours PRIS = calcules depuis DemandeAbsence (statut approuvee, type
+// decompteSolde=true), jamais duplique ici - seuls droitJours/reportJours
+// sont des valeurs saisies. Float (pas Int) : une demi-journee compte pour
+// 0.5.
+model SoldeConges {
+  id              String @id @default(uuid())
+  fichePersonnelId String @map("fiche_personnel_id")
+  annee           Int
+  droitJours      Float  @default(0) @map("droit_jours")
+  reportJours     Float  @default(0) @map("report_jours")
+
+  fichePersonnel FichePersonnel @relation(fields: [fichePersonnelId], references: [id])
+
+  @@unique([fichePersonnelId, annee])
+  @@map("soldes_conges")
+}
+
+model DemandeAbsence {
+  id               String   @id @default(uuid())
+  cabinetId        String   @map("cabinet_id")
+  fichePersonnelId String   @map("fiche_personnel_id")
+  typeAbsenceId    String   @map("type_absence_id")
+
+  dateDebut         DateTime @map("date_debut")
+  dateFin           DateTime @map("date_fin")
+  demiJourneeDebut  Boolean  @default(false) @map("demi_journee_debut")
+  demiJourneeFin    Boolean  @default(false) @map("demi_journee_fin")
+  nbJoursOuvres     Float    @map("nb_jours_ouvres")
+  // "en_attente" | "approuvee" | "refusee" | "annulee"
+  statut            String   @default("en_attente")
+  // RH-4 (planning automatique) : rempli si cette demande provient de la
+  // validation d'une ligne de planning.
+  planningLigneId   String?  @map("planning_ligne_id")
+  decideParId       String?  @map("decide_par_id")
+  dateDecision      DateTime? @map("date_decision")
+  commentaireDecision String? @map("commentaire_decision")
+  // Chiffre au repos (encryptionAtRest.ts) - motif potentiellement sensible
+  // (raison medicale, familiale...), jamais en clair en base.
+  motif             String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  cabinet        Cabinet         @relation(fields: [cabinetId], references: [id])
+  fichePersonnel FichePersonnel  @relation(fields: [fichePersonnelId], references: [id])
+  typeAbsence    TypeAbsence     @relation(fields: [typeAbsenceId], references: [id])
+  decidePar      User?           @relation("DemandeAbsenceDecidePar", fields: [decideParId], references: [id])
+  planningLigne  PlanningCongesLigne? @relation(fields: [planningLigneId], references: [id])
+
+  @@index([cabinetId])
+  @@index([fichePersonnelId])
+  @@index([statut])
+  @@map("demandes_absence")
+}
+
+// Module RH Cabinet, RH-4 (voir docs/rh/) - 1 a 3 souhaits classes par
+// employe et par annee, tels quels (l'algorithme essaie rang 1 puis 2 puis
+// 3 - voir services/planningConges.ts).
+model SouhaitConges {
+  id               String   @id @default(uuid())
+  fichePersonnelId String   @map("fiche_personnel_id")
+  annee            Int
+  rang             Int
+  dateDebut        DateTime @map("date_debut")
+  dateFin          DateTime @map("date_fin")
+
+  fichePersonnel FichePersonnel @relation(fields: [fichePersonnelId], references: [id])
+
+  @@unique([fichePersonnelId, annee, rang])
+  @@map("souhaits_conges")
+}
+
+model PlanningConges {
+  id        String @id @default(uuid())
+  cabinetId String @map("cabinet_id")
+  annee     Int
+  // "brouillon" | "valide" | "archive"
+  statut    String @default("brouillon")
+  // { effectifMin: number, periodesBloquees: [{debut, fin}] } - saisi par le
+  // titulaire avant generation, voir routes/planningConges.ts.
+  parametres Json
+  genereLe   DateTime @default(now()) @map("genere_le")
+  genereParId String  @map("genere_par_id")
+
+  cabinet   Cabinet              @relation(fields: [cabinetId], references: [id])
+  generePar User                 @relation(fields: [genereParId], references: [id])
+  lignes    PlanningCongesLigne[]
+
+  @@unique([cabinetId, annee])
+  @@map("plannings_conges")
+}
+
+model PlanningCongesLigne {
+  id               String   @id @default(uuid())
+  planningId       String   @map("planning_id")
+  fichePersonnelId String   @map("fiche_personnel_id")
+  dateDebut        DateTime @map("date_debut")
+  dateFin          DateTime @map("date_fin")
+  nbJoursOuvres    Float    @map("nb_jours_ouvres")
+  // "souhait_1" | "souhait_2" | "souhait_3" | "ajuste_auto" | "manuel" |
+  // "non_place" (ligne presente mais sans date valide - signale au titulaire)
+  origine          String
+  raison           String?
+
+  planning       PlanningConges   @relation(fields: [planningId], references: [id], onDelete: Cascade)
+  fichePersonnel FichePersonnel   @relation(fields: [fichePersonnelId], references: [id])
+  demandes       DemandeAbsence[]
+
+  @@index([planningId])
+  @@map("plannings_conges_lignes")
+}
+
+// Module RH Cabinet, RH-5 (voir docs/rh/) - elements de salaire FIXES,
+// recurrents chaque mois (pas les variables du mois, voir
+// AjustementMensuel ci-dessous). Decision du 13/10/2026 (docs/rh/00-audit.md,
+// question 3) : montants en CLAIR en base (Int FCFA, pas de chiffrement) -
+// permet des totaux fiables en SQL ; seuls les coordonnees de paiement et
+// les PDF de fiche de paie sont chiffres.
+model ElementSalaire {
+  id               String  @id @default(uuid())
+  fichePersonnelId String  @map("fiche_personnel_id")
+  // "gain" | "retenue"
+  sens             String
+  libelle          String
+  // "montant_fixe" | "pourcentage"
+  modeCalcul       String  @map("mode_calcul")
+  // Montant en FCFA (entier) si modeCalcul=montant_fixe, ou pourcentage
+  // (ex: 5 pour 5%) si modeCalcul=pourcentage.
+  valeur           Int
+  // "salaire_base" | "brut" - uniquement si modeCalcul=pourcentage (spec
+  // section 11, point 1 : les deux bases possibles, au choix par ligne).
+  baseCalcul       String? @map("base_calcul")
+  dateDebut        DateTime @default(now()) @map("date_debut")
+  dateFin          DateTime? @map("date_fin")
+  actif            Boolean @default(true)
+  // Un seul element par fiche peut porter ce marqueur - le "Salaire de
+  // base" sert de reference pour les pourcentages bases sur salaire_base
+  // ET pour la retenue d'absence non remuneree (services/paie.ts).
+  estSalaireBase   Boolean @default(false) @map("est_salaire_base")
+
+  fichePersonnel FichePersonnel @relation(fields: [fichePersonnelId], references: [id])
+
+  @@index([fichePersonnelId])
+  @@map("elements_salaire")
+}
+
+model PeriodePaie {
+  id        String @id @default(uuid())
+  cabinetId String @map("cabinet_id")
+  // "AAAA-MM"
+  mois      String
+  // "ouverte" | "cloturee"
+  statut    String @default("ouverte")
+
+  cabinet       Cabinet           @relation(fields: [cabinetId], references: [id])
+  ajustements   AjustementMensuel[]
+  fichesPaie    FichePaie[]
+  etatPaiement  EtatPaiement?
+
+  @@unique([cabinetId, mois])
+  @@map("periodes_paie")
+}
+
+model AjustementMensuel {
+  id            String @id @default(uuid())
+  periodePaieId String @map("periode_paie_id")
+  fichePersonnelId String @map("fiche_personnel_id")
+  // "gain" | "retenue"
+  sens          String
+  libelle       String
+  montant       Int
+
+  periodePaie    PeriodePaie    @relation(fields: [periodePaieId], references: [id], onDelete: Cascade)
+  fichePersonnel FichePersonnel @relation(fields: [fichePersonnelId], references: [id])
+
+  @@index([periodePaieId])
+  @@index([fichePersonnelId])
+  @@map("ajustements_mensuels")
+}
+
+model FichePaie {
+  id            String @id @default(uuid())
+  cabinetId     String @map("cabinet_id")
+  periodePaieId String @map("periode_paie_id")
+  fichePersonnelId String @map("fiche_personnel_id")
+  numero        String?
+  // "brouillon" | "validee" | "annulee"
+  statut        String @default("brouillon")
+  version       Int    @default(1)
+  brut          Int    @default(0)
+  totalRetenues Int    @default(0) @map("total_retenues")
+  net           Int    @default(0)
+  // Nom de fichier aleatoire (UUID) genere a la validation, non previsible -
+  // aucune information en lui-meme (meme convention que
+  // DocumentDossier.nomFichier, jamais chiffre au niveau du champ). Le
+  // contenu du PDF, lui, est chiffre sur disque (stockageDocuments.ts).
+  cheminPdf     String? @map("chemin_pdf")
+  valideLe      DateTime? @map("valide_le")
+  valideParId   String?   @map("valide_par_id")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  cabinet        Cabinet          @relation(fields: [cabinetId], references: [id])
+  periodePaie    PeriodePaie      @relation(fields: [periodePaieId], references: [id])
+  fichePersonnel FichePersonnel   @relation(fields: [fichePersonnelId], references: [id])
+  validePar      User?            @relation(fields: [valideParId], references: [id])
+  lignes         FichePaieLigne[]
+  lignePaiement  LignePaiement?
+
+  @@unique([periodePaieId, fichePersonnelId, version])
+  @@index([cabinetId])
+  @@index([fichePersonnelId])
+  @@map("fiches_paie")
+}
+
+// FIGEES a la validation (spec section 4) : une fiche validee ne change
+// jamais, meme si ElementSalaire change ensuite pour cet employe - ces
+// lignes restent la verite historique de ce qui a ete effectivement paye.
+model FichePaieLigne {
+  id          String  @id @default(uuid())
+  fichePaieId String  @map("fiche_paie_id")
+  ordre       Int
+  // "gain" | "retenue"
+  sens        String
+  libelle     String
+  base        Int?
+  taux        Int?
+  montant     Int
+
+  fichePaie FichePaie @relation(fields: [fichePaieId], references: [id], onDelete: Cascade)
+
+  @@index([fichePaieId])
+  @@map("fiches_paie_lignes")
+}
+
+// Module RH Cabinet, RH-6 (voir docs/rh/) - recapitulatif des montants a
+// payer pour une periode, genere UNIQUEMENT a partir des fiches de paie
+// VALIDEES (spec section 5.5). Recalculable tant qu'en brouillon (une
+// nouvelle fiche validee entre temps est alors incluse) ; verrouille a la
+// validation, qui cloture aussi la PeriodePaie (plus aucune fiche
+// modifiable ensuite). Jamais de paiement reellement declenche - Aurore
+// n'est qu'un registre de statut (spec section 2, exclusion explicite).
+model EtatPaiement {
+  id            String @id @default(uuid())
+  cabinetId     String @map("cabinet_id")
+  periodePaieId String @unique @map("periode_paie_id")
+  // "brouillon" | "valide"
+  statut        String @default("brouillon")
+  totalBrut     Int    @default(0) @map("total_brut")
+  totalRetenues Int    @default(0) @map("total_retenues")
+  totalNet      Int    @default(0) @map("total_net")
+  genereLe      DateTime @default(now()) @map("genere_le")
+  genereParId   String   @map("genere_par_id")
+
+  cabinet     Cabinet         @relation(fields: [cabinetId], references: [id])
+  periodePaie PeriodePaie     @relation(fields: [periodePaieId], references: [id])
+  generePar   User            @relation(fields: [genereParId], references: [id])
+  lignes      LignePaiement[]
+
+  @@map("etats_paiement")
+}
+
+model LignePaiement {
+  id             String   @id @default(uuid())
+  etatPaiementId String   @map("etat_paiement_id")
+  fichePaieId    String   @unique @map("fiche_paie_id")
+  // "virement" | "especes" | "mobile_money" | null (non renseigne sur la fiche personnel)
+  modePaiement   String?  @map("mode_paiement")
+  // "a_payer" | "paye"
+  statutPaiement String   @default("a_payer") @map("statut_paiement")
+  datePaiement   DateTime? @map("date_paiement")
+  reference      String?
+
+  etatPaiement EtatPaiement @relation(fields: [etatPaiementId], references: [id], onDelete: Cascade)
+  fichePaie    FichePaie    @relation(fields: [fichePaieId], references: [id])
+
+  @@index([etatPaiementId])
+  @@map("lignes_paiement")
 }
 
 model User {
@@ -437,6 +886,7 @@ model User {
   responsable         User?          @relation("ResponsableCollaborateurs", fields: [responsableId], references: [id])
   collaborateurs      User[]         @relation("ResponsableCollaborateurs")
   dossiersCrees       Dossier[]      @relation("DossierCreatedBy")
+  dossiersResponsable Dossier[]      @relation("DossierAvocatResponsable")
   actionsCreees       Action[]       @relation("ActionCreatedBy")
   // Corbeille (2026-10-07) : qui a envoye chaque element en corbeille.
   dossiersSupprimes   Dossier[]      @relation("DossierSupprimePar")
@@ -467,6 +917,20 @@ model User {
   // collaborateur affecte, et en tant qu'avocat/titulaire ayant affecte.
   courrierAffectationsRecues CourrierAffectation[] @relation("CourrierAffectationCollaborateur")
   courrierAffectationsFaites CourrierAffectation[] @relation("CourrierAffectationAffectePar")
+
+  // Module RH Cabinet - fiche personnel liee a CE compte, si l'employe en a
+  // un (voir model FichePersonnel.userId, nullable).
+  fichePersonnel FichePersonnel?
+
+  // Module RH Cabinet, RH-2 - stages dont CET utilisateur est responsable
+  // (notifications J-30/J-15/J-7/J-0), et prolongations qu'il/elle a
+  // decidees.
+  stagesResponsable         Stage[]             @relation("StageResponsable")
+  demandesAbsenceDecidees   DemandeAbsence[]    @relation("DemandeAbsenceDecidePar")
+  planningsCongesGeneres    PlanningConges[]
+  fichesPaieValidees        FichePaie[]
+  etatsPaiementGeneres      EtatPaiement[]
+  stageProlongationsDecidees StageProlongation[] @relation("StageProlongationDecidePar")
 
   // Lot 11 (Partie A) : documents actuellement verrouilles par CET
   // utilisateur (edition en cours), et versions qu'il/elle a enregistrees.
@@ -653,6 +1117,13 @@ model Dossier {
   id             String    @id @default(uuid())
   cabinetId      String    @map("cabinet_id")
   clientId       String?   @map("client_id")
+  // Module RH Cabinet, RH-4 (voir docs/rh/00-audit.md, decision du
+  // 13/10/2026) : AVANT ce champ, aucun moyen fiable de savoir "quel avocat
+  // a une audience tel jour" (createdBy est juste le createur, pas
+  // forcement un avocat). Nullable : optionnel, jamais retroactivement
+  // rempli - sert uniquement a eviter un conflit audience/conge dans le
+  // planning automatique (services/planningConges.ts), aucun autre usage.
+  avocatResponsableId String? @map("avocat_responsable_id")
   numeroDossier  String    @map("numero_dossier")
   nomAffaire     String    @map("nom_affaire")
   nomClient      String    @map("nom_client")
@@ -688,10 +1159,11 @@ model Dossier {
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
 
-  cabinet       Cabinet        @relation(fields: [cabinetId], references: [id])
-  client        Client?        @relation(fields: [clientId], references: [id])
-  creePar       User           @relation("DossierCreatedBy", fields: [createdBy], references: [id])
-  supprimePar   User?          @relation("DossierSupprimePar", fields: [supprimeParId], references: [id])
+  cabinet         Cabinet @relation(fields: [cabinetId], references: [id])
+  client          Client? @relation(fields: [clientId], references: [id])
+  creePar         User    @relation("DossierCreatedBy", fields: [createdBy], references: [id])
+  supprimePar     User?   @relation("DossierSupprimePar", fields: [supprimeParId], references: [id])
+  avocatResponsable User? @relation("DossierAvocatResponsable", fields: [avocatResponsableId], references: [id])
   actions       Action[]
   delaiCalculs  DelaiCalcul[]
   factures      Facture[]
@@ -1553,6 +2025,12 @@ model AuditLog {
   actionId          String?         @map("action_id")
   courrierEntrantId String?         @map("courrier_entrant_id")
   courrierSortantId String?         @map("courrier_sortant_id")
+  // Module RH Cabinet - lien optionnel vers une fiche personnel, meme
+  // convention que les deux champs courrier ci-dessus (exactement un lien
+  // renseigne parmi les quatre, jamais le contenu metier - voir
+  // services/audit.ts, logAuditPersonnel). Jamais de montant ni de contenu
+  // sensible dans "detail" pour ces lignes.
+  fichePersonnelId String?         @map("fiche_personnel_id")
   etape             String
   statut            StatutExecution
   detail            String?
@@ -1561,10 +2039,12 @@ model AuditLog {
   action          Action?          @relation(fields: [actionId], references: [id])
   courrierEntrant CourrierEntrant? @relation(fields: [courrierEntrantId], references: [id])
   courrierSortant CourrierSortant? @relation(fields: [courrierSortantId], references: [id])
+  fichePersonnel  FichePersonnel?  @relation(fields: [fichePersonnelId], references: [id])
 
   @@index([actionId])
   @@index([courrierEntrantId])
   @@index([courrierSortantId])
+  @@index([fichePersonnelId])
   @@map("audit_logs")
 }
 

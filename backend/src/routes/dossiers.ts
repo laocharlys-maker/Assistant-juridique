@@ -297,6 +297,7 @@ dossiersRouter.get("/api/dossiers/:id", requireAuth, async (req, res) => {
     },
     include: {
       creePar: { select: { nom: true } },
+      avocatResponsable: { select: { id: true, nom: true } },
       actions: {
         where: { supprimeLe: null },
         orderBy: { createdAt: "desc" },
@@ -397,6 +398,39 @@ dossiersRouter.get("/api/dossiers/:id/dernier-document", requireAuth, async (req
   }
 
   return res.json({ champs: action.champsFormulaire });
+});
+
+// Module RH Cabinet, RH-4 (voir docs/rh/00-audit.md, decision du
+// 13/10/2026) : avant ce champ, aucun moyen fiable de savoir "quel avocat
+// a une audience tel jour" - necessaire pour eviter un conflit
+// audience/conge dans le planning automatique (services/planningConges.ts).
+// Route distincte et minimale plutot que d'etendre PATCH /api/dossiers/:id
+// ci-dessous (perimetre deja charge, jamais touche pour cette fonctionnalite
+// sans rapport).
+const avocatResponsableSchema = z.object({ avocatResponsableId: z.string().uuid().nullable() });
+
+dossiersRouter.patch("/api/dossiers/:id/avocat-responsable", requireAuth, requireAvocat, async (req, res) => {
+  const { auth } = req;
+  const parsed = avocatResponsableSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: "Requête invalide", details: parsed.error.issues });
+  }
+
+  const dossier = await prisma.dossier.findFirst({ where: { id: req.params.id, cabinetId: auth!.cabinetId } });
+  if (!dossier) return res.status(404).json({ error: "Dossier introuvable" });
+
+  if (parsed.data.avocatResponsableId) {
+    const avocat = await prisma.user.findFirst({
+      where: { id: parsed.data.avocatResponsableId, cabinetId: auth!.cabinetId, role: { in: ["avocat", "titulaire"] } },
+    });
+    if (!avocat) return res.status(404).json({ error: "Avocat introuvable dans ce cabinet." });
+  }
+
+  const misAJour = await prisma.dossier.update({
+    where: { id: dossier.id },
+    data: { avocatResponsableId: parsed.data.avocatResponsableId },
+  });
+  return res.json(misAJour);
 });
 
 const updateStatutSchema = z.object({

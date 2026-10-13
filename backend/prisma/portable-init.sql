@@ -116,6 +116,7 @@ CREATE TABLE "cabinets" (
     "mobile_server_cle_publique" TEXT,
     "mobile_server_cle_privee" TEXT,
     "mobile_conservation_audio_jours" INTEGER,
+    "rh_samedi_ouvre" BOOLEAN NOT NULL DEFAULT false,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "cabinets_pkey" PRIMARY KEY ("id")
@@ -131,6 +132,266 @@ CREATE TABLE "huissiers" (
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "huissiers_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "fiches_personnel" (
+    "id" TEXT NOT NULL,
+    "cabinet_id" TEXT NOT NULL,
+    "user_id" TEXT,
+    "nom" TEXT NOT NULL,
+    "prenoms" TEXT,
+    "categorie" TEXT NOT NULL,
+    "fonction" TEXT,
+    "type_contrat" TEXT NOT NULL,
+    "date_entree" TIMESTAMP(3) NOT NULL,
+    "date_sortie" TIMESTAMP(3),
+    "statut" TEXT NOT NULL DEFAULT 'actif',
+    "telephone" TEXT,
+    "email" TEXT,
+    "contact_urgence" TEXT,
+    "mode_paiement" TEXT,
+    "coordonnees_paiement" TEXT,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "fiches_personnel_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "stages" (
+    "id" TEXT NOT NULL,
+    "cabinet_id" TEXT NOT NULL,
+    "fiche_personnel_id" TEXT NOT NULL,
+    "responsable_id" TEXT NOT NULL,
+    "date_debut" TIMESTAMP(3) NOT NULL,
+    "date_fin_prevue" TIMESTAMP(3) NOT NULL,
+    "statut" TEXT NOT NULL DEFAULT 'en_cours',
+    "objet" TEXT,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "stages_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "stage_prolongations" (
+    "id" TEXT NOT NULL,
+    "stage_id" TEXT NOT NULL,
+    "ancienne_date_fin" TIMESTAMP(3) NOT NULL,
+    "nouvelle_date_fin" TIMESTAMP(3) NOT NULL,
+    "motif" TEXT,
+    "decide_par_id" TEXT NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "stage_prolongations_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "stage_rappels_envoyes" (
+    "id" TEXT NOT NULL,
+    "stage_id" TEXT NOT NULL,
+    "palier" TEXT NOT NULL,
+    "envoye_le" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "stage_rappels_envoyes_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "types_absence" (
+    "id" TEXT NOT NULL,
+    "cabinet_id" TEXT NOT NULL,
+    "libelle" TEXT NOT NULL,
+    "decompte_solde" BOOLEAN NOT NULL DEFAULT true,
+    "remunere" BOOLEAN NOT NULL DEFAULT true,
+    "justificatif_requis" BOOLEAN NOT NULL DEFAULT false,
+    "actif" BOOLEAN NOT NULL DEFAULT true,
+
+    CONSTRAINT "types_absence_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "jours_feries" (
+    "id" TEXT NOT NULL,
+    "cabinet_id" TEXT NOT NULL,
+    "date" TIMESTAMP(3) NOT NULL,
+    "libelle" TEXT NOT NULL,
+    "recurrent_chaque_annee" BOOLEAN NOT NULL DEFAULT false,
+
+    CONSTRAINT "jours_feries_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "soldes_conges" (
+    "id" TEXT NOT NULL,
+    "fiche_personnel_id" TEXT NOT NULL,
+    "annee" INTEGER NOT NULL,
+    "droit_jours" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "report_jours" DOUBLE PRECISION NOT NULL DEFAULT 0,
+
+    CONSTRAINT "soldes_conges_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "demandes_absence" (
+    "id" TEXT NOT NULL,
+    "cabinet_id" TEXT NOT NULL,
+    "fiche_personnel_id" TEXT NOT NULL,
+    "type_absence_id" TEXT NOT NULL,
+    "date_debut" TIMESTAMP(3) NOT NULL,
+    "date_fin" TIMESTAMP(3) NOT NULL,
+    "demi_journee_debut" BOOLEAN NOT NULL DEFAULT false,
+    "demi_journee_fin" BOOLEAN NOT NULL DEFAULT false,
+    "nb_jours_ouvres" DOUBLE PRECISION NOT NULL,
+    "statut" TEXT NOT NULL DEFAULT 'en_attente',
+    "planning_ligne_id" TEXT,
+    "decide_par_id" TEXT,
+    "date_decision" TIMESTAMP(3),
+    "commentaire_decision" TEXT,
+    "motif" TEXT,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "demandes_absence_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "souhaits_conges" (
+    "id" TEXT NOT NULL,
+    "fiche_personnel_id" TEXT NOT NULL,
+    "annee" INTEGER NOT NULL,
+    "rang" INTEGER NOT NULL,
+    "date_debut" TIMESTAMP(3) NOT NULL,
+    "date_fin" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "souhaits_conges_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "plannings_conges" (
+    "id" TEXT NOT NULL,
+    "cabinet_id" TEXT NOT NULL,
+    "annee" INTEGER NOT NULL,
+    "statut" TEXT NOT NULL DEFAULT 'brouillon',
+    "parametres" JSONB NOT NULL,
+    "genere_le" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "genere_par_id" TEXT NOT NULL,
+
+    CONSTRAINT "plannings_conges_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "plannings_conges_lignes" (
+    "id" TEXT NOT NULL,
+    "planning_id" TEXT NOT NULL,
+    "fiche_personnel_id" TEXT NOT NULL,
+    "date_debut" TIMESTAMP(3) NOT NULL,
+    "date_fin" TIMESTAMP(3) NOT NULL,
+    "nb_jours_ouvres" DOUBLE PRECISION NOT NULL,
+    "origine" TEXT NOT NULL,
+    "raison" TEXT,
+
+    CONSTRAINT "plannings_conges_lignes_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "elements_salaire" (
+    "id" TEXT NOT NULL,
+    "fiche_personnel_id" TEXT NOT NULL,
+    "sens" TEXT NOT NULL,
+    "libelle" TEXT NOT NULL,
+    "mode_calcul" TEXT NOT NULL,
+    "valeur" INTEGER NOT NULL,
+    "base_calcul" TEXT,
+    "date_debut" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "date_fin" TIMESTAMP(3),
+    "actif" BOOLEAN NOT NULL DEFAULT true,
+    "est_salaire_base" BOOLEAN NOT NULL DEFAULT false,
+
+    CONSTRAINT "elements_salaire_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "periodes_paie" (
+    "id" TEXT NOT NULL,
+    "cabinet_id" TEXT NOT NULL,
+    "mois" TEXT NOT NULL,
+    "statut" TEXT NOT NULL DEFAULT 'ouverte',
+
+    CONSTRAINT "periodes_paie_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "ajustements_mensuels" (
+    "id" TEXT NOT NULL,
+    "periode_paie_id" TEXT NOT NULL,
+    "fiche_personnel_id" TEXT NOT NULL,
+    "sens" TEXT NOT NULL,
+    "libelle" TEXT NOT NULL,
+    "montant" INTEGER NOT NULL,
+
+    CONSTRAINT "ajustements_mensuels_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "fiches_paie" (
+    "id" TEXT NOT NULL,
+    "cabinet_id" TEXT NOT NULL,
+    "periode_paie_id" TEXT NOT NULL,
+    "fiche_personnel_id" TEXT NOT NULL,
+    "numero" TEXT,
+    "statut" TEXT NOT NULL DEFAULT 'brouillon',
+    "version" INTEGER NOT NULL DEFAULT 1,
+    "brut" INTEGER NOT NULL DEFAULT 0,
+    "total_retenues" INTEGER NOT NULL DEFAULT 0,
+    "net" INTEGER NOT NULL DEFAULT 0,
+    "chemin_pdf" TEXT,
+    "valide_le" TIMESTAMP(3),
+    "valide_par_id" TEXT,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "fiches_paie_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "fiches_paie_lignes" (
+    "id" TEXT NOT NULL,
+    "fiche_paie_id" TEXT NOT NULL,
+    "ordre" INTEGER NOT NULL,
+    "sens" TEXT NOT NULL,
+    "libelle" TEXT NOT NULL,
+    "base" INTEGER,
+    "taux" INTEGER,
+    "montant" INTEGER NOT NULL,
+
+    CONSTRAINT "fiches_paie_lignes_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "etats_paiement" (
+    "id" TEXT NOT NULL,
+    "cabinet_id" TEXT NOT NULL,
+    "periode_paie_id" TEXT NOT NULL,
+    "statut" TEXT NOT NULL DEFAULT 'brouillon',
+    "total_brut" INTEGER NOT NULL DEFAULT 0,
+    "total_retenues" INTEGER NOT NULL DEFAULT 0,
+    "total_net" INTEGER NOT NULL DEFAULT 0,
+    "genere_le" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "genere_par_id" TEXT NOT NULL,
+
+    CONSTRAINT "etats_paiement_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "lignes_paiement" (
+    "id" TEXT NOT NULL,
+    "etat_paiement_id" TEXT NOT NULL,
+    "fiche_paie_id" TEXT NOT NULL,
+    "mode_paiement" TEXT,
+    "statut_paiement" TEXT NOT NULL DEFAULT 'a_payer',
+    "date_paiement" TIMESTAMP(3),
+    "reference" TEXT,
+
+    CONSTRAINT "lignes_paiement_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -237,6 +498,7 @@ CREATE TABLE "dossiers" (
     "id" TEXT NOT NULL,
     "cabinet_id" TEXT NOT NULL,
     "client_id" TEXT,
+    "avocat_responsable_id" TEXT,
     "numero_dossier" TEXT NOT NULL,
     "nom_affaire" TEXT NOT NULL,
     "nom_client" TEXT NOT NULL,
@@ -610,6 +872,7 @@ CREATE TABLE "audit_logs" (
     "action_id" TEXT,
     "courrier_entrant_id" TEXT,
     "courrier_sortant_id" TEXT,
+    "fiche_personnel_id" TEXT,
     "etape" TEXT NOT NULL,
     "statut" "StatutExecution" NOT NULL,
     "detail" TEXT,
@@ -829,6 +1092,87 @@ CREATE TABLE "mobile_audit_logs" (
 CREATE INDEX "huissiers_cabinet_id_idx" ON "huissiers"("cabinet_id");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "fiches_personnel_user_id_key" ON "fiches_personnel"("user_id");
+
+-- CreateIndex
+CREATE INDEX "fiches_personnel_cabinet_id_idx" ON "fiches_personnel"("cabinet_id");
+
+-- CreateIndex
+CREATE INDEX "stages_cabinet_id_idx" ON "stages"("cabinet_id");
+
+-- CreateIndex
+CREATE INDEX "stages_fiche_personnel_id_idx" ON "stages"("fiche_personnel_id");
+
+-- CreateIndex
+CREATE INDEX "stages_responsable_id_idx" ON "stages"("responsable_id");
+
+-- CreateIndex
+CREATE INDEX "stage_prolongations_stage_id_idx" ON "stage_prolongations"("stage_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "stage_rappels_envoyes_stage_id_palier_key" ON "stage_rappels_envoyes"("stage_id", "palier");
+
+-- CreateIndex
+CREATE INDEX "types_absence_cabinet_id_idx" ON "types_absence"("cabinet_id");
+
+-- CreateIndex
+CREATE INDEX "jours_feries_cabinet_id_idx" ON "jours_feries"("cabinet_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "soldes_conges_fiche_personnel_id_annee_key" ON "soldes_conges"("fiche_personnel_id", "annee");
+
+-- CreateIndex
+CREATE INDEX "demandes_absence_cabinet_id_idx" ON "demandes_absence"("cabinet_id");
+
+-- CreateIndex
+CREATE INDEX "demandes_absence_fiche_personnel_id_idx" ON "demandes_absence"("fiche_personnel_id");
+
+-- CreateIndex
+CREATE INDEX "demandes_absence_statut_idx" ON "demandes_absence"("statut");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "souhaits_conges_fiche_personnel_id_annee_rang_key" ON "souhaits_conges"("fiche_personnel_id", "annee", "rang");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "plannings_conges_cabinet_id_annee_key" ON "plannings_conges"("cabinet_id", "annee");
+
+-- CreateIndex
+CREATE INDEX "plannings_conges_lignes_planning_id_idx" ON "plannings_conges_lignes"("planning_id");
+
+-- CreateIndex
+CREATE INDEX "elements_salaire_fiche_personnel_id_idx" ON "elements_salaire"("fiche_personnel_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "periodes_paie_cabinet_id_mois_key" ON "periodes_paie"("cabinet_id", "mois");
+
+-- CreateIndex
+CREATE INDEX "ajustements_mensuels_periode_paie_id_idx" ON "ajustements_mensuels"("periode_paie_id");
+
+-- CreateIndex
+CREATE INDEX "ajustements_mensuels_fiche_personnel_id_idx" ON "ajustements_mensuels"("fiche_personnel_id");
+
+-- CreateIndex
+CREATE INDEX "fiches_paie_cabinet_id_idx" ON "fiches_paie"("cabinet_id");
+
+-- CreateIndex
+CREATE INDEX "fiches_paie_fiche_personnel_id_idx" ON "fiches_paie"("fiche_personnel_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "fiches_paie_periode_paie_id_fiche_personnel_id_version_key" ON "fiches_paie"("periode_paie_id", "fiche_personnel_id", "version");
+
+-- CreateIndex
+CREATE INDEX "fiches_paie_lignes_fiche_paie_id_idx" ON "fiches_paie_lignes"("fiche_paie_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "etats_paiement_periode_paie_id_key" ON "etats_paiement"("periode_paie_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "lignes_paiement_fiche_paie_id_key" ON "lignes_paiement"("fiche_paie_id");
+
+-- CreateIndex
+CREATE INDEX "lignes_paiement_etat_paiement_id_idx" ON "lignes_paiement"("etat_paiement_id");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
 
 -- CreateIndex
@@ -979,6 +1323,9 @@ CREATE INDEX "audit_logs_courrier_entrant_id_idx" ON "audit_logs"("courrier_entr
 CREATE INDEX "audit_logs_courrier_sortant_id_idx" ON "audit_logs"("courrier_sortant_id");
 
 -- CreateIndex
+CREATE INDEX "audit_logs_fiche_personnel_id_idx" ON "audit_logs"("fiche_personnel_id");
+
+-- CreateIndex
 CREATE INDEX "journal_connexions_cabinet_id_connecte_le_idx" ON "journal_connexions"("cabinet_id", "connecte_le");
 
 -- CreateIndex
@@ -1054,6 +1401,111 @@ CREATE INDEX "mobile_audit_logs_device_id_idx" ON "mobile_audit_logs"("device_id
 ALTER TABLE "huissiers" ADD CONSTRAINT "huissiers_cabinet_id_fkey" FOREIGN KEY ("cabinet_id") REFERENCES "cabinets"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "fiches_personnel" ADD CONSTRAINT "fiches_personnel_cabinet_id_fkey" FOREIGN KEY ("cabinet_id") REFERENCES "cabinets"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "fiches_personnel" ADD CONSTRAINT "fiches_personnel_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "stages" ADD CONSTRAINT "stages_cabinet_id_fkey" FOREIGN KEY ("cabinet_id") REFERENCES "cabinets"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "stages" ADD CONSTRAINT "stages_fiche_personnel_id_fkey" FOREIGN KEY ("fiche_personnel_id") REFERENCES "fiches_personnel"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "stages" ADD CONSTRAINT "stages_responsable_id_fkey" FOREIGN KEY ("responsable_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "stage_prolongations" ADD CONSTRAINT "stage_prolongations_stage_id_fkey" FOREIGN KEY ("stage_id") REFERENCES "stages"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "stage_prolongations" ADD CONSTRAINT "stage_prolongations_decide_par_id_fkey" FOREIGN KEY ("decide_par_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "stage_rappels_envoyes" ADD CONSTRAINT "stage_rappels_envoyes_stage_id_fkey" FOREIGN KEY ("stage_id") REFERENCES "stages"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "types_absence" ADD CONSTRAINT "types_absence_cabinet_id_fkey" FOREIGN KEY ("cabinet_id") REFERENCES "cabinets"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "jours_feries" ADD CONSTRAINT "jours_feries_cabinet_id_fkey" FOREIGN KEY ("cabinet_id") REFERENCES "cabinets"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "soldes_conges" ADD CONSTRAINT "soldes_conges_fiche_personnel_id_fkey" FOREIGN KEY ("fiche_personnel_id") REFERENCES "fiches_personnel"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "demandes_absence" ADD CONSTRAINT "demandes_absence_cabinet_id_fkey" FOREIGN KEY ("cabinet_id") REFERENCES "cabinets"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "demandes_absence" ADD CONSTRAINT "demandes_absence_fiche_personnel_id_fkey" FOREIGN KEY ("fiche_personnel_id") REFERENCES "fiches_personnel"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "demandes_absence" ADD CONSTRAINT "demandes_absence_type_absence_id_fkey" FOREIGN KEY ("type_absence_id") REFERENCES "types_absence"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "demandes_absence" ADD CONSTRAINT "demandes_absence_decide_par_id_fkey" FOREIGN KEY ("decide_par_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "demandes_absence" ADD CONSTRAINT "demandes_absence_planning_ligne_id_fkey" FOREIGN KEY ("planning_ligne_id") REFERENCES "plannings_conges_lignes"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "souhaits_conges" ADD CONSTRAINT "souhaits_conges_fiche_personnel_id_fkey" FOREIGN KEY ("fiche_personnel_id") REFERENCES "fiches_personnel"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "plannings_conges" ADD CONSTRAINT "plannings_conges_cabinet_id_fkey" FOREIGN KEY ("cabinet_id") REFERENCES "cabinets"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "plannings_conges" ADD CONSTRAINT "plannings_conges_genere_par_id_fkey" FOREIGN KEY ("genere_par_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "plannings_conges_lignes" ADD CONSTRAINT "plannings_conges_lignes_planning_id_fkey" FOREIGN KEY ("planning_id") REFERENCES "plannings_conges"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "plannings_conges_lignes" ADD CONSTRAINT "plannings_conges_lignes_fiche_personnel_id_fkey" FOREIGN KEY ("fiche_personnel_id") REFERENCES "fiches_personnel"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "elements_salaire" ADD CONSTRAINT "elements_salaire_fiche_personnel_id_fkey" FOREIGN KEY ("fiche_personnel_id") REFERENCES "fiches_personnel"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "periodes_paie" ADD CONSTRAINT "periodes_paie_cabinet_id_fkey" FOREIGN KEY ("cabinet_id") REFERENCES "cabinets"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ajustements_mensuels" ADD CONSTRAINT "ajustements_mensuels_periode_paie_id_fkey" FOREIGN KEY ("periode_paie_id") REFERENCES "periodes_paie"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ajustements_mensuels" ADD CONSTRAINT "ajustements_mensuels_fiche_personnel_id_fkey" FOREIGN KEY ("fiche_personnel_id") REFERENCES "fiches_personnel"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "fiches_paie" ADD CONSTRAINT "fiches_paie_cabinet_id_fkey" FOREIGN KEY ("cabinet_id") REFERENCES "cabinets"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "fiches_paie" ADD CONSTRAINT "fiches_paie_periode_paie_id_fkey" FOREIGN KEY ("periode_paie_id") REFERENCES "periodes_paie"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "fiches_paie" ADD CONSTRAINT "fiches_paie_fiche_personnel_id_fkey" FOREIGN KEY ("fiche_personnel_id") REFERENCES "fiches_personnel"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "fiches_paie" ADD CONSTRAINT "fiches_paie_valide_par_id_fkey" FOREIGN KEY ("valide_par_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "fiches_paie_lignes" ADD CONSTRAINT "fiches_paie_lignes_fiche_paie_id_fkey" FOREIGN KEY ("fiche_paie_id") REFERENCES "fiches_paie"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "etats_paiement" ADD CONSTRAINT "etats_paiement_cabinet_id_fkey" FOREIGN KEY ("cabinet_id") REFERENCES "cabinets"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "etats_paiement" ADD CONSTRAINT "etats_paiement_periode_paie_id_fkey" FOREIGN KEY ("periode_paie_id") REFERENCES "periodes_paie"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "etats_paiement" ADD CONSTRAINT "etats_paiement_genere_par_id_fkey" FOREIGN KEY ("genere_par_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "lignes_paiement" ADD CONSTRAINT "lignes_paiement_etat_paiement_id_fkey" FOREIGN KEY ("etat_paiement_id") REFERENCES "etats_paiement"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "lignes_paiement" ADD CONSTRAINT "lignes_paiement_fiche_paie_id_fkey" FOREIGN KEY ("fiche_paie_id") REFERENCES "fiches_paie"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "users" ADD CONSTRAINT "users_cabinet_id_fkey" FOREIGN KEY ("cabinet_id") REFERENCES "cabinets"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -1100,6 +1552,9 @@ ALTER TABLE "dossiers" ADD CONSTRAINT "dossiers_created_by_fkey" FOREIGN KEY ("c
 
 -- AddForeignKey
 ALTER TABLE "dossiers" ADD CONSTRAINT "dossiers_supprime_par_id_fkey" FOREIGN KEY ("supprime_par_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "dossiers" ADD CONSTRAINT "dossiers_avocat_responsable_id_fkey" FOREIGN KEY ("avocat_responsable_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "documents_dossier" ADD CONSTRAINT "documents_dossier_cabinet_id_fkey" FOREIGN KEY ("cabinet_id") REFERENCES "cabinets"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -1265,6 +1720,9 @@ ALTER TABLE "audit_logs" ADD CONSTRAINT "audit_logs_courrier_entrant_id_fkey" FO
 
 -- AddForeignKey
 ALTER TABLE "audit_logs" ADD CONSTRAINT "audit_logs_courrier_sortant_id_fkey" FOREIGN KEY ("courrier_sortant_id") REFERENCES "courriers_sortants"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "audit_logs" ADD CONSTRAINT "audit_logs_fiche_personnel_id_fkey" FOREIGN KEY ("fiche_personnel_id") REFERENCES "fiches_personnel"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "journal_connexions" ADD CONSTRAINT "journal_connexions_cabinet_id_fkey" FOREIGN KEY ("cabinet_id") REFERENCES "cabinets"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

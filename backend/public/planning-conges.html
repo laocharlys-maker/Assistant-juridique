@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aurore — Planning de congés</title>
+  <link rel="icon" type="image/png" href="/favicon-256.png" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="page">
+    <div class="page-hero">
+      <div class="eyebrow">Cabinet</div>
+      <h1>Planning de congés</h1>
+      <p>Proposition automatique à partir des souhaits de l'équipe — le titulaire garde le dernier mot.</p>
+    </div>
+
+    <div id="error" class="error"></div>
+
+    <div class="card">
+      <h2 style="margin-top:0;">Paramètres</h2>
+      <form id="generer-form">
+        <label>Année</label>
+        <input type="number" name="annee" id="annee-input" required />
+        <label>Effectif minimum présent (global, tous les jours)</label>
+        <input type="number" name="effectifMin" value="1" min="0" required />
+        <label>Périodes bloquées <span class="muted">(optionnel, une par ligne : AAAA-MM-JJ au AAAA-MM-JJ)</span></label>
+        <textarea name="periodesBloquees" rows="2" placeholder="2027-01-05 au 2027-01-20"></textarea>
+        <p class="error" id="generer-error"></p>
+        <button type="submit" id="generer-btn">Générer le planning</button>
+      </form>
+    </div>
+
+    <div id="resultat-card" class="card" hidden>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <h2 style="margin:0;">Résultat <span id="resultat-statut" class="tag"></span></h2>
+        <button type="button" id="valider-btn">Valider le planning</button>
+      </div>
+      <div id="non-places" class="error" style="display:none;"></div>
+      <div id="lignes-list"></div>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/layout.js"></script>
+  <script>
+    const ORIGINE_LABELS = {
+      souhait_1: "Souhait n°1", souhait_2: "Souhait n°2", souhait_3: "Souhait n°3",
+      ajuste_auto: "Décalé automatiquement", manuel: "Ajusté manuellement", non_place: "Non placé",
+    };
+
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str ?? "";
+      return div.innerHTML;
+    }
+
+    let planningActuel = null;
+
+    function parsePeriodesBloquees(texte) {
+      return texte
+        .split("\n")
+        .map((ligne) => ligne.trim())
+        .filter(Boolean)
+        .map((ligne) => {
+          const [debut, , fin] = ligne.split(/\s+au\s+|\s+/);
+          return { debut, fin: fin || debut };
+        });
+    }
+
+    function renderPlanning(planning) {
+      planningActuel = planning;
+      document.getElementById("resultat-card").hidden = false;
+      document.getElementById("resultat-statut").textContent = planning.statut === "valide" ? "Validé" : "Brouillon";
+      document.getElementById("valider-btn").hidden = planning.statut === "valide";
+      document.getElementById("generer-btn").disabled = planning.statut === "valide";
+
+      const nonPlaces = planning.lignes.filter((l) => l.origine === "non_place");
+      const nonPlacesEl = document.getElementById("non-places");
+      if (nonPlaces.length > 0) {
+        nonPlacesEl.style.display = "block";
+        nonPlacesEl.className = "error visible";
+        nonPlacesEl.innerHTML = `${nonPlaces.length} employé(s) non placé(s) : ${nonPlaces
+          .map((l) => escapeHtml(`${l.fichePersonnel.nom}${l.fichePersonnel.prenoms ? " " + l.fichePersonnel.prenoms : ""}`))
+          .join(", ")} — à traiter manuellement avec eux.`;
+      } else {
+        nonPlacesEl.style.display = "none";
+      }
+
+      const lignesPlacees = planning.lignes.filter((l) => l.origine !== "non_place").sort((a, b) => new Date(a.dateDebut) - new Date(b.dateDebut));
+      document.getElementById("lignes-list").innerHTML = lignesPlacees
+        .map((l) => {
+          const nom = `${l.fichePersonnel.nom}${l.fichePersonnel.prenoms ? " " + l.fichePersonnel.prenoms : ""}`;
+          return `
+        <div style="padding:10px 0; border-bottom:1px solid var(--border);">
+          <strong>${escapeHtml(nom)}</strong>
+          <span class="tag">${ORIGINE_LABELS[l.origine] || l.origine}</span>
+          <div class="meta">${new Date(l.dateDebut).toLocaleDateString("fr-FR")} → ${new Date(l.dateFin).toLocaleDateString("fr-FR")} (${l.nbJoursOuvres} j)</div>
+          ${l.raison ? `<div class="meta" title="${escapeHtml(l.raison)}">${escapeHtml(l.raison)}</div>` : ""}
+          ${
+            planning.statut === "brouillon"
+              ? `<button type="button" class="secondary btn-sm" data-ajuster="${l.id}" data-debut="${l.dateDebut.slice(0, 10)}" data-fin="${l.dateFin.slice(0, 10)}">Ajuster les dates</button>`
+              : ""
+          }
+        </div>`;
+        })
+        .join("");
+
+      document.getElementById("lignes-list").querySelectorAll("[data-ajuster]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const debut = prompt("Nouvelle date de début (AAAA-MM-JJ) :", btn.dataset.debut);
+          if (!debut) return;
+          const fin = prompt("Nouvelle date de fin (AAAA-MM-JJ) :", btn.dataset.fin);
+          if (!fin) return;
+          try {
+            await apiFetch(`/api/planning-conges/lignes/${btn.dataset.ajuster}`, { method: "PATCH", body: { dateDebut: debut, dateFin: fin } });
+            await chargerPlanning(planning.annee);
+          } catch (err) {
+            showError(document.getElementById("error"), err.message);
+          }
+        });
+      });
+    }
+
+    async function chargerPlanning(annee) {
+      try {
+        const planning = await apiFetch(`/api/planning-conges/${annee}`);
+        renderPlanning(planning);
+      } catch {
+        document.getElementById("resultat-card").hidden = true;
+      }
+    }
+
+    (async () => {
+      const me = await requireSession();
+      if (!me) return;
+      initLayout(me);
+
+      const anneeDefaut = new Date().getFullYear() + 1;
+      document.getElementById("annee-input").value = anneeDefaut;
+      await chargerPlanning(anneeDefaut);
+
+      document.getElementById("generer-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const errEl = document.getElementById("generer-error");
+        errEl.textContent = "";
+        const fd = new FormData(e.target);
+        try {
+          const planning = await apiFetch("/api/planning-conges", {
+            method: "POST",
+            body: {
+              annee: Number(fd.get("annee")),
+              effectifMin: Number(fd.get("effectifMin")),
+              periodesBloquees: parsePeriodesBloquees(fd.get("periodesBloquees")),
+            },
+          });
+          renderPlanning(planning);
+        } catch (err) {
+          errEl.textContent = err.message;
+        }
+      });
+
+      document.getElementById("valider-btn").addEventListener("click", async () => {
+        if (!confirm("Valider ce planning ? Chaque ligne placée deviendra un congé approuvé et notifiera l'employé concerné. Cette action est définitive.")) return;
+        try {
+          const planning = await apiFetch(`/api/planning-conges/${planningActuel.id}/valider`, { method: "POST" });
+          renderPlanning(planning);
+        } catch (err) {
+          showError(document.getElementById("error"), err.message);
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

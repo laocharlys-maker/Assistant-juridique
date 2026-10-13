@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aurore — Suivi des stages</title>
+  <link rel="icon" type="image/png" href="/favicon-256.png" />
+  <link rel="stylesheet" href="/style.css" />
+  <style>
+    .stage-card { margin-bottom: 14px; }
+    .stage-barre-fond { background: var(--border); border-radius: 999px; height: 8px; overflow: hidden; margin: 10px 0; }
+    .stage-barre-remplie { background: var(--accent); height: 100%; border-radius: 999px; }
+    .stage-barre-remplie.en-retard { background: var(--danger); }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="page-hero">
+      <div class="eyebrow">Cabinet</div>
+      <h1>Suivi des stages</h1>
+      <p>Stages en cours, avec échéance et avancement.</p>
+    </div>
+
+    <div id="error" class="error"></div>
+
+    <div id="stages-list"><p class="muted">Chargement…</p></div>
+  </div>
+
+  <div class="modal-overlay" id="prolonger-modal" hidden>
+    <div class="modal-box">
+      <h2>Prolonger le stage</h2>
+      <form id="prolonger-form">
+        <label>Nouvelle date de fin</label>
+        <input type="date" name="nouvelleDateFin" required />
+        <label>Motif <span class="muted">(optionnel)</span></label>
+        <textarea name="motif" rows="3"></textarea>
+        <p class="error" id="prolonger-error"></p>
+        <div style="display:flex; gap:10px; margin-top:14px;">
+          <button type="submit">Prolonger</button>
+          <button type="button" class="secondary" id="prolonger-annuler-btn">Annuler</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/layout.js"></script>
+  <script>
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str ?? "";
+      return div.innerHTML;
+    }
+
+    let stageAProlonger = null;
+
+    async function loadStages() {
+      const listEl = document.getElementById("stages-list");
+      listEl.innerHTML = '<p class="muted">Chargement…</p>';
+      try {
+        const stages = await apiFetch("/api/stages");
+        renderStages(stages);
+      } catch (err) {
+        listEl.innerHTML = `<p class="error visible">${escapeHtml(err.message)}</p>`;
+      }
+    }
+
+    function renderStages(stages) {
+      const listEl = document.getElementById("stages-list");
+      if (stages.length === 0) {
+        listEl.innerHTML = '<p class="muted">Aucun stage en cours.</p>';
+        return;
+      }
+      listEl.innerHTML = stages
+        .map((s) => {
+          const nom = `${s.fichePersonnel.nom}${s.fichePersonnel.prenoms ? " " + s.fichePersonnel.prenoms : ""}`;
+          const debut = new Date(s.dateDebut).getTime();
+          const fin = new Date(s.dateFinPrevue).getTime();
+          const maintenant = Date.now();
+          const pourcentage = Math.max(0, Math.min(100, Math.round(((maintenant - debut) / (fin - debut)) * 100)));
+          const joursRestants = Math.ceil((fin - maintenant) / 86400000);
+          const enRetard = joursRestants < 0;
+          const texteEcheance = enRetard
+            ? `Échéance dépassée depuis ${Math.abs(joursRestants)} jour${Math.abs(joursRestants) > 1 ? "s" : ""}`
+            : `Échéance dans ${joursRestants} jour${joursRestants > 1 ? "s" : ""}`;
+          return `
+        <div class="card stage-card">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div>
+              <strong><a href="/personnel-fiche.html?id=${s.fichePersonnel.id}">${escapeHtml(nom)}</a></strong>
+              <div class="meta">Responsable : ${escapeHtml(s.responsable.nom)}</div>
+            </div>
+          </div>
+          <div class="meta">Du ${new Date(s.dateDebut).toLocaleDateString("fr-FR")} au ${new Date(s.dateFinPrevue).toLocaleDateString("fr-FR")}</div>
+          <div class="stage-barre-fond"><div class="stage-barre-remplie${enRetard ? " en-retard" : ""}" style="width:${pourcentage}%"></div></div>
+          <div class="meta">${texteEcheance}</div>
+          <div style="display:flex; gap:10px; margin-top:10px;">
+            <button type="button" class="secondary btn-sm" data-prolonger="${s.id}">Prolonger</button>
+            <button type="button" class="danger btn-sm" data-cloturer="${s.id}">Clôturer</button>
+          </div>
+        </div>`;
+        })
+        .join("");
+
+      listEl.querySelectorAll("[data-prolonger]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          stageAProlonger = btn.dataset.prolonger;
+          document.getElementById("prolonger-form").reset();
+          document.getElementById("prolonger-error").textContent = "";
+          document.getElementById("prolonger-modal").hidden = false;
+        });
+      });
+      listEl.querySelectorAll("[data-cloturer]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          if (!confirm("Clôturer ce stage comme terminé ?")) return;
+          try {
+            await apiFetch(`/api/stages/${btn.dataset.cloturer}/statut`, { method: "PATCH", body: { statut: "termine" } });
+            await loadStages();
+          } catch (err) {
+            showError(document.getElementById("error"), err.message);
+          }
+        });
+      });
+    }
+
+    (async () => {
+      const me = await requireSession();
+      if (!me) return;
+      initLayout(me);
+
+      document.getElementById("prolonger-annuler-btn").addEventListener("click", () => {
+        document.getElementById("prolonger-modal").hidden = true;
+      });
+      document.getElementById("prolonger-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const errEl = document.getElementById("prolonger-error");
+        errEl.textContent = "";
+        const fd = new FormData(e.target);
+        try {
+          await apiFetch(`/api/stages/${stageAProlonger}/prolonger`, {
+            method: "POST",
+            body: { nouvelleDateFin: fd.get("nouvelleDateFin"), motif: fd.get("motif").trim() || undefined },
+          });
+          document.getElementById("prolonger-modal").hidden = true;
+          await loadStages();
+        } catch (err) {
+          errEl.textContent = err.message;
+        }
+      });
+
+      loadStages();
+    })();
+  </script>
+</body>
+</html>

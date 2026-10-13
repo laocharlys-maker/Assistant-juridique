@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aurore — Mes congés</title>
+  <link rel="icon" type="image/png" href="/favicon-256.png" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="page">
+    <div class="page-hero">
+      <div class="eyebrow">Personnel</div>
+      <h1>Mes congés</h1>
+      <p>Ton solde et tes demandes d'absence.</p>
+    </div>
+
+    <div id="error" class="error"></div>
+    <div id="pas-de-fiche" class="muted" hidden>Aucune fiche personnel n'est rattachée à ton compte — contacte le titulaire.</div>
+
+    <div id="contenu" hidden>
+      <div class="card" id="solde-card">
+        <h2 style="margin-top:0;">Solde <span id="solde-annee"></span></h2>
+        <div id="solde-affichage"></div>
+      </div>
+
+      <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+          <h2 style="margin:0;">Mes demandes</h2>
+          <button type="button" id="poser-demande-btn">+ Poser une demande</button>
+        </div>
+        <div id="demandes-list"><p class="muted">Chargement…</p></div>
+      </div>
+
+      <div class="card">
+        <h2 style="margin-top:0;">Mes souhaits de congés <span id="souhaits-annee"></span></h2>
+        <p class="muted">Jusqu'à 3 souhaits classés — le titulaire essaiera d'abord le n°1, puis le n°2, puis le n°3, lors de la génération du planning annuel.</p>
+        <form id="souhaits-form">
+          <div id="souhaits-champs"></div>
+          <p class="error" id="souhaits-error"></p>
+          <button type="submit">Enregistrer mes souhaits</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="demande-modal" hidden>
+    <div class="modal-box">
+      <h2>Poser une demande d'absence</h2>
+      <form id="demande-form">
+        <label>Type</label>
+        <select name="typeAbsenceId" required></select>
+        <label>Date de début</label>
+        <input type="date" name="dateDebut" required />
+        <label style="display:flex; align-items:center; gap:8px; font-weight:400;">
+          <input type="checkbox" name="demiJourneeDebut" style="width:auto;" /> Commence l'après-midi
+        </label>
+        <label>Date de fin</label>
+        <input type="date" name="dateFin" required />
+        <label style="display:flex; align-items:center; gap:8px; font-weight:400;">
+          <input type="checkbox" name="demiJourneeFin" style="width:auto;" /> Se termine le matin
+        </label>
+        <label>Motif <span class="muted">(optionnel)</span></label>
+        <textarea name="motif" rows="3"></textarea>
+        <p class="error" id="demande-error"></p>
+        <div style="display:flex; gap:10px; margin-top:14px;">
+          <button type="submit">Envoyer</button>
+          <button type="button" class="secondary" id="demande-annuler-btn">Annuler</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/layout.js"></script>
+  <script>
+    const STATUT_LABELS = { en_attente: "En attente", approuvee: "Approuvée", refusee: "Refusée", annulee: "Annulée" };
+
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str ?? "";
+      return div.innerHTML;
+    }
+
+    let maFicheId = null;
+
+    async function chargerSolde() {
+      const annee = new Date().getFullYear();
+      document.getElementById("solde-annee").textContent = annee;
+      const solde = await apiFetch(`/api/personnel/${maFicheId}/solde-conges?annee=${annee}`);
+      document.getElementById("solde-affichage").innerHTML = `
+        <table>
+          <tr><th style="text-align:left; padding:4px 12px 4px 0; color:var(--muted);">Droit annuel</th><td>${solde.droitJours} j</td></tr>
+          <tr><th style="text-align:left; padding:4px 12px 4px 0; color:var(--muted);">Report</th><td>${solde.reportJours} j</td></tr>
+          <tr><th style="text-align:left; padding:4px 12px 4px 0; color:var(--muted);">Pris</th><td>${solde.joursPris} j</td></tr>
+          <tr><th style="text-align:left; padding:4px 12px 4px 0; color:var(--muted); font-weight:700;">Solde restant</th><td><strong>${solde.soldeRestant} j</strong></td></tr>
+        </table>`;
+    }
+
+    async function chargerSouhaits() {
+      const annee = new Date().getFullYear() + 1;
+      const souhaits = await apiFetch(`/api/personnel/${maFicheId}/souhaits-conges?annee=${annee}`);
+      const parRang = new Map(souhaits.map((s) => [s.rang, s]));
+      document.getElementById("souhaits-champs").innerHTML = [1, 2, 3]
+        .map((rang) => {
+          const s = parRang.get(rang);
+          return `
+        <label>Souhait n°${rang}</label>
+        <div style="display:flex; gap:10px;">
+          <input type="date" name="souhait${rang}Debut" value="${s ? s.dateDebut.slice(0, 10) : ""}" />
+          <input type="date" name="souhait${rang}Fin" value="${s ? s.dateFin.slice(0, 10) : ""}" />
+        </div>`;
+        })
+        .join("");
+    }
+
+    async function chargerDemandes() {
+      const listEl = document.getElementById("demandes-list");
+      const demandes = await apiFetch(`/api/personnel/${maFicheId}/demandes-absence`);
+      if (demandes.length === 0) {
+        listEl.innerHTML = '<p class="muted">Aucune demande pour l\'instant.</p>';
+        return;
+      }
+      listEl.innerHTML = demandes
+        .map(
+          (d) => `
+        <div style="padding:10px 0; border-bottom:1px solid var(--border);">
+          <strong>${new Date(d.dateDebut).toLocaleDateString("fr-FR")} → ${new Date(d.dateFin).toLocaleDateString("fr-FR")}</strong>
+          (${d.nbJoursOuvres} j) <span class="tag">${STATUT_LABELS[d.statut] || d.statut}</span>
+          <div class="meta">${escapeHtml(d.typeAbsence.libelle)}${d.commentaireDecision ? " · " + escapeHtml(d.commentaireDecision) : ""}</div>
+          ${d.statut === "en_attente" ? `<button type="button" class="secondary btn-sm" data-annuler="${d.id}">Annuler</button>` : ""}
+        </div>`
+        )
+        .join("");
+      listEl.querySelectorAll("[data-annuler]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          try {
+            await apiFetch(`/api/demandes-absence/${btn.dataset.annuler}/annuler`, { method: "POST" });
+            await chargerDemandes();
+          } catch (err) {
+            showError(document.getElementById("error"), err.message);
+          }
+        });
+      });
+    }
+
+    (async () => {
+      const me = await requireSession();
+      if (!me) return;
+      initLayout(me);
+
+      // GET /api/personnel renvoie TOUT le personnel pour un titulaire (pas
+      // seulement sa propre fiche) - on filtre nous-memes sur userId pour
+      // retrouver SA fiche, quel que soit le role.
+      let fiches;
+      try {
+        fiches = await apiFetch("/api/personnel?statut=tous");
+      } catch (err) {
+        showError(document.getElementById("error"), err.message);
+        return;
+      }
+      const maFiche = fiches.find((f) => f.userId === me.id);
+      if (!maFiche) {
+        document.getElementById("pas-de-fiche").hidden = false;
+        return;
+      }
+      maFicheId = maFiche.id;
+      document.getElementById("contenu").hidden = false;
+
+      await chargerSolde();
+      await chargerDemandes();
+      await chargerSouhaits();
+
+      const modal = document.getElementById("demande-modal");
+      const form = document.getElementById("demande-form");
+      const errEl = document.getElementById("demande-error");
+
+      document.getElementById("poser-demande-btn").addEventListener("click", async () => {
+        form.reset();
+        errEl.textContent = "";
+        try {
+          const types = await apiFetch("/api/types-absence");
+          form.typeAbsenceId.innerHTML = types.map((t) => `<option value="${t.id}">${escapeHtml(t.libelle)}</option>`).join("");
+        } catch (err) {
+          errEl.textContent = err.message;
+        }
+        modal.hidden = false;
+      });
+      document.getElementById("demande-annuler-btn").addEventListener("click", () => {
+        modal.hidden = true;
+      });
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        errEl.textContent = "";
+        const fd = new FormData(form);
+        try {
+          await apiFetch(`/api/personnel/${maFicheId}/demandes-absence`, {
+            method: "POST",
+            body: {
+              typeAbsenceId: fd.get("typeAbsenceId"),
+              dateDebut: fd.get("dateDebut"),
+              dateFin: fd.get("dateFin"),
+              demiJourneeDebut: fd.get("demiJourneeDebut") === "on",
+              demiJourneeFin: fd.get("demiJourneeFin") === "on",
+              motif: fd.get("motif").trim() || undefined,
+            },
+          });
+          modal.hidden = true;
+          await chargerDemandes();
+        } catch (err) {
+          errEl.textContent = err.message;
+        }
+      });
+
+      const annonceSouhaits = new Date().getFullYear() + 1;
+      document.getElementById("souhaits-annee").textContent = annonceSouhaits;
+      document.getElementById("souhaits-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const errElSouhaits = document.getElementById("souhaits-error");
+        errElSouhaits.textContent = "";
+        const souhaits = [];
+        for (let rang = 1; rang <= 3; rang++) {
+          const debut = document.querySelector(`[name="souhait${rang}Debut"]`).value;
+          const fin = document.querySelector(`[name="souhait${rang}Fin"]`).value;
+          if (debut && fin) souhaits.push({ rang, dateDebut: debut, dateFin: fin });
+        }
+        try {
+          await apiFetch(`/api/personnel/${maFicheId}/souhaits-conges`, {
+            method: "POST",
+            body: { annee: annonceSouhaits, souhaits },
+          });
+          showToast("Souhaits enregistrés.");
+        } catch (err) {
+          errElSouhaits.textContent = err.message;
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

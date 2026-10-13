@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aurore — Mes fiches de paie</title>
+  <link rel="icon" type="image/png" href="/favicon-256.png" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="page">
+    <div class="page-hero">
+      <div class="eyebrow">Personnel</div>
+      <h1>Mes fiches de paie</h1>
+      <p>Document interne généré par Aurore, à faire valider par votre comptable.</p>
+    </div>
+
+    <div id="error" class="error"></div>
+    <div id="pas-de-fiche" class="muted" hidden>Aucune fiche personnel n'est rattachée à ton compte.</div>
+    <div id="fiches-list"></div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/layout.js"></script>
+  <script>
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str ?? "";
+      return div.innerHTML;
+    }
+    function formatMontant(montant) {
+      return `${montant.toLocaleString("fr-FR")} F CFA`;
+    }
+    const MOIS_LABELS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
+    function formatMois(mois) {
+      const [annee, m] = mois.split("-").map(Number);
+      return `${MOIS_LABELS[m - 1]} ${annee}`;
+    }
+
+    (async () => {
+      const me = await requireSession();
+      if (!me) return;
+      initLayout(me);
+
+      let fiches;
+      try {
+        fiches = await apiFetch("/api/personnel?statut=tous");
+      } catch (err) {
+        showError(document.getElementById("error"), err.message);
+        return;
+      }
+      const maFiche = fiches.find((f) => f.userId === me.id);
+      if (!maFiche) {
+        document.getElementById("pas-de-fiche").hidden = false;
+        return;
+      }
+
+      const listEl = document.getElementById("fiches-list");
+      try {
+        const fichesPaie = await apiFetch(`/api/personnel/${maFiche.id}/fiches-paie`);
+        if (fichesPaie.length === 0) {
+          listEl.innerHTML = '<p class="muted">Aucune fiche de paie validée pour l\'instant.</p>';
+          return;
+        }
+        listEl.innerHTML = fichesPaie
+          .map(
+            (f) => `
+          <div class="dossier-item">
+            <div>
+              <div><strong>${escapeHtml(formatMois(f.periodePaie.mois))}</strong> — ${f.numero ? escapeHtml(f.numero) : ""}</div>
+              <div class="meta">Net à payer : ${formatMontant(f.net)}</div>
+            </div>
+            <a class="secondary" href="/api/fiches-paie/${f.id}/pdf" style="text-decoration:none; display:inline-block; padding:6px 12px;">Télécharger le PDF</a>
+          </div>`
+          )
+          .join("");
+      } catch (err) {
+        listEl.innerHTML = `<p class="error visible">${escapeHtml(err.message)}</p>`;
+      }
+    })();
+  </script>
+</body>
+</html>

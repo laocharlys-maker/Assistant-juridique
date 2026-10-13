@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aurore — Personnel</title>
+  <link rel="icon" type="image/png" href="/favicon-256.png" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="page">
+    <div class="page-hero">
+      <div class="eyebrow">Cabinet</div>
+      <h1>Personnel</h1>
+      <p>Le personnel du cabinet, avec ou sans compte Aurore.</p>
+    </div>
+
+    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px;">
+      <input type="search" id="personnel-search" placeholder="Rechercher par nom…" style="flex:1; min-width:240px; margin-bottom:0;" />
+      <select id="personnel-filtre-statut" style="width:auto; margin-bottom:0;">
+        <option value="actifs">Actifs</option>
+        <option value="tous">Tous (y compris sortis)</option>
+      </select>
+      <button type="button" id="ajouter-personnel-btn" hidden>+ Ajouter</button>
+    </div>
+
+    <div id="error" class="error"></div>
+
+    <div class="card">
+      <div id="personnel-list"><p class="muted">Chargement…</p></div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="ajouter-personnel-modal" hidden>
+    <div class="modal-box">
+      <h2>Ajouter un employé</h2>
+      <form id="ajouter-personnel-form">
+        <label>Nom</label>
+        <input name="nom" required />
+        <label>Prénoms <span class="muted">(optionnel)</span></label>
+        <input name="prenoms" />
+        <label>Catégorie</label>
+        <select name="categorie" required>
+          <option value="avocat">Avocat</option>
+          <option value="collaborateur">Collaborateur</option>
+          <option value="stagiaire">Stagiaire</option>
+          <option value="secretariat">Secrétariat</option>
+          <option value="comptable">Comptable</option>
+          <option value="autre">Autre</option>
+        </select>
+        <label>Fonction <span class="muted">(optionnel)</span></label>
+        <input name="fonction" placeholder="ex : Avocat associé, Assistante..." />
+        <label>Type de contrat</label>
+        <select name="typeContrat" required>
+          <option value="cdi">CDI</option>
+          <option value="cdd">CDD</option>
+          <option value="stage">Stage</option>
+          <option value="liberal">Libéral</option>
+          <option value="autre">Autre</option>
+        </select>
+        <label>Date d'entrée</label>
+        <input type="date" name="dateEntree" required />
+        <label>Téléphone <span class="muted">(optionnel)</span></label>
+        <input name="telephone" />
+        <label>Email <span class="muted">(optionnel)</span></label>
+        <input type="email" name="email" />
+        <label>Compte Aurore existant <span class="muted">(optionnel — si cette personne a déjà un compte)</span></label>
+        <select name="userId">
+          <option value="">— Aucun compte (employé sans accès à Aurore) —</option>
+        </select>
+        <p class="error" id="ajouter-personnel-error"></p>
+        <div style="display:flex; gap:10px; margin-top:14px;">
+          <button type="submit">Ajouter</button>
+          <button type="button" class="secondary" id="ajouter-personnel-annuler-btn">Annuler</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/layout.js"></script>
+  <script>
+    const CATEGORIE_LABELS = {
+      avocat: "Avocat", collaborateur: "Collaborateur", stagiaire: "Stagiaire",
+      secretariat: "Secrétariat", comptable: "Comptable", autre: "Autre",
+    };
+    const CONTRAT_LABELS = { cdi: "CDI", cdd: "CDD", stage: "Stage", liberal: "Libéral", autre: "Autre" };
+
+    let currentPersonnel = [];
+
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str ?? "";
+      return div.innerHTML;
+    }
+
+    async function loadListe() {
+      const listEl = document.getElementById("personnel-list");
+      listEl.innerHTML = '<p class="muted">Chargement…</p>';
+      try {
+        const statut = document.getElementById("personnel-filtre-statut").value;
+        currentPersonnel = await apiFetch(`/api/personnel?statut=${statut}`);
+        applyFiltres();
+      } catch (err) {
+        listEl.innerHTML = `<p class="error visible">${escapeHtml(err.message)}</p>`;
+      }
+    }
+
+    function applyFiltres() {
+      const terme = document.getElementById("personnel-search").value.trim().toLowerCase();
+      let filtres = currentPersonnel;
+      if (terme) {
+        filtres = filtres.filter((p) => `${p.nom} ${p.prenoms || ""}`.toLowerCase().includes(terme));
+      }
+      renderListe(filtres);
+    }
+
+    function renderListe(personnel) {
+      const listEl = document.getElementById("personnel-list");
+      if (personnel.length === 0) {
+        listEl.innerHTML = '<p class="muted">Aucun employé pour l\'instant.</p>';
+        return;
+      }
+      listEl.innerHTML = personnel
+        .map((p) => {
+          const badgeSorti = p.statut === "sorti" ? ' <span class="tag">Sorti</span>' : "";
+          const compte = p.userId ? "✔" : "—";
+          return `
+        <div class="dossier-item">
+          <div>
+            <div><a href="/personnel-fiche.html?id=${p.id}"><strong>${escapeHtml(p.nom)}${p.prenoms ? " " + escapeHtml(p.prenoms) : ""}</strong></a>${badgeSorti}</div>
+            <div class="meta">${CATEGORIE_LABELS[p.categorie] || p.categorie} · ${CONTRAT_LABELS[p.typeContrat] || p.typeContrat} · entré le ${new Date(p.dateEntree).toLocaleDateString("fr-FR")} · compte Aurore : ${compte}</div>
+          </div>
+        </div>`;
+        })
+        .join("");
+    }
+
+    async function chargerComptesDisponibles() {
+      const select = document.querySelector('#ajouter-personnel-form [name="userId"]');
+      try {
+        const comptes = await apiFetch("/api/personnel/comptes-disponibles");
+        select.innerHTML =
+          '<option value="">— Aucun compte (employé sans accès à Aurore) —</option>' +
+          comptes.map((c) => `<option value="${c.id}">${escapeHtml(c.nom)} (${escapeHtml(c.email)})</option>`).join("");
+      } catch {
+        // Non bloquant - le champ reste utilisable avec seulement l'option "aucun compte".
+      }
+    }
+
+    (async () => {
+      const me = await requireSession();
+      if (!me) return;
+      initLayout(me);
+
+      const estTitulaire = me.role === "titulaire";
+      document.getElementById("ajouter-personnel-btn").hidden = !estTitulaire;
+      document.getElementById("personnel-filtre-statut").hidden = !estTitulaire;
+
+      document.getElementById("personnel-search").addEventListener("input", applyFiltres);
+      document.getElementById("personnel-filtre-statut").addEventListener("change", loadListe);
+
+      const modal = document.getElementById("ajouter-personnel-modal");
+      const form = document.getElementById("ajouter-personnel-form");
+      const errEl = document.getElementById("ajouter-personnel-error");
+
+      document.getElementById("ajouter-personnel-btn").addEventListener("click", async () => {
+        form.reset();
+        errEl.textContent = "";
+        await chargerComptesDisponibles();
+        modal.hidden = false;
+      });
+      document.getElementById("ajouter-personnel-annuler-btn").addEventListener("click", () => {
+        modal.hidden = true;
+      });
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        errEl.textContent = "";
+        const fd = new FormData(form);
+        const body = {
+          nom: fd.get("nom").trim(),
+          prenoms: fd.get("prenoms").trim() || undefined,
+          categorie: fd.get("categorie"),
+          fonction: fd.get("fonction").trim() || undefined,
+          typeContrat: fd.get("typeContrat"),
+          dateEntree: fd.get("dateEntree"),
+          telephone: fd.get("telephone").trim() || undefined,
+          email: fd.get("email").trim() || undefined,
+          userId: fd.get("userId") || undefined,
+        };
+        try {
+          await apiFetch("/api/personnel", { method: "POST", body });
+          modal.hidden = true;
+          await loadListe();
+        } catch (err) {
+          errEl.textContent = err.message;
+        }
+      });
+
+      loadListe();
+    })();
+  </script>
+</body>
+</html>

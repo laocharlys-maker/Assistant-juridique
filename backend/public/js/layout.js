@@ -78,6 +78,30 @@ const NAV_ITEMS = [
   },
   { href: "/veille-juridique.html", label: "Veille juridique", roles: ["titulaire", "avocat"], group: "Cabinet", icon: "radar", moduleKey: "veille_juridique" },
   { href: "/corbeille.html", label: "Corbeille", roles: ["titulaire", "avocat", "collaborateur"], group: "Cabinet", icon: "trash", moduleKey: "corbeille" },
+  // Module RH Cabinet (RH-1, voir docs/rh/) - visible a tous les roles
+  // couverts par la cle "rh" : un titulaire voit la liste complete, un
+  // avocat/collaborateur voit uniquement sa propre fiche (filtre cote
+  // serveur, voir routes/personnel.ts).
+  { href: "/personnel.html", label: "Personnel", roles: ["titulaire", "avocat", "collaborateur"], group: "Cabinet", icon: "team", moduleKey: "rh" },
+  // RH-2 - visible a tous (un titulaire voit tous les stages, un
+  // avocat/collaborateur ne voit que ceux dont il/elle est responsable,
+  // voir routes/stages.ts).
+  { href: "/stages.html", label: "Stages", roles: ["titulaire", "avocat", "collaborateur"], group: "Cabinet", icon: "clock", moduleKey: "rh" },
+  // RH-3 - "Mes conges" (tous), "Validation conges"/"Parametres conges"
+  // (titulaire uniquement, pas de delegation possible sans Lot 9), "Absences
+  // de l'equipe" (tous, jamais de motif - voir routes/conges.ts).
+  { href: "/mes-conges.html", label: "Mes congés", roles: ["titulaire", "avocat", "collaborateur"], group: "Cabinet", icon: "calendar", moduleKey: "rh" },
+  { href: "/absences-equipe.html", label: "Absences de l'équipe", roles: ["titulaire", "avocat", "collaborateur"], group: "Cabinet", icon: "team", moduleKey: "rh" },
+  { href: "/validation-conges.html", label: "Validation congés", roles: ["titulaire"], group: "Cabinet", icon: "audit", moduleKey: "rh" },
+  { href: "/conges-parametres.html", label: "Paramètres congés", roles: ["titulaire"], group: "Cabinet", icon: "settings", moduleKey: "rh" },
+  // RH-4 - planning automatique, titulaire uniquement.
+  { href: "/planning-conges.html", label: "Planning congés", roles: ["titulaire"], group: "Cabinet", icon: "calendar", moduleKey: "rh" },
+  // RH-5 - module "rh_paie" distinct de "rh" (vendable separement, voir
+  // docs/rh/). Paie du mois : titulaire uniquement. Mes fiches de paie :
+  // tous (perimetre reel verifie cote serveur - uniquement SES fiches
+  // VALIDEES, voir routes/paie.ts).
+  { href: "/paie-du-mois.html", label: "Paie du mois", roles: ["titulaire"], group: "Cabinet", icon: "invoice", moduleKey: "rh_paie" },
+  { href: "/mes-fiches-paie.html", label: "Mes fiches de paie", roles: ["titulaire", "avocat", "collaborateur"], group: "Cabinet", icon: "invoice", moduleKey: "rh_paie" },
   { href: "/audit-logs.html", label: "Journal d'audit", roles: ["titulaire"], group: "Cabinet", icon: "audit" },
   { href: "/parametres.html", label: "Paramètres", roles: ["titulaire"], group: "Cabinet", icon: "settings" },
   { href: "/admin-tableau-de-bord.html", label: "Tableau de bord", roles: ["super_admin"], group: "Plateforme", icon: "dashboard" },
