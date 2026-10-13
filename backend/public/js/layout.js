@@ -83,6 +83,10 @@ const NAV_ITEMS = [
   // avocat/collaborateur voit uniquement sa propre fiche (filtre cote
   // serveur, voir routes/personnel.ts).
   { href: "/personnel.html", label: "Personnel", roles: ["titulaire", "avocat", "collaborateur"], group: "Cabinet", icon: "team", moduleKey: "rh" },
+  // RH-2 - visible a tous (un titulaire voit tous les stages, un
+  // avocat/collaborateur ne voit que ceux dont il/elle est responsable,
+  // voir routes/stages.ts).
+  { href: "/stages.html", label: "Stages", roles: ["titulaire", "avocat", "collaborateur"], group: "Cabinet", icon: "clock", moduleKey: "rh" },
   { href: "/audit-logs.html", label: "Journal d'audit", roles: ["titulaire"], group: "Cabinet", icon: "audit" },
   { href: "/parametres.html", label: "Paramètres", roles: ["titulaire"], group: "Cabinet", icon: "settings" },
   { href: "/admin-tableau-de-bord.html", label: "Tableau de bord", roles: ["super_admin"], group: "Plateforme", icon: "dashboard" },

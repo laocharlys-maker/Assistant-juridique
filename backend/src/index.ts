@@ -533,6 +533,16 @@ async function main() {
     // reglage par cabinet (jamais par defaut, voir jobs/purgeAudioMobile.ts).
     const { schedulePurgeAudioMobile } = await import("./jobs/purgeAudioMobile");
     schedulePurgeAudioMobile();
+
+    // Module RH Cabinet, RH-2 : rappels de fin de stage (cloche + email)
+    // au responsable. Rattrapage au demarrage (meme principe que la veille
+    // juridique ci-dessus) - idempotent par (stage, palier), voir
+    // jobs/stageRappels.ts.
+    const { runRappelsStage, scheduleRappelsStage } = await import("./jobs/stageRappels");
+    runRappelsStage().catch((error) => {
+      console.error("Erreur lors du rattrapage des rappels de fin de stage au demarrage :", error);
+    });
+    scheduleRappelsStage();
   } catch (error) {
     if (stopPortableDatabase) {
       console.error("Echec du demarrage apres l'ouverture de Postgres portable - arret de Postgres avant de quitter...");

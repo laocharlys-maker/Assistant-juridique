@@ -332,6 +332,7 @@ model Cabinet {
   courriersSortants CourrierSortant[]
   notifications     Notification[]
   fichesPersonnel   FichePersonnel[]
+  stages            Stage[]
 
   @@map("cabinets")
 }
@@ -395,9 +396,77 @@ model FichePersonnel {
   cabinet   Cabinet    @relation(fields: [cabinetId], references: [id])
   user      User?      @relation(fields: [userId], references: [id])
   auditLogs AuditLog[]
+  stages    Stage[]
 
   @@index([cabinetId])
   @@map("fiches_personnel")
+}
+
+// Module RH Cabinet, RH-2 (voir docs/rh/) - suivi de stage. Plusieurs Stage
+// possibles pour UNE MEME FichePersonnel (un stagiaire peut revenir une
+// annee suivante) - pas de relation unique. responsableId pointe TOUJOURS
+// vers un User (compte Aurore obligatoire pour pouvoir recevoir une
+// notification - voir routes/stages.ts, contrainte explicite de la spec
+// section 4 : "doit avoir un compte pour etre notifie").
+model Stage {
+  id               String  @id @default(uuid())
+  cabinetId        String  @map("cabinet_id")
+  fichePersonnelId String  @map("fiche_personnel_id")
+  responsableId    String  @map("responsable_id")
+
+  dateDebut     DateTime  @map("date_debut")
+  dateFinPrevue DateTime  @map("date_fin_prevue")
+  // "en_cours" | "termine" | "interrompu" | "prolonge"
+  statut String @default("en_cours")
+  objet  String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  cabinet        Cabinet             @relation(fields: [cabinetId], references: [id])
+  fichePersonnel FichePersonnel      @relation(fields: [fichePersonnelId], references: [id])
+  responsable    User                @relation("StageResponsable", fields: [responsableId], references: [id])
+  prolongations  StageProlongation[]
+  rappelsEnvoyes StageRappelEnvoye[]
+
+  @@index([cabinetId])
+  @@index([fichePersonnelId])
+  @@index([responsableId])
+  @@map("stages")
+}
+
+model StageProlongation {
+  id              String   @id @default(uuid())
+  stageId         String   @map("stage_id")
+  ancienneDateFin DateTime @map("ancienne_date_fin")
+  nouvelleDateFin DateTime @map("nouvelle_date_fin")
+  motif           String?
+  decideParId     String   @map("decide_par_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  stage     Stage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  decidePar User  @relation("StageProlongationDecidePar", fields: [decideParId], references: [id])
+
+  @@index([stageId])
+  @@map("stage_prolongations")
+}
+
+// Decision du 13/10/2026 (docs/rh/00-audit.md) : UN ENREGISTREMENT PAR
+// ECHEANCE plutot qu'un horodatage unique par stage - chaque palier
+// (j30/j15/j7/j0, ou une date precise "en_retard_AAAA-MM-JJ" pour l'alerte
+// repetee tant que le stage n'est pas cloture) est verifie et marque
+// independamment, pour qu'un decalage de calcul ne puisse jamais faire
+// sauter silencieusement un rappel. Voir jobs/stageRappels.ts.
+model StageRappelEnvoye {
+  id        String   @id @default(uuid())
+  stageId   String   @map("stage_id")
+  palier    String
+  envoyeLe  DateTime @default(now()) @map("envoye_le")
+
+  stage Stage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+
+  @@unique([stageId, palier])
+  @@map("stage_rappels_envoyes")
 }
 
 model User {
@@ -513,6 +582,12 @@ model User {
   // Module RH Cabinet - fiche personnel liee a CE compte, si l'employe en a
   // un (voir model FichePersonnel.userId, nullable).
   fichePersonnel FichePersonnel?
+
+  // Module RH Cabinet, RH-2 - stages dont CET utilisateur est responsable
+  // (notifications J-30/J-15/J-7/J-0), et prolongations qu'il/elle a
+  // decidees.
+  stagesResponsable         Stage[]             @relation("StageResponsable")
+  stageProlongationsDecidees StageProlongation[] @relation("StageProlongationDecidePar")
 
   // Lot 11 (Partie A) : documents actuellement verrouilles par CET
   // utilisateur (edition en cours), et versions qu'il/elle a enregistrees.
