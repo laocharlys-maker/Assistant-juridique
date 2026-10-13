@@ -351,3 +351,27 @@ dupliquer ou à factoriser pour le module RH.
    un horodatage unique par stage (dernier rappel envoyé), ou un
    enregistrement séparé par échéance pour garantir qu'aucun rappel n'est
    ni dupliqué ni oublié en cas de redémarrage ?
+
+## Décisions validées (2026-10-13)
+
+1. **Lot 9** : on démarre avec le système binaire actuel (`Cabinet.modulesDesactives`
+   + `User.modulesDesactives`). Pas de vrai Lot 9 granulaire avant RH-1.
+   `rh`/`rh_paie` suivent la même mécanique que les clés de module existantes.
+2. **Lien avocat↔audience** : à ajouter avant RH-4 — champ
+   `avocatResponsableId` sur `Dossier` (migration additive, nullable). La
+   détection de conflit du planning de congés (section 5.3 de la spec)
+   s'appuiera dessus plutôt que d'être désactivée.
+3. **Montants de paie** : stockés **en clair** en base (entiers FCFA),
+   permettant des totaux fiables en SQL. Seuls les coordonnées de paiement
+   (`FichePersonnel.coordonneesPaiement`) et les PDF de paie sont chiffrés
+   au repos, comme déjà prévu dans la spec section 4 et 8.
+4. **Export Excel** : pas de nouvelle dépendance en V1. L'état de paiement
+   s'exporte en PDF et CSV uniquement (un CSV s'ouvre nativement dans
+   Excel). `exceljs` pourra être ajouté plus tard si un cabinet le demande
+   explicitement.
+5. **Rappels de stage** : un enregistrement par échéance (J-30/J-15/J-7/J-0),
+   pas un horodatage unique par stage — chaque palier est vérifié et
+   marqué indépendamment, pour qu'un décalage de calcul ne puisse jamais
+   faire sauter silencieusement un rappel.
+
+Ces décisions s'appliquent aux prompts RH-1 à RH-7 à venir.
