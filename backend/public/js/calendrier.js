@@ -62,6 +62,11 @@ let annuaire = [];
 const dossiersParNumero = new Map();
 let currentDetailEvenement = null;
 let currentDetailAudience = null;
+// Rempli quand on convertit un evenement manuel (ex: repere "Prochaine
+// audience" cree depuis Aurore Mobile, qui n'a ni juridiction ni parties)
+// en vraie audience - l'evenement d'origine est supprime une fois
+// l'audience creee avec succes (demande utilisateur du 2026-10-13).
+let conversionDepuisEvenementId = null;
 
 // Date calendaire locale (YYYY-MM-DD) — a ne jamais remplacer par
 // toISOString().slice(0,10), qui bascule sur le jour UTC et decale le mois
@@ -406,6 +411,7 @@ document.getElementById("cal-detail-modifier-btn").addEventListener("click", asy
   if (evenement.source === "role_audience" && evenement.roleAudienceId) {
     try {
       const audience = currentDetailAudience || (await apiFetch(`/api/role-audiences/${evenement.roleAudienceId}`));
+      conversionDepuisEvenementId = null;
       ouvrirFormulaireAudience(audience);
     } catch (err) {
       alert(err.message);
@@ -494,6 +500,13 @@ function ouvrirFormulaire(evenement, dateInitiale) {
   renderAssignesCheckboxes(evenement ? evenement.assignes : []);
   hideError(document.getElementById("cal-form-error"));
   document.getElementById("cal-form-submit-error").textContent = "";
+  conversionDepuisEvenementId = null;
+  // "Convertir en audience" - seulement sur un evenement manuel EXISTANT
+  // (jamais a la creation, jamais sur une audience) : couvre notamment le
+  // repere "Prochaine audience" cree depuis Aurore Mobile (type générique
+  // "rdv", sans juridiction/parties) que le titulaire doit ensuite
+  // transformer en vraie audience (demande utilisateur du 2026-10-13).
+  document.getElementById("cal-form-convertir-audience-btn").hidden = !evenement;
   formModal.hidden = false;
 }
 
@@ -501,9 +514,9 @@ function ouvrirFormulaire(evenement, dateInitiale) {
 // modale que les evenements manuels, mais prefillee depuis le RoleAudience
 // (le type reste verrouille sur "audience").
 function ouvrirFormulaireAudience(audience) {
-  document.getElementById("cal-form-heading").textContent = "Modifier l'audience";
+  document.getElementById("cal-form-heading").textContent = audience.id ? "Modifier l'audience" : "Convertir en audience";
   document.getElementById("cal-form-id").value = "";
-  document.getElementById("cal-form-audience-id").value = audience.id;
+  document.getElementById("cal-form-audience-id").value = audience.id || "";
   const typeSelect = document.getElementById("cal-form-type");
   typeSelect.value = "audience";
   typeSelect.disabled = true;
@@ -513,6 +526,7 @@ function ouvrirFormulaireAudience(audience) {
   CHAMPS_AUDIENCE.forEach((f) => {
     document.getElementById(`cal-form-${f}`).value = audience[f] || "";
   });
+  document.getElementById("cal-form-convertir-audience-btn").hidden = true;
   hideError(document.getElementById("cal-form-error"));
   document.getElementById("cal-form-submit-error").textContent = "";
   formModal.hidden = false;
@@ -521,6 +535,17 @@ function ouvrirFormulaireAudience(audience) {
 document.getElementById("cal-nouvel-evenement-btn").addEventListener("click", () => ouvrirFormulaire(null, currentDate));
 document.getElementById("cal-form-cancel-btn").addEventListener("click", () => {
   formModal.hidden = true;
+  conversionDepuisEvenementId = null;
+});
+document.getElementById("cal-form-convertir-audience-btn").addEventListener("click", () => {
+  const idAConvertir = document.getElementById("cal-form-id").value;
+  if (!idAConvertir) return;
+  conversionDepuisEvenementId = idAConvertir;
+  const dossierNumero = document.getElementById("cal-form-dossierNumero").value.trim();
+  ouvrirFormulaireAudience({
+    dateAudience: new Date(document.getElementById("cal-form-dateDebut").value).toISOString(),
+    dossier: dossierNumero ? { numeroDossier: dossierNumero } : null,
+  });
 });
 
 calForm.addEventListener("submit", async (e) => {
@@ -561,6 +586,19 @@ calForm.addEventListener("submit", async (e) => {
         await apiFetch(`/api/role-audiences/${audienceId}`, { method: "PATCH", body: payload });
       } else {
         await apiFetch("/api/role-audiences", { method: "POST", body: payload });
+        // Conversion d'un repere manuel (ex: "Prochaine audience" cree
+        // depuis Aurore Mobile) en vraie audience : la vraie audience vient
+        // d'etre creee avec son propre Evenement synchronise, le repere
+        // d'origine n'a plus de raison d'exister - jamais bloquant si la
+        // suppression echoue (l'audience, elle, est deja creee).
+        if (conversionDepuisEvenementId) {
+          try {
+            await apiFetch(`/api/evenements/${conversionDepuisEvenementId}`, { method: "DELETE" });
+          } catch {
+            // Non bloquant.
+          }
+          conversionDepuisEvenementId = null;
+        }
       }
       formModal.hidden = true;
       await chargerEvenements();

@@ -97,6 +97,32 @@ notificationsRouter.post("/api/notifications/tout-lire", requireAuth, async (req
   return res.json({ ok: true });
 });
 
+// Suppression d'une notification deja lue (demande utilisateur du
+// 2026-10-13 : eviter que la liste ne devienne trop longue). Jamais une
+// notification non lue - on ne veut pas qu'une alerte disparaisse avant
+// meme d'avoir ete vue.
+notificationsRouter.delete("/api/notifications/:id", requireAuth, async (req, res) => {
+  const notification = await prisma.notification.findFirst({
+    where: { id: req.params.id, destinataireId: req.auth!.userId },
+  });
+  if (!notification) {
+    return res.status(404).json({ error: "Notification introuvable" });
+  }
+  if (!notification.lu) {
+    return res.status(409).json({ error: "Marque d'abord cette notification comme lue avant de la supprimer." });
+  }
+  await prisma.notification.delete({ where: { id: notification.id } });
+  return res.json({ ok: true });
+});
+
+// Vide en une fois toutes les notifications deja lues du destinataire.
+notificationsRouter.post("/api/notifications/supprimer-lues", requireAuth, async (req, res) => {
+  const { count } = await prisma.notification.deleteMany({
+    where: { destinataireId: req.auth!.userId, lu: true },
+  });
+  return res.json({ ok: true, supprimees: count });
+});
+
 const diffusionSchema = z.object({
   titre: z.string().trim().min(1, "Le titre est requis.").max(200),
   message: z.string().trim().min(1, "Le message est requis.").max(5000),

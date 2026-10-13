@@ -159,4 +159,38 @@ describe.skipIf(!pgAvailable)("e2e : notifications - auteur visible et reponse r
     });
     expect(res.status).toBe(400);
   });
+
+  it("supprimer une notification NON lue est refuse (409)", async () => {
+    const notif = await prisma.notification.create({
+      data: { cabinetId, destinataireId: avocatId, type: "diffusion", titre: "Pas encore lue" },
+    });
+
+    const res = await api(avocatCookie, `/api/notifications/${notif.id}`, { method: "DELETE" });
+    expect(res.status).toBe(409);
+  });
+
+  it("supprimer une notification LUE fonctionne", async () => {
+    const notif = await prisma.notification.create({
+      data: { cabinetId, destinataireId: avocatId, type: "diffusion", titre: "Lue", lu: true, luAt: new Date() },
+    });
+
+    const res = await api(avocatCookie, `/api/notifications/${notif.id}`, { method: "DELETE" });
+    expect(res.status).toBe(200);
+    expect(await prisma.notification.findUnique({ where: { id: notif.id } })).toBeNull();
+  });
+
+  it("vider les lues supprime uniquement les notifications deja lues de ce destinataire", async () => {
+    await prisma.notification.create({ data: { cabinetId, destinataireId: avocatId, type: "diffusion", titre: "Lue A", lu: true, luAt: new Date() } });
+    await prisma.notification.create({ data: { cabinetId, destinataireId: avocatId, type: "diffusion", titre: "Lue B", lu: true, luAt: new Date() } });
+    const nonLue = await prisma.notification.create({ data: { cabinetId, destinataireId: avocatId, type: "diffusion", titre: "Non lue" } });
+
+    const res = await api(avocatCookie, "/api/notifications/supprimer-lues", { method: "POST" });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.supprimees).toBeGreaterThanOrEqual(2);
+
+    const restantes = await prisma.notification.findMany({ where: { destinataireId: avocatId } });
+    expect(restantes.every((n) => !n.lu)).toBe(true);
+    expect(restantes.some((n) => n.id === nonLue.id)).toBe(true);
+  });
 });

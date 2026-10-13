@@ -399,7 +399,10 @@ async function initNotificationsCloche(me) {
     return `
       <div class="notif-panel-header">
         <h3>Notifications</h3>
-        <button type="button" class="ghost btn-sm" id="notif-diffuser-btn" style="padding:4px 10px; margin:0;">Diffuser</button>
+        <div style="display:flex; gap:6px;">
+          <button type="button" class="ghost btn-sm" id="notif-vider-lues-btn" style="padding:4px 10px; margin:0;">Vider les lues</button>
+          <button type="button" class="ghost btn-sm" id="notif-diffuser-btn" style="padding:4px 10px; margin:0;">Diffuser</button>
+        </div>
       </div>`;
   }
 
@@ -407,6 +410,17 @@ async function initNotificationsCloche(me) {
     document.getElementById("notif-diffuser-btn")?.addEventListener("click", () => {
       panel.hidden = true;
       ouvrirModalDiffusion();
+    });
+    // Vide les notifications deja lues (demande utilisateur du 2026-10-13 :
+    // eviter que la liste ne devienne trop longue) - jamais les non-lues.
+    document.getElementById("notif-vider-lues-btn")?.addEventListener("click", async () => {
+      try {
+        const { supprimees } = await apiFetch("/api/notifications/supprimer-lues", { method: "POST" });
+        showToast(supprimees > 0 ? `${supprimees} notification(s) lue(s) supprimée(s).` : "Aucune notification lue à supprimer.");
+        if (supprimees > 0) ouvrirPanel();
+      } catch (err) {
+        showToast(err.message || "Échec de la suppression.");
+      }
     });
   }
 
@@ -432,13 +446,27 @@ async function initNotificationsCloche(me) {
         .map(
           (n) => `
         <div class="notif-item${n.lu ? "" : " non-lue"}" role="button" tabindex="0" data-notif-id="${n.id}">
-          <div class="notif-item-titre">${escapeHtmlHeaderChrono(n.titre)}</div>
+          <div style="display:flex; justify-content:space-between; gap:8px;">
+            <div class="notif-item-titre">${escapeHtmlHeaderChrono(n.titre)}</div>
+            ${n.lu ? `<button type="button" class="ghost btn-sm" data-notif-supprimer="${n.id}" title="Supprimer" style="padding:0 6px; margin:0; line-height:1;">&times;</button>` : ""}
+          </div>
           ${n.message ? `<div class="notif-item-message">${escapeHtmlHeaderChrono(n.message)}</div>` : ""}
           <div class="notif-item-date">${n.creeParNom ? `${escapeHtmlHeaderChrono(n.creeParNom)} · ` : ""}${formatDateRelativeNotif(n.createdAt)}</div>
         </div>`
         )
         .join("");
     cablerBoutonDiffuser();
+    panel.querySelectorAll("[data-notif-supprimer]").forEach((btn) => {
+      btn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        try {
+          await apiFetch(`/api/notifications/${btn.dataset.notifSupprimer}`, { method: "DELETE" });
+          ouvrirPanel();
+        } catch (err) {
+          showToast(err.message || "Échec de la suppression.");
+        }
+      });
+    });
     panel.querySelectorAll("[data-notif-id]").forEach((item) => {
       const notif = notifications.find((n) => n.id === item.dataset.notifId);
       item.addEventListener("click", async () => {
@@ -477,6 +505,7 @@ async function initNotificationsCloche(me) {
         <div style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;">
           ${n.creeParId ? '<button type="button" id="notif-reponse-btn">Répondre</button>' : ""}
           ${n.lienUrl ? `<a class="secondary" href="${n.lienUrl}" style="display:inline-block; text-decoration:none; padding:6px 12px; border-radius:6px;">Voir</a>` : ""}
+          <button type="button" class="danger" id="notif-supprimer-btn">Supprimer</button>
           <button type="button" class="ghost" id="notif-lecture-fermer-btn" style="margin-left:auto;">Fermer</button>
         </div>
       </div>`;
@@ -485,6 +514,18 @@ async function initNotificationsCloche(me) {
     overlay.querySelector("#notif-lecture-fermer-btn").addEventListener("click", () => overlay.remove());
     overlay.addEventListener("click", (e) => {
       if (e.target === overlay) overlay.remove();
+    });
+    // La notification est deja marquee lue avant l'ouverture de cette
+    // modale (voir ouvrirPanel ci-dessus) - la suppression est donc
+    // toujours autorisee ici (jamais une notification non lue, voir
+    // routes/notifications.ts).
+    overlay.querySelector("#notif-supprimer-btn").addEventListener("click", async () => {
+      try {
+        await apiFetch(`/api/notifications/${n.id}`, { method: "DELETE" });
+        overlay.remove();
+      } catch (err) {
+        showToast(err.message || "Échec de la suppression.");
+      }
     });
 
     const reponseBtn = overlay.querySelector("#notif-reponse-btn");

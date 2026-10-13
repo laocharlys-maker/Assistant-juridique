@@ -4,6 +4,8 @@ import { prisma } from "../lib/prisma";
 import { requireAuth } from "../middleware/requireAuth";
 import { getAccessibleAvocatIds } from "../services/access";
 import { enqueuerSyncEvenement, enqueuerSuppressionEvenement } from "../services/calendrierSync/syncQueue";
+import { creerNotificationsMultiples } from "../services/notifications";
+import { formatDateCourteFr } from "../utils/dateFormat";
 
 export const evenementsRouter = Router();
 
@@ -228,6 +230,17 @@ evenementsRouter.post("/api/evenements", requireAuth, async (req, res) => {
   // que des ecritures DB, aucun appel reseau ici - voir syncQueue.ts).
   await enqueuerSyncEvenement(evenement.id);
 
+  // Notifie chaque assigne (demande utilisateur du 2026-10-13) - jamais le
+  // createur lui-meme (deja filtre par creerNotificationsMultiples).
+  await creerNotificationsMultiples(assignesValides, {
+    cabinetId: req.auth!.cabinetId,
+    type: "evenement_assigne",
+    titre: `Nouvelle activité : ${evenement.titre}`,
+    message: `Le ${formatDateCourteFr(dateDebut)}${evenement.lieu ? ` — ${evenement.lieu}` : ""}.`,
+    lienUrl: "/calendrier.html",
+    creeParId: req.auth!.userId,
+  });
+
   return res.status(201).json(evenement);
 });
 
@@ -298,6 +311,17 @@ evenementsRouter.patch("/api/evenements/:id", requireAuth, async (req, res) => {
     }
   }
 
+  // Pour ne notifier que les NOUVEAUX assignes (jamais ceux deja la avant
+  // cette modification - sinon un simple changement de lieu/horaire
+  // renotifierait tout le monde a chaque fois).
+  let nouveauxAssignes: string[] = [];
+  if (parsed.data.assignes !== undefined) {
+    const ancienneListe = await prisma.evenementAssigne.findMany({ where: { evenementId: existing.id }, select: { userId: true } });
+    const ancienIds = new Set(ancienneListe.map((a) => a.userId));
+    const assignesValidesAvantTx = await assignesValidesPourCabinet(parsed.data.assignes, req.auth!.cabinetId);
+    nouveauxAssignes = assignesValidesAvantTx.filter((id) => !ancienIds.has(id));
+  }
+
   const evenement = await prisma.$transaction(async (tx) => {
     if (parsed.data.assignes !== undefined) {
       const assignesValides = await assignesValidesPourCabinet(parsed.data.assignes, req.auth!.cabinetId);
@@ -334,6 +358,17 @@ evenementsRouter.patch("/api/evenements/:id", requireAuth, async (req, res) => {
   // Lot 12b : re-synchronise (le contenu a pu changer) - meme hook que la
   // creation, toujours non bloquant.
   await enqueuerSyncEvenement(evenement.id);
+
+  if (nouveauxAssignes.length > 0) {
+    await creerNotificationsMultiples(nouveauxAssignes, {
+      cabinetId: req.auth!.cabinetId,
+      type: "evenement_assigne",
+      titre: `Nouvelle activité : ${evenement.titre}`,
+      message: `Le ${formatDateCourteFr(evenement.dateDebut)}${evenement.lieu ? ` — ${evenement.lieu}` : ""}.`,
+      lienUrl: "/calendrier.html",
+      creeParId: req.auth!.userId,
+    });
+  }
 
   return res.json(evenement);
 });
