@@ -1045,7 +1045,14 @@ header.app-topbar {
 .notif-item:last-child { border-bottom: none; }
 .notif-item:hover { background: var(--accent-tint); }
 .notif-item.non-lue { background: var(--accent-tint); }
-.notif-item-titre { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
+.notif-item-titre { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+.notif-alerte-texte {
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 600;
+  margin-left: 6px;
+  white-space: nowrap;
+}
 .notif-item-message { font-size: 12px; color: var(--muted); margin-bottom: 2px; }
 .notif-item-date { font-size: 11px; color: var(--muted); }
 .notif-panel-vide { padding: 24px 14px; text-align: center; color: var(--muted); font-size: 13px; }

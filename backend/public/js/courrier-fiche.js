@@ -371,7 +371,7 @@
       liste.innerHTML = utilisateurs
         .map(
           (u) => `
-        <label style="display:flex; align-items:center; gap:8px; font-weight:400; margin-bottom:6px;">
+        <label>
           <input type="checkbox" name="collaborateurIds" value="${u.id}" ${dejaAffectes.has(u.id) ? "checked" : ""} />
           ${escapeHtml(u.nom)}
         </label>`
