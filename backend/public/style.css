@@ -895,7 +895,8 @@ header.app-topbar {
    depliee pour un alignement net des cases plutot qu'un simple retour a la
    ligne desordonne. */
 .destinataires-repli { margin: 8px 0; }
-.destinataires-repli > summary { cursor: pointer; font-size: 0.85rem; color: var(--muted); }
+.destinataires-repli > summary { cursor: pointer; font-size: 0.9rem; font-weight: 600; color: var(--accent-hover); }
+.destinataires-repli > summary:hover { text-decoration: underline; }
 .destinataires-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 6px 14px; margin: 8px 0 0; max-height: 140px; overflow-y: auto; }
 .destinataires-list label { display: flex; align-items: center; gap: 6px; font-weight: 400; margin: 0; }
 .destinataires-list input[type="checkbox"] { width: auto; }

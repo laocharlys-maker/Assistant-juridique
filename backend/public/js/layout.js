@@ -530,7 +530,7 @@ async function initNotificationsCloche(me) {
         ` : ""}
         <div style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;">
           ${n.creeParId ? '<button type="button" id="notif-reponse-btn">Répondre</button>' : ""}
-          ${n.lienUrl ? `<a class="secondary" href="${n.lienUrl}" style="display:inline-block; text-decoration:none; padding:6px 12px; border-radius:6px;">Voir</a>` : ""}
+          ${n.lienUrl ? `<a class="secondary" href="${n.lienUrl}" style="text-decoration:none;">Voir</a>` : ""}
           <button type="button" class="danger" id="notif-supprimer-btn">Supprimer</button>
           <button type="button" class="ghost" id="notif-lecture-fermer-btn" style="margin-left:auto;">Fermer</button>
         </div>

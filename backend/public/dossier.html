@@ -1705,7 +1705,7 @@
       const destinatairesCheckboxesFichier =
         collegues.length > 0 && !bloqueCollaborateur
           ? `<details class="destinataires-repli">
-               <summary>Prévenir (optionnel)</summary>
+               <summary>Choisir le(s) destinataire(s) à prévenir avant de charger la nouvelle version (optionnel)</summary>
                <div class="destinataires-list">
                  ${collegues.map((u) => `<label><input type="checkbox" name="destinataireVersionFichier-${a.id}" value="${u.id}" /> ${escapeHtml(u.nom)}</label>`).join("")}
                </div>
