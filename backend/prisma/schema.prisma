@@ -907,6 +907,7 @@ model User {
   // l'auteur - voir README-LOT10.md).
   commentairesRevisionEcrits  CommentaireRevision[] @relation("CommentaireRevisionAuteur")
   commentairesRevisionResolus CommentaireRevision[] @relation("CommentaireRevisionResoluPar")
+  commentairesRevisionRecus   CommentaireRevisionDestinataire[]
 
   // Centre de notifications (revision + courrier pour l'instant,
   // reutilisable par d'autres ecrans plus tard) - voir services/notifications.ts.
@@ -1952,12 +1953,31 @@ model CommentaireRevision {
   dateResolution DateTime? @map("date_resolution")
   resoluParId    String?   @map("resolu_par_id")
 
-  action    Action @relation(fields: [actionId], references: [id])
-  auteur    User   @relation("CommentaireRevisionAuteur", fields: [auteurId], references: [id])
-  resoluPar User?  @relation("CommentaireRevisionResoluPar", fields: [resoluParId], references: [id])
+  action       Action                           @relation(fields: [actionId], references: [id])
+  auteur       User                             @relation("CommentaireRevisionAuteur", fields: [auteurId], references: [id])
+  resoluPar    User?                            @relation("CommentaireRevisionResoluPar", fields: [resoluParId], references: [id])
+  destinataires CommentaireRevisionDestinataire[]
 
   @@index([actionId])
   @@map("commentaires_revision")
+}
+
+// Destinataire(s) precis designes par l'avocat pour une remarque donnee
+// (demande utilisateur du 2026-10-14, un ou plusieurs) - table de jointure,
+// meme convention que EvenementAssigne ci-dessus. Aucune ligne = comportement
+// historique (remarque adressee a l'auteur du document, Action.createdBy,
+// voir routes/commentairesRevision.ts). Chaque destinataire peut aussi
+// resoudre la remarque, en plus de l'auteur du document et de l'auteur de
+// la remarque.
+model CommentaireRevisionDestinataire {
+  commentaireId String @map("commentaire_id")
+  userId        String @map("user_id")
+
+  commentaire CommentaireRevision @relation(fields: [commentaireId], references: [id], onDelete: Cascade)
+  user        User                @relation(fields: [userId], references: [id])
+
+  @@id([commentaireId, userId])
+  @@map("commentaires_revision_destinataires")
 }
 
 // Centre de notifications internes (bannette, pas email) - generique pour

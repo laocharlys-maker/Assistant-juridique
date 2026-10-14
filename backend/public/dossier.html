@@ -458,22 +458,18 @@
             const errorEl = actionsEl.querySelector(`[data-remarque-error="${id}"]`);
             errorEl.textContent = "";
             errorEl.classList.remove("visible");
+            const form = actionsEl.querySelector(`[data-remarque-form="${id}"]`);
+            const destinataireIds = Array.from(form.querySelectorAll('input[name="destinataireRemarque"]:checked')).map((cb) => cb.value);
             try {
               await apiFetch(`/api/actions/${id}/commentaires`, {
                 method: "POST",
-                body: { contenu: textarea.value },
+                body: { contenu: textarea.value, destinataireIds: destinataireIds.length > 0 ? destinataireIds : undefined },
               });
               window.location.reload();
             } catch (err) {
               errorEl.textContent = err.message;
               errorEl.classList.add("visible");
             }
-          });
-        });
-        actionsEl.querySelectorAll("[data-resoudre-remarque]").forEach((btn) => {
-          btn.addEventListener("click", (e) => {
-            e.stopPropagation();
-            resoudreRemarque(btn.dataset.resoudreRemarque, btn.dataset.commentaireId);
           });
         });
         actionsEl.querySelectorAll("[data-renvoyer-validation]").forEach((btn) => {
@@ -603,12 +599,19 @@
         async function uploaderVersionFichier(actionId, fichier) {
           const errorEl = actionsEl.querySelector(`[data-version-fichier-error="${actionId}"]`);
           if (errorEl) errorEl.textContent = "";
+          const destinataireIds = Array.from(
+            actionsEl.querySelectorAll(`input[name="destinataireVersionFichier-${actionId}"]:checked`)
+          ).map((cb) => cb.value);
           const reader = new FileReader();
           reader.onload = async () => {
             try {
               await apiFetch(`/api/actions/${actionId}/versions-fichier`, {
                 method: "POST",
-                body: { nom: fichier.name, fichierDataUrl: reader.result },
+                body: {
+                  nom: fichier.name,
+                  fichierDataUrl: reader.result,
+                  destinataireIds: destinataireIds.length > 0 ? destinataireIds : undefined,
+                },
               });
               window.location.reload();
             } catch (err) {
@@ -1592,8 +1595,8 @@
             ${downloadLinks}
             <div class="md-content" data-content-view="${a.id}">${renderMarkdown(a.contenuGenere || "")}</div>
             ${renderSourcesJurisprudence(a.champsDocument)}
-            <div class="edit-panel" data-edit-panel="${a.id}" hidden>
-              <strong>Modifier le texte — ${escapeHtml(titreAction)}</strong>
+            <div class="edit-panel zone-editeur" data-edit-panel="${a.id}" hidden>
+              <div class="zone-titre"><strong>✎ Modifier le texte — ${escapeHtml(titreAction)}</strong></div>
               <div class="edit-panel-columns">
                 <div>
                   <div class="md-toolbar" data-md-toolbar="${a.id}">
@@ -1646,13 +1649,13 @@
           const badge = v.estVersionValidee ? ' <span class="badge badge-action-valide">Validée</span>' : "";
           const boutonValider =
             !v.estVersionValidee && !estCollaborateur
-              ? `<button type="button" class="ghost btn-sm" data-valider-version="${a.id}" data-version-id="${v.id}">Valider cette version</button>`
+              ? `<button type="button" class="btn-validation btn-sm" data-valider-version="${a.id}" data-version-id="${v.id}">Valider cette version</button>`
               : "";
           return `
             <div class="remarque-item ${v.estVersionValidee ? "resolue" : ""}">
               <div class="remarque-meta">Version ${v.numero} — ${escapeHtml(v.auteur.nom)} — ${new Date(v.createdAt).toLocaleString("fr-FR")}${badge}</div>
               <div class="remarque-actions" style="display:flex; gap:8px; flex-wrap:wrap;">
-                <button type="button" class="ghost btn-sm" data-toggle-version-apercu="${v.id}">Aperçu</button>
+                <button type="button" class="btn-neutral btn-sm" data-toggle-version-apercu="${v.id}">Aperçu</button>
                 ${boutonValider}
               </div>
               <div class="md-content" data-version-apercu="${v.id}" hidden style="margin-top:8px; padding:8px; border:1px solid var(--hairline); border-radius:8px;">${renderMarkdown(v.contenu)}</div>
@@ -1661,8 +1664,8 @@
         .join("");
 
       return `
-        <div style="margin-top:14px; padding-top:14px; border-top:1px solid var(--hairline);">
-          <strong>Historique des versions (${versions.length})</strong>
+        <div class="zone-versions" style="margin-top:14px;">
+          <div class="zone-titre"><strong>📝 Historique des versions (texte) (${versions.length})</strong></div>
           <div style="margin-top:8px;">${lignes}</div>
         </div>`;
     }
@@ -1686,31 +1689,42 @@
           const badge = v.estVersionValidee ? ' <span class="badge badge-action-valide">Version définitive</span>' : "";
           const boutonValider =
             !v.estVersionValidee && !estCollaborateur
-              ? `<button type="button" class="ghost btn-sm" data-valider-version-fichier="${a.id}" data-version-id="${v.id}">Valider cette version</button>`
+              ? `<button type="button" class="btn-validation btn-sm" data-valider-version-fichier="${a.id}" data-version-id="${v.id}">Valider cette version</button>`
               : "";
           return `
             <div class="remarque-item ${v.estVersionValidee ? "resolue" : ""}">
               <div class="remarque-meta">Version ${v.numero} — ${escapeHtml(v.auteur.nom)} — ${new Date(v.createdAt).toLocaleString("fr-FR")}${badge}</div>
               <div class="remarque-actions" style="display:flex; gap:8px; flex-wrap:wrap;">
-                <button type="button" class="ghost btn-sm" data-telecharger-version-fichier="${v.id}" data-action-id="${a.id}" data-nom="${escapeHtml(v.nomOriginal)}">Télécharger</button>
+                <button type="button" class="btn-neutral btn-sm" data-telecharger-version-fichier="${v.id}" data-action-id="${a.id}" data-nom="${escapeHtml(v.nomOriginal)}">Télécharger</button>
                 ${boutonValider}
               </div>
             </div>`;
         })
         .join("");
 
+      const destinatairesCheckboxesFichier =
+        collegues.length > 0 && !bloqueCollaborateur
+          ? `<details class="destinataires-repli">
+               <summary>Prévenir (optionnel)</summary>
+               <div class="destinataires-list">
+                 ${collegues.map((u) => `<label><input type="checkbox" name="destinataireVersionFichier-${a.id}" value="${u.id}" /> ${escapeHtml(u.nom)}</label>`).join("")}
+               </div>
+             </details>`
+          : "";
+
       const uploadZone = bloqueCollaborateur
         ? `<p class="muted" style="margin-top:8px;">La dernière version est validée — seul un avocat du cabinet peut en charger une nouvelle.</p>`
         : `
           <div style="margin-top:8px;">
+            ${destinatairesCheckboxesFichier}
             <input type="file" accept=".doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" data-version-fichier-input="${a.id}" hidden />
-            <button type="button" class="ghost btn-sm" data-charger-version-fichier="${a.id}">Charger une nouvelle version (Word)</button>
+            <button type="button" class="btn-attention btn-sm" data-charger-version-fichier="${a.id}">Charger une nouvelle version (Word)</button>
             <p class="error" data-version-fichier-error="${a.id}" style="margin-top:6px;"></p>
           </div>`;
 
       return `
-        <div style="margin-top:14px; padding-top:14px; border-top:1px solid var(--hairline);">
-          <strong>Versions du document (Word)${versions.length ? ` (${versions.length})` : ""}</strong>
+        <div class="zone-versions" style="margin-top:14px;">
+          <div class="zone-titre"><strong>📎 Versions du document (Word)${versions.length ? ` (${versions.length})` : ""}</strong></div>
           ${versions.length ? `<div style="margin-top:8px;">${lignes}</div>` : '<p class="muted" style="margin-top:6px;">Aucune version chargée pour l\'instant — dépose une correction Word ci-dessous pour démarrer l\'historique (la version actuelle sera conservée automatiquement comme Version 1).</p>'}
           ${uploadZone}
         </div>`;
@@ -1738,30 +1752,52 @@
           ? '<p class="muted">Aucune remarque pour l\'instant.</p>'
           : commentaires
               .map((c) => {
-                const peutResoudre = c.statut === "ouvert" && me && (me.id === a.createdBy || me.id === c.auteurId);
+                const destinatairesTexte =
+                  c.destinataires && c.destinataires.length > 0
+                    ? ` → adressée à ${c.destinataires.map((d) => escapeHtml(d.user.nom)).join(", ")}`
+                    : "";
+                // Plus de marquage manuel "resolu" (demande utilisateur du
+                // 2026-10-14) : une remarque ouverte reste simplement mise en
+                // evidence tant que le document n'a pas ete renvoye pour
+                // validation (voir renvoyer-validation, qui les resout toutes
+                // automatiquement).
                 const piedRemarque =
                   c.statut === "resolu"
                     ? `<div class="remarque-meta">Résolu par ${escapeHtml(c.resoluPar ? c.resoluPar.nom : "")}${c.dateResolution ? " le " + new Date(c.dateResolution).toLocaleString("fr-FR") : ""}</div>`
-                    : peutResoudre
-                      ? `<div class="remarque-actions"><button type="button" class="ghost btn-sm" data-resoudre-remarque="${a.id}" data-commentaire-id="${c.id}">Marquer résolu</button></div>`
-                      : "";
+                    : "";
                 return `
-                <div class="remarque-item ${c.statut === "resolu" ? "resolue" : ""}">
-                  <div class="remarque-meta">${escapeHtml(c.auteur.nom)} — ${new Date(c.dateCreation).toLocaleString("fr-FR")}</div>
+                <div class="remarque-item ${c.statut === "resolu" ? "resolue" : "ouverte"}">
+                  <div class="remarque-meta">${escapeHtml(c.auteur.nom)} — ${new Date(c.dateCreation).toLocaleString("fr-FR")}${destinatairesTexte}</div>
                   <p class="remarque-contenu">${escapeHtml(c.contenu)}</p>
                   ${piedRemarque}
                 </div>`;
               })
               .join("");
 
+      // Cases a cocher "a qui adresser cette remarque" (demande utilisateur
+      // du 2026-10-14) - un ou plusieurs collegues, reutilise la liste deja
+      // chargee pour "envoyer a un collegue" ailleurs sur cette page. Aucune
+      // case cochee = comportement historique (adressee a l'auteur du
+      // document).
+      const destinatairesCheckboxes =
+        collegues.length > 0
+          ? `<details class="destinataires-repli">
+               <summary>Adresser à (optionnel — sinon adressée à l'auteur du document)</summary>
+               <div class="destinataires-list">
+                 ${collegues.map((u) => `<label><input type="checkbox" name="destinataireRemarque" value="${u.id}" /> ${escapeHtml(u.nom)}</label>`).join("")}
+               </div>
+             </details>`
+          : "";
+
       const formAjout = peutAjouter
         ? `<div style="margin-top:8px;">
-            <button type="button" class="ghost btn-sm" data-toggle-remarque="${a.id}">+ Ajouter une remarque</button>
-            <div class="edit-panel" data-remarque-form="${a.id}" hidden style="margin-top:8px;">
+            <button type="button" class="btn-remarque btn-sm" data-toggle-remarque="${a.id}">+ Ajouter une remarque</button>
+            <div class="remarque-form" data-remarque-form="${a.id}" hidden style="margin-top:8px;">
               <textarea data-remarque-textarea="${a.id}" placeholder="Ta remarque pour le collaborateur…" rows="3"></textarea>
+              ${destinatairesCheckboxes}
               <p class="error" data-remarque-error="${a.id}"></p>
               <div class="edit-panel-actions">
-                <button type="button" class="btn-sm" data-save-remarque="${a.id}">Envoyer</button>
+                <button type="button" class="btn-remarque btn-sm" data-save-remarque="${a.id}">Envoyer</button>
                 <button type="button" class="ghost btn-sm" data-cancel-remarque="${a.id}">Annuler</button>
               </div>
             </div>
@@ -1770,14 +1806,13 @@
 
       const renvoyerBtn = estEnRevision
         ? `<div style="margin-top:10px;">
-            <button type="button" class="secondary" data-renvoyer-validation="${a.id}" ${ouverts.length > 0 ? "disabled" : ""}>Renvoyer pour validation</button>
-            ${ouverts.length > 0 ? `<p class="muted" style="margin-top:4px;">Désactivé tant qu'une remarque reste ouverte.</p>` : ""}
+            <button type="button" class="btn-attention" data-renvoyer-validation="${a.id}">Renvoyer pour validation</button>
           </div>`
         : "";
 
       return `
-        <div style="margin-top:14px; padding-top:14px; border-top:1px solid var(--hairline);">
-          <strong>Remarques${ouverts.length > 0 ? ` (${ouverts.length} ouverte${ouverts.length > 1 ? "s" : ""})` : ""}</strong>
+        <div class="zone-remarques" style="margin-top:14px;">
+          <div class="zone-titre"><strong>🛈 Remarques${ouverts.length > 0 ? ` (${ouverts.length} ouverte${ouverts.length > 1 ? "s" : ""})` : ""}</strong></div>
           <div style="margin-top:8px;">${liste}</div>
           ${formAjout}
           ${renvoyerBtn}
@@ -1823,15 +1858,6 @@
     async function validerAction(actionId) {
       try {
         await apiFetch(`/api/actions/${actionId}/valider`, { method: "POST" });
-        window.location.reload();
-      } catch (err) {
-        alert(err.message);
-      }
-    }
-
-    async function resoudreRemarque(actionId, commentaireId) {
-      try {
-        await apiFetch(`/api/actions/${actionId}/commentaires/${commentaireId}/resoudre`, { method: "PATCH" });
         window.location.reload();
       } catch (err) {
         alert(err.message);

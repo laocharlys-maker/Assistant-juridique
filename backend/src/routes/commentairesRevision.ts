@@ -6,7 +6,7 @@ import { requireModule } from "../middleware/roles";
 import { logAuditStep } from "../services/audit";
 import { sendEmail } from "../services/mailer";
 import { resolveCabinetEmailIdentite } from "../services/cabinetContact";
-import { creerNotification, creerNotificationsMultiples } from "../services/notifications";
+import { creerNotificationsMultiples } from "../services/notifications";
 
 export const commentairesRevisionRouter = Router();
 
@@ -18,6 +18,10 @@ const STATUTS_COMMENTABLES = new Set(["en_attente_validation", "revision_demande
 
 const commentaireSchema = z.object({
   contenu: z.string().trim().min(1, "La remarque ne peut pas être vide.").max(5000),
+  // Un ou plusieurs collaborateurs/avocats precis a qui adresser CETTE
+  // remarque (demande utilisateur du 2026-10-14) - absent/vide = comportement
+  // historique (adressee a l'auteur du document, Action.createdBy).
+  destinataireIds: z.array(z.string().uuid()).max(20).optional(),
 });
 
 async function findActionDuCabinet(actionId: string, cabinetId: string) {
@@ -53,9 +57,30 @@ commentairesRevisionRouter.post(
       });
     }
 
+    // Valide que chaque destinataire propose appartient bien a ce cabinet et
+    // est actif - jamais de confiance aveugle dans des id transmis par le
+    // client (demande utilisateur du 2026-10-14 : un ou plusieurs
+    // destinataires precis, plutot que toujours l'auteur du document).
+    let destinatairesValides: { id: string }[] = [];
+    if (parsed.data.destinataireIds && parsed.data.destinataireIds.length > 0) {
+      destinatairesValides = await prisma.user.findMany({
+        where: { id: { in: parsed.data.destinataireIds }, cabinetId: req.auth!.cabinetId, actif: true },
+        select: { id: true },
+      });
+    }
+
     const commentaire = await prisma.commentaireRevision.create({
-      data: { actionId: action.id, auteurId: req.auth!.userId, contenu: parsed.data.contenu },
-      include: { auteur: { select: { nom: true } }, resoluPar: { select: { nom: true } } },
+      data: {
+        actionId: action.id,
+        auteurId: req.auth!.userId,
+        contenu: parsed.data.contenu,
+        destinataires: { create: destinatairesValides.map((d) => ({ userId: d.id })) },
+      },
+      include: {
+        auteur: { select: { nom: true } },
+        resoluPar: { select: { nom: true } },
+        destinataires: { include: { user: { select: { id: true, nom: true } } } },
+      },
     });
 
     if (action.statut !== "revision_demandee") {
@@ -69,35 +94,39 @@ commentairesRevisionRouter.post(
       `Remarque ajoutée par ${req.auth!.userId} : ${parsed.data.contenu.slice(0, 200)}`
     );
 
-    // Notification au collaborateur (ou avocat) auteur du document - EN PLUS
-    // du badge in-app deja affiche au prochain chargement du tableau de bord
-    // (voir GET .../mes-revisions-demandees ci-dessous), jamais a sa place :
-    // un email atteint quelqu'un qui n'est pas connecte a Aurore au moment de
-    // la demande. Jamais envoyee si l'auteur du document est celui-la meme
-    // qui vient de laisser la remarque (cas rare mais possible : un avocat se
-    // corrigeant sur son propre document).
-    if (action.createdBy !== req.auth!.userId) {
-      const auteurDocument = await prisma.user.findUnique({
-        where: { id: action.createdBy },
-        select: { email: true, actif: true },
+    // Destinataires de la notification : ceux explicitement designes,
+    // sinon comportement historique (l'auteur du document) - jamais a
+    // soi-meme (cas rare mais possible : un avocat se corrigeant sur son
+    // propre document, ou se designant lui-meme par erreur).
+    const ciblesIds = (destinatairesValides.length > 0 ? destinatairesValides.map((d) => d.id) : [action.createdBy]).filter(
+      (id) => id !== req.auth!.userId
+    );
+
+    if (ciblesIds.length > 0) {
+      const cibles = await prisma.user.findMany({
+        where: { id: { in: ciblesIds }, actif: true },
+        select: { id: true, email: true },
       });
-      if (auteurDocument?.actif) {
+      if (cibles.length > 0) {
         const { cabinetNom, replyToEmail } = await resolveCabinetEmailIdentite(req.auth!.cabinetId);
-        const mailResult = await sendEmail({
-          destinataireEmail: auteurDocument.email,
-          cabinetNom,
-          replyToEmail,
-          subject: `${cabinetNom} - Révision demandée sur "${action.nomDocument || action.typeAction}"`,
-          text: `${commentaire.auteur.nom} a demandé une révision sur le document "${action.nomDocument || action.typeAction}".\n\nRemarque : ${parsed.data.contenu}\n\nConnecte-toi à Aurore pour y répondre.`,
-        });
-        if (!mailResult.ok) {
-          console.error(`[commentaires-revision] échec de l'envoi de la notification de révision à ${auteurDocument.email} :`, mailResult.error);
+        for (const cible of cibles) {
+          // Un email par destinataire - jamais bloquant pour les autres si
+          // l'un d'eux echoue (adresse invalide, etc.).
+          const mailResult = await sendEmail({
+            destinataireEmail: cible.email,
+            cabinetNom,
+            replyToEmail,
+            subject: `${cabinetNom} - Révision demandée sur "${action.nomDocument || action.typeAction}"`,
+            text: `${commentaire.auteur.nom} a demandé une révision sur le document "${action.nomDocument || action.typeAction}".\n\nRemarque : ${parsed.data.contenu}\n\nConnecte-toi à Aurore pour y répondre.`,
+          });
+          if (!mailResult.ok) {
+            console.error(`[commentaires-revision] échec de l'envoi de la notification de révision à ${cible.email} :`, mailResult.error);
+          }
         }
       }
 
-      await creerNotification({
+      await creerNotificationsMultiples(ciblesIds, {
         cabinetId: req.auth!.cabinetId,
-        destinataireId: action.createdBy,
         type: "revision_demandee",
         titre: `Révision demandée sur "${action.nomDocument || action.typeAction}"`,
         message: parsed.data.contenu,
@@ -151,54 +180,23 @@ commentairesRevisionRouter.get(
     const commentaires = await prisma.commentaireRevision.findMany({
       where: { actionId: action.id },
       orderBy: { dateCreation: "asc" },
-      include: { auteur: { select: { nom: true } }, resoluPar: { select: { nom: true } } },
+      include: {
+        auteur: { select: { nom: true } },
+        resoluPar: { select: { nom: true } },
+        destinataires: { include: { user: { select: { id: true, nom: true } } } },
+      },
     });
 
     return res.json(commentaires);
   }
 );
 
-// Marque une remarque resolue - reserve au collaborateur ayant redige le
-// document (Action.createdBy) ou a l'auteur de la remarque lui-meme.
-commentairesRevisionRouter.patch(
-  "/api/actions/:id/commentaires/:commentaireId/resoudre",
-  requireAuth,
-  requireModule("revision"),
-  async (req, res) => {
-    const action = await findActionDuCabinet(req.params.id, req.auth!.cabinetId);
-    if (!action) {
-      return res.status(404).json({ error: "Action introuvable" });
-    }
-
-    const commentaire = await prisma.commentaireRevision.findFirst({
-      where: { id: req.params.commentaireId, actionId: action.id },
-    });
-    if (!commentaire) {
-      return res.status(404).json({ error: "Remarque introuvable" });
-    }
-    if (req.auth!.userId !== action.createdBy && req.auth!.userId !== commentaire.auteurId) {
-      return res.status(403).json({
-        error: "Seul le collaborateur qui a rédigé ce document, ou l'auteur de la remarque, peut la marquer résolue.",
-      });
-    }
-    if (commentaire.statut === "resolu") {
-      return res.status(409).json({ error: "Cette remarque est déjà résolue." });
-    }
-
-    const updated = await prisma.commentaireRevision.update({
-      where: { id: commentaire.id },
-      data: { statut: "resolu", dateResolution: new Date(), resoluParId: req.auth!.userId },
-      include: { auteur: { select: { nom: true } }, resoluPar: { select: { nom: true } } },
-    });
-
-    return res.json(updated);
-  }
-);
-
-// Transition explicite revision_demandee -> en_attente_validation, bloquee
-// tant qu'il reste des remarques ouvertes (le collaborateur doit toutes les
-// traiter avant de renvoyer, plutot qu'un renvoi automatique des la
-// premiere remarque resolue).
+// Transition explicite revision_demandee -> en_attente_validation. Les
+// remarques ne bloquent plus ce renvoi (demande utilisateur du 2026-10-14 :
+// des qu'une remarque est faite, les personnes concernees doivent pouvoir
+// intervenir sur le document sans etape de "marquage resolu" manuelle) -
+// elles sont toutes marquees resolues automatiquement au moment du renvoi,
+// pour garder un historique clair de qui a cloture quoi et quand.
 const renvoyerValidationSchema = z.object({
   note: z.string().trim().max(2000).optional(),
 });
@@ -221,13 +219,10 @@ commentairesRevisionRouter.post(
       return res.status(409).json({ error: "Ce document n'est pas en révision." });
     }
 
-    const ouverts = await prisma.commentaireRevision.count({ where: { actionId: action.id, statut: "ouvert" } });
-    if (ouverts > 0) {
-      return res.status(409).json({
-        error: `${ouverts} remarque(s) restent ouvertes. Résous-les toutes avant de renvoyer pour validation.`,
-      });
-    }
-
+    await prisma.commentaireRevision.updateMany({
+      where: { actionId: action.id, statut: "ouvert" },
+      data: { statut: "resolu", dateResolution: new Date(), resoluParId: req.auth!.userId },
+    });
     await prisma.action.update({ where: { id: action.id }, data: { statut: "en_attente_validation" } });
     await logAuditStep(
       action.id,

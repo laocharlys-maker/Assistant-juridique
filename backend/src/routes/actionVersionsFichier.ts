@@ -7,6 +7,7 @@ import { enregistrerFichier, lireFichier } from "../services/stockageDocuments";
 import { buildDocx } from "../services/documentExport";
 import { loadExportInput } from "./documentExport";
 import { logAuditStep } from "../services/audit";
+import { creerNotificationsMultiples } from "../services/notifications";
 
 export const actionVersionsFichierRouter = Router();
 
@@ -53,6 +54,10 @@ actionVersionsFichierRouter.get("/api/actions/:id/versions-fichier", requireAuth
 const uploadSchema = z.object({
   nom: z.string().min(1),
   fichierDataUrl: z.string().min(1),
+  // Un ou plusieurs collaborateurs/avocats a prevenir de ce chargement
+  // (demande utilisateur du 2026-10-14, meme mecanisme que les remarques de
+  // revision) - facultatif, aucune notification si absent.
+  destinataireIds: z.array(z.string().uuid()).max(20).optional(),
 });
 
 // Charge une nouvelle version (upload d'un .docx corrige). Au tout premier
@@ -176,6 +181,31 @@ actionVersionsFichierRouter.post("/api/actions/:id/versions-fichier", requireAut
     "succes",
     `Version ${versionUploadee.numero} chargée par ${req.auth!.userId}`
   );
+
+  // Notifie le(s) destinataire(s) designes (demande utilisateur du
+  // 2026-10-14) - jamais soi-meme, et seulement des comptes actifs de CE
+  // cabinet (jamais de confiance aveugle dans des id transmis par le client).
+  if (parsed.data.destinataireIds && parsed.data.destinataireIds.length > 0) {
+    const cibles = await prisma.user.findMany({
+      where: {
+        id: { in: parsed.data.destinataireIds, not: req.auth!.userId },
+        cabinetId: req.auth!.cabinetId,
+        actif: true,
+      },
+      select: { id: true },
+    });
+    await creerNotificationsMultiples(
+      cibles.map((c) => c.id),
+      {
+        cabinetId: req.auth!.cabinetId,
+        type: "nouvelle_version_fichier",
+        titre: `Nouvelle version Word chargée sur "${action.nomDocument || action.typeAction}"`,
+        message: `Version ${versionUploadee.numero} — ${parsed.data.nom}`,
+        lienUrl: `/dossier.html?id=${action.dossierId}`,
+        creeParId: req.auth!.userId,
+      }
+    );
+  }
 
   return res.status(201).json(versionsCreees);
 });

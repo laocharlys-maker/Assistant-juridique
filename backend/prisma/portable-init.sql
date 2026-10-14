@@ -839,6 +839,14 @@ CREATE TABLE "commentaires_revision" (
 );
 
 -- CreateTable
+CREATE TABLE "commentaires_revision_destinataires" (
+    "commentaire_id" TEXT NOT NULL,
+    "user_id" TEXT NOT NULL,
+
+    CONSTRAINT "commentaires_revision_destinataires_pkey" PRIMARY KEY ("commentaire_id","user_id")
+);
+
+-- CreateTable
 CREATE TABLE "notifications" (
     "id" TEXT NOT NULL,
     "cabinet_id" TEXT NOT NULL,
@@ -1693,6 +1701,12 @@ ALTER TABLE "commentaires_revision" ADD CONSTRAINT "commentaires_revision_auteur
 
 -- AddForeignKey
 ALTER TABLE "commentaires_revision" ADD CONSTRAINT "commentaires_revision_resolu_par_id_fkey" FOREIGN KEY ("resolu_par_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "commentaires_revision_destinataires" ADD CONSTRAINT "commentaires_revision_destinataires_commentaire_id_fkey" FOREIGN KEY ("commentaire_id") REFERENCES "commentaires_revision"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "commentaires_revision_destinataires" ADD CONSTRAINT "commentaires_revision_destinataires_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "notifications" ADD CONSTRAINT "notifications_cabinet_id_fkey" FOREIGN KEY ("cabinet_id") REFERENCES "cabinets"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

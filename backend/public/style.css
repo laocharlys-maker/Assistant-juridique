@@ -834,9 +834,71 @@ header.app-topbar {
 /* Lot 10 : panneau "Remarques" (commentaires de revision avocat -> collaborateur). */
 .remarque-item { border: 1px solid var(--hairline); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
 .remarque-item.resolue { opacity: 0.65; }
+/* Remarque pas encore resolue : mise en evidence legere (demande
+   utilisateur du 2026-10-14) pour la distinguer des remarques deja closes,
+   sans couleur vive - un simple filet + un fond uni qui tranche sur le
+   fond teinte de la zone "Remarques". */
+.remarque-item.ouverte { border-left: 3px solid var(--danger); background: var(--panel); }
 .remarque-meta { font-size: 0.82rem; color: var(--muted); margin-bottom: 4px; }
 .remarque-contenu { white-space: pre-wrap; margin: 0; }
 .remarque-actions { margin-top: 6px; }
+
+/* Formulaire d'ajout de remarque - volontairement compact (pas la grande
+   modale plein ecran utilisee pour l'edition du texte, demande utilisateur
+   du 2026-10-14). */
+.remarque-form[hidden] { display: none; }
+.remarque-form:not([hidden]) {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.remarque-form textarea { width: 100%; min-height: 70px; resize: vertical; }
+
+/* Bouton neutre et sobre pour les actions de consultation (Aperçu,
+   Télécharger) a l'interieur des zones teintees (remarques/versions) -
+   demande utilisateur du 2026-10-14 : elles se confondaient avec le fond
+   de la zone en style "ghost" (transparent). Fond uni clair, sans couleur
+   vive, juste pour faire ressortir le bouton du fond teinte. */
+.btn-neutral { background: var(--panel); border-color: var(--border); color: var(--text); }
+.btn-neutral:hover { background: var(--bg); }
+
+/* Boutons colores par type de tache (demande utilisateur du 2026-10-14) -
+   rouge = signaler/corriger, vert = valider/accepter, jaune = soumettre/
+   attirer l'attention - pour distinguer au premier coup d'oeil les
+   boutons de l'editeur de documents, qui avaient tous le meme style grise
+   jusqu'ici. */
+.btn-remarque { background: var(--danger); border-color: var(--danger); color: #fff; }
+.btn-remarque:hover { filter: brightness(1.08); }
+.btn-validation { background: var(--success); border-color: var(--success); color: #fff; }
+.btn-validation:hover { filter: brightness(1.08); }
+.btn-attention { background: var(--warning); border-color: var(--warning); color: #241705; }
+.btn-attention:hover { filter: brightness(1.05); }
+
+/* Trois zones de l'editeur de documents mises en evidence separement
+   (demande utilisateur du 2026-10-14) : editeur de texte (accent, zone de
+   travail active), remarques (rouge, zone de correction), versions du
+   document (jaune, zone de suivi/soumission) - chacune bordee et teintee
+   pour que l'oeil distingue immediatement ou il se trouve. */
+.zone-editeur { border-left: 3px solid var(--accent); background: var(--accent-tint); border-radius: 8px; padding: 12px 14px; }
+.zone-remarques { border-left: 3px solid var(--danger); background: var(--danger-tint); border-radius: 8px; padding: 12px 14px; }
+.zone-versions { border-left: 3px solid var(--warning); background: var(--warning-tint); border-radius: 8px; padding: 12px 14px; }
+.zone-titre { display: flex; align-items: center; gap: 8px; font-family: var(--font-display); }
+/* Dans la modale plein ecran de l'editeur, le fond teinte sur toute la
+   surface serait trop marque (sobriete demandee) : on garde le fond du
+   panneau et on ne conserve que le trait d'accent. */
+.edit-panel.zone-editeur { background: var(--panel); border-left: 3px solid var(--accent); border-radius: 14px; }
+
+/* Case a cocher "destinataire(s)" (remarques et versions Word) - repliee
+   par defaut (demande utilisateur du 2026-10-14, disposition jugee trop
+   envahissante en permanence) via <details>, et alignee en grille une fois
+   depliee pour un alignement net des cases plutot qu'un simple retour a la
+   ligne desordonne. */
+.destinataires-repli { margin: 8px 0; }
+.destinataires-repli > summary { cursor: pointer; font-size: 0.85rem; color: var(--muted); }
+.destinataires-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 6px 14px; margin: 8px 0 0; max-height: 140px; overflow-y: auto; }
+.destinataires-list label { display: flex; align-items: center; gap: 6px; font-weight: 400; margin: 0; }
+.destinataires-list input[type="checkbox"] { width: auto; }
 
 /* ---------- Bandeau d'en-tete degrade (pages d'accueil) ---------- */
 .page-hero {
