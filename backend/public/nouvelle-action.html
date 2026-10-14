@@ -90,7 +90,7 @@
           <label>Nom de l'affaire</label>
           <input name="nom_affaire" placeholder="Laisse vide si non applicable" />
           <label>Nom du client</label>
-          <input name="nom_client" required />
+          <input name="nom_client" list="clients-tous-datalist" required />
 
           <div id="na-libre-champs-dynamiques"></div>
 
@@ -129,7 +129,7 @@
           <label>Nom de l'affaire</label>
           <input name="nom_affaire" placeholder="Laisse vide si non applicable" />
           <label>Nom du client</label>
-          <input name="nom_client" required />
+          <input name="nom_client" list="clients-tous-datalist" required />
 
           <label style="margin-top:10px;">Document à transcrire</label>
           <input name="document" type="file" accept="image/jpeg,image/png,application/pdf" required />
@@ -177,6 +177,15 @@
 
       <div id="error" class="error"></div>
       <datalist id="dossiers-datalist"></datalist>
+      <!-- Autocompletion des noms de clients enregistres (demande utilisateur
+           du 2026-10-14) - trois listes distinctes plutot qu'une seule :
+           "tous" pour les champs nom_client sans selecteur de type a cote,
+           "physique"/"morale" pour ceux qui ont un select type_client
+           adjacent (voir basculerDatalistClient plus bas, qui pointe le
+           nom_client vers la bonne liste selon ce qui est coche). -->
+      <datalist id="clients-tous-datalist"></datalist>
+      <datalist id="clients-physique-datalist"></datalist>
+      <datalist id="clients-morale-datalist"></datalist>
       <div id="result" class="card" style="display:none;">
         <h2>Résultat</h2>
         <p class="muted" id="result-meta"></p>
@@ -211,7 +220,7 @@
         <label>Nom de l'affaire</label>
         <input name="nom_affaire" required />
         <label>Nom du client</label>
-        <input name="nom_client" required />
+        <input name="nom_client" list="clients-tous-datalist" required />
         <label>Date de l'audience</label>
         <input name="date_audience" type="date" required />
         <label>Juridiction</label>
@@ -259,7 +268,7 @@
         <label>Nom de l'affaire (optionnel)</label>
         <input name="nom_affaire" placeholder="Laisse vide si non applicable" />
         <label>Nom du client (si nouveau dossier)</label>
-        <input name="nom_client" placeholder="Laisse vide si le dossier existe déjà" />
+        <input name="nom_client" list="clients-tous-datalist" placeholder="Laisse vide si le dossier existe déjà" />
         <label>Contexte de l'affaire</label>
         <textarea name="contexte" required></textarea>
         <label>Axes d'argumentation</label>
@@ -275,7 +284,7 @@
         <label>Nom de l'affaire (optionnel)</label>
         <input name="nom_affaire" placeholder="Laisse vide si non applicable" />
         <label>Nom du client (si nouveau dossier)</label>
-        <input name="nom_client" placeholder="Laisse vide si le dossier existe déjà" />
+        <input name="nom_client" list="clients-tous-datalist" placeholder="Laisse vide si le dossier existe déjà" />
         <label>Destinataire (optionnel)</label>
         <select name="destinataire" id="conclusions-destinataire">
           <option value="">— Non précisé —</option>
@@ -411,7 +420,7 @@
           </select>
         </div>
         <label>Nom du client (si nouveau dossier)</label>
-        <input name="nom_client" placeholder="Laisse vide si le dossier existe déjà" />
+        <input name="nom_client" id="note_plaidoirie-nom-client" list="clients-physique-datalist" placeholder="Laisse vide si le dossier existe déjà" />
         <label>Destinataire (optionnel)</label>
         <select name="destinataire" id="note_plaidoirie-destinataire">
           <option value="">— Non précisé —</option>
@@ -553,7 +562,7 @@
           </select>
         </div>
         <label>Nom du client (si nouveau dossier)</label>
-        <input name="nom_client" placeholder="Laisse vide si le dossier existe déjà" />
+        <input name="nom_client" id="assignation-nom-client" list="clients-physique-datalist" placeholder="Laisse vide si le dossier existe déjà" />
         <label>Avocat en charge</label>
         <input name="nom_avocat" id="assignation-nom-avocat" required />
         <label>Adresse du cabinet (optionnel)</label>
@@ -617,7 +626,7 @@
         <label>Nom de l'affaire</label>
         <input name="nom_affaire" required />
         <label>Nom du client (si nouveau dossier)</label>
-        <input name="nom_client" placeholder="Laisse vide si le dossier existe déjà" />
+        <input name="nom_client" list="clients-tous-datalist" placeholder="Laisse vide si le dossier existe déjà" />
         <label>Mode de notification</label>
         <select name="mode_notification">
           <option value="huissier">Par exploit de commissaire de justice (huissier)</option>
@@ -705,7 +714,7 @@
           </select>
         </div>
         <label>Nom du client / requérant (si nouveau dossier)</label>
-        <input name="nom_client" placeholder="Laisse vide si le dossier existe déjà" />
+        <input name="nom_client" id="plainte-nom-client" list="clients-physique-datalist" placeholder="Laisse vide si le dossier existe déjà" />
         <div id="plainte-profession-client-wrap">
           <label>Profession du client (optionnel)</label>
           <input name="profession_client" placeholder="ex: Commerçant" />
@@ -800,7 +809,7 @@
         <label>Nom de l'affaire (optionnel)</label>
         <input name="nom_affaire" placeholder="Laisse vide si non applicable" />
         <label>Nom du client (si nouveau dossier)</label>
-        <input name="nom_client" placeholder="Laisse vide si le dossier existe déjà" />
+        <input name="nom_client" list="clients-tous-datalist" placeholder="Laisse vide si le dossier existe déjà" />
         <label style="display:flex; align-items:center; gap:8px; font-weight:400;">
           <input type="checkbox" name="est_avenant" id="contrat-est-avenant" style="width:auto;" />
           Il s'agit d'un avenant à un contrat existant
@@ -912,7 +921,7 @@
 
         <h3>Le client</h3>
         <label>Nom du client (si nouveau dossier)</label>
-        <input name="nom_client" placeholder="Laisse vide si le dossier existe déjà" />
+        <input name="nom_client" list="clients-tous-datalist" placeholder="Laisse vide si le dossier existe déjà" />
         <label>Civilité du client (optionnel)</label>
         <select name="civilite_client_manuel">
           <option value="">— Non précisé —</option>
@@ -1006,7 +1015,7 @@
         <label>Nom de l'affaire (optionnel)</label>
         <input name="nom_affaire" placeholder="Laisse vide si non applicable" />
         <label>Nom du client (si nouveau dossier)</label>
-        <input name="nom_client" placeholder="Laisse vide si le dossier existe déjà ou non applicable" />
+        <input name="nom_client" list="clients-tous-datalist" placeholder="Laisse vide si le dossier existe déjà ou non applicable" />
         <label>Avocat en charge (optionnel)</label>
         <input name="nom_avocat" />
         <label>Adresse du cabinet (optionnel)</label>
@@ -1067,7 +1076,7 @@
           </select>
         </div>
         <label>Nom du client (si nouveau dossier)</label>
-        <input name="nom_client" placeholder="Laisse vide si le dossier existe déjà" />
+        <input name="nom_client" id="requete-nom-client" list="clients-physique-datalist" placeholder="Laisse vide si le dossier existe déjà" />
         <label>Informations sur le client (optionnel)<span class="field-hint" title="État civil pour une personne physique, ou forme juridique/capital/siège social/RCCM pour une entreprise.">?</span></label>
         <input name="informations_client" placeholder="ex: SARL au capital de 5 000 000 FCFA, dont le siège social est à Cotonou, RCCM RB/COT/24 B 1234" />
         <label>Nationalité du client (optionnel, personne physique uniquement)</label>
@@ -1168,7 +1177,7 @@
           </select>
         </div>
         <label>Nom du client (si nouveau dossier)</label>
-        <input name="nom_client" placeholder="Laisse vide si le dossier existe déjà" />
+        <input name="nom_client" id="projet_ordonnance-nom-client" list="clients-physique-datalist" placeholder="Laisse vide si le dossier existe déjà" />
         <label>Informations sur le client (optionnel)<span class="field-hint" title="État civil pour une personne physique, ou forme juridique/capital/siège social/RCCM pour une entreprise.">?</span></label>
         <input name="informations_client" placeholder="ex: SARL au capital de 5 000 000 FCFA, dont le siège social est à Cotonou, RCCM RB/COT/24 B 1234" />
         <label>Nationalité du client (optionnel, personne physique uniquement)</label>
@@ -1368,6 +1377,8 @@
       // dossier -> nom_affaire/nom_client) etait definie mais jamais
       // appelee - le mecanisme entier restait inactif sur cette page.
       await loadDossiersForAutofill();
+      await loadClientsForAutofill();
+      await preremplirAdresseCabinet();
       preselectionnerDossierDepuisUrl();
       initialiserPanneauAudio();
       try {
@@ -1559,7 +1570,7 @@
           <label>Numéro de dossier</label>
           <input name="numero_dossier" list="dossiers-datalist" required placeholder="ex: 12/2026" />
           <label>Nom du client <span class="muted">(uniquement si ce numéro n'existe pas encore — crée le dossier)</span></label>
-          <input name="nom_client" placeholder="ex: Jean Kokou" />
+          <input name="nom_client" list="clients-tous-datalist" placeholder="ex: Jean Kokou" />
           <p class="error" id="na-chrono-error"></p>
           <button type="submit">Démarrer le chronomètre</button>
         </form>`;
@@ -1654,6 +1665,68 @@
         });
       });
     }
+
+    // Autocompletion des noms de clients deja enregistres (demande
+    // utilisateur du 2026-10-14) - trois datalists : "tous" pour les champs
+    // nom_client sans selecteur de type a cote, "physique"/"morale" pour
+    // ceux qui ont un select type_client adjacent (voir
+    // basculerDatalistClient ci-dessous, qui pointe le bon champ vers la
+    // bonne liste selon ce qui est coche).
+    async function loadClientsForAutofill() {
+      try {
+        const clients = await apiFetch("/api/clients");
+        const optionsPour = (liste) =>
+          liste.map((c) => `<option value="${escapeHtmlAttr(c.nom)}"></option>`).join("");
+        document.getElementById("clients-tous-datalist").innerHTML = optionsPour(clients);
+        document.getElementById("clients-physique-datalist").innerHTML = optionsPour(
+          clients.filter((c) => (c.typePersonne || "physique") === "physique")
+        );
+        document.getElementById("clients-morale-datalist").innerHTML = optionsPour(
+          clients.filter((c) => c.typePersonne === "morale")
+        );
+      } catch {
+        // Pas bloquant : la saisie manuelle reste possible sans autocompletion.
+      }
+    }
+
+    // Pre-remplissage de l'adresse du cabinet (demande utilisateur du
+    // 2026-10-14 : le placeholder de chaque champ promettait deja une
+    // reprise automatique depuis Paramètres, mais rien ne le faisait
+    // reellement - cette fonction manquait). N'ecrase jamais une valeur
+    // deja saisie (ex: brouillon restaure juste avant).
+    async function preremplirAdresseCabinet() {
+      try {
+        const cabinet = await apiFetch("/api/cabinet");
+        if (!cabinet.adresse) return;
+        document.querySelectorAll('input[name="adresse_cabinet_manuel"]').forEach((input) => {
+          if (!input.value) input.value = cabinet.adresse;
+        });
+      } catch {
+        // Pas bloquant : la saisie manuelle reste possible sans pre-remplissage.
+      }
+    }
+
+    // Bascule le champ nom_client (identifie par son id, donne a la
+    // creation du formulaire) vers la liste "physique" ou "morale" selon la
+    // valeur actuelle du select type_client adjacent - appele une fois au
+    // chargement (valeur par defaut du select) puis a chaque changement.
+    function basculerDatalistClient(typeSelect, nomClientInputId) {
+      const input = document.getElementById(nomClientInputId);
+      if (!input) return;
+      input.setAttribute("list", typeSelect.value === "morale" ? "clients-morale-datalist" : "clients-physique-datalist");
+    }
+    [
+      ["note_plaidoirie-type-client", "note_plaidoirie-nom-client"],
+      ["assignation-type-client", "assignation-nom-client"],
+      ["plainte-type-client", "plainte-nom-client"],
+      ["requete-type-client", "requete-nom-client"],
+      ["projet_ordonnance-type-client", "projet_ordonnance-nom-client"],
+    ].forEach(([selectId, inputId]) => {
+      const typeSelect = document.getElementById(selectId);
+      if (!typeSelect) return;
+      basculerDatalistClient(typeSelect, inputId);
+      typeSelect.addEventListener("change", () => basculerDatalistClient(typeSelect, inputId));
+    });
 
     // Lot 10 (Aurore Mobile) : "Boîte de réception mobile" ouvre ce
     // formulaire avec ?dossierId=...&type=notes pour présélectionner le
@@ -1794,22 +1867,32 @@
     // les prefills OCR/correspondance existants sur cette page.
     function brouillonCapturerEtat(form) {
       const champs = Array.from(new FormData(form).entries()).filter(([, v]) => typeof v === "string");
-      // Les listes ajoutees dynamiquement (pieces a prevoir, axes de
-      // plaidoirie...) ne sont pas toujours de simples champs nommes - on
-      // sauvegarde/restaure leur HTML tel quel, sans avoir a connaitre le
-      // detail d'implementation de chaque type de formulaire.
+      // Les listes ajoutees dynamiquement (pieces a prevoir, demandes,
+      // axes de plaidoirie...) ne sont pas de simples champs nommes - on
+      // sauvegarde la VALEUR de chaque entree (jamais le HTML brut : un
+      // input tape par l'utilisateur ne met jamais a jour son attribut
+      // "value" dans le DOM, donc innerHTML le serialise toujours vide -
+      // bug reel constate le 2026-10-14, cause de la perte de ces champs
+      // precis a la reouverture d'un brouillon).
       const listes = {};
       form.querySelectorAll("ul[id]").forEach((ul) => {
-        listes[ul.id] = ul.innerHTML;
+        listes[ul.id] = Array.from(ul.querySelectorAll("input")).map((i) => i.value);
       });
       return { champs, listes };
     }
 
     function brouillonRestaurerEtat(form, etat) {
       if (!etat) return;
-      Object.entries(etat.listes || {}).forEach(([id, html]) => {
+      Object.entries(etat.listes || {}).forEach(([id, valeurs]) => {
+        if (!Array.isArray(valeurs) || valeurs.length === 0) return;
         const ul = form.querySelector(`#${CSS.escape(id)}`);
-        if (ul) ul.innerHTML = html;
+        if (!ul) return;
+        // Recree chaque ligne via addListItem (jamais ul.innerHTML = ...) -
+        // c'est le seul chemin qui attache le clic du bouton de suppression
+        // ; un remplacement par du HTML brut produit des boutons inertes
+        // (meme bug constate le 2026-10-14 : "le clic ne fait rien").
+        ul.innerHTML = "";
+        valeurs.forEach((v) => addListItem(id, "", v));
       });
       (etat.champs || []).forEach(([name, value]) => {
         const field = form.querySelector(`[name="${CSS.escape(name)}"]`);
@@ -2804,10 +2887,17 @@
       wrap.style.display = "block";
     }
 
-    function addListItem(listId, placeholder) {
+    // Memorise le placeholder d'origine de chaque liste (fixe par les appels
+    // par defaut ci-dessous) - reutilise par brouillonRestaurerEtat plus bas
+    // pour qu'une ligne restauree vide affiche le meme exemple grise que si
+    // elle venait d'etre ajoutee a la main, plutot qu'un champ nu.
+    const placeholderParListe = {};
+    function addListItem(listId, placeholder, valeur) {
+      if (placeholder) placeholderParListe[listId] = placeholder;
       const list = document.getElementById(listId);
       const li = document.createElement("li");
-      li.innerHTML = `<input type="text" placeholder="${placeholder}" /><button type="button">&times;</button>`;
+      li.innerHTML = `<input type="text" placeholder="${placeholder || placeholderParListe[listId] || ""}" /><button type="button">&times;</button>`;
+      if (valeur) li.querySelector("input").value = valeur;
       li.querySelector("button").addEventListener("click", () => li.remove());
       list.appendChild(li);
     }

@@ -56,7 +56,8 @@
         <label>Nom de l'affaire</label>
         <input name="nomAffaire" required placeholder="ex : Succession Kokou" />
         <label>Nom du client</label>
-        <input name="nomClient" required placeholder="ex : Jean Kokou" />
+        <input name="nomClient" list="clients-datalist-dossier" required placeholder="ex : Jean Kokou" />
+        <datalist id="clients-datalist-dossier"></datalist>
         <label>Juridiction <span class="muted">(optionnel)</span></label>
         <input name="nomJuridiction" placeholder="ex : Tribunal de Cotonou" />
         <label>Chambre <span class="muted">(optionnel)</span></label>
@@ -259,6 +260,16 @@
       const creerModal = document.getElementById("creer-dossier-modal");
       const creerForm = document.getElementById("creer-dossier-form");
       const creerErrorEl = document.getElementById("creer-dossier-error");
+
+      // Autocompletion des noms de clients deja enregistres (demande
+      // utilisateur du 2026-10-14) - charge une seule fois, pas bloquant.
+      apiFetch("/api/clients")
+        .then((clients) => {
+          document.getElementById("clients-datalist-dossier").innerHTML = clients
+            .map((c) => `<option value="${escapeHtml(c.nom)}"></option>`)
+            .join("");
+        })
+        .catch(() => undefined);
 
       document.getElementById("creer-dossier-btn").addEventListener("click", () => {
         creerForm.reset();
