@@ -519,13 +519,23 @@ function copyCompanionFiles() {
     copyDir(migrationsDir, path.join(OUT, "prisma", "migrations"));
   }
 
+  // Le chemin de sortie (OUT/.env) doit TOUJOURS exister, meme vide : il
+  // est reference dans src-tauri/tauri.conf.json (resources) pour que les
+  // builds locaux (ou .env porte un GEMINI_API_KEY reel, voir index.ts)
+  // embarquent bien ce fichier - Tauri echoue tout le build si un chemin de
+  // "resources" declare est absent. Sur CI, backend/.env n'existe jamais
+  // (gitignore, les vraies cles passent par bundledExternalServiceKeys.ts
+  // reecrit avant ce script) : un .env vide est alors copie a la place,
+  // sans aucun effet sur process.env (meme comportement qu'avant ce
+  // correctif, juste le FICHIER qui existe desormais toujours).
   const envFile = path.join(ROOT, ".env");
   if (fs.existsSync(envFile)) {
     fs.copyFileSync(envFile, path.join(OUT, ".env"));
   } else {
     console.warn(
-      "[build-sea] Pas de .env trouve a la racine du backend - le binaire ne demarrera pas sans DATABASE_URL/SESSION_SECRET. Copie backend/.env.example vers backend/.env et complete-le avant de tester."
+      "[build-sea] Pas de .env trouve a la racine du backend - le binaire ne demarrera pas sans DATABASE_URL/SESSION_SECRET en mode externe/reseau (sans effet en DATABASE_MODE=portable, genere dynamiquement). Copie backend/.env.example vers backend/.env et complete-le avant de tester en local. Un .env VIDE est tout de meme cree ci-dessous pour que le chemin de ressource Tauri existe."
     );
+    fs.writeFileSync(path.join(OUT, ".env"), "");
   }
 
   const outNodeModules = path.join(OUT, "node_modules");
