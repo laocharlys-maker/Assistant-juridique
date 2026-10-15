@@ -153,6 +153,28 @@ export function getTailscaleAddress(): string | null {
   return null;
 }
 
+/**
+ * TOUTES les adresses IPv4 privees (RFC 1918) de la machine, toutes
+ * interfaces confondues (WiFi, Ethernet, hotspot, virtuelles...), triees
+ * pour un ordre deterministe. Utilisee par security/localTlsCertificate.ts :
+ * le certificat doit couvrir toutes les adresses sous lesquelles un poste
+ * peut joindre le serveur, et ne pas dependre de l'ordre (variable d'un
+ * demarrage a l'autre) dans lequel Windows liste les cartes reseau. Les
+ * adresses 169.254.x.x (APIPA, sans reseau reel) ne sont pas RFC 1918 et
+ * sont donc exclues par isPrivateIPv4. Tailscale (100.64.0.0/10) est
+ * traite a part par getTailscaleAddress().
+ */
+export function getAllPrivateIPv4Addresses(): string[] {
+  const found = new Set<string>();
+  for (const addresses of Object.values(os.networkInterfaces())) {
+    if (!addresses) continue;
+    for (const addr of addresses) {
+      if (addr.family === "IPv4" && !addr.internal && isPrivateIPv4(addr.address)) found.add(addr.address);
+    }
+  }
+  return [...found].sort();
+}
+
 export function getLocalNetworkAddress(): LocalNetworkAddress | null {
   const interfaces = os.networkInterfaces();
   const candidatsPrivilegies: LocalNetworkAddress[] = [];

@@ -4,11 +4,11 @@ import { X509Certificate } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { generate } from "selfsigned";
 import { secretsDir } from "../database/portablePaths";
-import { getLocalNetworkAddress, getTailscaleAddress } from "../config/deploymentMode";
+import { getAllPrivateIPv4Addresses, getTailscaleAddress } from "../config/deploymentMode";
 
 /**
  * Certificat TLS auto-signe pour le mode serveur reseau (Lot 6). Genere une
- * seule fois (reutilise tant qu'il couvre toujours l'IP locale actuelle et
+ * seule fois (reutilise tant qu'il couvre toutes les IP locales actuelles et
  * n'expire pas bientot - voir ensureLocalTlsCertificate), stocke dans le
  * meme dossier protege que les autres secrets (identifiants Postgres, cle
  * de chiffrement, cle de licence - voir database/portablePaths.ts).
@@ -57,7 +57,11 @@ function metaFilePath(): string {
 }
 
 interface CertMeta {
-  localIp: string | null;
+  // Toutes les IP privees couvertes a la generation (informatif : la
+  // decision de regenerer s'appuie sur le certificat lui-meme, voir
+  // readExistingIfStillValid). `localIp` conserve pour les anciens meta.
+  localIps?: string[];
+  localIp?: string | null;
   // Facultatif : absent sur un certificat genere avant l'ajout de ce champ -
   // voir readExistingIfStillValid (normalise a null via `?? null`, jamais
   // une regeneration inutile pour un poste qui n'utilise pas Tailscale).
@@ -86,23 +90,24 @@ function restrictFilePermissions(filePath: string): void {
   }
 }
 
-function readExistingIfStillValid(
-  currentLocalIp: string | null,
-  currentTailscaleIp: string | null
-): LocalTlsCertificate | null {
+function readExistingIfStillValid(currentIps: string[]): LocalTlsCertificate | null {
   try {
     const certPem = fs.readFileSync(certFilePath(), "utf8");
     const keyPem = fs.readFileSync(keyFilePath(), "utf8");
-    const meta = JSON.parse(fs.readFileSync(metaFilePath(), "utf8")) as CertMeta;
+    const x509 = new X509Certificate(certPem);
 
-    if (meta.localIp !== currentLocalIp || (meta.tailscaleIp ?? null) !== currentTailscaleIp) {
+    // Regeneration uniquement si une adresse ACTUELLE n'est pas couverte par
+    // le certificat existant. Un simple changement d'ordre des cartes reseau,
+    // ou la disparition d'une adresse (hotspot deconnecte), ne doit jamais
+    // invalider un certificat deja installe sur les postes clients.
+    const nonCouvertes = currentIps.filter((ip) => !x509.checkIP(ip));
+    if (nonCouvertes.length > 0) {
       console.log(
-        "[tls] l'adresse IP locale ou Tailscale a change depuis la generation du certificat existant - regeneration necessaire."
+        `[tls] adresse(s) non couverte(s) par le certificat existant (${nonCouvertes.join(", ")}) - regeneration necessaire.`
       );
       return null;
     }
 
-    const x509 = new X509Certificate(certPem);
     const validTo = new Date(x509.validTo).getTime();
     const renewBefore = validTo - RENEW_MARGIN_DAYS * 24 * 60 * 60 * 1000;
     if (Date.now() >= renewBefore) {
@@ -129,10 +134,10 @@ function readExistingIfStillValid(
  * config/deploymentMode.ts).
  */
 export async function ensureLocalTlsCertificate(): Promise<LocalTlsCertificate> {
-  const localIp = getLocalNetworkAddress()?.address ?? null;
+  const localIps = getAllPrivateIPv4Addresses();
   const tailscaleIp = getTailscaleAddress();
 
-  const existing = readExistingIfStillValid(localIp, tailscaleIp);
+  const existing = readExistingIfStillValid(tailscaleIp ? [...localIps, tailscaleIp] : localIps);
   if (existing) {
     console.log("[tls] certificat local existant reutilise (valide, couvre l'adresse actuelle).");
     return existing;
@@ -140,7 +145,9 @@ export async function ensureLocalTlsCertificate(): Promise<LocalTlsCertificate> 
 
   console.log(
     `[tls] generation d'un nouveau certificat TLS local (validite ${CERT_VALIDITY_DAYS} jours)${
-      localIp ? `, pour l'IP ${localIp} et aurore.local` : ", pour aurore.local uniquement (aucune IP LAN detectee)"
+      localIps.length > 0
+        ? `, pour les IP ${localIps.join(", ")} et aurore.local`
+        : ", pour aurore.local uniquement (aucune IP LAN detectee)"
     }${tailscaleIp ? `, ainsi que l'adresse Tailscale ${tailscaleIp}` : ""}...`
   );
 
@@ -149,7 +156,7 @@ export async function ensureLocalTlsCertificate(): Promise<LocalTlsCertificate> 
     { type: 2, value: "localhost" },
     { type: 7, ip: "127.0.0.1" },
   ];
-  if (localIp) altNames.push({ type: 7, ip: localIp });
+  for (const ip of localIps) altNames.push({ type: 7, ip });
   if (tailscaleIp) altNames.push({ type: 7, ip: tailscaleIp });
 
   const notBeforeDate = new Date();
@@ -171,7 +178,7 @@ export async function ensureLocalTlsCertificate(): Promise<LocalTlsCertificate> 
   fs.mkdirSync(tlsDir(), { recursive: true });
   fs.writeFileSync(certFilePath(), pems.cert, { mode: 0o600 });
   fs.writeFileSync(keyFilePath(), pems.private, { mode: 0o600 });
-  const meta: CertMeta = { localIp, tailscaleIp, generatedAt: new Date().toISOString() };
+  const meta: CertMeta = { localIps, tailscaleIp, generatedAt: new Date().toISOString() };
   fs.writeFileSync(metaFilePath(), JSON.stringify(meta, null, 2));
   restrictFilePermissions(keyFilePath());
 
