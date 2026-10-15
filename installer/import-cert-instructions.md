@@ -69,10 +69,23 @@ Windows).
 Import-Certificate -FilePath "\\chemin\vers\aurore-cert.pem" -CertStoreLocation "Cert:\LocalMachine\Root"
 ```
 
-## Si le certificat a été régénéré (changement d'IP, expiration)
+## Quand faut-il réinstaller le certificat ?
 
-Le serveur régénère automatiquement un nouveau certificat s'il a changé de
-réseau local (nouvelle IP) ou si l'ancien certificat approche de son
-expiration (voir `README-LOT6.md`). Dans ce cas, l'ancien certificat importé
-sur les postes clients n'est plus reconnu : répéter la procédure
-d'importation avec le nouveau fichier `aurore-cert.pem`.
+Le certificat couvre **toutes** les adresses IP privées du serveur (WiFi,
+Ethernet, hotspot...), l'adresse Tailscale si elle est active, et
+`aurore.local`. Il n'est **pas** régénéré quand l'ordre des cartes réseau
+change, quand Tailscale ou un hotspot se déconnecte, ou au simple
+redémarrage du serveur.
+
+Il n'est régénéré que si :
+
+- le serveur obtient une **nouvelle** adresse IP qui n'était pas couverte
+  (ex. la box attribue une autre adresse au serveur) ;
+- le certificat approche de son expiration (30 jours avant la fin, validité
+  de 2 ans).
+
+Dans ces cas, l'ancien certificat importé sur les postes n'est plus reconnu :
+répéter la procédure d'importation avec le nouveau `aurore-cert.pem`.
+
+**Conseil** : réserver une adresse IP fixe au poste serveur dans la box du
+cabinet (réservation DHCP), pour éviter tout changement d'adresse.

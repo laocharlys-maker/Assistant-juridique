@@ -21,10 +21,10 @@ import { X509Certificate } from "node:crypto";
  * vrai Tailscale installe.
  */
 
-const getLocalNetworkAddressMock = vi.hoisted(() => vi.fn());
+const getAllIpsMock = vi.hoisted(() => vi.fn());
 const getTailscaleAddressMock = vi.hoisted(() => vi.fn());
 vi.mock("../../config/deploymentMode", () => ({
-  getLocalNetworkAddress: getLocalNetworkAddressMock,
+  getAllPrivateIPv4Addresses: getAllIpsMock,
   getTailscaleAddress: getTailscaleAddressMock,
 }));
 
@@ -54,7 +54,7 @@ function sanDe(cert: string): string {
 
 describe("ensureLocalTlsCertificate - couverture Tailscale", () => {
   it("couvre l'adresse Tailscale quand elle est detectee", async () => {
-    getLocalNetworkAddressMock.mockReturnValue({ address: "192.168.1.199", interfaceName: "Wi-Fi" });
+    getAllIpsMock.mockReturnValue(["192.168.1.199"]);
     getTailscaleAddressMock.mockReturnValue("100.79.7.27");
 
     const { cert } = await ensureLocalTlsCertificate();
@@ -66,7 +66,7 @@ describe("ensureLocalTlsCertificate - couverture Tailscale", () => {
   });
 
   it("ne regenere pas si rien n'a change (Tailscale toujours present, meme adresse)", async () => {
-    getLocalNetworkAddressMock.mockReturnValue({ address: "192.168.1.199", interfaceName: "Wi-Fi" });
+    getAllIpsMock.mockReturnValue(["192.168.1.199"]);
     getTailscaleAddressMock.mockReturnValue("100.79.7.27");
 
     const premier = await ensureLocalTlsCertificate();
@@ -76,7 +76,7 @@ describe("ensureLocalTlsCertificate - couverture Tailscale", () => {
   });
 
   it("regenere si l'adresse Tailscale change", async () => {
-    getLocalNetworkAddressMock.mockReturnValue({ address: "192.168.1.199", interfaceName: "Wi-Fi" });
+    getAllIpsMock.mockReturnValue(["192.168.1.199"]);
     getTailscaleAddressMock.mockReturnValue("100.79.7.27");
     const avant = await ensureLocalTlsCertificate();
 
@@ -89,7 +89,7 @@ describe("ensureLocalTlsCertificate - couverture Tailscale", () => {
   });
 
   it("ne regenere PAS un certificat retrocompatible (tailscaleIp absent du meta) quand Tailscale reste absent", async () => {
-    getLocalNetworkAddressMock.mockReturnValue({ address: "192.168.1.199", interfaceName: "Wi-Fi" });
+    getAllIpsMock.mockReturnValue(["192.168.1.199"]);
     getTailscaleAddressMock.mockReturnValue(null);
     const genere = await ensureLocalTlsCertificate();
 
@@ -102,5 +102,66 @@ describe("ensureLocalTlsCertificate - couverture Tailscale", () => {
 
     const relu = await ensureLocalTlsCertificate();
     expect(relu.cert).toBe(genere.cert);
+  });
+});
+
+describe("ensureLocalTlsCertificate - stabilite (plusieurs cartes reseau)", () => {
+  it("couvre toutes les IP privees et Tailscale dans un seul certificat", async () => {
+    getAllIpsMock.mockReturnValue(["172.21.33.132", "192.168.1.132"]);
+    getTailscaleAddressMock.mockReturnValue("100.79.7.27");
+
+    const { cert } = await ensureLocalTlsCertificate();
+    const x509 = new X509Certificate(cert);
+
+    for (const ip of ["172.21.33.132", "192.168.1.132", "100.79.7.27", "127.0.0.1"]) {
+      expect(x509.checkIP(ip)).toBeTruthy();
+    }
+  });
+
+  it("ne regenere PAS quand l'ordre des cartes reseau change", async () => {
+    getTailscaleAddressMock.mockReturnValue("100.79.7.27");
+    getAllIpsMock.mockReturnValue(["172.21.33.132", "192.168.1.132"]);
+    const premier = await ensureLocalTlsCertificate();
+
+    getAllIpsMock.mockReturnValue(["192.168.1.132", "172.21.33.132"]);
+    const second = await ensureLocalTlsCertificate();
+
+    expect(second.cert).toBe(premier.cert);
+  });
+
+  it("ne regenere PAS quand une carte disparait (hotspot deconnecte, Tailscale arrete)", async () => {
+    getAllIpsMock.mockReturnValue(["172.21.33.132", "192.168.1.132"]);
+    getTailscaleAddressMock.mockReturnValue("100.79.7.27");
+    const premier = await ensureLocalTlsCertificate();
+
+    getAllIpsMock.mockReturnValue(["192.168.1.132"]);
+    getTailscaleAddressMock.mockReturnValue(null);
+    const second = await ensureLocalTlsCertificate();
+
+    expect(second.cert).toBe(premier.cert);
+  });
+
+  it("regenere (en gardant toutes les IP actuelles) quand une nouvelle IP apparait", async () => {
+    getTailscaleAddressMock.mockReturnValue(null);
+    getAllIpsMock.mockReturnValue(["192.168.1.132"]);
+    const avant = await ensureLocalTlsCertificate();
+
+    getAllIpsMock.mockReturnValue(["192.168.1.132", "192.168.1.50"]);
+    const apres = await ensureLocalTlsCertificate();
+
+    expect(apres.cert).not.toBe(avant.cert);
+    expect(new X509Certificate(apres.cert).checkIP("192.168.1.50")).toBeTruthy();
+    expect(new X509Certificate(apres.cert).checkIP("192.168.1.132")).toBeTruthy();
+  });
+
+  it("ne regenere pas hors ligne (aucune IP detectee) si le certificat reste valide", async () => {
+    getTailscaleAddressMock.mockReturnValue(null);
+    getAllIpsMock.mockReturnValue(["192.168.1.132"]);
+    const avant = await ensureLocalTlsCertificate();
+
+    getAllIpsMock.mockReturnValue([]);
+    const apres = await ensureLocalTlsCertificate();
+
+    expect(apres.cert).toBe(avant.cert);
   });
 });
