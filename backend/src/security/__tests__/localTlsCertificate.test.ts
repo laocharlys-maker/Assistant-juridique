@@ -165,3 +165,93 @@ describe("ensureLocalTlsCertificate - stabilite (plusieurs cartes reseau)", () =
     expect(apres.cert).toBe(avant.cert);
   });
 });
+
+describe("ensureLocalTlsCertificate - autorite locale (aucune action sur les postes si le certificat change)", () => {
+  const tlsPath = (name: string) => path.join(fakeAppData, "Aurore", "secrets", "tls", name);
+
+  it("signe le certificat serveur par une autorite locale (cA) distincte", async () => {
+    getTailscaleAddressMock.mockReturnValue(null);
+    getAllIpsMock.mockReturnValue(["192.168.1.132"]);
+
+    const { cert, caCertPath } = await ensureLocalTlsCertificate();
+    const ca = new X509Certificate(fs.readFileSync(caCertPath, "utf8"));
+    const leaf = new X509Certificate(cert);
+
+    expect(ca.ca).toBe(true);
+    expect(leaf.ca).toBe(false);
+    expect(leaf.verify(ca.publicKey)).toBe(true);
+    expect(fs.existsSync(tlsPath("aurore-ca.crt"))).toBe(true);
+    // Jamais la cle privee de l'autorite dans le fichier a distribuer.
+    expect(fs.readFileSync(tlsPath("aurore-ca.crt"), "utf8")).not.toContain("PRIVATE KEY");
+  });
+
+  it("regenere le certificat serveur SANS changer l'autorite (postes clients inchanges)", async () => {
+    getTailscaleAddressMock.mockReturnValue(null);
+    getAllIpsMock.mockReturnValue(["192.168.1.132"]);
+    const avant = await ensureLocalTlsCertificate();
+    const caAvant = fs.readFileSync(tlsPath("aurore-ca.pem"), "utf8");
+
+    getAllIpsMock.mockReturnValue(["192.168.1.132", "10.0.0.77"]);
+    const apres = await ensureLocalTlsCertificate();
+
+    expect(apres.cert).not.toBe(avant.cert);
+    expect(fs.readFileSync(tlsPath("aurore-ca.pem"), "utf8")).toBe(caAvant);
+    const ca = new X509Certificate(caAvant);
+    expect(new X509Certificate(apres.cert).verify(ca.publicKey)).toBe(true);
+    expect(new X509Certificate(apres.cert).checkIP("10.0.0.77")).toBeTruthy();
+  });
+
+  it("remplace un ancien certificat auto-signe (version precedente) par un certificat signe par l'autorite", async () => {
+    getTailscaleAddressMock.mockReturnValue(null);
+    getAllIpsMock.mockReturnValue(["192.168.1.132"]);
+    const { generate } = await import("selfsigned");
+    const ancien = await generate([{ name: "commonName", value: "aurore.local" }], {
+      algorithm: "sha256",
+      extensions: [{ name: "subjectAltName", altNames: [{ type: 7, ip: "192.168.1.132" }] }],
+    });
+    fs.mkdirSync(tlsPath(""), { recursive: true });
+    fs.writeFileSync(tlsPath("aurore-cert.pem"), ancien.cert);
+    fs.writeFileSync(tlsPath("aurore-key.pem"), ancien.private);
+
+    const { cert, caCertPath } = await ensureLocalTlsCertificate();
+
+    expect(cert).not.toBe(ancien.cert);
+    expect(new X509Certificate(cert).verify(new X509Certificate(fs.readFileSync(caCertPath, "utf8")).publicKey)).toBe(true);
+  });
+});
+
+describe("ensureLocalTlsCertificate - poignee de main TLS reelle", () => {
+  it("un client qui ne fait confiance QU'A l'autorite accepte le serveur, avant et apres regeneration du certificat", async () => {
+    const https = await import("node:https");
+    getTailscaleAddressMock.mockReturnValue(null);
+    getAllIpsMock.mockReturnValue(["192.168.1.132"]);
+    const premier = await ensureLocalTlsCertificate();
+    const caPem = fs.readFileSync(premier.caCertPath, "utf8");
+
+    const appeler = async (tls: { key: string; cert: string }) => {
+      const server = https.createServer({ key: tls.key, cert: tls.cert }, (_req, res) => res.end("ok"));
+      await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+      const port = (server.address() as { port: number }).port;
+      try {
+        return await new Promise<string>((resolve, reject) => {
+          https
+            .get({ host: "127.0.0.1", port, path: "/", ca: caPem, servername: "aurore.local" }, (res) => {
+              let body = "";
+              res.on("data", (c) => (body += c));
+              res.on("end", () => resolve(body));
+            })
+            .on("error", reject);
+        });
+      } finally {
+        server.close();
+      }
+    };
+
+    expect(await appeler(premier)).toBe("ok");
+
+    getAllIpsMock.mockReturnValue(["192.168.1.132", "10.9.8.7"]);
+    const second = await ensureLocalTlsCertificate();
+    expect(second.cert).not.toBe(premier.cert);
+    expect(await appeler(second)).toBe("ok");
+  });
+});

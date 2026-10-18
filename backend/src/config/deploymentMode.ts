@@ -155,24 +155,33 @@ export function getTailscaleAddress(): string | null {
 
 /**
  * TOUTES les adresses IPv4 privees (RFC 1918) de la machine, toutes
- * interfaces confondues (WiFi, Ethernet, hotspot, virtuelles...), triees
+ * interfaces confondues (WiFi, Ethernet, hotspot...), triees
  * pour un ordre deterministe. Utilisee par security/localTlsCertificate.ts :
  * le certificat doit couvrir toutes les adresses sous lesquelles un poste
  * peut joindre le serveur, et ne pas dependre de l'ordre (variable d'un
  * demarrage a l'autre) dans lequel Windows liste les cartes reseau. Les
  * adresses 169.254.x.x (APIPA, sans reseau reel) ne sont pas RFC 1918 et
  * sont donc exclues par isPrivateIPv4. Tailscale (100.64.0.0/10) est
- * traite a part par getTailscaleAddress().
+ * traite a part par getTailscaleAddress(). Les cartes virtuelles sont
+ * ecartees (voir le corps de la fonction).
  */
 export function getAllPrivateIPv4Addresses(): string[] {
-  const found = new Set<string>();
-  for (const addresses of Object.values(os.networkInterfaces())) {
+  const physiques = new Set<string>();
+  const virtuelles = new Set<string>();
+  for (const [interfaceName, addresses] of Object.entries(os.networkInterfaces())) {
     if (!addresses) continue;
+    const ressembleVirtuel = INTERFACE_NAME_DEPRIORITISE_PATTERNS.some((pattern) => pattern.test(interfaceName));
     for (const addr of addresses) {
-      if (addr.family === "IPv4" && !addr.internal && isPrivateIPv4(addr.address)) found.add(addr.address);
+      if (addr.family !== "IPv4" || addr.internal || !isPrivateIPv4(addr.address)) continue;
+      (ressembleVirtuel ? virtuelles : physiques).add(addr.address);
     }
   }
-  return [...found].sort();
+  // Les cartes virtuelles (Hyper-V/WSL "vEthernet", VirtualBox, VPN...)
+  // changent souvent d'adresse a chaque demarrage et ne sont pas des
+  // adresses sous lesquelles un poste du cabinet joint le serveur : on les
+  // ignore, sauf si c'est tout ce qu'il y a (repli, comme getLocalNetworkAddress).
+  const retenues = physiques.size > 0 ? physiques : virtuelles;
+  return [...retenues].sort();
 }
 
 export function getLocalNetworkAddress(): LocalNetworkAddress | null {

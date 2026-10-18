@@ -42,3 +42,27 @@ describe("getTailscaleAddress", () => {
     expect(getTailscaleAddress()).toBeNull();
   });
 });
+
+describe("getAllPrivateIPv4Addresses", () => {
+  it("ignore les cartes virtuelles (Hyper-V/WSL), APIPA et Tailscale ; ordre deterministe", async () => {
+    networkInterfacesMock.mockReturnValue({
+      "vEthernet (Default Switch)": [{ family: "IPv4", internal: false, address: "172.17.208.1" }],
+      "Wi-Fi": [{ family: "IPv4", internal: false, address: "192.168.1.200" }],
+      Ethernet: [{ family: "IPv4", internal: false, address: "169.254.82.65" }],
+      Tailscale: [{ family: "IPv4", internal: false, address: "100.79.7.27" }],
+      "Connexion au reseau local": [{ family: "IPv4", internal: false, address: "10.0.0.5" }],
+    });
+
+    const { getAllPrivateIPv4Addresses } = await import("../deploymentMode");
+    expect(getAllPrivateIPv4Addresses()).toEqual(["10.0.0.5", "192.168.1.200"]);
+  });
+
+  it("se replie sur les cartes virtuelles s'il n'y a rien d'autre", async () => {
+    networkInterfacesMock.mockReturnValue({
+      "vEthernet (Default Switch)": [{ family: "IPv4", internal: false, address: "172.17.208.1" }],
+    });
+
+    const { getAllPrivateIPv4Addresses } = await import("../deploymentMode");
+    expect(getAllPrivateIPv4Addresses()).toEqual(["172.17.208.1"]);
+  });
+});

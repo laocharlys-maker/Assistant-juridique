@@ -27,6 +27,8 @@ export interface LocalTlsCertificate {
   cert: string;
   certPath: string;
   keyPath: string;
+  /** Autorite locale Aurore (a importer UNE FOIS sur chaque poste client). */
+  caCertPath: string;
 }
 
 // Cert local importe manuellement (jamais chaine a une autorite
@@ -36,6 +38,12 @@ export interface LocalTlsCertificate {
 // README-LOT6.md "Certificat expire".
 const CERT_VALIDITY_DAYS = 730;
 const RENEW_MARGIN_DAYS = 30;
+// Autorite de certification locale (Aurore) : generee UNE SEULE FOIS, c'est
+// elle (et non le certificat du serveur) que les postes clients importent.
+// Le certificat du serveur, signe par elle, peut alors etre regenere a
+// volonte (nouvelle IP, expiration) sans aucune action sur les postes.
+const CA_VALIDITY_DAYS = 3650;
+const CA_RENEW_MARGIN_DAYS = 90;
 
 function tlsDir(): string {
   return path.join(secretsDir(), "tls");
@@ -54,6 +62,17 @@ function keyFilePath(): string {
  * "Resilience reseau"). */
 function metaFilePath(): string {
   return path.join(tlsDir(), "aurore-cert-meta.json");
+}
+function caCertFilePath(): string {
+  return path.join(tlsDir(), "aurore-ca.pem");
+}
+function caKeyFilePath(): string {
+  return path.join(tlsDir(), "aurore-ca-key.pem");
+}
+/** Copie de l'autorite avec l'extension .crt : Windows ouvre l'assistant
+ * d'import sur un .crt (pas sur un .pem). Meme contenu, aucune cle privee. */
+function caCrtFilePath(): string {
+  return path.join(tlsDir(), "aurore-ca.crt");
 }
 
 interface CertMeta {
@@ -90,16 +109,72 @@ function restrictFilePermissions(filePath: string): void {
   }
 }
 
-function readExistingIfStillValid(currentIps: string[]): LocalTlsCertificate | null {
+interface CaPair {
+  key: string;
+  cert: string;
+}
+
+function daysFromNow(days: number): number {
+  return Date.now() + days * 24 * 60 * 60 * 1000;
+}
+
+/** Autorite existante si lisible et pas proche de l'expiration, sinon null. */
+function readExistingCa(): CaPair | null {
+  try {
+    const cert = fs.readFileSync(caCertFilePath(), "utf8");
+    const key = fs.readFileSync(caKeyFilePath(), "utf8");
+    const x509 = new X509Certificate(cert);
+    if (new Date(x509.validTo).getTime() <= daysFromNow(CA_RENEW_MARGIN_DAYS)) return null;
+    return { key, cert };
+  } catch {
+    return null;
+  }
+}
+
+async function ensureCa(): Promise<CaPair> {
+  const existing = readExistingCa();
+  if (existing) return existing;
+
+  console.log("[tls] generation de l'autorite de certification locale Aurore (a importer une fois sur chaque poste).");
+  const notBeforeDate = new Date();
+  const notAfterDate = new Date(daysFromNow(CA_VALIDITY_DAYS));
+  const pems = await generate([{ name: "commonName", value: "Aurore - Autorite locale" }], {
+    algorithm: "sha256",
+    notBeforeDate,
+    notAfterDate,
+    keySize: 2048,
+    extensions: [
+      { name: "basicConstraints", cA: true, critical: true },
+      { name: "keyUsage", keyCertSign: true, cRLSign: true, critical: true },
+    ],
+  });
+  fs.mkdirSync(tlsDir(), { recursive: true });
+  fs.writeFileSync(caCertFilePath(), pems.cert, { mode: 0o600 });
+  fs.writeFileSync(caCrtFilePath(), pems.cert, { mode: 0o600 });
+  fs.writeFileSync(caKeyFilePath(), pems.private, { mode: 0o600 });
+  restrictFilePermissions(caKeyFilePath());
+  return { key: pems.private, cert: pems.cert };
+}
+
+function readExistingIfStillValid(currentIps: string[], ca: CaPair): LocalTlsCertificate | null {
   try {
     const certPem = fs.readFileSync(certFilePath(), "utf8");
     const keyPem = fs.readFileSync(keyFilePath(), "utf8");
     const x509 = new X509Certificate(certPem);
 
+    // Un certificat serveur d'une version anterieure (auto-signe) ou signe
+    // par une ancienne autorite n'est pas approuve par les postes qui
+    // importent l'autorite actuelle : on le remplace.
+    if (!x509.verify(new X509Certificate(ca.cert).publicKey)) {
+      console.log("[tls] le certificat existant n'est pas signe par l'autorite locale actuelle - regeneration necessaire.");
+      return null;
+    }
+
     // Regeneration uniquement si une adresse ACTUELLE n'est pas couverte par
     // le certificat existant. Un simple changement d'ordre des cartes reseau,
-    // ou la disparition d'une adresse (hotspot deconnecte), ne doit jamais
-    // invalider un certificat deja installe sur les postes clients.
+    // ou la disparition d'une adresse (hotspot deconnecte), ne regenere rien.
+    // Meme alors, les postes clients n'ont rien a refaire : ils font
+    // confiance a l'autorite, pas au certificat du serveur.
     const nonCouvertes = currentIps.filter((ip) => !x509.checkIP(ip));
     if (nonCouvertes.length > 0) {
       console.log(
@@ -108,14 +183,12 @@ function readExistingIfStillValid(currentIps: string[]): LocalTlsCertificate | n
       return null;
     }
 
-    const validTo = new Date(x509.validTo).getTime();
-    const renewBefore = validTo - RENEW_MARGIN_DAYS * 24 * 60 * 60 * 1000;
-    if (Date.now() >= renewBefore) {
+    if (new Date(x509.validTo).getTime() <= daysFromNow(RENEW_MARGIN_DAYS)) {
       console.log("[tls] le certificat existant expire bientot (ou est deja expire) - regeneration.");
       return null;
     }
 
-    return { key: keyPem, cert: certPem, certPath: certFilePath(), keyPath: keyFilePath() };
+    return { key: keyPem, cert: certPem, certPath: certFilePath(), keyPath: keyFilePath(), caCertPath: caCertFilePath() };
   } catch {
     // Absent au premier lancement, ou illisible/corrompu - generation
     // normale ci-dessous dans les deux cas.
@@ -124,20 +197,20 @@ function readExistingIfStillValid(currentIps: string[]): LocalTlsCertificate | n
 }
 
 /**
- * Retourne un certificat TLS local valide pour l'IP actuelle, l'adresse
- * Tailscale actuelle (si Tailscale est installe et connecte - voir
- * getTailscaleAddress ci-dessous, accès distant hors du réseau du cabinet)
- * et "aurore.local", en generant un nouveau certificat si necessaire
- * (absent, expire bientot, ou IP locale/Tailscale changee depuis la
- * derniere generation). Jamais de duplication de logique de detection
- * reseau (reutilise getLocalNetworkAddress()/getTailscaleAddress() de
- * config/deploymentMode.ts).
+ * Retourne un certificat TLS local valide pour toutes les IP privees
+ * actuelles (hors cartes virtuelles), l'adresse Tailscale (si active) et
+ * "aurore.local", SIGNE par l'autorite locale Aurore (creee au premier
+ * lancement). Les postes clients importent l'autorite UNE SEULE FOIS
+ * (aurore-ca.crt) ; le certificat serveur peut ensuite etre regenere
+ * (nouvelle IP, expiration) sans aucune action sur les postes.
  */
 export async function ensureLocalTlsCertificate(): Promise<LocalTlsCertificate> {
   const localIps = getAllPrivateIPv4Addresses();
   const tailscaleIp = getTailscaleAddress();
 
-  const existing = readExistingIfStillValid(tailscaleIp ? [...localIps, tailscaleIp] : localIps);
+  const ca = await ensureCa();
+
+  const existing = readExistingIfStillValid(tailscaleIp ? [...localIps, tailscaleIp] : localIps, ca);
   if (existing) {
     console.log("[tls] certificat local existant reutilise (valide, couvre l'adresse actuelle).");
     return existing;
@@ -160,13 +233,14 @@ export async function ensureLocalTlsCertificate(): Promise<LocalTlsCertificate> 
   if (tailscaleIp) altNames.push({ type: 7, ip: tailscaleIp });
 
   const notBeforeDate = new Date();
-  const notAfterDate = new Date(notBeforeDate.getTime() + CERT_VALIDITY_DAYS * 24 * 60 * 60 * 1000);
+  const notAfterDate = new Date(daysFromNow(CERT_VALIDITY_DAYS));
 
   const pems = await generate([{ name: "commonName", value: "aurore.local" }], {
     algorithm: "sha256",
     notBeforeDate,
     notAfterDate,
     keySize: 2048,
+    ca: { key: ca.key, cert: ca.cert },
     extensions: [
       { name: "basicConstraints", cA: false },
       { name: "keyUsage", digitalSignature: true, keyEncipherment: true },
@@ -183,8 +257,8 @@ export async function ensureLocalTlsCertificate(): Promise<LocalTlsCertificate> 
   restrictFilePermissions(keyFilePath());
 
   console.log(
-    `[tls] certificat genere (${certFilePath()}) - a distribuer aux postes clients pour eviter l'avertissement de securite, voir installer/import-cert-instructions.md.`
+    `[tls] certificat genere. A importer UNE FOIS sur chaque poste client : ${caCrtFilePath()} (voir installer/import-cert-instructions.md).`
   );
 
-  return { key: pems.private, cert: pems.cert, certPath: certFilePath(), keyPath: keyFilePath() };
+  return { key: pems.private, cert: pems.cert, certPath: certFilePath(), keyPath: keyFilePath(), caCertPath: caCertFilePath() };
 }
