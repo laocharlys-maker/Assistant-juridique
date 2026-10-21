@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { X509Certificate } from "node:crypto";
 import { execFileSync } from "node:child_process";
@@ -114,6 +115,90 @@ interface CaPair {
   cert: string;
 }
 
+/** Nom Windows de ce PC (ex. "desktop-c89vobu"), joignable sur le reseau local
+ * sans configuration (NetBIOS/LLMNR) et suivant automatiquement l'IP du PC :
+ * bien plus fiable que "aurore.local" (mDNS, souvent bloque par la box ou le
+ * pare-feu). Inclus dans le certificat pour que https://<nom-du-pc>:PORT soit
+ * accepte par les navigateurs. null si le nom n'est pas un nom DNS valide. */
+function serverHostname(): string | null {
+  const name = os.hostname().trim().toLowerCase();
+  return /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/.test(name) ? name : null;
+}
+
+const CLIENT_KIT_DIR = "POUR-LES-POSTES";
+
+// ASCII uniquement : la console Windows (cmd) n'affiche pas correctement les
+// accents d'un .bat ecrit en UTF-8.
+const CLIENT_INSTALL_SCRIPT = [
+  "@echo off",
+  "setlocal",
+  "title Installation du certificat Aurore",
+  "net session >nul 2>&1",
+  "if %errorlevel% neq 0 (",
+  "  echo Demande des droits administrateur...",
+  "  powershell -NoProfile -Command \"Start-Process -FilePath '%~f0' -Verb RunAs\"",
+  "  exit /b",
+  ")",
+  "cd /d \"%~dp0\"",
+  "if not exist \"aurore-ca.crt\" (",
+  "  echo ERREUR : le fichier aurore-ca.crt doit etre dans le meme dossier que ce script.",
+  "  pause",
+  "  exit /b 1",
+  ")",
+  "echo.",
+  "echo 1/3 Suppression des anciens certificats Aurore (versions precedentes)...",
+  "powershell -NoProfile -Command \"Get-ChildItem Cert:\\LocalMachine\\Root | Where-Object { $_.Subject -like '*aurore.local*' } | Remove-Item\"",
+  "echo.",
+  "echo 2/3 Installation de l'autorite Aurore...",
+  "certutil -addstore -f Root \"%~dp0aurore-ca.crt\"",
+  "if errorlevel 1 (",
+  "  echo ECHEC de l'installation.",
+  "  pause",
+  "  exit /b 1",
+  ")",
+  "echo.",
+  "echo 3/3 Verification...",
+  "powershell -NoProfile -Command \"$c = Get-ChildItem Cert:\\LocalMachine\\Root | Where-Object { $_.Subject -like '*Aurore - Autorite locale*' }; if ($c) { $c | ForEach-Object { 'OK : ' + $_.Subject + ' valable jusqu au ' + $_.NotAfter.ToString('dd/MM/yyyy') } } else { 'ERREUR : autorite introuvable apres installation' }\"",
+  "echo.",
+  "echo Termine. FERMEZ COMPLETEMENT le navigateur (Chrome, Edge...) puis rouvrez-le.",
+  "pause",
+  "",
+].join("\r\n");
+
+const CLIENT_README = [
+  "INSTALLER LE CERTIFICAT AURORE SUR UN POSTE (une seule fois par poste)",
+  "",
+  "1. Copiez TOUT ce dossier (POUR-LES-POSTES) sur le poste, ou branchez la cle USB.",
+  "2. Double-cliquez sur Installer-certificat-Aurore.bat",
+  "   (acceptez la fenetre Windows qui demande les droits administrateur).",
+  "3. Verifiez que le message affiche \"OK : CN=Aurore - Autorite locale ... valable jusqu au ...\"",
+  "   (la date doit etre dans environ 10 ans).",
+  "4. Fermez COMPLETEMENT le navigateur, puis rouvrez-le.",
+  "",
+  "Ce dossier ne contient AUCUNE cle privee : il peut etre copie sans risque.",
+  "N'installez JAMAIS un autre fichier que aurore-ca.crt (ni aurore-cert.pem).",
+  "",
+  "Adresse du serveur a taper dans le navigateur : https://" + "<nom-du-PC-serveur>:3000",
+  "ou https://<adresse IP du serveur>:3000 (voir l'ecran Mode reseau d'Aurore).",
+  "Firefox utilise son propre magasin de certificats : utilisez Chrome ou Edge.",
+  "",
+].join("\r\n");
+
+/** Dossier a copier tel quel sur chaque poste : l'autorite (sans cle privee) +
+ * un script qui l'installe en un double-clic (plus aucune commande a taper,
+ * ni de risque d'importer le mauvais fichier). Reecrit a chaque demarrage. */
+function writeClientKit(caCertPem: string): void {
+  try {
+    const dir = path.join(tlsDir(), CLIENT_KIT_DIR);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, "aurore-ca.crt"), caCertPem);
+    fs.writeFileSync(path.join(dir, "Installer-certificat-Aurore.bat"), CLIENT_INSTALL_SCRIPT);
+    fs.writeFileSync(path.join(dir, "LISEZ-MOI.txt"), CLIENT_README);
+  } catch (error) {
+    console.warn("[tls] impossible d'ecrire le dossier POUR-LES-POSTES (ignore) :", error instanceof Error ? error.message : error);
+  }
+}
+
 function daysFromNow(days: number): number {
   return Date.now() + days * 24 * 60 * 60 * 1000;
 }
@@ -176,6 +261,8 @@ function readExistingIfStillValid(currentIps: string[], ca: CaPair): LocalTlsCer
     // Meme alors, les postes clients n'ont rien a refaire : ils font
     // confiance a l'autorite, pas au certificat du serveur.
     const nonCouvertes = currentIps.filter((ip) => !x509.checkIP(ip));
+    const host = serverHostname();
+    if (host && !x509.checkHost(host)) nonCouvertes.push(host);
     if (nonCouvertes.length > 0) {
       console.log(
         `[tls] adresse(s) non couverte(s) par le certificat existant (${nonCouvertes.join(", ")}) - regeneration necessaire.`
@@ -209,6 +296,7 @@ export async function ensureLocalTlsCertificate(): Promise<LocalTlsCertificate> 
   const tailscaleIp = getTailscaleAddress();
 
   const ca = await ensureCa();
+  writeClientKit(ca.cert);
 
   const existing = readExistingIfStillValid(tailscaleIp ? [...localIps, tailscaleIp] : localIps, ca);
   if (existing) {
@@ -229,6 +317,8 @@ export async function ensureLocalTlsCertificate(): Promise<LocalTlsCertificate> 
     { type: 2, value: "localhost" },
     { type: 7, ip: "127.0.0.1" },
   ];
+  const host = serverHostname();
+  if (host) altNames.push({ type: 2, value: host });
   for (const ip of localIps) altNames.push({ type: 7, ip });
   if (tailscaleIp) altNames.push({ type: 7, ip: tailscaleIp });
 

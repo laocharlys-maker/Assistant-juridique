@@ -19,7 +19,38 @@ apparaît uniquement parce que l'autorité n'est pas encore connue du poste.
 Ne "passez outre" que pour l'adresse de **votre propre serveur Aurore**
 (`https://aurore.local:3000` ou l'IP indiquée par le cabinet).
 
-## Étapes
+## Méthode simple (recommandée) : le dossier POUR-LES-POSTES
+
+Aurore prépare automatiquement, sur le serveur, un dossier prêt à copier :
+
+`%APPDATA%\Aurore\secrets\tls\POUR-LES-POSTES`
+
+1. Copiez **tout ce dossier** sur une clé USB (il ne contient aucune clé privée).
+2. Sur chaque poste : double-clic sur **Installer-certificat-Aurore.bat**
+   (acceptez la demande d'administrateur). Le script supprime les anciens
+   certificats Aurore, installe l'autorité et affiche
+   `OK : CN=Aurore - Autorite locale ... valable jusqu'au ...` (environ 10 ans).
+3. Fermez **complètement** le navigateur (Chrome, Edge...) puis rouvrez-le.
+
+**N'installez jamais `aurore-cert.pem` ni un fichier `aurore-cert.crt`** : ce
+sont des certificats du serveur (valables 2 ans, remplacés régulièrement), pas
+l'autorité. Si, après installation, la validité affichée est de 2 ans, vous
+avez installé le mauvais fichier : refaites l'opération avec le dossier
+`POUR-LES-POSTES`. Firefox utilise son propre magasin : utilisez Chrome ou Edge.
+
+## Adresse à utiliser dans le navigateur
+
+`aurore.local` repose sur le protocole mDNS, souvent bloqué par la box ou le
+pare-feu : **ne comptez pas dessus**. Utilisez plutôt, par ordre de fiabilité :
+
+1. **Le nom Windows du PC serveur** : `https://NOM-DU-PC:3000` (ex.
+   `https://desktop-c89vobu:3000`). Il suit automatiquement l'adresse IP du PC,
+   et le certificat le couvre. Conseil : renommer le PC serveur en `AURORE`
+   (Paramètres, Système, Informations système, Renommer ce PC) pour obtenir
+   `https://aurore:3000`.
+2. L'adresse IP du serveur : `https://192.168.x.x:3000`.
+
+## Méthode manuelle (si le dossier n'est pas disponible)
 
 ### 1. Récupérer le fichier sur le serveur
 

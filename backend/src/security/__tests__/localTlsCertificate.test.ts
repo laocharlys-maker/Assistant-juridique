@@ -255,3 +255,36 @@ describe("ensureLocalTlsCertificate - poignee de main TLS reelle", () => {
     expect(await appeler(second)).toBe("ok");
   });
 });
+
+describe("ensureLocalTlsCertificate - nom du PC et dossier POUR-LES-POSTES", () => {
+  const tlsPath = (...p: string[]) => path.join(fakeAppData, "Aurore", "secrets", "tls", ...p);
+
+  it("couvre le nom Windows du PC (joignable sans mDNS) et ne regenere pas en boucle", async () => {
+    getTailscaleAddressMock.mockReturnValue(null);
+    getAllIpsMock.mockReturnValue(["192.168.1.132"]);
+    const premier = await ensureLocalTlsCertificate();
+    const nom = os.hostname().trim().toLowerCase();
+    if (/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/.test(nom)) {
+      expect(new X509Certificate(premier.cert).checkHost(nom)).toBeTruthy();
+    }
+    const second = await ensureLocalTlsCertificate();
+    expect(second.cert).toBe(premier.cert);
+  });
+
+  it("ecrit un dossier a copier sur les postes : autorite sans cle privee + script d'installation", async () => {
+    getTailscaleAddressMock.mockReturnValue(null);
+    getAllIpsMock.mockReturnValue(["192.168.1.132"]);
+    await ensureLocalTlsCertificate();
+
+    const crt = fs.readFileSync(tlsPath("POUR-LES-POSTES", "aurore-ca.crt"), "utf8");
+    expect(crt).toContain("BEGIN CERTIFICATE");
+    expect(crt).not.toContain("PRIVATE KEY");
+    expect(new X509Certificate(crt).ca).toBe(true);
+
+    const bat = fs.readFileSync(tlsPath("POUR-LES-POSTES", "Installer-certificat-Aurore.bat"), "utf8");
+    expect(bat).toContain("certutil -addstore -f Root");
+    expect(bat).toContain("Verb RunAs");
+    expect(/[^\x00-\x7F]/.test(bat)).toBe(false); // ASCII only (console cmd)
+    expect(fs.existsSync(tlsPath("POUR-LES-POSTES", "LISEZ-MOI.txt"))).toBe(true);
+  });
+});
