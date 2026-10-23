@@ -99,7 +99,10 @@ export default function AppairageScreen({ onAppaire }: { onAppaire: () => void }
       } else if (error instanceof SecretInvalideError) {
         setMessage("Ce QR n'est pas valide.");
       } else if (error instanceof PcIntrouvableError) {
-        setMessage("Aurore introuvable sur ce réseau. Vérifie que l'ordinateur et le téléphone sont sur le même Wi-Fi.");
+        const essayees = error.adresses.length > 0 ? ` Adresses essayées : ${error.adresses.join(", ")}.` : "";
+        setMessage(
+          `Aurore introuvable sur ce réseau. Vérifie que l'ordinateur et le téléphone sont sur le même Wi-Fi.${essayees}`
+        );
       } else {
         setMessage("Échec de l'appairage. Réessaie.");
       }

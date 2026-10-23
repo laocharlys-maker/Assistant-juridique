@@ -39,8 +39,29 @@ export class QrExpireError extends Error {
   }
 }
 export class PcIntrouvableError extends Error {
-  constructor(options?: { cause?: unknown }) {
-    super("PC_INTROUVABLE", options);
+  /** Adresses essayées (affichées à l'écran pour aider au diagnostic). */
+  adresses: string[];
+  constructor(options?: { cause?: unknown; adresses?: string[] }) {
+    super("PC_INTROUVABLE", options?.cause !== undefined ? { cause: options.cause } : undefined);
+    this.adresses = options?.adresses ?? [];
+  }
+}
+
+// Une adresse injoignable (IP d'une carte virtuelle, pare-feu qui ignore les
+// paquets...) ne répond jamais : sans délai maximal, Android attend la fin du
+// timeout TCP (souvent plus d'une minute) POUR CHAQUE adresse du QR avant
+// d'afficher "Aurore introuvable". Réservé à l'appairage (requête minuscule) :
+// ne jamais l'appliquer aux envois d'enregistrements/scans, qui peuvent
+// légitimement durer plus longtemps sur un gros fichier.
+const DELAI_APPAIRAGE_PAR_ADRESSE_MS = 5000;
+
+async function fetchAvecDelai(url: string, init: RequestInit, delaiMs: number): Promise<Response> {
+  const controleur = new AbortController();
+  const minuterie = setTimeout(() => controleur.abort(), delaiMs);
+  try {
+    return await fetch(url, { ...init, signal: controleur.signal });
+  } finally {
+    clearTimeout(minuterie);
   }
 }
 export class SecretInvalideError extends Error {
@@ -108,11 +129,15 @@ export async function demanderAppairage(
   let derniereErreurReseau: unknown = null;
   for (const adresse of qr.adresses) {
     try {
-      const reponse = await fetch(`http://${adresse}/api/m/appairage/demander`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(corps),
-      });
+      const reponse = await fetchAvecDelai(
+        `http://${adresse}/api/m/appairage/demander`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(corps),
+        },
+        DELAI_APPAIRAGE_PAR_ADRESSE_MS
+      );
       if (reponse.status === 410) throw new QrExpireError();
       if (reponse.status === 401) throw new SecretInvalideError();
       if (!reponse.ok) {
@@ -140,7 +165,10 @@ export async function demanderAppairage(
       // Adresse suivante.
     }
   }
-  throw new PcIntrouvableError(derniereErreurReseau instanceof Error ? { cause: derniereErreurReseau } : undefined);
+  throw new PcIntrouvableError({
+    ...(derniereErreurReseau instanceof Error ? { cause: derniereErreurReseau } : {}),
+    adresses: qr.adresses,
+  });
 }
 
 export async function estAppaire(): Promise<boolean> {

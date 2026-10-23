@@ -79,10 +79,35 @@ describe("demanderAppairage", () => {
     expect(fetchMock.mock.calls[1][0]).toBe("http://192.168.1.11:3100/api/m/appairage/demander");
   });
 
-  it("lève PcIntrouvableError si aucune adresse ne répond", async () => {
+  it("lève PcIntrouvableError si aucune adresse ne répond, en indiquant les adresses essayées", async () => {
     const fetchMock = global.fetch as jest.Mock;
     fetchMock.mockRejectedValue(new Error("ECONNREFUSED"));
-    await expect(demanderAppairage(QR_VALIDE, "Mon téléphone")).rejects.toThrow(PcIntrouvableError);
+    const erreur = await demanderAppairage(QR_VALIDE, "Mon téléphone").catch((e) => e);
+    expect(erreur).toBeInstanceOf(PcIntrouvableError);
+    expect((erreur as PcIntrouvableError).adresses).toEqual(QR_VALIDE.adresses);
+  });
+
+  it("abandonne après 5 s une adresse qui ne répond jamais (au lieu d'attendre le timeout TCP) et essaie la suivante", async () => {
+    jest.useFakeTimers();
+    try {
+      const fetchMock = global.fetch as jest.Mock;
+      fetchMock.mockImplementationOnce(
+        (_url: string, init: { signal: AbortSignal }) =>
+          new Promise((_resolve, reject) => {
+            init.signal.addEventListener("abort", () => reject(new Error("aborted")));
+          })
+      );
+      fetchMock.mockResolvedValueOnce({ ok: true, status: 201, json: async () => ({ deviceId: "device-3", statut: "en_attente" }) });
+
+      const promesse = demanderAppairage(QR_VALIDE, "Mon téléphone");
+      await jest.advanceTimersByTimeAsync(5000);
+      const resultat = await promesse;
+
+      expect(resultat.deviceId).toBe("device-3");
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it("lève QrExpireError sur une réponse 410 (jamais d'essai sur l'adresse suivante)", async () => {

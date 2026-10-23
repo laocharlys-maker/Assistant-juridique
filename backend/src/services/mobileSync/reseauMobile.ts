@@ -1,5 +1,5 @@
 import os from "node:os";
-import { isPrivateIPv4 } from "../../config/deploymentMode";
+import { getAllPrivateIPv4Addresses, isPrivateIPv4 } from "../../config/deploymentMode";
 
 /**
  * Liste TOUTES les adresses IPv4 locales candidates (contrairement a
@@ -10,6 +10,13 @@ import { isPrivateIPv4 } from "../../config/deploymentMode";
  * `interfaceChoisie` (Cabinet.mobileSyncInterface) si renseignee.
  */
 export function listerAdressesLocales(interfaceChoisie: string | null): string[] {
+  // Aucune interface choisie : uniquement les cartes réelles (Wi-Fi, Ethernet).
+  // Les cartes virtuelles (Hyper-V/WSL, VirtualBox, VPN...) ne sont pas
+  // joignables depuis le téléphone ; chaque adresse inutile dans le QR
+  // allongeait l'attente avant "Aurore introuvable" (voir aussi le délai
+  // maximal par adresse dans mobile/src/pairing/appareil.ts).
+  if (!interfaceChoisie) return getAllPrivateIPv4Addresses();
+
   const interfaces = os.networkInterfaces();
   const adresses: string[] = [];
   for (const [nomInterface, infos] of Object.entries(interfaces)) {
