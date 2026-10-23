@@ -7,6 +7,7 @@ import {
   envoyerRequeteAuthentifiee,
   QrExpireError,
   PcIntrouvableError,
+  ServeurRefuseError,
   SecretInvalideError,
 } from "../pairing/appareil";
 import DeviceIntegrity from "../../modules/device-integrity/src/DeviceIntegrityModule";
@@ -98,6 +99,9 @@ export default function AppairageScreen({ onAppaire }: { onAppaire: () => void }
         setMessage("Ce QR a expiré ou a déjà été utilisé. Génère un nouveau QR sur l'ordinateur.");
       } else if (error instanceof SecretInvalideError) {
         setMessage("Ce QR n'est pas valide.");
+      } else if (error instanceof ServeurRefuseError) {
+        const raison = error.detail ? ` : ${error.detail}` : "";
+        setMessage(`Aurore a répondu mais a refusé la demande (code ${error.statut}${raison}). Signale-le au titulaire.`);
       } else if (error instanceof PcIntrouvableError) {
         const essayees = error.adresses.length > 0 ? ` Adresses essayées : ${error.adresses.join(", ")}.` : "";
         setMessage(

@@ -47,6 +47,17 @@ export class PcIntrouvableError extends Error {
   }
 }
 
+/** Aurore a répondu à l'appairage mais l'a refusé (hors QR expiré/invalide). */
+export class ServeurRefuseError extends Error {
+  statut: number;
+  detail?: string;
+  constructor(statut: number, detail?: string) {
+    super(`SERVEUR_REFUSE_${statut}`);
+    this.statut = statut;
+    this.detail = detail;
+  }
+}
+
 // Une adresse injoignable (IP d'une carte virtuelle, pare-feu qui ignore les
 // paquets...) ne répond jamais : sans délai maximal, Android attend la fin du
 // timeout TCP (souvent plus d'une minute) POUR CHAQUE adresse du QR avant
@@ -127,6 +138,7 @@ export async function demanderAppairage(
   };
 
   let derniereErreurReseau: unknown = null;
+  let derniereReponseRefusee: { statut: number; message?: string } | null = null;
   for (const adresse of qr.adresses) {
     try {
       const reponse = await fetchAvecDelai(
@@ -141,7 +153,14 @@ export async function demanderAppairage(
       if (reponse.status === 410) throw new QrExpireError();
       if (reponse.status === 401) throw new SecretInvalideError();
       if (!reponse.ok) {
-        derniereErreurReseau = new Error(`HTTP ${reponse.status}`);
+        // Le serveur A répondu (adresse joignable) mais refuse la demande :
+        // ce n'est PAS "Aurore introuvable" - on garde le code et le message
+        // pour les afficher (licence refusée, trop de requêtes, etc.).
+        const corpsErreur = (await reponse.json().catch(() => null)) as { error?: unknown } | null;
+        derniereReponseRefusee = {
+          statut: reponse.status,
+          message: typeof corpsErreur?.error === "string" ? corpsErreur.error : undefined,
+        };
         continue;
       }
       const data = (await reponse.json()) as { deviceId: string; statut: string };
@@ -164,6 +183,9 @@ export async function demanderAppairage(
       derniereErreurReseau = error;
       // Adresse suivante.
     }
+  }
+  if (derniereReponseRefusee) {
+    throw new ServeurRefuseError(derniereReponseRefusee.statut, derniereReponseRefusee.message);
   }
   throw new PcIntrouvableError({
     ...(derniereErreurReseau instanceof Error ? { cause: derniereErreurReseau } : {}),

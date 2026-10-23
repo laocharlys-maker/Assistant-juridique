@@ -18,6 +18,7 @@ import {
   QrExpireError,
   SecretInvalideError,
   PcIntrouvableError,
+  ServeurRefuseError,
   AppareilRevoqueError,
 } from "./appareil";
 import {
@@ -248,5 +249,18 @@ describe("envoyerRequeteAuthentifiee", () => {
     (global.fetch as jest.Mock).mockRejectedValue(new Error("injoignable"));
     await expect(envoyerRequeteAuthentifiee("/api/m/ping", {})).rejects.toThrow(PcIntrouvableError);
     expect(global.fetch).toHaveBeenCalledTimes(2); // les 2 adresses connues, jamais plus.
+  });
+});
+
+describe("demanderAppairage - le serveur répond mais refuse (≠ introuvable)", () => {
+  it("lève ServeurRefuseError avec le code et le message quand Aurore répond 403, au lieu de 'introuvable'", async () => {
+    const fetchMock = global.fetch as jest.Mock;
+    fetchMock.mockResolvedValue({ ok: false, status: 403, json: async () => ({ error: "Licence invalide" }) });
+
+    const erreur = await demanderAppairage(QR_VALIDE, "Mon téléphone").catch((e) => e);
+
+    expect(erreur).toBeInstanceOf(ServeurRefuseError);
+    expect((erreur as ServeurRefuseError).statut).toBe(403);
+    expect((erreur as ServeurRefuseError).detail).toBe("Licence invalide");
   });
 });
