@@ -325,12 +325,59 @@ function isRevoqueeThisSession(): boolean {
   return cachedRevoquee;
 }
 
+function licenceBackupPath(): string {
+  return `${licenceFilePath()}.bak`;
+}
+
+/** true si le fichier est lisible ET porte une signature valide. */
+function fichierLicenceValide(chemin: string): boolean {
+  try {
+    const file = parseLicenceFileContent(fs.readFileSync(chemin, "utf8"));
+    return verifyLicenceSignature(file.payload, file.signature);
+  } catch {
+    return false;
+  }
+}
+
 function writeLicenceFileAtomic(file: LicenceFile): void {
   fs.mkdirSync(userDataDir(), { recursive: true });
   const finalPath = licenceFilePath();
   const tmpPath = `${finalPath}.tmp-${process.pid}`;
-  fs.writeFileSync(tmpPath, JSON.stringify(file, null, 2));
+
+  // BUG CORRIGE (2026-10) : le rename seul ne garantit pas que le CONTENU du
+  // fichier temporaire soit deja sur le disque - apres une coupure de
+  // courant ou un arret brutal de Windows, licence.lic pouvait se retrouver
+  // vide (0 octet) => "Fichier de licence invalide ou corrompu" alors que la
+  // licence etait valable. fsync AVANT le rename, et copie de la derniere
+  // licence valide (.bak) pour pouvoir la restaurer automatiquement.
+  const fd = fs.openSync(tmpPath, "w");
+  try {
+    fs.writeFileSync(fd, JSON.stringify(file, null, 2));
+    fs.fsyncSync(fd);
+  } finally {
+    fs.closeSync(fd);
+  }
+  try {
+    if (fichierLicenceValide(finalPath)) fs.copyFileSync(finalPath, licenceBackupPath());
+  } catch {
+    // La sauvegarde est un confort : jamais un echec d'activation/renouvellement.
+  }
   fs.renameSync(tmpPath, finalPath);
+}
+
+/** Auto-reparation : si licence.lic existe mais est vide/corrompu alors qu'une
+ * sauvegarde valide (.bak) existe, la restaure. Ne remplace jamais un fichier
+ * valide, et ne touche a rien s'il n'y a pas de sauvegarde valide. */
+function restaurerLicenceDepuisSauvegardeSiNecessaire(): void {
+  try {
+    const principal = licenceFilePath();
+    if (!fs.existsSync(principal) || fichierLicenceValide(principal)) return;
+    if (!fichierLicenceValide(licenceBackupPath())) return;
+    fs.copyFileSync(licenceBackupPath(), principal);
+    console.warn("[licence] licence.lic etait vide ou corrompu - restauree depuis la derniere sauvegarde valide.");
+  } catch (error) {
+    console.error("[licence] restauration depuis la sauvegarde impossible :", error instanceof Error ? error.message : error);
+  }
 }
 
 const graceJoursConfigures = (): number => {
@@ -347,6 +394,8 @@ export async function getCurrentLicenceStatus(): Promise<LicenceStatus> {
   // a transmettre a AzoMedIA pour sa toute premiere licence (voir le champ
   // empreinteMachine ci-dessous, et README aurore-licence-service).
   const fingerprint = await getMachineFingerprint();
+
+  restaurerLicenceDepuisSauvegardeSiNecessaire();
 
   if (!fs.existsSync(licenceFilePath())) {
     return {

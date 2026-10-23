@@ -337,3 +337,35 @@ describe("calculerModulesDesactives (Lot 20ter) - controle fin par action, dashb
     expect(() => calculerModulesDesactives(["cle_future_inconnue"])).not.toThrow();
   });
 });
+
+describe("licence.lic vide ou corrompu (coupure de courant) - auto-reparation", () => {
+  const licencePath = () => path.join(fakeAppData, "Aurore", "licence.lic");
+
+  it("restaure automatiquement la derniere licence valide si licence.lic est vide (0 octet)", async () => {
+    await activerLicence("auto");
+    // Un 2e enregistrement cree la sauvegarde (.bak) de la licence precedente valide.
+    await activerLicence("auto");
+    expect(fs.existsSync(`${licencePath()}.bak`)).toBe(true);
+
+    fs.writeFileSync(licencePath(), ""); // etat laisse par un arret brutal du PC
+    const statut = await getCurrentLicenceStatus();
+
+    expect(statut.etat).toBe("valide");
+    expect(fs.statSync(licencePath()).size).toBeGreaterThan(0);
+  });
+
+  it("ne remplace jamais une licence valide par la sauvegarde", async () => {
+    await activerLicence("auto");
+    const avant = fs.readFileSync(licencePath(), "utf8");
+    fs.writeFileSync(`${licencePath()}.bak`, "contenu quelconque");
+    await getCurrentLicenceStatus();
+    expect(fs.readFileSync(licencePath(), "utf8")).toBe(avant);
+  });
+
+  it("sans sauvegarde valide : reste 'bloquee' (message d'invalidite), sans rien inventer", async () => {
+    fs.rmSync(`${licencePath()}.bak`, { force: true });
+    fs.writeFileSync(licencePath(), "");
+    const statut = await getCurrentLicenceStatus();
+    expect(statut.etat).toBe("bloquee");
+  });
+});
