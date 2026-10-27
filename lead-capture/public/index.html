@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Demande de démo — AzoMedIA</title>
+<meta name="description" content="Demande une démo gratuite des solutions numériques AzoMedIA.">
+<style>
+  :root { --bg:#0b1220; --card:#121a2e; --text:#eef2ff; --muted:#9aa7c7; --accent:#22d3a6; --line:#26324f; --err:#ff6b6b; }
+  @media (prefers-color-scheme: light) { :root { --bg:#f4f6fb; --card:#fff; --text:#0b1220; --muted:#5a6785; --line:#d9e0f0; } }
+  * { box-sizing: border-box; }
+  body { margin:0; min-height:100vh; display:grid; place-items:center; padding:16px; background:var(--bg); color:var(--text); font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  main { width:100%; max-width:420px; background:var(--card); border:1px solid var(--line); border-radius:18px; padding:24px 20px; }
+  .brand { font-weight:800; letter-spacing:.3px; color:var(--accent); font-size:14px; }
+  h1 { font-size:24px; line-height:1.2; margin:8px 0 6px; }
+  p.sub { margin:0 0 20px; color:var(--muted); font-size:15px; }
+  label { display:block; font-size:14px; font-weight:600; margin:14px 0 6px; }
+  input, select { width:100%; padding:13px 14px; font-size:16px; color:var(--text); background:transparent; border:1px solid var(--line); border-radius:10px; }
+  input:focus, select:focus { outline:2px solid var(--accent); border-color:transparent; }
+  select option { color:#000; }
+  button { width:100%; margin-top:22px; padding:15px; font-size:17px; font-weight:700; color:#04201a; background:var(--accent); border:0; border-radius:12px; cursor:pointer; }
+  button:disabled { opacity:.6; cursor:wait; }
+  .hp { position:absolute; left:-9999px; }
+  .err { color:var(--err); font-size:14px; margin-top:12px; min-height:1em; }
+  .ok { text-align:center; padding:12px 0; }
+  .ok .tick { font-size:48px; }
+  .ok a { display:inline-block; margin-top:14px; color:var(--accent); font-weight:600; }
+  [hidden] { display:none !important; }
+  .legal { font-size:12px; color:var(--muted); margin:14px 0 0; text-align:center; }
+</style>
+</head>
+<body>
+<main>
+  <form id="f" novalidate>
+    <div class="brand">AzoMedIA</div>
+    <h1>Demande ta démo gratuite</h1>
+    <p class="sub">30 secondes. On te recontacte sur WhatsApp pour fixer un créneau.</p>
+
+    <label for="nom">Ton nom</label>
+    <input id="nom" name="nom" autocomplete="name" required placeholder="Ex : Awa Dossou">
+
+    <label for="telephone">Numéro WhatsApp</label>
+    <input id="telephone" name="telephone" type="tel" inputmode="tel" autocomplete="tel" required placeholder="Ex : +229 01 23 45 67">
+
+    <label for="entreprise">Entreprise <span style="font-weight:400;color:var(--muted)">(facultatif)</span></label>
+    <input id="entreprise" name="entreprise" autocomplete="organization" placeholder="Ex : Clinique Espoir">
+
+    <label for="besoin">Ce qui t'intéresse</label>
+    <select id="besoin" name="besoin">
+      <option>Pointage biométrique des employés</option>
+      <option>Agent conversationnel WhatsApp / téléphone</option>
+      <option>Suivi automatisé des patients</option>
+      <option>Formation à l'Intelligence Artificielle</option>
+      <option>Je ne sais pas encore</option>
+    </select>
+
+    <input class="hp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+    <button id="btn" type="submit">Je veux ma démo</button>
+    <div class="err" id="err" role="alert"></div>
+    <p class="legal">Tes infos servent uniquement à te recontacter pour la démo.</p>
+  </form>
+
+  <div class="ok" id="ok" hidden>
+    <div class="tick">✅</div>
+    <h1>Merci !</h1>
+    <p class="sub">On te contacte très vite sur WhatsApp.</p>
+    <a href="https://wa.me/" id="wa" hidden>Ou écris-nous maintenant</a>
+  </div>
+</main>
+
+<script>
+  const f = document.getElementById('f'), err = document.getElementById('err'), btn = document.getElementById('btn');
+  const source = new URLSearchParams(location.search).get('s') || 'qr';
+  f.addEventListener('submit', async e => {
+    e.preventDefault();
+    err.textContent = '';
+    const data = Object.fromEntries(new FormData(f));
+    if (data.nom.trim().length < 2) return err.textContent = 'Indique ton nom.';
+    if (data.telephone.replace(/\D/g, '').length < 8) return err.textContent = 'Numéro WhatsApp invalide.';
+    btn.disabled = true; btn.textContent = 'Envoi…';
+    try {
+      const r = await fetch('/api/lead', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ...data, source }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || 'Erreur, réessaie.');
+      f.hidden = true; document.getElementById('ok').hidden = false;
+    } catch (x) {
+      err.textContent = x.message === 'Failed to fetch' ? 'Pas de connexion. Réessaie.' : x.message;
+      btn.disabled = false; btn.textContent = 'Je veux ma démo';
+    }
+  });
+</script>
+</body>
+</html>
